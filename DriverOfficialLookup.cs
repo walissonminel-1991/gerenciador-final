@@ -8,6 +8,26 @@ internal sealed record DriverOfficialOffer(string UpdateId, int Revision, string
     // Campos informativos do IWindowsDriverUpdate; não representam versão numérica.
     internal string DriverClass { get; init; } = "";
     internal string Manufacturer { get; init; } = "";
+    internal DriverOfficialEntryAudit? EntryAudit { get; init; }
+}
+
+// As entradas WUA pertencem à oferta pai (UpdateID/revisão), mas não
+// expõem DriverVer numérico, TargetOSVersion, assinatura ou bytes do INF.
+internal sealed record DriverOfficialEntryEvidence(
+    string HardwareOrCompatibleId, string Provider, string Model,
+    string DriverClass, string Manufacturer, DateTime VersionDate,
+    int DeviceStatus, int DeviceProblemNumber)
+{
+    internal string? OfferedNumericVersion => null;
+    internal bool PackageCompatibilityProven => false;
+}
+internal enum DriverOfficialEntryState { Unavailable, Complete, Inconclusive }
+internal sealed record DriverOfficialEntryAudit(DriverOfficialEntryState State,
+    IReadOnlyList<DriverOfficialEntryEvidence> Entries)
+{
+    internal bool VerifiedRemotePackage => false;
+    internal bool VerifiedTargetOsVersion => false;
+    internal bool VerifiedRank => false;
 }
 
 // Prova contextual de onde ocorreu a busca. Não é um manifesto de compatibilidade
@@ -28,6 +48,7 @@ internal sealed record DriverOfficialInstalledEvidence(
 internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string DeviceId, string DeviceName)
 {
     internal DriverOfficialInstalledEvidence? Installed { get; init; }
+    internal DriverOfficialEntryEvidence? MatchingWuaEntry { get; init; }
     internal bool ProviderMatchesInstalled => Installed is { WithoutSignedDriverAssociation: false } current &&
         current.Provider.Equals(Offer.Provider, StringComparison.OrdinalIgnoreCase);
     // INF DriverVer utiliza quatro componentes (cada um de 0 a 65534).
@@ -55,6 +76,7 @@ internal sealed record DriverOfficialResult(IReadOnlyList<DriverOfficialMatch> M
 internal static class DriverOfficialLookup
 {
     internal const string Criteria = "IsInstalled=0 and IsHidden=0 and Type='Driver'";
+    internal const int MaxWuaEntriesPerOffer = 32;
     internal static bool ValidHardwareId(string? id) => DriverInventory.ValidHardwareId(id);
 
     internal static string? NormalizeInstalledDriverVersion(string? version)
@@ -111,7 +133,12 @@ internal static class DriverOfficialLookup
                 !SafeText(offer.Title, true, 2000) ||
                 !SafeText(offer.DriverClass, false, 256) || !SafeText(offer.Manufacturer, false, 256) ||
                 !offer.VersionDate.HasValue || offer.VersionDate.Value == DateTime.MinValue ||
-                group.Distinct().Count() != 1)
+                group.Distinct().Count() != 1 ||
+                (offer.EntryAudit is { State: DriverOfficialEntryState.Inconclusive }) ||
+                (offer.EntryAudit is { State: DriverOfficialEntryState.Complete } audit &&
+                    (AuditEntries(audit.Entries).State != DriverOfficialEntryState.Complete ||
+                     !audit.Entries.Any(e => e.HardwareOrCompatibleId.Equals(offer.HardwareId,
+                         StringComparison.OrdinalIgnoreCase)))))
             { unmatched += group.Count(); partial = true; continue; }
             var exact = devices.Where(d => d.DeviceId.Length > 0 && d.Present == true &&
                 d.HardwareIds.Any(h => ValidHardwareId(h) && h.Equals(offer.HardwareId, StringComparison.OrdinalIgnoreCase))).ToArray();
@@ -127,13 +154,86 @@ internal static class DriverOfficialLookup
                 matched.Add(new(offer, device.DeviceId, device.DeviceName)
                 {
                     Installed = new(device.InfName, device.Provider, device.Version, device.Signed,
-                        device.PackageEvidence?.State, device.PnpProblemCode, device.WithoutSignedDriverAssociation)
+                        device.PackageEvidence?.State, device.PnpProblemCode, device.WithoutSignedDriverAssociation),
+                    MatchingWuaEntry = offer.EntryAudit is { State: DriverOfficialEntryState.Complete } entryAudit
+                        ? entryAudit.Entries.First(e => e.HardwareOrCompatibleId.Equals(offer.HardwareId,
+                            StringComparison.OrdinalIgnoreCase)) : null
                 });
         }
         if (partial) return new([], offers.Count, offers.Count, true,
             "Metadados oficiais incompletos ou conflitantes; nenhuma correspondência publicada.");
         return new(matched, offers.Count, unmatched, false,
             $"Windows Update: {offers.Count} ofertas; {matched.Count} vínculos por ID exato; {unmatched} sem vínculo aprovado. Somente consulta; sem comparação numérica de versões.");
+    }
+
+    // Rejeita entradas malformadas, chaves conflitantes e resultados truncados.
+    // Nem mesmo uma coleção completa autoriza instalação/compatibilidade.
+    internal static DriverOfficialEntryAudit AuditEntries(
+        IReadOnlyList<DriverOfficialEntryEvidence> entries)
+    {
+        if (entries is null || entries.Count is < 1 or > MaxWuaEntriesPerOffer)
+            return new(DriverOfficialEntryState.Inconclusive, []);
+        if (entries.Any(e => e is null || !ValidHardwareId(e.HardwareOrCompatibleId) ||
+                !SafeText(e.Provider, true, 256) || !SafeText(e.Model, true, 256) ||
+                !SafeText(e.DriverClass, false, 256) || !SafeText(e.Manufacturer, false, 256) ||
+                e.VersionDate == DateTime.MinValue || e.DeviceProblemNumber is < 0 or > 9999))
+            return new(DriverOfficialEntryState.Inconclusive, []);
+        var groups = entries.GroupBy(x => x.HardwareOrCompatibleId, StringComparer.OrdinalIgnoreCase);
+        if (groups.Any(g => g.Distinct().Count() != 1))
+            return new(DriverOfficialEntryState.Inconclusive, []);
+        return new(DriverOfficialEntryState.Complete, entries.ToArray());
+    }
+
+    // Somente IWindowsDriverUpdate4.get_WindowsDriverUpdateEntries, Count, Item e
+    // propriedades de leitura da entrada. Proibição de downloader/installer.
+    // Getter ausente: Unavailable. Coleção iniciada e incompleta: Inconclusive.
+    private static DriverOfficialEntryAudit CaptureEntries(object update, CancellationToken token)
+    {
+        object? collection = null;
+        bool enumerating = false;
+        static void Release(object? value)
+        {
+            if (value is not null && Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
+        }
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            collection = ((dynamic)update).WindowsDriverUpdateEntries;
+            enumerating = true;
+            int count = (int)((dynamic)collection!).Count;
+            if (count is < 1 or > MaxWuaEntriesPerOffer)
+                return new(DriverOfficialEntryState.Inconclusive, []);
+            var entries = new List<DriverOfficialEntryEvidence>(count);
+            for (int i = 0; i < count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                object? item = null;
+                try
+                {
+                    item = ((dynamic)collection!).Item(i);
+                    entries.Add(new(
+                        (string)((dynamic)item!).DriverHardwareID,
+                        (string)((dynamic)item!).DriverProvider,
+                        (string)((dynamic)item!).DriverModel,
+                        (string)((dynamic)item!).DriverClass,
+                        (string)((dynamic)item!).DriverManufacturer,
+                        (DateTime)((dynamic)item!).DriverVerDate,
+                        (int)((dynamic)item!).DeviceStatus,
+                        (int)((dynamic)item!).DeviceProblemNumber));
+                }
+                finally { Release(item); }
+            }
+            return AuditEntries(entries);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or
+            ArgumentException or OverflowException or NotSupportedException)
+        {
+            return new(enumerating ? DriverOfficialEntryState.Inconclusive :
+                DriverOfficialEntryState.Unavailable, []);
+        }
+        finally { Release(collection); }
     }
 
     private static bool UsableInstalledEvidence(DriverInventoryEntry device)
@@ -220,7 +320,8 @@ internal static class DriverOfficialLookup
                         (DateTime)((dynamic)entry).DriverVerDate)
                     {
                         DriverClass = (string)((dynamic)entry).DriverClass,
-                        Manufacturer = (string)((dynamic)entry).DriverManufacturer
+                        Manufacturer = (string)((dynamic)entry).DriverManufacturer,
+                        EntryAudit = CaptureEntries(entry!, token)
                     });
                 }
                 finally { Release(identity); Release(entry); }
