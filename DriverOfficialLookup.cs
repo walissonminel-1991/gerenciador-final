@@ -10,6 +10,15 @@ internal sealed record DriverOfficialOffer(string UpdateId, int Revision, string
     internal string Manufacturer { get; init; } = "";
 }
 
+// Prova contextual de onde ocorreu a busca. Não é um manifesto de compatibilidade
+// nem vincula cada pacote remoto a uma arquitetura ou versão do Windows.
+internal sealed record DriverOfficialSearchContext(
+    string Source, bool Online, string HostOsVersion, string HostArchitecture,
+    DateTimeOffset SearchedAtUtc)
+{
+    internal bool PackageOsArchitectureValidated => false;
+}
+
 // Snapshot vinculado à instância identificada no inventário corrente.
 // Nunca confundir a versão instalada com a versão da oferta WUA.
 internal sealed record DriverOfficialInstalledEvidence(
@@ -21,6 +30,11 @@ internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string Dev
     internal DriverOfficialInstalledEvidence? Installed { get; init; }
     internal bool ProviderMatchesInstalled => Installed is { WithoutSignedDriverAssociation: false } current &&
         current.Provider.Equals(Offer.Provider, StringComparison.OrdinalIgnoreCase);
+    // INF DriverVer utiliza quatro componentes (cada um de 0 a 65535).
+    // Normalização é SOMENTE da versão WMI instalada; a oferta WUA não a fornece.
+    internal string? InstalledNumericVersion =>
+        DriverOfficialLookup.NormalizeInstalledDriverVersion(Installed?.Version);
+    internal string? OfferedNumericVersion => null;
     internal bool OfferedNumericVersionProven => false;
     internal bool TargetOsArchitectureProven => false;
     internal bool CompletePackageVerified => false;
@@ -31,7 +45,10 @@ internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string Dev
         "Versão numérica da oferta, ranking, compatibilidade independente de SO/arquitetura e pacote completo não comprovados; não classificar como mais novo.";
 }
 internal sealed record DriverOfficialResult(IReadOnlyList<DriverOfficialMatch> Matches,
-    int Offered, int Unmatched, bool Partial, string Status);
+    int Offered, int Unmatched, bool Partial, string Status)
+{
+    internal DriverOfficialSearchContext? SearchContext { get; init; }
+}
 
 // WUA exclusivo de LEITURA: não cria downloader/installer, não aceita EULA,
 // não registra serviços e não altera política de atualização do computador.
@@ -39,6 +56,27 @@ internal static class DriverOfficialLookup
 {
     internal const string Criteria = "IsInstalled=0 and IsHidden=0 and Type='Driver'";
     internal static bool ValidHardwareId(string? id) => DriverInventory.ValidHardwareId(id);
+
+    internal static string? NormalizeInstalledDriverVersion(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version) || version.Length > 47 ||
+            version != version.Trim() || version.Any(c => !char.IsAsciiDigit(c) && c != '.'))
+            return null;
+        var components = version.Split('.');
+        if (components.Length != 4 || components.Any(s => s.Length is < 1 or > 5 ||
+                !ushort.TryParse(s, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out _)))
+            return null;
+        return string.Join(".", components.Select(s => ushort.Parse(s,
+            System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture)
+            .ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    // Resultado completo e não mutável da busca WUA para o Windows atual.
+    // Não demonstra requisitos nem compatibilidade independente do pacote.
+    internal static DriverOfficialSearchContext HostContextForSuccessfulSearch(bool online) =>
+        new("Windows Update", online, Environment.OSVersion.Version.ToString(),
+            RuntimeInformation.OSArchitecture.ToString(), DateTimeOffset.UtcNow);
 
     // Campos do WUA são dados para apresentação; rejeitar controles que
     // poderiam simular linhas de diagnóstico no relatório local.
@@ -187,7 +225,10 @@ internal static class DriverOfficialLookup
                 }
                 finally { Release(identity); Release(entry); }
             }
-            return Match(inventory, offers, true);
+            return Match(inventory, offers, true) with
+            {
+                SearchContext = HostContextForSuccessfulSearch(online)
+            };
         }
         catch (Exception ex) when (ex is COMException or InvalidCastException or
             Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or NotSupportedException)
