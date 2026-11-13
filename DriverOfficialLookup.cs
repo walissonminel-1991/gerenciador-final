@@ -9,6 +9,19 @@ internal sealed record DriverOfficialOffer(string UpdateId, int Revision, string
     internal string DriverClass { get; init; } = "";
     internal string Manufacturer { get; init; } = "";
     internal DriverOfficialEntryAudit? EntryAudit { get; init; }
+    internal DriverOfficialRelationsAudit? Relations { get; init; }
+}
+
+// Apenas metadados da oferta WUA: supersedência entre UpdateIDs e categorias.
+// Não há prova de classificação/ranking do pacote, versão ou elegibilidade.
+internal sealed record DriverOfficialCategory(string CategoryId, string Type, string Name);
+internal enum DriverOfficialRelationsState { Unavailable, Complete, Inconclusive }
+internal sealed record DriverOfficialRelationsAudit(DriverOfficialRelationsState State,
+    IReadOnlyList<string> SupersededUpdateIds, IReadOnlyList<DriverOfficialCategory> Categories)
+{
+    internal bool DriverRankProven => false;
+    internal bool DriverVersionProven => false;
+    internal bool PackageCompatibilityProven => false;
 }
 
 // As entradas WUA pertencem à oferta pai (UpdateID/revisão), mas não
@@ -49,6 +62,7 @@ internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string Dev
 {
     internal DriverOfficialInstalledEvidence? Installed { get; init; }
     internal DriverOfficialEntryEvidence? MatchingWuaEntry { get; init; }
+    internal DriverOfficialRelationsAudit? Relations => Offer.Relations;
     internal bool ProviderMatchesInstalled => Installed is { WithoutSignedDriverAssociation: false } current &&
         current.Provider.Equals(Offer.Provider, StringComparison.OrdinalIgnoreCase);
     // INF DriverVer utiliza quatro componentes (cada um de 0 a 65534).
@@ -78,6 +92,8 @@ internal static class DriverOfficialLookup
     internal const string Criteria = "IsInstalled=0 and IsHidden=0 and Type='Driver'";
     internal const int MaxWuaEntriesPerOffer = 32;
     internal const int MaxWuaEntriesPerSearch = 512;
+    internal const int MaxSupersededPerOffer = 32;
+    internal const int MaxCategoriesPerOffer = 16;
     internal static bool ValidHardwareId(string? id) => DriverInventory.ValidHardwareId(id);
 
     internal static string? NormalizeInstalledDriverVersion(string? version)
@@ -119,6 +135,9 @@ internal static class DriverOfficialLookup
         if (deviceGroups.Any(g => g.Any(d => !SameDeviceEvidence(g.First(), d))))
             return new([], offers.Count, offers.Count, true,
                 "Inventário com registros conflitantes para a mesma instância; correspondência inconclusiva. Nenhum vínculo publicado.");
+        if (!RelationGraphValid(offers))
+            return new([], offers.Count, offers.Count, true,
+                "Relações WUA com ciclos, autossubstituição ou metadados contraditórios; nenhum vínculo aprovado.");
         var devices = deviceGroups.Select(g => g.First() with { DeviceId = g.Key }).ToArray();
         var matched = new List<DriverOfficialMatch>();
         int unmatched = 0;
@@ -135,6 +154,10 @@ internal static class DriverOfficialLookup
                 !SafeText(offer.DriverClass, false, 256) || !SafeText(offer.Manufacturer, false, 256) ||
                 !offer.VersionDate.HasValue || offer.VersionDate.Value == DateTime.MinValue ||
                 group.Distinct().Count() != 1 ||
+                (offer.Relations is { State: DriverOfficialRelationsState.Inconclusive }) ||
+                (offer.Relations is { State: DriverOfficialRelationsState.Complete } relations &&
+                    AuditRelations(offer.UpdateId, relations.SupersededUpdateIds,
+                        relations.Categories).State != DriverOfficialRelationsState.Complete) ||
                 (offer.EntryAudit is { State: DriverOfficialEntryState.Inconclusive }) ||
                 (offer.EntryAudit is { State: DriverOfficialEntryState.Complete } audit &&
                     (AuditEntries(audit.Entries).State != DriverOfficialEntryState.Complete ||
@@ -165,6 +188,126 @@ internal static class DriverOfficialLookup
             "Metadados oficiais incompletos ou conflitantes; nenhuma correspondência publicada.");
         return new(matched, offers.Count, unmatched, false,
             $"Windows Update: {offers.Count} ofertas; {matched.Count} vínculos por ID exato; {unmatched} sem vínculo aprovado. Somente consulta; sem comparação numérica de versões.");
+    }
+
+    internal static DriverOfficialRelationsAudit AuditRelations(string updateId,
+        IReadOnlyList<string> superseded, IReadOnlyList<DriverOfficialCategory> categories)
+    {
+        static DriverOfficialRelationsAudit Bad() =>
+            new(DriverOfficialRelationsState.Inconclusive, [], []);
+        if (!Guid.TryParseExact(updateId, "D", out var parent) || parent == Guid.Empty ||
+            superseded is null || categories is null ||
+            superseded.Count > MaxSupersededPerOffer || categories.Count > MaxCategoriesPerOffer)
+            return Bad();
+        var seenIds = new HashSet<Guid>();
+        foreach (var id in superseded)
+        {
+            if (id is null || id.Length != 36 || !Guid.TryParseExact(id, "D", out var parsed) ||
+                parsed == Guid.Empty || parsed == parent || !seenIds.Add(parsed))
+                return Bad();
+        }
+        var seenCategories = new Dictionary<Guid, DriverOfficialCategory>();
+        foreach (var cat in categories)
+        {
+            if (cat is null || cat.CategoryId is null || cat.CategoryId.Length != 36 ||
+                !Guid.TryParseExact(cat.CategoryId, "D", out var id) || id == Guid.Empty ||
+                !SafeText(cat.Type, true, 128) || !SafeText(cat.Name, true, 256))
+                return Bad();
+            if (seenCategories.TryGetValue(id, out var previous) &&
+                (!previous.Type.Equals(cat.Type, StringComparison.OrdinalIgnoreCase) ||
+                 !previous.Name.Equals(cat.Name, StringComparison.Ordinal)))
+                return Bad();
+            seenCategories[id] = cat;
+        }
+        return new(DriverOfficialRelationsState.Complete,
+            seenIds.Select(id => id.ToString("D")).OrderBy(id => id, StringComparer.Ordinal).ToArray(),
+            seenCategories.OrderBy(x => x.Key).Select(x => x.Value).ToArray());
+    }
+
+    // Só detecta ciclos entre UpdateIDs presentes NESTE resultado.
+    // Referências externas não são declaradas ausentes nem visitadas remotamente.
+    private static bool RelationGraphValid(IReadOnlyList<DriverOfficialOffer> offers)
+    {
+        var map = offers.Where(o => o.Relations is { State: DriverOfficialRelationsState.Complete } &&
+                                   Guid.TryParseExact(o.UpdateId, "D", out _))
+            .GroupBy(o => o.UpdateId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key,
+                g => g.SelectMany(o => o.Relations!.SupersededUpdateIds)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+        var state = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        bool Visit(string id)
+        {
+            state[id] = 1;
+            foreach (var next in map[id])
+            {
+                if (!map.ContainsKey(next)) continue;
+                if (state.TryGetValue(next, out int s))
+                {
+                    if (s == 1) return false;
+                    if (s == 2) continue;
+                }
+                if (!Visit(next)) return false;
+            }
+            state[id] = 2;
+            return true;
+        }
+        return map.Keys.All(id => state.ContainsKey(id) || Visit(id));
+    }
+
+    // Consulta limitada de metadados IUpdate, sem downloads ou mutações.
+    // Se qualquer propriedade estiver incompleta, não publicar subconjunto.
+    private static DriverOfficialRelationsAudit CaptureRelations(
+        object update, string updateId, CancellationToken token)
+    {
+        object? superseded = null, categories = null;
+        bool started = false;
+        static void Release(object? value)
+        { if (value is not null && Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value); }
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            superseded = ((dynamic)update).SupersededUpdateIDs;
+            started = true;
+            int count = (int)((dynamic)superseded!).Count;
+            if (count is < 0 or > MaxSupersededPerOffer)
+                return new(DriverOfficialRelationsState.Inconclusive, [], []);
+            var ids = new List<string>(count);
+            for (int i = 0; i < count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                ids.Add((string)((dynamic)superseded!).Item(i));
+            }
+            categories = ((dynamic)update).Categories;
+            int catCount = (int)((dynamic)categories!).Count;
+            if (catCount is < 0 or > MaxCategoriesPerOffer)
+                return new(DriverOfficialRelationsState.Inconclusive, [], []);
+            var list = new List<DriverOfficialCategory>(catCount);
+            for (int i = 0; i < catCount; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                object? category = null;
+                try
+                {
+                    category = ((dynamic)categories!).Item(i);
+                    list.Add(new(
+                        (string)((dynamic)category!).CategoryID,
+                        (string)((dynamic)category!).Type,
+                        (string)((dynamic)category!).Name));
+                }
+                finally { Release(category); }
+            }
+            return AuditRelations(updateId, ids, list);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or
+            ArgumentException or NullReferenceException or OverflowException or NotSupportedException)
+        {
+            return new(started ? DriverOfficialRelationsState.Inconclusive :
+                DriverOfficialRelationsState.Unavailable, [], []);
+        }
+        finally { Release(categories); Release(superseded); }
     }
 
     // Rejeita entradas malformadas, chaves conflitantes e resultados truncados.
@@ -316,6 +459,9 @@ internal static class DriverOfficialLookup
                     if ((int)((dynamic)entry).Type != 2 || (bool)((dynamic)entry).IsInstalled || (bool)((dynamic)entry).IsHidden)
                         return Match(inventory, offers, false);
                     identity = ((dynamic)entry).Identity;
+                    string updateId = (string)((dynamic)identity).UpdateID;
+                    int revision = (int)((dynamic)identity).RevisionNumber;
+                    var relations = CaptureRelations(entry!, updateId, token);
                     var entryAudit = CaptureEntries(entry!, token);
                     if (entryAudit.State == DriverOfficialEntryState.Complete)
                     {
@@ -323,14 +469,15 @@ internal static class DriverOfficialLookup
                         if (observedEntries > MaxWuaEntriesPerSearch)
                             return Match(inventory, offers, false);
                     }
-                    offers.Add(new((string)((dynamic)identity).UpdateID, (int)((dynamic)identity).RevisionNumber,
+                    offers.Add(new(updateId, revision,
                         (string)((dynamic)entry).Title, (string)((dynamic)entry).DriverHardwareID,
                         (string)((dynamic)entry).DriverProvider, (string)((dynamic)entry).DriverModel,
                         (DateTime)((dynamic)entry).DriverVerDate)
                     {
                         DriverClass = (string)((dynamic)entry).DriverClass,
                         Manufacturer = (string)((dynamic)entry).DriverManufacturer,
-                        EntryAudit = entryAudit
+                        EntryAudit = entryAudit,
+                        Relations = relations
                     });
                 }
                 finally { Release(identity); Release(entry); }
