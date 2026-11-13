@@ -61,6 +61,24 @@ internal static class DriverReadOnlyReport
                 text.AppendLine($"  Fornecedor: {match.Offer.Provider}; modelo: {match.Offer.Model}; data informada: {match.Offer.VersionDate:yyyy-MM-dd}.");
                 text.AppendLine($"  Instância PnP: {match.DeviceId}; HardwareID exato: {match.Offer.HardwareId}.");
                 text.AppendLine($"  Identidade da oferta WUA: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
+                if (match.Relations is { } relations)
+                {
+                    text.AppendLine($"  Relações WUA: {relations.State}; {relations.SupersededUpdateIds.Count} UpdateIDs substituídos declarados; {relations.Categories.Count} categorias.");
+                    if (relations.State == DriverOfficialRelationsState.Complete)
+                    {
+                        foreach (var id in relations.SupersededUpdateIds.Take(8))
+                            text.AppendLine($"    WUA informa que esta oferta substitui o UpdateID {id} (sem versão/revisão do destino; não demonstra driver melhor ou instalado).");
+                        if (relations.SupersededUpdateIds.Count > 8)
+                            text.AppendLine("    Referências restantes omitidas por limite de apresentação.");
+                        foreach (var cat in relations.Categories.Take(8))
+                            text.AppendLine($"    Categoria WUA: {cat.CategoryId}; tipo {cat.Type}; nome localizado {cat.Name}.");
+                        if (relations.Categories.Count > 8)
+                            text.AppendLine("    Categorias restantes omitidas por limite de apresentação.");
+                    }
+                    else
+                        text.AppendLine("    Metadados de supersedência/categorias indisponíveis ou inconclusivos; não concluir ausência de vínculos.");
+                    text.AppendLine("  Supersedência entre atualizações e categoria do serviço NÃO são ranking, versão, compatibilidade ou permissão de instalar driver.");
+                }
                 if (match.Offer.EntryAudit is { } audit)
                 {
                     text.AppendLine($"  WUA4 — entradas da oferta: {audit.State}; {audit.Entries.Count} registros válidos observados.");
