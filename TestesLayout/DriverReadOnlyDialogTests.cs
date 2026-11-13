@@ -75,7 +75,9 @@ internal static class DriverReadOnlyDialogTests
         method.Invoke(owner, [inventory, device,
             (Func<bool>)(() => guard.IsCurrent(inventory, device, 1)),
             (Func<CancellationToken, DriverOfficialResult, bool>)((token, result) =>
-                guard.CanPublish(inventory, device, 1, token, result))]);
+                guard.CanPublish(inventory, device, 1, token, result)),
+            (Func<CancellationToken, DriverInfVerificationResult, bool>)((token, result) =>
+                guard.CanPublishInf(inventory, device, 1, token, result))]);
         if (failure is not null) throw failure;
         if (inspected != 2) throw new Exception("Diálogo de drivers não inspecionado nas duas dimensões.");
         Console.WriteLine("OK Drivers: diálogo real de investigação em 500x340 e 790x510, sem executar consultas de rede ou manutenção");
