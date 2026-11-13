@@ -10,7 +10,8 @@ internal sealed partial class MainForm
 
     private void ShowDriverReadOnlyReport(DriverInventoryResult inventory, DriverInventoryEntry? selected,
         Func<bool> isCurrent, Func<CancellationToken, DriverOfficialResult, bool> canPublishOfficial,
-        Func<CancellationToken, DriverInfVerificationResult, bool> canPublishInf)
+        Func<CancellationToken, DriverInfVerificationResult, bool> canPublishInf,
+        Action<Action?> onInvalidationChanged)
     {
         using var dialog = new Form
         {
@@ -58,24 +59,40 @@ internal sealed partial class MainForm
         DriverInfVerificationResult? verification = null;
         CancellationTokenSource? current = null;
         bool canVerify = selected?.PackageEvidence?.State == DriverStoreState.Mapped;
-        verifyButton.Enabled = canVerify;
-        officialButton.Enabled = !inventory.Partial && inventory.Items.Count > 0;
+        bool obsolete = false;
+        const string obsoleteText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
+            "Inventário ou seleção alterados. Feche esta janela e abra uma nova investigação. " +
+            "Nenhum resultado antigo será publicado.";
+        void CheckCurrent()
+        {
+            if (dialog.IsDisposed || obsolete) return;
+            // O diálogo é modal, mas eventos de inventário/seleção ainda
+            // podem invalidar a fotografia; não confundir foco com validade.
+            if (isCurrent()) return;
+            obsolete = true;
+            official = null;
+            verification = null;
+            current?.Cancel(); // cancela a espera, não força fim do Search COM
+            body.SetText(obsoleteText);
+            status.Text = "Inventário ou seleção alterados; reabra a investigação.";
+            officialButton.Enabled = false;
+            verifyButton.Enabled = false;
+        }
         void Render()
         {
             if (body.IsDisposed) return;
-            if (!isCurrent())
-                body.SetText("DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\nInventário ou seleção alterados. Feche esta janela e abra uma nova investigação. Nenhum resultado antigo será publicado.");
-            else body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification));
+            CheckCurrent();
+            if (!obsolete)
+                body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification));
         }
+        // Revalidação só nos eventos de estado e foco, sem thread/timer novo.
+        dialog.Activated += (_, _) => CheckCurrent();
+        dialog.Enter += (_, _) => CheckCurrent();
         async Task Run(Button button, Func<CancellationToken, Task<bool>> read, TimeSpan timeout)
         {
+            CheckCurrent();
+            if (obsolete) return;
             if (current is not null) { current.Cancel(); return; }
-            if (!isCurrent())
-            {
-                Render();
-                status.Text = "Inventário ou seleção alterados; abra nova investigação.";
-                return;
-            }
             using var source = new CancellationTokenSource(timeout);
             current = source;
             string label = button.Text;
@@ -89,25 +106,40 @@ internal sealed partial class MainForm
                 if (!dialog.IsDisposed)
                 {
                     Render();
-                    status.Text = !isCurrent()
-                        ? "Resultado atrasado descartado: inventário ou seleção alterados."
-                        : accepted
+                    CheckCurrent();
+                    if (!obsolete)
+                        status.Text = accepted
                             ? "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."
                             : "Resultado inconsistente descartado; relatório anterior preservado.";
                 }
             }
             catch (OperationCanceledException)
-            { if (!dialog.IsDisposed) status.Text = "Consulta cancelada ou prazo esgotado; resultado anterior preservado."; }
+            {
+                if (!dialog.IsDisposed)
+                {
+                    CheckCurrent();
+                    if (!obsolete)
+                        status.Text = "Consulta cancelada ou prazo esgotado; resultado anterior preservado.";
+                }
+            }
             catch (Exception ex)
-            { if (!dialog.IsDisposed) status.Text = "Consulta indisponível (" + ex.GetType().Name + "); resultado anterior preservado."; }
+            {
+                if (!dialog.IsDisposed)
+                {
+                    CheckCurrent();
+                    if (!obsolete)
+                        status.Text = "Consulta indisponível (" + ex.GetType().Name + "); resultado anterior preservado.";
+                }
+            }
             finally
             {
                 current = null;
                 if (!dialog.IsDisposed)
                 {
                     button.Text = label;
-                    officialButton.Enabled = !inventory.Partial && inventory.Items.Count > 0;
-                    verifyButton.Enabled = canVerify;
+                    CheckCurrent();
+                    officialButton.Enabled = !obsolete && !inventory.Partial && inventory.Items.Count > 0;
+                    verifyButton.Enabled = !obsolete && canVerify;
                 }
             }
         }
@@ -144,6 +176,8 @@ internal sealed partial class MainForm
         dialog.FormClosed += (_, _) => current?.Cancel();
         Render();
         dialog.Shown += (_, _) => officialButton.Focus();
-        dialog.ShowDialog(this);
+        onInvalidationChanged(CheckCurrent);
+        try { dialog.ShowDialog(this); }
+        finally { onInvalidationChanged(null); }
     }
 }
