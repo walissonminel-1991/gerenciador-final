@@ -18,10 +18,13 @@ internal static class DriverHistory
     private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
     internal static Dictionary<string, string> Snapshot(DriverInventoryResult inventory)
     {
-        if (inventory.Partial || inventory.Items.Count == 0 || inventory.Items.Count > 4000 ||
-            inventory.Items.Any(x => string.IsNullOrWhiteSpace(x.DeviceId)))
+        // O historico v1 representa associacoes WMI assinadas, nao dispositivos
+        // problematicos que nao tenham uma linha em Win32_PnPSignedDriver.
+        var associated = inventory.Items.Where(x => !x.WithoutSignedDriverAssociation).ToArray();
+        if (inventory.Partial || associated.Length == 0 || associated.Length > 4000 ||
+            associated.Any(x => string.IsNullOrWhiteSpace(x.DeviceId)))
             throw new InvalidDataException("Consulta incompleta nao substitui historico.");
-        return inventory.Items.GroupBy(x => x.DeviceId.Trim().ToUpperInvariant())
+        return associated.GroupBy(x => x.DeviceId.Trim().ToUpperInvariant())
             .ToDictionary(g => Hash(g.Key), g => Hash(string.Join("\n", g.Select(x =>
                 JsonSerializer.Serialize(new[] { x.Provider.Trim().ToUpperInvariant(), x.Version.Trim(),
                     x.InfName.Trim().ToUpperInvariant(), x.Signed?.ToString() ?? "?", x.Present?.ToString() ?? "?" }))
