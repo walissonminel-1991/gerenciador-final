@@ -57,7 +57,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                             throw new Exception("G1.10: diálogo válido não mostra investigação inicial.");
                         ClickEnabled(official, () => launched == 1);
                         if (launched != 1)
-                            throw new Exception("G1.10: evento Click WUA sintético não iniciou exatamente uma tarefa.");
+                            throw new Exception($"G1.10: evento Click WUA sintético inconsistente; launched={launched}, enabled={official.Enabled}, status={status.Text}, canSelect={official.CanSelect}.");
                         generation = 2;
                         notify?.Invoke();
                         AssertObsolete(dialog, device);
