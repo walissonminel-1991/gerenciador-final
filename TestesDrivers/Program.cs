@@ -120,7 +120,7 @@ Check(syntheticPnp.Count(x => x.HasPnpProblem) == 2 &&
     DriverInventory.IncludeUnboundProblemDevices(syntheticPnp, pnpCodes,
         new Dictionary<string, string>(), new Dictionary<string, string[]>()).Length == 3,
     "PnP: apenas falhas relatadas entram e repeticao nao duplica instancias");
-Check(!DriverInfVerification.InspectInf("", CancellationToken.None).CanInstall &&
+Check(!new DriverInfVerificationResult(DriverInfTrust.VerifiedInf).CanInstall &&
     !DriverPackageLinks.Analyze(new(syntheticPnp, false, "fixture")).Packages.Any(p => p.InfName == ""),
     "PnP: ausência de driver nao habilita instalacao nem pacote ficticio");
 ReadOnlyDriverTests.Run(Check);
