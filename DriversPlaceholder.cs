@@ -192,6 +192,7 @@ internal sealed partial class MainForm
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
         DriverInventoryResult? lastResult = null;
         long inventoryGeneration = 0;
+        Action? invalidateOpenReport = null;
         investigate.Click += (_, _) =>
         {
             if (lastResult is not { } captured) return;
@@ -202,7 +203,8 @@ internal sealed partial class MainForm
                 (token, result) => guard.CanPublish(lastResult, list.SelectedItem,
                     inventoryGeneration, token, result),
                 (token, result) => guard.CanPublishInf(lastResult, list.SelectedItem,
-                    inventoryGeneration, token, result));
+                    inventoryGeneration, token, result),
+                callback => invalidateOpenReport = callback);
         };
         string activeFilter = "Todos";
         void Render()
@@ -213,6 +215,7 @@ internal sealed partial class MainForm
                 snapshot ?? Array.Empty<DriverInventoryEntry>(), activeFilter, query);
             list.SetItems(visible);
             list.ScrollToTop();
+            invalidateOpenReport?.Invoke();
             int count = snapshot?.Count ?? 0;
             title.Text = snapshot is null ? "Drivers · consulta não iniciada"
                 : $"Drivers: {count} · Exibidos: {visible.Length}";
@@ -249,7 +252,11 @@ internal sealed partial class MainForm
         };
         var driverQuery = new DriverQueryCoordinator();
         bool resultPublished = false;
-        root.Disposed += (_, _) => driverQuery.RequestCancel();
+        root.Disposed += (_, _) =>
+        {
+            invalidateOpenReport?.Invoke();
+            driverQuery.RequestCancel();
+        };
         refresh.Click += async (_, _) =>
         {
             if (driverQuery.InProgress)
@@ -277,6 +284,7 @@ internal sealed partial class MainForm
             // Invalida relatórios antigos antes da próxima leitura nativa,
             // inclusive se ela falhar, cancelar ou terminar fora de ordem.
             inventoryGeneration++;
+            invalidateOpenReport?.Invoke();
             resultPublished = false;
             refresh.Text = "Cancelar";
             investigate.Enabled = false;
