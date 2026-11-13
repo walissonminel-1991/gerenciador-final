@@ -66,7 +66,7 @@ internal sealed partial class MainForm
                 body.SetText("DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\nInventário ou seleção alterados. Feche esta janela e abra uma nova investigação. Nenhum resultado antigo será publicado.");
             else body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification));
         }
-        async Task Run(Button button, Func<CancellationToken, Task> read, TimeSpan timeout)
+        async Task Run(Button button, Func<CancellationToken, Task<bool>> read, TimeSpan timeout)
         {
             if (current is not null) { current.Cancel(); return; }
             if (!isCurrent())
@@ -84,13 +84,15 @@ internal sealed partial class MainForm
             status.Text = "Consultando em segundo plano… Nenhuma instalação ou remoção.";
             try
             {
-                await read(source.Token);
+                bool accepted = await read(source.Token);
                 if (!dialog.IsDisposed)
                 {
                     Render();
-                    status.Text = isCurrent()
-                        ? "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."
-                        : "Resultado atrasado descartado: inventário ou seleção alterados.";
+                    status.Text = !isCurrent()
+                        ? "Resultado atrasado descartado: inventário ou seleção alterados."
+                        : accepted
+                            ? "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."
+                            : "Resultado inconsistente descartado; relatório anterior preservado.";
                 }
             }
             catch (OperationCanceledException)
@@ -117,8 +119,9 @@ internal sealed partial class MainForm
                 _driverOfficialReadTask = DriverOfficialLookup.Start(inventory, token);
                 var result = await _driverOfficialReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (!dialog.IsDisposed && canPublishOfficial(token, result))
-                    official = result;
+                if (dialog.IsDisposed || !canPublishOfficial(token, result)) return false;
+                official = result;
+                return true;
             }, TimeSpan.FromSeconds(90));
         };
         verifyButton.Click += async (_, _) =>
@@ -131,7 +134,9 @@ internal sealed partial class MainForm
                 _driverInfReadTask = Task.Run(() => DriverInfVerification.Verify(package, token));
                 var result = await _driverInfReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (!dialog.IsDisposed && isCurrent()) verification = result;
+                if (dialog.IsDisposed || !isCurrent()) return false;
+                verification = result;
+                return true;
             }, TimeSpan.FromSeconds(25));
         };
         close.Click += (_, _) => dialog.Close();
