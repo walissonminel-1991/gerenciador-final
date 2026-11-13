@@ -138,6 +138,7 @@ Check(refusedEmptyHistory,
     "PnP: consulta so com dispositivos sem driver preserva historico anterior");
 ReadOnlyDriverTests.Run(Check);
 Stage2DriverTests.Run(Check);
+G1EvidenceTests.Run(Check);
 DiagnosticFailureTests.Run(Check);
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
