@@ -9,6 +9,18 @@ internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, 
     internal DriverStoreEvidence? PackageEvidence { get; init; }
     internal IReadOnlyList<string> HardwareIds { get; init; } = [];
     internal IReadOnlyList<DriverWindowsEvent> WindowsEvents { get; init; } = [];
+    // Codigo informado pelo PnP do Windows, não diagnóstico independente de hardware.
+    internal int? PnpProblemCode { get; init; }
+    internal bool WithoutSignedDriverAssociation { get; init; }
+    internal bool HasPnpProblem => PnpProblemCode is > 0;
+    internal string PnpStatusLabel => PnpProblemCode switch
+    {
+        0 => "Sem código de problema PnP informado (não garante saúde)",
+        22 => "Dispositivo desativado (PnP 22)",
+        28 => "Driver não instalado (PnP 28)",
+        > 0 => $"Problema relatado pelo Windows (PnP {PnpProblemCode})",
+        _ => "Estado PnP não informado"
+    };
     internal string SignatureLabel => Signed switch { true => "Sim (Windows)", false => "Não (Windows)", _ => "Indeterminado" };
     internal string PresenceLabel => Present switch { true => "Presente", false => "Não presente", _ => "Indeterminado" };
 }
@@ -54,6 +66,38 @@ internal static class DriverInventory
             .OrderBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
+    // Inclui também dispositivos com problema PnP que não tenham linha em
+    // Win32_PnPSignedDriver. Um dispositivo sem linha não é driver obsoleto
+    // nem candidato a instalação: é apenas evidência que merece investigação.
+    internal static DriverInventoryEntry[] IncludeUnboundProblemDevices(
+        IEnumerable<DriverInventoryEntry> signedDrivers,
+        IReadOnlyDictionary<string, int?> problemCodes,
+        IReadOnlyDictionary<string, string> deviceNames,
+        IReadOnlyDictionary<string, string[]> hardwareIds)
+    {
+        var rows = signedDrivers.Select(d => d with
+        {
+            PnpProblemCode = problemCodes.GetValueOrDefault(d.DeviceId.Trim())
+        }).ToList();
+        var withDriver = rows.Select(d => d.DeviceId.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in problemCodes.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            string id = pair.Key.Trim();
+            if (id.Length == 0 || pair.Value is not > 0 || withDriver.Contains(id))
+                continue;
+            rows.Add(new DriverInventoryEntry(id, deviceNames.GetValueOrDefault(id, ""),
+                "", "", "", null, null)
+            {
+                HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [],
+                PnpProblemCode = pair.Value,
+                WithoutSignedDriverAssociation = true
+            });
+            withDriver.Add(id);
+        }
+        return rows.ToArray();
+    }
+
     // Usar Description apenas quando Name vier vazio e somente no MESMO ID PnP.
     // Nao inferir hardware, compatibilidade, fabricante ou versao.
     internal static string ReportedDeviceName(string? name, string? description) =>
@@ -66,6 +110,8 @@ internal static class DriverInventory
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         var deviceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var hardwareIds = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        var problemCodes = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+        var conflictedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         bool partial = false;
         string stage = "conectar";
         object? locator = null, services = null;
@@ -117,7 +163,7 @@ internal static class DriverInventory
                 }
                 finally { Release(result); }
             }
-            Query("SELECT PNPDeviceID, Name, Description, Present, HardwareID FROM Win32_PnPEntity", get =>
+            Query("SELECT PNPDeviceID, Name, Description, Present, HardwareID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
             {
                 string id = (Convert.ToString(get("PNPDeviceID")) ?? "").Trim();
                 if (id.Length > 0)
@@ -135,6 +181,25 @@ internal static class DriverInventory
                     if (hardwareIds.TryGetValue(id, out var oldIds) && !oldIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(ids))
                     { hardwareIds[id] = []; partial = true; }
                     else hardwareIds[id] = ids;
+                    object? rawCode = get("ConfigManagerErrorCode");
+                    int? code = rawCode switch
+                    {
+                        int value when value is >= 0 and <= 9999 => value,
+                        uint value when value <= 9999 => (int)value,
+                        _ => null
+                    };
+                    if (rawCode is not null && code is null) partial = true;
+                    // Duplicatas conflitantes nunca sao resolvidas pela ultima linha.
+                    if (!conflictedCodes.Contains(id))
+                    {
+                        if (problemCodes.TryGetValue(id, out var previousCode) && previousCode != code)
+                        {
+                            problemCodes[id] = null;
+                            conflictedCodes.Add(id);
+                            partial = true;
+                        }
+                        else problemCodes[id] = code;
+                    }
                 }
             });
             Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned FROM Win32_PnPSignedDriver", get =>
@@ -146,12 +211,16 @@ internal static class DriverInventory
                     Text("InfName"), get("IsSigned") is bool b ? b : null, null)
                     { HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [] });
             });
-            return new(Correlate(rows, presence, deviceNames), partial, partial ? "Consulta parcial" : "Consulta concluída")
+            return new(Correlate(
+                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds),
+                presence, deviceNames), partial, partial ? "Consulta parcial" : "Consulta concluída")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
         }
         catch (Exception ex)
         {
-            return new(Correlate(rows, presence, deviceNames), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}")
+            return new(Correlate(
+                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds),
+                presence, deviceNames), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
         }
         finally { Release(services); Release(locator); }
