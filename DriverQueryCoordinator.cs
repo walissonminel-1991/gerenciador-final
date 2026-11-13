@@ -128,16 +128,21 @@ internal sealed class DriverReportPublicationGuard
         {
             var matches = published.Packages.Where(x =>
                 string.Equals(x.Evidence.InfName, device.InfName, StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (matches.Length > 1 || (matches.Length == 1 &&
-                (matches[0].Evidence.State != package.State ||
-                 !string.Equals(matches[0].Evidence.InfName, package.InfName,
-                    StringComparison.OrdinalIgnoreCase) ||
-                 (matches[0].Evidence.State == DriverStoreState.Mapped &&
-                    (!string.Equals(matches[0].Evidence.StorePath, package.StorePath,
+            if (matches.Length > 1) return false;
+            if (matches.Length == 1)
+            {
+                var observed = matches[0].Evidence;
+                if (observed.State != package.State ||
+                    !string.Equals(observed.InfName, package.InfName,
+                        StringComparison.OrdinalIgnoreCase))
+                    return false;
+                if (observed.State == DriverStoreState.Mapped &&
+                    (!string.Equals(observed.StorePath, package.StorePath,
                         StringComparison.OrdinalIgnoreCase) ||
-                     !string.Equals(matches[0].Evidence.PublishedPath, package.PublishedPath,
-                        StringComparison.OrdinalIgnoreCase)))))
-                return false;
+                     !string.Equals(observed.PublishedPath, package.PublishedPath,
+                        StringComparison.OrdinalIgnoreCase)))
+                    return false;
+            }
             if (matches.Length == 0 && published.EnumerationComplete && !published.Partial)
                 return false;
         }
