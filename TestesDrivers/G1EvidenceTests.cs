@@ -240,6 +240,29 @@ internal static class G1EvidenceTests
         check(DriverOfficialLookup.AuditEntries([firstEntry, firstEntry]).State ==
             DriverOfficialEntryState.Complete,
             "G1.2: duplicatas idênticas não implicam dois drivers diferentes");
+        // G1.3 — Uma URL e um indicador de delta não são hash autenticado nem
+        // vínculo entre os arquivos do pacote e o UpdateID/revisão WUA.
+        // Strings inteiramente fictícias, nunca acessadas nem persistidas.
+        var fakeDownloadHint = offer with
+        {
+            Title = "https://updates.example.invalid/arquivo.cab?sha256=0000 - Driver 999.99",
+            EntryAudit = audited
+        };
+        var fromHint = Match(device, fakeDownloadHint);
+        check(!fromHint.Partial && fromHint.Matches.Count == 1 &&
+            !fromHint.Matches.Single().CompletePackageVerified &&
+            !fromHint.Matches.Single().OfferedNumericVersionProven &&
+            !fromHint.Matches.Single().TargetOsArchitectureProven &&
+            !fromHint.Matches.Single().IsNewerProven &&
+            !fromHint.Matches.Single().CanInstall,
+            "G1.3: URL/sha256 textual no título e WUA4 completo não comprovam pacote remoto");
+        var g13Report = DriverReadOnlyReport.Format(
+            new([device], false, "fixture G1.3"), device, fromHint);
+        check(g13Report.Contains("IDENTIDADE DO PACOTE REMOTO: NÃO COMPROVADA", StringComparison.Ordinal) &&
+            g13Report.Contains("DownloadContents expõe URLs", StringComparison.Ordinal) &&
+            g13Report.Contains("O GF não consulta URLs nem baixa conteúdo", StringComparison.Ordinal) &&
+            g13Report.Contains("nenhuma atualização, instalação ou remoção foi autorizada", StringComparison.Ordinal),
+            "G1.3: relatório avisa NO-GO sem exibir URL como autoridade de atualização");
         var alternatives = DriverOfficialLookup.Match(new([device], false, "fixture G1"),
             [offer, offer with { UpdateId = "0ab6b8a0-637a-46b1-9096-e68dfa1d5d6a",
                  VersionDate = new DateTime(2020, 1, 1) }], true);
