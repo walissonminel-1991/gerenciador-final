@@ -3,11 +3,32 @@ using System.Runtime.InteropServices;
 namespace GerenciadorAplicativos;
 
 internal sealed record DriverOfficialOffer(string UpdateId, int Revision, string Title,
-    string HardwareId, string Provider, string Model, DateTime? VersionDate);
+    string HardwareId, string Provider, string Model, DateTime? VersionDate)
+{
+    // Campos informativos do IWindowsDriverUpdate; não representam versão numérica.
+    internal string DriverClass { get; init; } = "";
+    internal string Manufacturer { get; init; } = "";
+}
+
+// Snapshot vinculado à instância identificada no inventário corrente.
+// Nunca confundir a versão instalada com a versão da oferta WUA.
+internal sealed record DriverOfficialInstalledEvidence(
+    string InfName, string Provider, string Version, bool? SignedReportedByWindows,
+    DriverStoreState? StoreState, int? PnpProblemCode, bool WithoutSignedDriverAssociation);
+
 internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string DeviceId, string DeviceName)
 {
+    internal DriverOfficialInstalledEvidence? Installed { get; init; }
+    internal bool ProviderMatchesInstalled => Installed is { WithoutSignedDriverAssociation: false } current &&
+        current.Provider.Equals(Offer.Provider, StringComparison.OrdinalIgnoreCase);
+    internal bool OfferedNumericVersionProven => false;
+    internal bool TargetOsArchitectureProven => false;
+    internal bool CompletePackageVerified => false;
+    internal bool IsNewerProven => false;
     internal bool CanInstall => false;
-    internal string Label => "Oferta do Windows Update com ID de hardware exato; compatibilidade de SO/arquitetura relatada pelo serviço. Pacote não verificado.";
+    internal string Label =>
+        "Oferta WUA vinculada por HardwareID exato à instância PnP. " +
+        "Versão numérica da oferta, ranking, compatibilidade independente de SO/arquitetura e pacote completo não comprovados; não classificar como mais novo.";
 }
 internal sealed record DriverOfficialResult(IReadOnlyList<DriverOfficialMatch> Matches,
     int Offered, int Unmatched, bool Partial, string Status);
@@ -49,7 +70,19 @@ internal static class DriverOfficialLookup
             var exact = devices.Where(d => d.DeviceId.Length > 0 && d.Present == true &&
                 d.HardwareIds.Any(h => ValidHardwareId(h) && h.Equals(offer.HardwareId, StringComparison.OrdinalIgnoreCase))).ToArray();
             if (exact.Length == 0) { unmatched += group.Count(); continue; }
-            foreach (var device in exact) matched.Add(new(offer, device.DeviceId, device.DeviceName));
+            if (exact.Any(d => !UsableInstalledEvidence(d)))
+            {
+                // Um vínculo incompleto não publica um subconjunto como consulta segura.
+                partial = true;
+                unmatched += group.Count();
+                continue;
+            }
+            foreach (var device in exact)
+                matched.Add(new(offer, device.DeviceId, device.DeviceName)
+                {
+                    Installed = new(device.InfName, device.Provider, device.Version, device.Signed,
+                        device.PackageEvidence?.State, device.PnpProblemCode, device.WithoutSignedDriverAssociation)
+                });
         }
         if (partial) return new([], offers.Count, offers.Count, true,
             "Metadados oficiais incompletos ou conflitantes; nenhuma correspondência publicada.");
@@ -57,11 +90,30 @@ internal static class DriverOfficialLookup
             $"Windows Update: {offers.Count} ofertas; {matched.Count} vínculos por ID exato; {unmatched} sem vínculo aprovado. Somente consulta; sem comparação numérica de versões.");
     }
 
+    private static bool UsableInstalledEvidence(DriverInventoryEntry device)
+    {
+        if (device.WithoutSignedDriverAssociation)
+            // Código 28 é um relato do Windows, não prova de qual INF instalar.
+            return device.PnpProblemCode == 28 && string.IsNullOrWhiteSpace(device.InfName) &&
+                string.IsNullOrWhiteSpace(device.Version) &&
+                string.IsNullOrWhiteSpace(device.Provider) && device.Signed is null;
+        return DriverPackageLinks.IsValidInf(device.InfName) &&
+            !string.IsNullOrWhiteSpace(device.Provider) &&
+            Version.TryParse(device.Version, out _) &&
+            (device.PackageEvidence is null ||
+                (device.PackageEvidence.State == DriverStoreState.Mapped &&
+                 device.PackageEvidence.InfName.Equals(device.InfName, StringComparison.OrdinalIgnoreCase)));
+    }
+
     private static bool SameDeviceEvidence(DriverInventoryEntry left, DriverInventoryEntry right) =>
         left.InfName.Equals(right.InfName, StringComparison.OrdinalIgnoreCase) &&
         left.Provider.Equals(right.Provider, StringComparison.OrdinalIgnoreCase) &&
         left.Version.Equals(right.Version, StringComparison.Ordinal) &&
         left.Signed == right.Signed && left.Present == right.Present &&
+        left.PnpProblemCode == right.PnpProblemCode &&
+        left.WithoutSignedDriverAssociation == right.WithoutSignedDriverAssociation &&
+        left.PackageEvidence?.State == right.PackageEvidence?.State &&
+        string.Equals(left.PackageEvidence?.InfName, right.PackageEvidence?.InfName, StringComparison.OrdinalIgnoreCase) &&
         left.HardwareIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(right.HardwareIds);
 
     internal static Task<DriverOfficialResult> Start(DriverInventoryResult inventory, CancellationToken token, bool online = true)
@@ -119,7 +171,11 @@ internal static class DriverOfficialLookup
                     offers.Add(new((string)((dynamic)identity).UpdateID, (int)((dynamic)identity).RevisionNumber,
                         (string)((dynamic)entry).Title, (string)((dynamic)entry).DriverHardwareID,
                         (string)((dynamic)entry).DriverProvider, (string)((dynamic)entry).DriverModel,
-                        (DateTime)((dynamic)entry).DriverVerDate));
+                        (DateTime)((dynamic)entry).DriverVerDate)
+                    {
+                        DriverClass = (string)((dynamic)entry).DriverClass,
+                        Manufacturer = (string)((dynamic)entry).DriverManufacturer
+                    });
                 }
                 finally { Release(identity); Release(entry); }
             }
