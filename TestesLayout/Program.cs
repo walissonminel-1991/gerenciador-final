@@ -349,6 +349,11 @@ internal static class LayoutTests
             DriverListFilters.Apply(fakeDrivers, "Todos", fakeDrivers[183].DeviceId).Length != 1 ||
             DriverListFilters.Apply(fakeDrivers, "Todos", "fabricante DE TESTE").Length != 184)
             throw new Exception("Pesquisa e filtros DRIVERS falharam na amostra de 184 itens.");
+        var pnpFixture = fakeDrivers.Select((d, i) => i == 1
+            ? d with { PnpProblemCode = 28 } : d).ToArray();
+        if (DriverListFilters.Apply(pnpFixture, "Problemas", "").Length != 1 ||
+            DriverListFilters.Apply(pnpFixture, "Problemas", "PnP 28").Length != 1)
+            throw new Exception("Filtro de diagnostico PnP nao distingue problemas.");
         // Todos os drivers continuam apenas texto; filtros nao fazem instalacoes.
         driverCards.SetItems(Array.Empty<DriverInventoryEntry>());
         DriverReadOnlyDialogTests.Run(form);
