@@ -56,6 +56,7 @@ internal sealed class DarkDriverList : Control
     private int _scrollOffset;
     private int _tipIndex = -1;
 
+    internal event EventHandler? SelectionChanged;
     internal IReadOnlyList<DriverInventoryEntry> Items => _items;
     internal int SelectedIndex => _selectedIndex;
     internal DriverInventoryEntry? SelectedItem =>
@@ -90,6 +91,8 @@ internal sealed class DarkDriverList : Control
         _tipIndex = -1;
         _tips.SetToolTip(this, "");
         UpdateMetrics();
+        if (!ReferenceEquals(selected, SelectedItem))
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void ScrollToTop() => _scrollbar.Value = 0;
@@ -103,6 +106,7 @@ internal sealed class DarkDriverList : Control
 
     private void SelectIndex(int index)
     {
+        int previous = _selectedIndex;
         _selectedIndex = index >= 0 && index < _items.Count ? index : -1;
         if (_selectedIndex >= 0)
         {
@@ -113,6 +117,8 @@ internal sealed class DarkDriverList : Control
                 _scrollbar.Value = bottom - ClientSize.Height;
         }
         Invalidate();
+        if (_selectedIndex != previous)
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void OnPaint(PaintEventArgs e)
