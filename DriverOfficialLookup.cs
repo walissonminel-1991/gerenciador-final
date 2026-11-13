@@ -257,18 +257,55 @@ internal static class DriverOfficialLookup
 
     // Costura interna de teste: quando não há observador, preserva a mesma
     // política de liberação COM de produção. Não adiciona downloads nem escrita.
-    internal static void ReleaseComObject(object? value, Action<object>? releaseForTest = null)
+    // Uma única posse lógica da pesquisa, compartilhada por suas coleções.
+    // Falha ao liberar não pode impedir a liberação dos outros objetos nem
+    // transformar a consulta em sucesso. Referências iguais são liberadas
+    // apenas uma vez; a duplicação é declarada inconclusiva.
+    private sealed class ComReleaseScope(Action<object>? releaseForTest)
     {
-        if (value is null) return;
-        if (releaseForTest is not null) releaseForTest(value);
-        else if (Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
+        private readonly HashSet<object> released = new(ReferenceEqualityComparer.Instance);
+        internal bool Failed { get; private set; }
+
+        internal void Release(object? value)
+        {
+            if (value is null) return;
+            if (!released.Add(value))
+            {
+                Failed = true;
+                return;
+            }
+            try
+            {
+                if (releaseForTest is not null) releaseForTest(value);
+                else if (Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Não registrar caminhos COM, metadados ou payload privados.
+                Failed = true;
+            }
+        }
     }
+
+    private static DriverOfficialResult CleanupInconclusive() =>
+        new([], 0, 0, true,
+            "Liberação de referências COM inconclusiva; nenhuma oferta publicada.");
 
     // Consulta limitada de metadados IUpdate, sem downloads ou mutações.
     // Se qualquer propriedade estiver incompleta, não publicar subconjunto.
     internal static DriverOfficialRelationsAudit CaptureRelations(
         object update, string updateId, CancellationToken token,
         Action<object>? releaseForTest = null)
+    {
+        var scope = new ComReleaseScope(releaseForTest);
+        var outcome = CaptureRelationsCore(update, updateId, token, scope);
+        return scope.Failed
+            ? new(DriverOfficialRelationsState.Inconclusive, [], [])
+            : outcome;
+    }
+
+    private static DriverOfficialRelationsAudit CaptureRelationsCore(
+        object update, string updateId, CancellationToken token, ComReleaseScope scope)
     {
         object? superseded = null, categories = null;
         bool started = false;
@@ -303,7 +340,7 @@ internal static class DriverOfficialLookup
                         (string)((dynamic)category!).Type,
                         (string)((dynamic)category!).Name));
                 }
-                finally { ReleaseComObject(category, releaseForTest); }
+                finally { scope.Release(category); }
             }
             return AuditRelations(updateId, ids, list);
         }
@@ -317,8 +354,8 @@ internal static class DriverOfficialLookup
         }
         finally
         {
-            ReleaseComObject(categories, releaseForTest);
-            ReleaseComObject(superseded, releaseForTest);
+            scope.Release(categories);
+            scope.Release(superseded);
         }
     }
 
@@ -345,6 +382,16 @@ internal static class DriverOfficialLookup
     // Getter ausente: Unavailable. Coleção iniciada e incompleta: Inconclusive.
     internal static DriverOfficialEntryAudit CaptureEntries(object update, CancellationToken token,
         Action<object>? releaseForTest = null)
+    {
+        var scope = new ComReleaseScope(releaseForTest);
+        var outcome = CaptureEntriesCore(update, token, scope);
+        return scope.Failed
+            ? new(DriverOfficialEntryState.Inconclusive, [])
+            : outcome;
+    }
+
+    private static DriverOfficialEntryAudit CaptureEntriesCore(
+        object update, CancellationToken token, ComReleaseScope scope)
     {
         object? collection = null;
         bool enumerating = false;
@@ -374,7 +421,7 @@ internal static class DriverOfficialLookup
                         (int)((dynamic)item!).DeviceStatus,
                         (int)((dynamic)item!).DeviceProblemNumber));
                 }
-                finally { ReleaseComObject(item, releaseForTest); }
+                finally { scope.Release(item); }
             }
             return AuditEntries(entries);
         }
@@ -386,7 +433,7 @@ internal static class DriverOfficialLookup
             return new(enumerating ? DriverOfficialEntryState.Inconclusive :
                 DriverOfficialEntryState.Unavailable, []);
         }
-        finally { ReleaseComObject(collection, releaseForTest); }
+        finally { scope.Release(collection); }
     }
 
     // Único caminho de leitura de uma oferta individual: usado pelo WUA real e
@@ -395,6 +442,14 @@ internal static class DriverOfficialLookup
     // A identidade e a própria entrada são liberadas mesmo em exceção/cancelamento.
     internal static DriverOfficialOffer? CaptureOffer(
         object update, CancellationToken token, Action<object>? releaseForTest = null)
+    {
+        var scope = new ComReleaseScope(releaseForTest);
+        var outcome = CaptureOfferCore(update, token, scope);
+        return scope.Failed ? null : outcome;
+    }
+
+    private static DriverOfficialOffer? CaptureOfferCore(
+        object update, CancellationToken token, ComReleaseScope scope)
     {
         object? identity = null;
         try
@@ -408,8 +463,9 @@ internal static class DriverOfficialLookup
             int revision = (int)((dynamic)identity!).RevisionNumber;
             if (!Guid.TryParseExact(updateId, "D", out var id) || id == Guid.Empty || revision < 1)
                 return null;
-            var relations = CaptureRelations(update, updateId, token, releaseForTest);
-            var entryAudit = CaptureEntries(update, token, releaseForTest);
+            var relations = CaptureRelationsCore(update, updateId, token, scope);
+            var entryAudit = CaptureEntriesCore(update, token, scope);
+            if (scope.Failed) return null;
             return new(updateId, revision,
                 (string)((dynamic)update).Title, (string)((dynamic)update).DriverHardwareID,
                 (string)((dynamic)update).DriverProvider, (string)((dynamic)update).DriverModel,
@@ -431,8 +487,8 @@ internal static class DriverOfficialLookup
         }
         finally
         {
-            ReleaseComObject(identity, releaseForTest);
-            ReleaseComObject(update, releaseForTest);
+            scope.Release(identity);
+            scope.Release(update);
         }
     }
 
@@ -507,6 +563,14 @@ internal static class DriverOfficialLookup
         object session, CancellationToken token, bool online = true,
         Action<object>? releaseForTest = null)
     {
+        var scope = new ComReleaseScope(releaseForTest);
+        var outcome = CaptureSessionCore(inventory, session, token, online, scope);
+        return scope.Failed ? CleanupInconclusive() : outcome;
+    }
+
+    private static DriverOfficialResult CaptureSessionCore(DriverInventoryResult inventory,
+        object session, CancellationToken token, bool online, ComReleaseScope scope)
+    {
         object? searcher = null, result = null, updates = null;
         try
         {
@@ -536,8 +600,9 @@ internal static class DriverOfficialLookup
                 object? entry = ((dynamic)updates!).Item(i);
                 if (entry is null)
                     return Match(inventory, offers, false);
-                DriverOfficialOffer? offer = CaptureOffer(entry, token, releaseForTest);
-                if (offer is null)
+                // Nunca reutilizar um RCW já liberado em outra posição da coleção.
+                DriverOfficialOffer? offer = CaptureOfferCore(entry, token, scope);
+                if (scope.Failed || offer is null)
                     return Match(inventory, offers, false);
                 if (offer.EntryAudit is { State: DriverOfficialEntryState.Complete } audited)
                 {
@@ -563,10 +628,10 @@ internal static class DriverOfficialLookup
         }
         finally
         {
-            ReleaseComObject(updates, releaseForTest);
-            ReleaseComObject(result, releaseForTest);
-            ReleaseComObject(searcher, releaseForTest);
-            ReleaseComObject(session, releaseForTest);
+            scope.Release(updates);
+            scope.Release(result);
+            scope.Release(searcher);
+            scope.Release(session);
         }
     }
 }
