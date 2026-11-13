@@ -35,7 +35,7 @@ internal static class G16SessionTests
         public object? Updates { get; set; }
     }
 
-    private static (Session session, Searcher searcher, SearchResult result,
+    internal static (Session session, Searcher searcher, SearchResult result,
         G15CaptureTests.Collection updates, G15CaptureTests.Update offer,
         G15CaptureTests.Identity identity) Fixture()
     {
