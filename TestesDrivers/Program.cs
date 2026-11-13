@@ -83,6 +83,46 @@ Check(TestDiagnosticDetail.TryFormat(1, "FONTES", new (string, int)[] {
     recordFontes.Contains("falha_programdata=1"),
     "Falha de fonte identificada apenas por categoria segura e nao pelo caminho real");
 DriverStoreTests.Run(Check);
+// D5: provas sinteticas de identificacao PnP, sem APIs de instalacao.
+const string goodDeviceId = @"PCI\VEN_1111&DEV_0001\INST";
+const string missingDeviceId = @"PCI\VEN_1111&DEV_0002\INST";
+const string disabledDeviceId = @"USB\VID_1234&PID_5678\INST";
+var signedDevice = new DriverInventoryEntry(goodDeviceId, "Dispositivo funcional",
+    "Fabricante", "1.0.0.0", "oem10.inf", true, true);
+var pnpCodes = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase)
+{
+    [goodDeviceId] = 0, [missingDeviceId] = 28, [disabledDeviceId] = 22
+};
+var syntheticPnp = DriverInventory.IncludeUnboundProblemDevices(
+    [signedDevice], pnpCodes,
+    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [missingDeviceId] = "Controlador sem driver",
+        [disabledDeviceId] = "Dispositivo desativado"
+    },
+    new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        [missingDeviceId] = [@"PCI\VEN_1111&DEV_0002"],
+        [disabledDeviceId] = [@"USB\VID_1234&PID_5678"]
+    });
+Check(syntheticPnp.Length == 3 && syntheticPnp.Single(x => x.DeviceId == goodDeviceId).PnpProblemCode == 0,
+    "PnP: dispositivo normal continua com INF e codigo zero, sem falso alerta");
+var missing = syntheticPnp.Single(x => x.DeviceId == missingDeviceId);
+Check(missing.PnpProblemCode == 28 && missing.WithoutSignedDriverAssociation &&
+    missing.InfName == "" && missing.HardwareIds.SequenceEqual([@"PCI\VEN_1111&DEV_0002"]) &&
+    missing.PnpStatusLabel.Contains("Driver não instalado", StringComparison.Ordinal),
+    "PnP: codigo 28 sem Win32_PnPSignedDriver permanece visivel e sem INF inventado");
+var disabled = syntheticPnp.Single(x => x.DeviceId == disabledDeviceId);
+Check(disabled.PnpProblemCode == 22 && disabled.WithoutSignedDriverAssociation &&
+    disabled.PnpStatusLabel.Contains("desativado", StringComparison.Ordinal),
+    "PnP: dispositivo desativado nao e classificado como driver antigo");
+Check(syntheticPnp.Count(x => x.HasPnpProblem) == 2 &&
+    DriverInventory.IncludeUnboundProblemDevices(syntheticPnp, pnpCodes,
+        new Dictionary<string, string>(), new Dictionary<string, string[]>()).Length == 3,
+    "PnP: apenas falhas relatadas entram e repeticao nao duplica instancias");
+Check(!DriverInfVerification.InspectInf("", CancellationToken.None).CanInstall &&
+    !DriverPackageLinks.Analyze(new(syntheticPnp, false, "fixture")).Packages.Any(p => p.InfName == ""),
+    "PnP: ausência de driver nao habilita instalacao nem pacote ficticio");
 ReadOnlyDriverTests.Run(Check);
 Stage2DriverTests.Run(Check);
 DiagnosticFailureTests.Run(Check);
