@@ -255,15 +255,23 @@ internal static class DriverOfficialLookup
         return map.Keys.All(id => state.ContainsKey(id) || Visit(id));
     }
 
+    // Costura interna de teste: quando não há observador, preserva a mesma
+    // política de liberação COM de produção. Não adiciona downloads nem escrita.
+    internal static void ReleaseComObject(object? value, Action<object>? releaseForTest = null)
+    {
+        if (value is null) return;
+        if (releaseForTest is not null) releaseForTest(value);
+        else if (Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
+    }
+
     // Consulta limitada de metadados IUpdate, sem downloads ou mutações.
     // Se qualquer propriedade estiver incompleta, não publicar subconjunto.
-    private static DriverOfficialRelationsAudit CaptureRelations(
-        object update, string updateId, CancellationToken token)
+    internal static DriverOfficialRelationsAudit CaptureRelations(
+        object update, string updateId, CancellationToken token,
+        Action<object>? releaseForTest = null)
     {
         object? superseded = null, categories = null;
         bool started = false;
-        static void Release(object? value)
-        { if (value is not null && Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value); }
         try
         {
             token.ThrowIfCancellationRequested();
@@ -295,7 +303,7 @@ internal static class DriverOfficialLookup
                         (string)((dynamic)category!).Type,
                         (string)((dynamic)category!).Name));
                 }
-                finally { Release(category); }
+                finally { ReleaseComObject(category, releaseForTest); }
             }
             return AuditRelations(updateId, ids, list);
         }
@@ -307,7 +315,11 @@ internal static class DriverOfficialLookup
             return new(started ? DriverOfficialRelationsState.Inconclusive :
                 DriverOfficialRelationsState.Unavailable, [], []);
         }
-        finally { Release(categories); Release(superseded); }
+        finally
+        {
+            ReleaseComObject(categories, releaseForTest);
+            ReleaseComObject(superseded, releaseForTest);
+        }
     }
 
     // Rejeita entradas malformadas, chaves conflitantes e resultados truncados.
@@ -331,14 +343,11 @@ internal static class DriverOfficialLookup
     // Somente IWindowsDriverUpdate4.get_WindowsDriverUpdateEntries, Count, Item e
     // propriedades de leitura da entrada. Proibição de downloader/installer.
     // Getter ausente: Unavailable. Coleção iniciada e incompleta: Inconclusive.
-    private static DriverOfficialEntryAudit CaptureEntries(object update, CancellationToken token)
+    internal static DriverOfficialEntryAudit CaptureEntries(object update, CancellationToken token,
+        Action<object>? releaseForTest = null)
     {
         object? collection = null;
         bool enumerating = false;
-        static void Release(object? value)
-        {
-            if (value is not null && Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
-        }
         try
         {
             token.ThrowIfCancellationRequested();
@@ -365,7 +374,7 @@ internal static class DriverOfficialLookup
                         (int)((dynamic)item!).DeviceStatus,
                         (int)((dynamic)item!).DeviceProblemNumber));
                 }
-                finally { Release(item); }
+                finally { ReleaseComObject(item, releaseForTest); }
             }
             return AuditEntries(entries);
         }
@@ -377,7 +386,54 @@ internal static class DriverOfficialLookup
             return new(enumerating ? DriverOfficialEntryState.Inconclusive :
                 DriverOfficialEntryState.Unavailable, []);
         }
-        finally { Release(collection); }
+        finally { ReleaseComObject(collection, releaseForTest); }
+    }
+
+    // Único caminho de leitura de uma oferta individual: usado pelo WUA real e
+    // por objetos COM-like sintéticos dos testes G1.5. Falhas no pai descartam
+    // a oferta inteira; ausência do getter opcional mantém estado Unavailable.
+    // A identidade e a própria entrada são liberadas mesmo em exceção/cancelamento.
+    internal static DriverOfficialOffer? CaptureOffer(
+        object update, CancellationToken token, Action<object>? releaseForTest = null)
+    {
+        object? identity = null;
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            if ((int)((dynamic)update).Type != 2 ||
+                (bool)((dynamic)update).IsInstalled || (bool)((dynamic)update).IsHidden)
+                return null;
+            identity = ((dynamic)update).Identity;
+            string updateId = (string)((dynamic)identity!).UpdateID;
+            int revision = (int)((dynamic)identity!).RevisionNumber;
+            if (!Guid.TryParseExact(updateId, "D", out var id) || id == Guid.Empty || revision < 1)
+                return null;
+            var relations = CaptureRelations(update, updateId, token, releaseForTest);
+            var entryAudit = CaptureEntries(update, token, releaseForTest);
+            return new(updateId, revision,
+                (string)((dynamic)update).Title, (string)((dynamic)update).DriverHardwareID,
+                (string)((dynamic)update).DriverProvider, (string)((dynamic)update).DriverModel,
+                (DateTime)((dynamic)update).DriverVerDate)
+            {
+                DriverClass = (string)((dynamic)update).DriverClass,
+                Manufacturer = (string)((dynamic)update).DriverManufacturer,
+                EntryAudit = entryAudit,
+                Relations = relations
+            };
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or
+            ArgumentException or FormatException or NullReferenceException or
+            OverflowException or NotSupportedException)
+        {
+            return null;
+        }
+        finally
+        {
+            ReleaseComObject(identity, releaseForTest);
+            ReleaseComObject(update, releaseForTest);
+        }
     }
 
     private static bool UsableInstalledEvidence(DriverInventoryEntry device)
@@ -452,35 +508,17 @@ internal static class DriverOfficialLookup
             for (int i = 0; i < count; i++)
             {
                 token.ThrowIfCancellationRequested();
-                object? entry = null, identity = null;
-                try
+                var entry = ((dynamic)updates).Item(i);
+                DriverOfficialOffer? offer = CaptureOffer(entry, token);
+                if (offer is null)
+                    return Match(inventory, offers, false);
+                if (offer.EntryAudit is { State: DriverOfficialEntryState.Complete } audited)
                 {
-                    entry = ((dynamic)updates).Item(i);
-                    if ((int)((dynamic)entry).Type != 2 || (bool)((dynamic)entry).IsInstalled || (bool)((dynamic)entry).IsHidden)
+                    observedEntries += audited.Entries.Count;
+                    if (observedEntries > MaxWuaEntriesPerSearch)
                         return Match(inventory, offers, false);
-                    identity = ((dynamic)entry).Identity;
-                    string updateId = (string)((dynamic)identity).UpdateID;
-                    int revision = (int)((dynamic)identity).RevisionNumber;
-                    var relations = CaptureRelations(entry!, updateId, token);
-                    var entryAudit = CaptureEntries(entry!, token);
-                    if (entryAudit.State == DriverOfficialEntryState.Complete)
-                    {
-                        observedEntries += entryAudit.Entries.Count;
-                        if (observedEntries > MaxWuaEntriesPerSearch)
-                            return Match(inventory, offers, false);
-                    }
-                    offers.Add(new(updateId, revision,
-                        (string)((dynamic)entry).Title, (string)((dynamic)entry).DriverHardwareID,
-                        (string)((dynamic)entry).DriverProvider, (string)((dynamic)entry).DriverModel,
-                        (DateTime)((dynamic)entry).DriverVerDate)
-                    {
-                        DriverClass = (string)((dynamic)entry).DriverClass,
-                        Manufacturer = (string)((dynamic)entry).DriverManufacturer,
-                        EntryAudit = entryAudit,
-                        Relations = relations
-                    });
                 }
-                finally { Release(identity); Release(entry); }
+                offers.Add(offer);
             }
             return Match(inventory, offers, true) with
             {
