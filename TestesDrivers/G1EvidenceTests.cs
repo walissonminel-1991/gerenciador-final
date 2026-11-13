@@ -263,6 +263,106 @@ internal static class G1EvidenceTests
             g13Report.Contains("O GF não consulta URLs nem baixa conteúdo", StringComparison.Ordinal) &&
             g13Report.Contains("nenhuma atualização, instalação ou remoção foi autorizada", StringComparison.Ordinal),
             "G1.3: relatório avisa NO-GO sem exibir URL como autoridade de atualização");
+        // G1.4 — SupersededUpdateIDs refere-se a UpdateIDs, NÃO à revisão
+        // ou versão numérica do driver/INF, nem ao estado instalado.
+        const string olderUpdateId = "9ff60e7c-bf8b-46af-854b-89e72549d385";
+        const string unrelatedUpdateId = "e8373c41-267d-45ee-8463-5b55262652d3";
+        var category = new DriverOfficialCategory(
+            "98b0feef-4e67-4cc7-b9a9-696a4674d3cb", "Product", "Dispositivo de teste");
+        var relations = DriverOfficialLookup.AuditRelations(
+            offer.UpdateId, [olderUpdateId], [category]);
+        check(relations.State == DriverOfficialRelationsState.Complete &&
+            relations.SupersededUpdateIds.SequenceEqual([olderUpdateId]) &&
+            relations.Categories.SequenceEqual([category]) &&
+            !relations.DriverRankProven && !relations.DriverVersionProven &&
+            !relations.PackageCompatibilityProven,
+            "G1.4: GUID substituído e categoria são dados WUA, não prova de ranking ou driver compatível");
+        var withRelations = Match(device, offer with { Relations = relations });
+        check(!withRelations.Partial && withRelations.Matches.Count == 1 &&
+            withRelations.Matches.Single().Relations == relations &&
+            !withRelations.Matches.Single().IsNewerProven &&
+            !withRelations.Matches.Single().CanInstall,
+            "G1.4: vínculo de supersedência no mesmo UpdateID/revisão é apenas consultivo");
+        var g14Report = DriverReadOnlyReport.Format(
+            new([device], false, "fixture G1.4"), device, withRelations);
+        check(g14Report.Contains("Relações WUA: Complete; 1 UpdateIDs", StringComparison.Ordinal) &&
+            g14Report.Contains("substitui o UpdateID " + olderUpdateId, StringComparison.Ordinal) &&
+            g14Report.Contains("Categoria WUA: " + category.CategoryId, StringComparison.Ordinal) &&
+            g14Report.Contains("NÃO são ranking, versão, compatibilidade ou permissão", StringComparison.Ordinal),
+            "G1.4: relatório exibe IDs e categoria sem interpretar como driver mais novo");
+        check(DriverOfficialLookup.AuditRelations(offer.UpdateId, [], []).State ==
+            DriverOfficialRelationsState.Complete &&
+            DriverOfficialLookup.AuditRelations(offer.UpdateId, [], [category, category]) is
+                { State: DriverOfficialRelationsState.Complete, Categories.Count: 1 },
+            "G1.4: zero relações declaradas e categoria repetida equivalente são válidas, sem inventar relações");
+        foreach (var invalidId in new[]
+        {
+            "abc", Guid.Empty.ToString("D"), offer.UpdateId, olderUpdateId + " ", "",
+            "https://exemplo.invalid/driver", "00000000-0000-0000-0000-00000000000Z"
+        })
+            check(DriverOfficialLookup.AuditRelations(offer.UpdateId, [invalidId], [category]).State ==
+                DriverOfficialRelationsState.Inconclusive,
+                "G1.4: ID inválido, autossubstituição ou URL não criam vínculo WUA");
+        check(DriverOfficialLookup.AuditRelations(offer.UpdateId,
+                [olderUpdateId, olderUpdateId.ToUpperInvariant()], []) is
+                    { State: DriverOfficialRelationsState.Inconclusive } &&
+            DriverOfficialLookup.AuditRelations(offer.UpdateId,
+                Enumerable.Repeat(olderUpdateId, DriverOfficialLookup.MaxSupersededPerOffer + 1).ToArray(), []) is
+                    { State: DriverOfficialRelationsState.Inconclusive },
+            "G1.4: duplicatas e teto de GUIDs falham fechado");
+        foreach (var badCategory in new[]
+        {
+            category with { CategoryId = "invalid-guid" },
+            category with { CategoryId = Guid.Empty.ToString("D") },
+            category with { Type = "" },
+            category with { Type = "Product\\nFORJADO" },
+            category with { Name = "" },
+            category with { Name = "Nome\\rAlterado" }
+        })
+            check(DriverOfficialLookup.AuditRelations(offer.UpdateId, [], [badCategory]).State ==
+                DriverOfficialRelationsState.Inconclusive,
+                "G1.4: categoria WUA malformada ou com caracteres de controle é rejeitada");
+        check(DriverOfficialLookup.AuditRelations(offer.UpdateId, [],
+                [category, category with { Name = "Outro nome" }]).State ==
+                    DriverOfficialRelationsState.Inconclusive &&
+            DriverOfficialLookup.AuditRelations(offer.UpdateId, [],
+                Enumerable.Repeat(category, DriverOfficialLookup.MaxCategoriesPerOffer + 1).ToArray()).State ==
+                    DriverOfficialRelationsState.Inconclusive,
+            "G1.4: categoria do mesmo GUID contraditória e coleção excessiva são inconclusivas");
+        var second = offer with { UpdateId = olderUpdateId, Relations =
+            DriverOfficialLookup.AuditRelations(olderUpdateId, [unrelatedUpdateId], [category]) };
+        var third = offer with { UpdateId = unrelatedUpdateId, Relations =
+            DriverOfficialLookup.AuditRelations(unrelatedUpdateId, [], [category]) };
+        var acyclic = DriverOfficialLookup.Match(new([device], false, "fixture G1.4"),
+            [offer with { Relations = relations }, second, third], true);
+        check(!acyclic.Partial && acyclic.Matches.Count == 3 &&
+            acyclic.Matches.All(x => !x.CanInstall),
+            "G1.4: cadeia entre 3 UpdateIDs é consultiva e não escolhe melhor pacote");
+        var cyclic = DriverOfficialLookup.Match(new([device], false, "fixture G1.4"),
+            [offer with { Relations = relations },
+             second with { Relations = DriverOfficialLookup.AuditRelations(olderUpdateId, [offer.UpdateId], []) }], true);
+        check(cyclic.Partial && cyclic.Matches.Count == 0,
+            "G1.4: ciclo A->B->A é detectado e nenhum vínculo do lote é publicado");
+        var longerCycle = DriverOfficialLookup.Match(new([device], false, "fixture G1.4"),
+            [offer with { Relations = relations }, second,
+             third with { Relations = DriverOfficialLookup.AuditRelations(unrelatedUpdateId, [offer.UpdateId], []) }], true);
+        check(longerCycle.Partial && longerCycle.Matches.Count == 0,
+            "G1.4: ciclo transitivo A->B->C->A falha fechado");
+        var missingReference = DriverOfficialLookup.Match(new([device], false, "fixture G1.4"),
+            [offer with { Relations = relations }], true);
+        check(!missingReference.Partial && missingReference.Matches.Count == 1 &&
+            missingReference.Matches.Single().Relations!.SupersededUpdateIds.Single() == olderUpdateId,
+            "G1.4: UpdateID substituído não retornado na busca não é declarado inexistente");
+        var unavailable = Match(device, offer with
+            { Relations = new(DriverOfficialRelationsState.Unavailable, [], []) });
+        check(!unavailable.Partial && unavailable.Matches.Count == 1 &&
+            unavailable.Matches.Single().Relations!.State == DriverOfficialRelationsState.Unavailable &&
+            !unavailable.Matches.Single().CanInstall,
+            "G1.4: propriedade COM indisponível não vira ausência comprovada de substituições");
+        var incomplete = Match(device, offer with
+            { Relations = new(DriverOfficialRelationsState.Inconclusive, [], []) });
+        check(incomplete.Partial && incomplete.Matches.Count == 0,
+            "G1.4: supersedência/categorias parciais não publicam vínculo aprovado");
         var alternatives = DriverOfficialLookup.Match(new([device], false, "fixture G1"),
             [offer, offer with { UpdateId = "0ab6b8a0-637a-46b1-9096-e68dfa1d5d6a",
                  VersionDate = new DateTime(2020, 1, 1) }], true);
