@@ -480,36 +480,63 @@ internal static class DriverOfficialLookup
     {
         if (!OperatingSystem.IsWindows() || inventory.Partial || inventory.Items.Count == 0)
             return Match(inventory, [], false);
-        object? session = null, searcher = null, result = null, updates = null;
-        static void Release(object? value)
-        { if (value is not null && Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value); }
         try
         {
             token.ThrowIfCancellationRequested();
             var type = Type.GetTypeFromProgID("Microsoft.Update.Session");
             if (type is null) return Match(inventory, [], false);
-            session = Activator.CreateInstance(type)!;
+            object? session = Activator.CreateInstance(type);
+            if (session is null) return Match(inventory, [], false);
+            return CaptureSession(inventory, session, token, online);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or
+            ArgumentException or NullReferenceException or OverflowException or NotSupportedException)
+        {
+            return new([], 0, 0, true,
+                $"Consulta oficial indisponível (0x{ex.HResult:X8}); não significa ausência de atualizações.");
+        }
+    }
+
+    // G1.6: uma única execução de pesquisa/enumeração para COM real e
+    // objetos COM-like injetados em testes. O dono da sessão é este método:
+    // libera sessão, pesquisador, resultado e coleção em todos os caminhos.
+    // Não são feitas chamadas para download, instalação ou alteração de política.
+    internal static DriverOfficialResult CaptureSession(DriverInventoryResult inventory,
+        object session, CancellationToken token, bool online = true,
+        Action<object>? releaseForTest = null)
+    {
+        object? searcher = null, result = null, updates = null;
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            if (inventory.Partial || inventory.Items.Count == 0)
+                return Match(inventory, [], false);
             ((dynamic)session).ClientApplicationID = "GerenciadorFinal.DriverReadOnly";
             searcher = ((dynamic)session).CreateUpdateSearcher();
-            // A seleção é apenas desta consulta, nunca muda a configuração do
-            // Windows. Falhas/bloqueios de política são preservados, sem fallback.
-            ((dynamic)searcher).CanAutomaticallyUpgradeService = false;
-            ((dynamic)searcher).ServerSelection = 2; // ssWindowsUpdate, fonte Microsoft.
-            ((dynamic)searcher).Online = online;
-            result = ((dynamic)searcher).Search(Criteria);
+            // Seleção restrita a esta pesquisa, sem alterar configuração global.
+            ((dynamic)searcher!).CanAutomaticallyUpgradeService = false;
+            ((dynamic)searcher!).ServerSelection = 2; // ssWindowsUpdate
+            ((dynamic)searcher!).Online = online;
+            result = ((dynamic)searcher!).Search(Criteria);
             token.ThrowIfCancellationRequested();
-            // orcSucceededWithErrors nunca vira consulta completa/vazia.
-            if ((int)((dynamic)result).ResultCode != 2) return Match(inventory, [], false);
-            updates = ((dynamic)result).Updates;
-            int count = (int)((dynamic)updates).Count;
-            if (count is < 0 or > 512) return Match(inventory, [], false);
-            var offers = new List<DriverOfficialOffer>();
+            // orcSucceededWithErrors (3) nunca é uma consulta completa.
+            if ((int)((dynamic)result!).ResultCode != 2)
+                return Match(inventory, [], false);
+            updates = ((dynamic)result!).Updates;
+            int count = (int)((dynamic)updates!).Count;
+            if (count is < 0 or > 512)
+                return Match(inventory, [], false);
+            var offers = new List<DriverOfficialOffer>(count);
             int observedEntries = 0;
             for (int i = 0; i < count; i++)
             {
                 token.ThrowIfCancellationRequested();
-                var entry = ((dynamic)updates).Item(i);
-                DriverOfficialOffer? offer = CaptureOffer(entry, token);
+                object? entry = ((dynamic)updates!).Item(i);
+                if (entry is null)
+                    return Match(inventory, offers, false);
+                DriverOfficialOffer? offer = CaptureOffer(entry, token, releaseForTest);
                 if (offer is null)
                     return Match(inventory, offers, false);
                 if (offer.EntryAudit is { State: DriverOfficialEntryState.Complete } audited)
@@ -520,14 +547,26 @@ internal static class DriverOfficialLookup
                 }
                 offers.Add(offer);
             }
+            token.ThrowIfCancellationRequested();
             return Match(inventory, offers, true) with
             {
                 SearchContext = HostContextForSuccessfulSearch(online)
             };
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is COMException or InvalidCastException or
-            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or NotSupportedException)
-        { return new([], 0, 0, true, $"Consulta oficial indisponível (0x{ex.HResult:X8}); não significa ausência de atualizações."); }
-        finally { Release(updates); Release(result); Release(searcher); Release(session); }
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or
+            ArgumentException or NullReferenceException or OverflowException or NotSupportedException)
+        {
+            return new([], 0, 0, true,
+                $"Consulta oficial indisponível (0x{ex.HResult:X8}); não significa ausência de atualizações.");
+        }
+        finally
+        {
+            ReleaseComObject(updates, releaseForTest);
+            ReleaseComObject(result, releaseForTest);
+            ReleaseComObject(searcher, releaseForTest);
+            ReleaseComObject(session, releaseForTest);
+        }
     }
 }
