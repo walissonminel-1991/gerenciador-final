@@ -47,6 +47,11 @@ internal static class DriverReadOnlyReport
         text.AppendLine();
         text.AppendLine("OFERTAS OFICIAIS");
         text.AppendLine(official?.Status ?? "Consulta ao Windows Update ainda não solicitada. Consulta a fonte Microsoft e respeita falhas de política; exige conexão.");
+        if (official?.SearchContext is { } context)
+        {
+            text.AppendLine($"Contexto da busca: {context.Source}; {(context.Online ? "online" : "cache local")}; Windows {context.HostOsVersion}; arquitetura do SO {context.HostArchitecture}; UTC {context.SearchedAtUtc:u}.");
+            text.AppendLine("Estes são atributos do Windows consultado, NÃO a arquitetura ou compatibilidade certificada do pacote oferecido.");
+        }
         if (official is not null)
             foreach (var match in official.Matches.Take(200))
             {
@@ -59,6 +64,7 @@ internal static class DriverReadOnlyReport
                 {
                     text.AppendLine($"  Driver atual: INF {(string.IsNullOrEmpty(current.InfName) ? "não associado" : current.InfName)}; fornecedor {(string.IsNullOrEmpty(current.Provider) ? "não informado" : current.Provider)}; versão {(string.IsNullOrEmpty(current.Version) ? "não instalada/informada" : current.Version)}.");
                     text.AppendLine($"  Assinatura relatada por WMI: {(current.SignedReportedByWindows is true ? "sim" : current.SignedReportedByWindows is false ? "não" : "indeterminada")}; Store: {current.StoreState?.ToString() ?? "não comprovado"}; problema PnP: {current.PnpProblemCode?.ToString() ?? "não informado"}.");
+                    text.AppendLine($"  Versão numérica normalizada SOMENTE do driver instalado: {match.InstalledNumericVersion ?? "não comprovada"}; versão numérica do driver oferecido: NÃO DISPONÍVEL pela interface WUA.");
                     if (!current.WithoutSignedDriverAssociation)
                         text.AppendLine("  Mesmo fornecedor atual/oferta: " + (match.ProviderMatchesInstalled ? "sim (nome)" : "não/indeterminado; não equivale a incompatibilidade."));
                 }
