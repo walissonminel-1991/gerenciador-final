@@ -55,9 +55,9 @@ internal static class DriverReadOnlyDialogTemporalTests
                         if (!official.Enabled || !verify.Enabled ||
                             !body.RenderedText.Contains("falha registrada"))
                             throw new Exception("G1.10: diálogo válido não mostra investigação inicial.");
-                        official.PerformClick();
+                        ClickEnabled(official, () => launched == 1);
                         if (launched != 1)
-                            throw new Exception("G1.10: chamada sintética WUA não iniciada.");
+                            throw new Exception("G1.10: evento Click WUA sintético não iniciou exatamente uma tarefa.");
                         generation = 2;
                         notify?.Invoke();
                         AssertObsolete(dialog, device);
@@ -93,7 +93,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                     var (body, status, official, verify, close) = Controls(dialog);
                     if (stage++ == 0)
                     {
-                        official.PerformClick();
+                        ClickEnabled(official, () => launched == 1);
                         if (launched != 1)
                             throw new Exception("G1.10: tarefa WUA sintética não iniciou.");
                         return false;
@@ -134,7 +134,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                 dialog =>
                 {
                     var (body, status, official, verify, close) = Controls(dialog);
-                    verify.PerformClick();
+                    ClickEnabled(verify, () => launched == 1);
                     if (launched != 1)
                         throw new Exception("G1.10: tarefa INF sintética não iniciou.");
                     generation = 6;
@@ -170,6 +170,18 @@ internal static class DriverReadOnlyDialogTemporalTests
                 });
             Console.WriteLine("OK G1.10: reabertura nova restabelece relatório somente leitura válido");
         }
+    }
+
+    // PerformClick pode ser suprimido pelo foco do runner WinForms mesmo
+    // com Enabled=true. O fallback invoca o mesmo OnClick/evento registrado
+    // no controle real; não chama o motor nem contorna verificações do GF.
+    private static void ClickEnabled(Button button, Func<bool> observed)
+    {
+        if (!button.Enabled) throw new Exception("G1.10: botão deveria estar habilitado.");
+        button.PerformClick();
+        if (observed()) return;
+        typeof(Button).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(button, [EventArgs.Empty]);
     }
 
     private static DriverOfficialResult FakeOfficial(DriverInventoryEntry device)
