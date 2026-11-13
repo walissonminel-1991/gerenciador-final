@@ -94,6 +94,7 @@ internal static class DriverOfficialLookup
     internal const int MaxWuaEntriesPerSearch = 512;
     internal const int MaxSupersededPerOffer = 32;
     internal const int MaxCategoriesPerOffer = 16;
+    private static int activeStaSearch;
     internal static bool ValidHardwareId(string? id) => DriverInventory.ValidHardwareId(id);
 
     internal static string? NormalizeInstalledDriverVersion(string? version)
@@ -518,17 +519,41 @@ internal static class DriverOfficialLookup
         string.Equals(left.PackageEvidence?.InfName, right.PackageEvidence?.InfName, StringComparison.OrdinalIgnoreCase) &&
         left.HardwareIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(right.HardwareIds);
 
-    internal static Task<DriverOfficialResult> Start(DriverInventoryResult inventory, CancellationToken token, bool online = true)
+    internal static Task<DriverOfficialResult> Start(
+        DriverInventoryResult inventory, CancellationToken token, bool online = true) =>
+        StartWithCapture(inventory, token, online, Capture);
+
+    // A espera cancelada do chamador NÃO cancela Search síncrono dentro da STA.
+    // Uma única pesquisa ativa por processo impede acumular threads após timeout.
+    // O delegado injetado é só uma costura de teste, nunca usado para baixar bytes.
+    internal static Task<DriverOfficialResult> StartWithCapture(
+        DriverInventoryResult inventory, CancellationToken token, bool online,
+        Func<DriverInventoryResult, CancellationToken, bool, DriverOfficialResult> capture)
     {
-        var completion = new TaskCompletionSource<DriverOfficialResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (token.IsCancellationRequested)
+            return Task.FromCanceled<DriverOfficialResult>(token);
+        if (Interlocked.CompareExchange(ref activeStaSearch, 1, 0) != 0)
+            return Task.FromResult(new DriverOfficialResult([], 0, 0, true,
+                "Pesquisa Windows Update anterior ainda em execução; nenhuma nova pesquisa iniciada."));
+        var completion = new TaskCompletionSource<DriverOfficialResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
-            try { completion.TrySetResult(Capture(inventory, token, online)); }
+            try { completion.TrySetResult(capture(inventory, token, online)); }
             catch (OperationCanceledException) { completion.TrySetCanceled(token); }
             catch (Exception ex) { completion.TrySetException(ex); }
+            finally { Interlocked.Exchange(ref activeStaSearch, 0); }
         }) { IsBackground = true, Name = "GF Drivers somente leitura" };
-        if (OperatingSystem.IsWindows()) thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
+        try
+        {
+            if (OperatingSystem.IsWindows()) thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+        }
+        catch
+        {
+            Interlocked.Exchange(ref activeStaSearch, 0);
+            throw;
+        }
         return completion.Task;
     }
 
