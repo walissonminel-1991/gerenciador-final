@@ -162,6 +162,84 @@ internal static class G1EvidenceTests
             !string.IsNullOrWhiteSpace(host.HostOsVersion) &&
             !host.PackageOsArchitectureValidated,
             "G1.1: contexto do Windows é observado sem inferir certificação do pacote");
+        // G1.2 — Os membros de IWindowsDriverUpdate4 podem enumerar
+        // várias entradas para a mesma oferta, mas não arquivos do pacote.
+        var firstEntry = new DriverOfficialEntryEvidence(
+            hardware, "Fornecedor A", "Vídeo", "Display", "Fabricante A",
+            new DateTime(2026, 11, 11), 1, 0);
+        var otherEntry = firstEntry with
+        {
+            HardwareOrCompatibleId = @"PCI\VEN_9999&DEV_0001",
+            Model = "Outro dispositivo"
+        };
+        var audited = DriverOfficialLookup.AuditEntries([firstEntry, otherEntry]);
+        check(audited.State == DriverOfficialEntryState.Complete && audited.Entries.Count == 2 &&
+            !audited.VerifiedRemotePackage && !audited.VerifiedRank &&
+            !audited.VerifiedTargetOsVersion && firstEntry.OfferedNumericVersion is null &&
+            !firstEntry.PackageCompatibilityProven,
+            "G1.2: múltiplas entradas WUA válidas não expõem versão, TargetOS, rank ou pacote");
+        var auditedOffer = offer with { EntryAudit = audited };
+        var linkWithEntry = Match(device, auditedOffer);
+        check(!linkWithEntry.Partial && linkWithEntry.Matches.Count == 1 &&
+            linkWithEntry.Matches.Single().MatchingWuaEntry == firstEntry &&
+            !linkWithEntry.Matches.Single().CanInstall &&
+            !linkWithEntry.Matches.Single().OfferedNumericVersionProven,
+            "G1.2: entrada WUA exata vinculada só ao UpdateID/revisão da oferta pai");
+        var reportWithEntry = DriverReadOnlyReport.Format(
+            new([device], false, "fixture G1.2"), device, linkWithEntry);
+        check(reportWithEntry.Contains("WUA4 — entradas da oferta: Complete; 2", StringComparison.Ordinal) &&
+            reportWithEntry.Contains("não fornecem DriverVer numérico", StringComparison.Ordinal) &&
+            reportWithEntry.Contains("nenhuma atualização, instalação ou remoção foi autorizada", StringComparison.Ordinal),
+            "G1.2: relatório distingue coleção WUA4 de prova do pacote remoto");
+        var wrongEntry = offer with
+        {
+            EntryAudit = DriverOfficialLookup.AuditEntries([otherEntry])
+        };
+        check(Match(device, wrongEntry) is { Partial: true, Matches.Count: 0 },
+            "G1.2: entrada de outro hardware não valida o HardwareID da oferta pai");
+        var unavailableAudit = offer with
+        {
+            EntryAudit = new(DriverOfficialEntryState.Unavailable, [])
+        };
+        var unavailableResult = Match(device, unavailableAudit);
+        check(!unavailableResult.Partial && unavailableResult.Matches.Count == 1 &&
+            unavailableResult.Matches.Single().MatchingWuaEntry is null &&
+            !unavailableResult.Matches.Single().CanInstall,
+            "G1.2: getter WUA4 ausente não inventa entrada e não autoriza instalação");
+        check(Match(device, offer with
+            {
+                EntryAudit = new(DriverOfficialEntryState.Inconclusive, [])
+            }) is { Partial: true, Matches.Count: 0 },
+            "G1.2: coleção parcial é bloqueio, nunca publicada como vínculo completo");
+        check(DriverOfficialLookup.AuditEntries([]).State == DriverOfficialEntryState.Inconclusive &&
+            DriverOfficialLookup.AuditEntries(Enumerable.Repeat(firstEntry,
+                DriverOfficialLookup.MaxWuaEntriesPerOffer + 1).ToArray()).State ==
+                DriverOfficialEntryState.Inconclusive,
+            "G1.2: contagem zero, excesso e truncamento não aprovam coleção");
+        foreach (var malformedEntry in new[]
+        {
+            firstEntry with { HardwareOrCompatibleId = @"PCI\VEN_1234&DEV_5678*" },
+            firstEntry with { DriverClass = "Display\\nINCORRETO" },
+            firstEntry with { Model = "" },
+            firstEntry with { Provider = "" },
+            firstEntry with { VersionDate = default },
+            firstEntry with { DeviceProblemNumber = -1 },
+            firstEntry with { DeviceProblemNumber = 10000 }
+        })
+        {
+            check(DriverOfficialLookup.AuditEntries([malformedEntry]).State ==
+                DriverOfficialEntryState.Inconclusive,
+                "G1.2: entrada WUA malformada não gera vínculo consultivo");
+        }
+        var conflictingEntries = DriverOfficialLookup.AuditEntries(
+            [firstEntry, firstEntry with { Model = "Modelo divergente" }]);
+        check(conflictingEntries.State == DriverOfficialEntryState.Inconclusive &&
+            Match(device, offer with { EntryAudit = conflictingEntries })
+                is { Partial: true, Matches.Count: 0 },
+            "G1.2: duas entradas contraditórias do mesmo HardwareID falham fechado");
+        check(DriverOfficialLookup.AuditEntries([firstEntry, firstEntry]).State ==
+            DriverOfficialEntryState.Complete,
+            "G1.2: duplicatas idênticas não implicam dois drivers diferentes");
         var alternatives = DriverOfficialLookup.Match(new([device], false, "fixture G1"),
             [offer, offer with { UpdateId = "0ab6b8a0-637a-46b1-9096-e68dfa1d5d6a",
                  VersionDate = new DateTime(2020, 1, 1) }], true);
