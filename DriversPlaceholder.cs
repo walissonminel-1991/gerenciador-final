@@ -193,6 +193,7 @@ internal sealed partial class MainForm
         DriverInventoryResult? lastResult = null;
         long inventoryGeneration = 0;
         Action? invalidateOpenReport = null;
+        list.SelectionChanged += (_, _) => invalidateOpenReport?.Invoke();
         investigate.Click += (_, _) =>
         {
             if (lastResult is not { } captured) return;
