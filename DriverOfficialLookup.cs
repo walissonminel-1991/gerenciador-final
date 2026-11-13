@@ -77,6 +77,7 @@ internal static class DriverOfficialLookup
 {
     internal const string Criteria = "IsInstalled=0 and IsHidden=0 and Type='Driver'";
     internal const int MaxWuaEntriesPerOffer = 32;
+    internal const int MaxWuaEntriesPerSearch = 512;
     internal static bool ValidHardwareId(string? id) => DriverInventory.ValidHardwareId(id);
 
     internal static string? NormalizeInstalledDriverVersion(string? version)
@@ -228,7 +229,7 @@ internal static class DriverOfficialLookup
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is COMException or InvalidCastException or
             Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException or
-            ArgumentException or OverflowException or NotSupportedException)
+            ArgumentException or NullReferenceException or OverflowException or NotSupportedException)
         {
             return new(enumerating ? DriverOfficialEntryState.Inconclusive :
                 DriverOfficialEntryState.Unavailable, []);
@@ -304,6 +305,7 @@ internal static class DriverOfficialLookup
             int count = (int)((dynamic)updates).Count;
             if (count is < 0 or > 512) return Match(inventory, [], false);
             var offers = new List<DriverOfficialOffer>();
+            int observedEntries = 0;
             for (int i = 0; i < count; i++)
             {
                 token.ThrowIfCancellationRequested();
@@ -314,6 +316,13 @@ internal static class DriverOfficialLookup
                     if ((int)((dynamic)entry).Type != 2 || (bool)((dynamic)entry).IsInstalled || (bool)((dynamic)entry).IsHidden)
                         return Match(inventory, offers, false);
                     identity = ((dynamic)entry).Identity;
+                    var entryAudit = CaptureEntries(entry!, token);
+                    if (entryAudit.State == DriverOfficialEntryState.Complete)
+                    {
+                        observedEntries += entryAudit.Entries.Count;
+                        if (observedEntries > MaxWuaEntriesPerSearch)
+                            return Match(inventory, offers, false);
+                    }
                     offers.Add(new((string)((dynamic)identity).UpdateID, (int)((dynamic)identity).RevisionNumber,
                         (string)((dynamic)entry).Title, (string)((dynamic)entry).DriverHardwareID,
                         (string)((dynamic)entry).DriverProvider, (string)((dynamic)entry).DriverModel,
@@ -321,7 +330,7 @@ internal static class DriverOfficialLookup
                     {
                         DriverClass = (string)((dynamic)entry).DriverClass,
                         Manufacturer = (string)((dynamic)entry).DriverManufacturer,
-                        EntryAudit = CaptureEntries(entry!, token)
+                        EntryAudit = entryAudit
                     });
                 }
                 finally { Release(identity); Release(entry); }
