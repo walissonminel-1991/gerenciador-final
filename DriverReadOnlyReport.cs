@@ -52,8 +52,18 @@ internal static class DriverReadOnlyReport
             {
                 text.AppendLine($"{match.DeviceName}: {match.Offer.Title}");
                 text.AppendLine($"  Fornecedor: {match.Offer.Provider}; modelo: {match.Offer.Model}; data informada: {match.Offer.VersionDate:yyyy-MM-dd}.");
-                text.AppendLine($"  ID: {match.Offer.HardwareId}; oferta: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
-                text.AppendLine("  " + match.Label + " Versão numérica não fornecida separadamente pela API; não inferida do título.");
+                text.AppendLine($"  Instância PnP: {match.DeviceId}; HardwareID exato: {match.Offer.HardwareId}.");
+                text.AppendLine($"  Identidade da oferta WUA: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
+                text.AppendLine($"  Classe informada: {(string.IsNullOrWhiteSpace(match.Offer.DriverClass) ? "não informada" : match.Offer.DriverClass)}; fabricante: {(string.IsNullOrWhiteSpace(match.Offer.Manufacturer) ? "não informado" : match.Offer.Manufacturer)}.");
+                if (match.Installed is { } current)
+                {
+                    text.AppendLine($"  Driver atual: INF {(string.IsNullOrEmpty(current.InfName) ? "não associado" : current.InfName)}; fornecedor {(string.IsNullOrEmpty(current.Provider) ? "não informado" : current.Provider)}; versão {(string.IsNullOrEmpty(current.Version) ? "não instalada/informada" : current.Version)}.");
+                    text.AppendLine($"  Assinatura relatada por WMI: {(current.SignedReportedByWindows is true ? "sim" : current.SignedReportedByWindows is false ? "não" : "indeterminada")}; Store: {current.StoreState?.ToString() ?? "não comprovado"}; problema PnP: {current.PnpProblemCode?.ToString() ?? "não informado"}.");
+                    if (!current.WithoutSignedDriverAssociation)
+                        text.AppendLine("  Mesmo fornecedor atual/oferta: " + (match.ProviderMatchesInstalled ? "sim (nome)" : "não/indeterminado; não equivale a incompatibilidade."));
+                }
+                text.AppendLine("  " + match.Label);
+                text.AppendLine("  Não há versão numérica da oferta nem comparação de ranking do Windows; nenhuma atualização, instalação ou remoção foi autorizada.");
             }
         if (official?.Matches.Count > 200) text.AppendLine("Exibição limitada a 200 vínculos; não representa a totalidade.");
         text.AppendLine();
