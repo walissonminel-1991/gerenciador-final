@@ -539,10 +539,18 @@ internal static class DriverOfficialLookup
             TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
-            try { completion.TrySetResult(capture(inventory, token, online)); }
-            catch (OperationCanceledException) { completion.TrySetCanceled(token); }
-            catch (Exception ex) { completion.TrySetException(ex); }
+            DriverOfficialResult? outcome = null;
+            Exception? failure = null;
+            bool canceled = false;
+            try { outcome = capture(inventory, token, online); }
+            catch (OperationCanceledException) { canceled = true; }
+            catch (Exception ex) { failure = ex; }
             finally { Interlocked.Exchange(ref activeStaSearch, 0); }
+            // Só sinalizar término após liberar a exclusividade; isso evita
+            // que um segundo chamador crie STA em paralelo por corrida de finally.
+            if (canceled) completion.TrySetCanceled(token);
+            else if (failure is not null) completion.TrySetException(failure);
+            else completion.TrySetResult(outcome!);
         }) { IsBackground = true, Name = "GF Drivers somente leitura" };
         try
         {
