@@ -9,7 +9,8 @@ internal sealed partial class MainForm
     private Task<DriverInfVerificationResult>? _driverInfReadTask;
 
     private void ShowDriverReadOnlyReport(DriverInventoryResult inventory, DriverInventoryEntry? selected,
-        Func<bool> isCurrent, Func<CancellationToken, DriverOfficialResult, bool> canPublishOfficial)
+        Func<bool> isCurrent, Func<CancellationToken, DriverOfficialResult, bool> canPublishOfficial,
+        Func<CancellationToken, DriverInfVerificationResult, bool> canPublishInf)
     {
         using var dialog = new Form
         {
@@ -134,7 +135,7 @@ internal sealed partial class MainForm
                 _driverInfReadTask = Task.Run(() => DriverInfVerification.Verify(package, token));
                 var result = await _driverInfReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (dialog.IsDisposed || !isCurrent()) return false;
+                if (dialog.IsDisposed || !canPublishInf(token, result)) return false;
                 verification = result;
                 return true;
             }, TimeSpan.FromSeconds(25));
