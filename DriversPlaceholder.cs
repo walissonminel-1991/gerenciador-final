@@ -241,12 +241,17 @@ internal sealed partial class MainForm
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
         DriverInventoryResult? lastResult = null;
         long inventoryGeneration = 0;
+        // Apenas a geracao publicada nesta consulta habilita NOVA investigacao.
+        // Uma leitura cancelada preserva a lista anterior, mas nao sua autoridade.
+        long publishedSnapshotGeneration = -1;
         Action? invalidateOpenReport = null;
         void SyncInvestigationDescription()
         {
             if (investigate.IsDisposed) return;
             investigate.AccessibleDescription = lastResult is null
                 ? "Disponível depois de uma consulta local. Sem instalação ou atualização."
+                : publishedSnapshotGeneration != inventoryGeneration
+                    ? "Fotografia anterior preservada apenas para leitura. Investigar indisponível até nova consulta válida."
                 : list.SelectedItem is null
                     ? "Abre relatório geral de drivers, sem dispositivo selecionado e sem verificação INF."
                     : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
@@ -258,7 +263,10 @@ internal sealed partial class MainForm
         };
         investigate.Click += (_, _) =>
         {
-            if (lastResult is not { } captured) return;
+            // Não aceitar Click sintético/reentrante sobre geração revogada,
+            // mesmo que um controle desabilitado seja invocado diretamente.
+            if (publishedSnapshotGeneration != inventoryGeneration ||
+                lastResult is not { } captured) return;
             var selection = list.SelectedItem;
             var guard = new DriverReportPublicationGuard(captured, selection, inventoryGeneration);
             ShowDriverReadOnlyReport(captured, selection,
@@ -374,6 +382,7 @@ internal sealed partial class MainForm
             resultPublished = false;
             SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
+            SyncInvestigationDescription();
             SetDriverStatus("Consultando drivers em segundo plano…");
             _driverReadTask = readForTest is null
                 ? Task.Run(() => DriverStoreAudit.CaptureWithPackages(token)) : readForTest(token);
@@ -388,6 +397,7 @@ internal sealed partial class MainForm
                 var result = DriverInventorySnapshot.FreezeStable(captured, token);
                 var historyInventory = result;
                 long publishedGeneration = inventoryGeneration;
+                publishedSnapshotGeneration = publishedGeneration;
                 snapshot = result.Items;
                 lastResult = result;
                 investigate.Enabled = true;
@@ -485,7 +495,9 @@ internal sealed partial class MainForm
                     // Nunca bloquear a interface: o teste de _driverReadTask
                     // no inicio do clique continua impedindo consultas simultaneas.
                     refresh.Enabled = true;
-                    investigate.Enabled = lastResult is not null;
+                    investigate.Enabled = lastResult is not null &&
+                        publishedSnapshotGeneration == inventoryGeneration;
+                    SyncInvestigationDescription();
                     if (_driverReadTask is { IsCompleted: false })
                         SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 }
