@@ -14,7 +14,8 @@ internal sealed partial class MainForm
         Action<Action?> onInvalidationChanged,
         Func<CancellationToken, Task<DriverOfficialResult>>? officialReadForTest = null,
         Func<CancellationToken, Task<DriverInfVerificationResult>>? infReadForTest = null,
-        TimeSpan? timeoutForTest = null)
+        TimeSpan? timeoutForTest = null,
+        Action<Action, Action>? onTestActionsReady = null)
     {
         using var dialog = new Form
         {
@@ -147,8 +148,10 @@ internal sealed partial class MainForm
                 }
             }
         }
-        officialButton.Click += async (_, _) =>
+        async Task RunOfficial()
         {
+            CheckCurrent();
+            if (obsolete || closing) return;
             if (current is null && _driverOfficialReadTask is { IsCompleted: false })
             { CheckCurrent(); if (!obsolete) status.Text = "Consulta nativa anterior ainda encerrando; resultado preservado."; return; }
             await Run(officialButton, async token =>
@@ -161,9 +164,11 @@ internal sealed partial class MainForm
                 official = result;
                 return true;
             }, timeoutForTest ?? TimeSpan.FromSeconds(90));
-        };
-        verifyButton.Click += async (_, _) =>
+        }
+        async Task RunInf()
         {
+            CheckCurrent();
+            if (obsolete || closing) return;
             if (current is null && _driverInfReadTask is { IsCompleted: false })
             { CheckCurrent(); if (!obsolete) status.Text = "Verificação nativa anterior ainda encerrando; resultado preservado."; return; }
             if (selected?.PackageEvidence is not { } package) return;
@@ -178,7 +183,12 @@ internal sealed partial class MainForm
                 verification = result;
                 return true;
             }, timeoutForTest ?? TimeSpan.FromSeconds(25));
-        };
+        }
+        officialButton.Click += async (_, _) => await RunOfficial();
+        verifyButton.Click += async (_, _) => await RunInf();
+        // Costura exclusivamente de fixture: invoca os mesmos handlers da UI,
+        // sem depender do foco/PerformClick do runner Windows.
+        onTestActionsReady?.Invoke(() => _ = RunOfficial(), () => _ = RunInf());
         close.Click += (_, _) => dialog.Close();
         dialog.FormClosed += (_, _) =>
         {
