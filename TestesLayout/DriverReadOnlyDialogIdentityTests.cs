@@ -97,6 +97,13 @@ internal static class DriverReadOnlyDialogIdentityTests
                         status.Text + " | " + report.RenderedText.Substring(0, Math.Min(150, report.RenderedText.Length)));
                 if (expectedInf.HasValue && inf.Enabled != expectedInf.Value)
                     throw new Exception("G1.14: elegibilidade INF incorreta.");
+                if (inventory.Items.GroupBy(x => x.DeviceId, StringComparer.OrdinalIgnoreCase)
+                        .Any(g => g.Count() > 1) && selected is null &&
+                    (!report.RenderedText.Contains("Consulta ao Windows Update indisponível",
+                        StringComparison.Ordinal) ||
+                     report.RenderedText.Contains("Consulta ao Windows Update ainda não solicitada",
+                        StringComparison.Ordinal)))
+                    throw new Exception("G1.14: relatório oferece WUA mesmo com identidade global repetida.");
                 if (initialInvalid && (official.Enabled || inf.Enabled ||
                     !report.RenderedText.Contains("nenhum resultado", StringComparison.OrdinalIgnoreCase)))
                     throw new Exception("G1.14: fonte inicialmente ambígua ainda autoriza ações.");

@@ -12,8 +12,10 @@ internal static class DriverReadOnlyReport
         var text = new StringBuilder("DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n");
         text.AppendLine("Dados locais de hardware nesta janela; nenhum pacote é instalado, removido ou baixado.");
         text.AppendLine($"Dispositivos/associações: {inventory.Items.Count}; inventário parcial: {(inventory.Partial ? "sim" : "não")}.");
-        if (inventory.Items.GroupBy(x => x.DeviceId.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Any(group => string.IsNullOrWhiteSpace(group.Key) || group.Count() > 1))
+        bool ambiguousIdentity = inventory.Items.GroupBy(x => x.DeviceId.Trim(),
+            StringComparer.OrdinalIgnoreCase).Any(group =>
+                string.IsNullOrWhiteSpace(group.Key) || group.Count() > 1);
+        if (ambiguousIdentity)
             text.AppendLine("ATENÇÃO: DeviceId ausente ou duplicado no inventário completo. " +
                 "Uma linha filtrada não comprova associação única de INF/WUA; " +
                 "consulta oficial bloqueada até nova leitura coerente.");
@@ -53,15 +55,17 @@ internal static class DriverReadOnlyReport
         }
         text.AppendLine();
         text.AppendLine("OFERTAS OFICIAIS");
-        text.AppendLine(official?.Status ?? "Consulta ao Windows Update ainda não solicitada. Consulta a fonte Microsoft e respeita falhas de política; exige conexão.");
-        if (official is not null)
+        text.AppendLine(ambiguousIdentity
+            ? "Consulta ao Windows Update indisponível: DeviceId repetido ou ausente no inventário completo; nenhum vínculo WUA publicado."
+            : official?.Status ?? "Consulta ao Windows Update ainda não solicitada. Consulta a fonte Microsoft e respeita falhas de política; exige conexão.");
+        if (official is not null && !ambiguousIdentity)
             text.AppendLine("IDENTIDADE DO PACOTE REMOTO: NÃO COMPROVADA. WUA DownloadContents expõe URLs de conteúdo e indicador de compressão delta, mas não fornece hash autenticado, INF, DriverVer ou TargetOSVersion. O GF não consulta URLs nem baixa conteúdo nesta investigação; nenhuma oferta vira atualização autorizada.");
-        if (official?.SearchContext is { } context)
+        if (!ambiguousIdentity && official?.SearchContext is { } context)
         {
             text.AppendLine($"Contexto da busca: {context.Source}; {(context.Online ? "online" : "cache local")}; Windows {context.HostOsVersion}; arquitetura do SO {context.HostArchitecture}; UTC {context.SearchedAtUtc:u}.");
             text.AppendLine("Estes são atributos do Windows consultado, NÃO a arquitetura ou compatibilidade certificada do pacote oferecido.");
         }
-        if (official is not null)
+        if (!ambiguousIdentity && official is not null)
             foreach (var match in official.Matches.Take(200))
             {
                 text.AppendLine($"{match.DeviceName}: {match.Offer.Title}");
@@ -108,7 +112,8 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("  " + match.Label);
                 text.AppendLine("  Não há versão numérica da oferta nem comparação de ranking do Windows; nenhuma atualização, instalação ou remoção foi autorizada.");
             }
-        if (official?.Matches.Count > 200) text.AppendLine("Exibição limitada a 200 vínculos; não representa a totalidade.");
+        if (!ambiguousIdentity && official?.Matches.Count > 200)
+            text.AppendLine("Exibição limitada a 200 vínculos; não representa a totalidade.");
         text.AppendLine();
         text.AppendLine("INFs PUBLICADOS — ASSOCIAÇÕES OBSERVADAS");
         if (inventory.PublishedPackages is { } packages)

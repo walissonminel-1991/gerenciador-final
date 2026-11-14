@@ -26,3 +26,7 @@ NÃO realizar downloads, URLs de conteúdo, staging, instalação, atualização
 
 ## 5. Próxima etapa G1.15 proposta
 Auditar a coerência entre inventário parcial, inconsistência de vínculo INF/Store e permissões consultivas exibidas no diálogo, com testes WinForms sintéticos, sem modificar mecanismos de instalação ou permitir URLs de conteúdo.
+
+### Complemento F4 — discrepância entre botão WUA e relatório
+
+Na abertura sem seleção e com `DeviceId` duplicado, a consulta WUA está desabilitada mas a seção **OFERTAS OFICIAIS** ainda dizia apenas "consulta ... ainda não solicitada; exige conexão". A renderização agora explicita que a consulta está **indisponível** enquanto a identidade completa é ambígua e suprime qualquer bloco de vínculos WUA que porventura tenha sido passado ao formatador. O teste WinForms G1.14 exige a mensagem de indisponibilidade, não a anterior. O guard G1.9 não foi alterado, nem foi feita consulta WUA real.
