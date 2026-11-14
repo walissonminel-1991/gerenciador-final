@@ -39,6 +39,7 @@ internal static class LayoutTests
             DriverReadOnlyDialogIdentityTests.Run(driverForm);
             DriverReadOnlyDialogEvidenceTests.Run(driverForm);
             DriverReadOnlyDialogHistoryTests.Run(driverForm);
+            DriverHistoryPanelCoherenceTests.Run(driverForm);
             return;
         }
         if (args.Contains("--work9"))

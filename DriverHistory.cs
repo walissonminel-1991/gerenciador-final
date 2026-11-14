@@ -43,6 +43,12 @@ internal static class DriverHistory
     {
         if (inventory.Partial || inventory.Items.Count == 0)
             return new(false, false, 0, 0, 0, "Histórico preservado: consulta parcial ou vazia.");
+        // Uma fotografia PnP completa pode não conter associação obtida de
+        // Win32_PnPSignedDriver. Isso não é falha do arquivo histórico nem
+        // prova de inexistência de drivers: preservar sem abrir/escrever v1.
+        if (!inventory.Items.Any(item => !item.WithoutSignedDriverAssociation))
+            return new(false, false, 0, 0, 0,
+                "Histórico preservado: nenhuma associação de driver WMI observada nesta consulta; não comprova ausência de drivers.");
         lock (Gate)
         {
             string? temporary = null;

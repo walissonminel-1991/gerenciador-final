@@ -373,6 +373,14 @@ internal sealed partial class MainForm
                 investigate.Enabled = true;
                 resultPublished = true;
                 Render();
+                // A lista agora representa OUTRA fotografia. O rodapé não deve
+                // anunciar a comparação da fotografia anterior enquanto a
+                // gravação desta ainda ocorre. Fixtures não gravam histórico.
+                history.Text = readForTest is null
+                    ? "Histórico local: comparação desta consulta em andamento; resultado ainda não confirmado."
+                    : "Histórico sintético desta consulta: não gravado nem comparado com o histórico local.";
+                history.AccessibleDescription = history.Text;
+                _toolTips.SetToolTip(history, history.Text);
                 // Depois da publicação, só resta concluir o histórico; não existe
                 // mais consulta WMI aguardando cancelamento por este botão.
                 refresh.Enabled = false;
