@@ -47,7 +47,7 @@ internal static class DriverReadOnlyDialogTemporalTests
             RunModal(owner, method, inventory, device, () => generation,
                 callback => notify = callback,
                 _ => { launched++; return read.Task; }, null, TimeSpan.FromSeconds(30),
-                dialog =>
+                (dialog, runOfficial, runInf) =>
                 {
                     var (body, status, official, verify, close) = Controls(dialog);
                     if (stage++ == 0)
@@ -55,7 +55,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                         if (!official.Enabled || !verify.Enabled ||
                             !body.RenderedText.Contains("falha registrada"))
                             throw new Exception("G1.10: diálogo válido não mostra investigação inicial.");
-                        ClickEnabled(official, () => launched == 1);
+                        runOfficial();
                         if (launched != 1)
                             throw new Exception($"G1.10: evento Click WUA sintético inconsistente; launched={launched}, enabled={official.Enabled}, status={status.Text}, canSelect={official.CanSelect}.");
                         generation = 2;
@@ -88,12 +88,12 @@ internal static class DriverReadOnlyDialogTemporalTests
             RunModal(owner, method, inventory, device, () => generation, _ => { },
                 _ => { launched++; return read.Task; }, null,
                 TimeSpan.FromMilliseconds(35),
-                dialog =>
+                (dialog, runOfficial, runInf) =>
                 {
                     var (body, status, official, verify, close) = Controls(dialog);
                     if (stage++ == 0)
                     {
-                        ClickEnabled(official, () => launched == 1);
+                        runOfficial();
                         if (launched != 1)
                             throw new Exception("G1.10: tarefa WUA sintética não iniciou.");
                         return false;
@@ -103,7 +103,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                         if (!status.Text.Contains("prazo esgotado", StringComparison.OrdinalIgnoreCase) &&
                             !status.Text.Contains("cancelada", StringComparison.OrdinalIgnoreCase))
                             throw new Exception("G1.10: timeout do chamador não foi comunicado.");
-                        official.PerformClick();
+                        runOfficial();
                         if (launched != 1 ||
                             !status.Text.Contains("ainda encerrando", StringComparison.OrdinalIgnoreCase))
                             throw new Exception("G1.10: nova busca iniciada com tarefa anterior pendente.");
@@ -131,10 +131,10 @@ internal static class DriverReadOnlyDialogTemporalTests
             RunModal(owner, method, inventory, device, () => generation, _ => { },
                 null, _ => { launched++; return read.Task; },
                 TimeSpan.FromSeconds(25),
-                dialog =>
+                (dialog, runOfficial, runInf) =>
                 {
                     var (body, status, official, verify, close) = Controls(dialog);
-                    ClickEnabled(verify, () => launched == 1);
+                    runInf();
                     if (launched != 1)
                         throw new Exception("G1.10: tarefa INF sintética não iniciou.");
                     generation = 6;
@@ -159,7 +159,7 @@ internal static class DriverReadOnlyDialogTemporalTests
             long generation = 7;
             RunModal(owner, method, inventory, device, () => generation, _ => { },
                 null, null, TimeSpan.FromSeconds(30),
-                dialog =>
+                (dialog, runOfficial, runInf) =>
                 {
                     var (body, status, official, verify, close) = Controls(dialog);
                     if (!official.Enabled || !verify.Enabled || !close.Enabled ||
@@ -170,18 +170,6 @@ internal static class DriverReadOnlyDialogTemporalTests
                 });
             Console.WriteLine("OK G1.10: reabertura nova restabelece relatório somente leitura válido");
         }
-    }
-
-    // PerformClick pode ser suprimido pelo foco do runner WinForms mesmo
-    // com Enabled=true. O fallback invoca o mesmo OnClick/evento registrado
-    // no controle real; não chama o motor nem contorna verificações do GF.
-    private static void ClickEnabled(Button button, Func<bool> observed)
-    {
-        if (!button.Enabled) throw new Exception("G1.10: botão deveria estar habilitado.");
-        button.PerformClick();
-        if (observed()) return;
-        typeof(Button).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!
-            .Invoke(button, [EventArgs.Empty]);
     }
 
     private static DriverOfficialResult FakeOfficial(DriverInventoryEntry device)
@@ -203,13 +191,13 @@ internal static class DriverReadOnlyDialogTemporalTests
         Func<long> generation, Action<Action?> observe,
         Func<CancellationToken, Task<DriverOfficialResult>>? officialRead,
         Func<CancellationToken, Task<DriverInfVerificationResult>>? infRead,
-        TimeSpan timeout, Func<Form, bool> tick)
+        TimeSpan timeout, Func<Form, Action, Action, bool> tick)
     {
-        const long capturedGeneration = 1;
         // A geração inicial de cada cenário é a que foi informada pelo teste.
         long origin = generation();
         var guard = new DriverReportPublicationGuard(inventory, device, origin);
         Exception? failure = null;
+        Action? runOfficial = null, runInf = null;
         int calls = 0;
         using var timer = new System.Windows.Forms.Timer { Interval = 150 };
         timer.Tick += (_, _) =>
@@ -220,7 +208,9 @@ internal static class DriverReadOnlyDialogTemporalTests
             try
             {
                 if (++calls > 8) throw new Exception("G1.10: cenário WinForms não terminou.");
-                if (tick(dialog)) { timer.Stop(); dialog.Close(); }
+                if (runOfficial is null || runInf is null)
+                    throw new Exception("G1.10: handlers de consulta não foram registrados.");
+                if (tick(dialog, runOfficial, runInf)) { timer.Stop(); dialog.Close(); }
             }
             catch (Exception ex)
             {
@@ -236,7 +226,12 @@ internal static class DriverReadOnlyDialogTemporalTests
                 guard.CanPublish(inventory, device, generation(), token, result)),
             (Func<CancellationToken, DriverInfVerificationResult, bool>)((token, result) =>
                 guard.CanPublishInf(inventory, device, generation(), token, result)),
-            (Action<Action?>)observe, officialRead, infRead, (TimeSpan?)timeout]);
+            (Action<Action?>)observe, officialRead, infRead, (TimeSpan?)timeout,
+            (Action<Action, Action>)((officialAction, infAction) =>
+            {
+                runOfficial = officialAction;
+                runInf = infAction;
+            })]);
         timer.Stop();
         if (failure is not null) throw failure;
         if (calls == 0) throw new Exception("G1.10: nenhum evento UI executado.");
