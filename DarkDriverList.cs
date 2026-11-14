@@ -75,6 +75,8 @@ internal sealed class DarkDriverList : Control
         _scrollbar.ValueChanged += (_, _) =>
         {
             _scrollOffset = _scrollbar.Value;
+            _tipIndex = -1;
+            _tips.SetToolTip(this, "");
             Invalidate();
         };
         Controls.Add(_scrollbar);
@@ -91,11 +93,22 @@ internal sealed class DarkDriverList : Control
         _tipIndex = -1;
         _tips.SetToolTip(this, "");
         UpdateMetrics();
+        UpdateAccessibleSelection();
         if (!ReferenceEquals(selected, SelectedItem))
             SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void ScrollToTop() => _scrollbar.Value = 0;
+
+    private void UpdateAccessibleSelection()
+    {
+        var selected = SelectedItem;
+        AccessibleDescription = selected is null
+            ? $"Nenhum dispositivo selecionado; {_items.Count} associações exibidas. Use as setas para escolher."
+            : $"Selecionado {_selectedIndex + 1} de {_items.Count}: " +
+              (string.IsNullOrWhiteSpace(selected.DeviceName) ? "Dispositivo não identificado" : selected.DeviceName) +
+              "; " + selected.PnpStatusLabel + ". Somente leitura; pressione Tab para Investigar.";
+    }
 
     private void UpdateMetrics()
     {
@@ -117,6 +130,7 @@ internal sealed class DarkDriverList : Control
                 _scrollbar.Value = bottom - ClientSize.Height;
         }
         Invalidate();
+        UpdateAccessibleSelection();
         if (_selectedIndex != previous)
             SelectionChanged?.Invoke(this, EventArgs.Empty);
     }

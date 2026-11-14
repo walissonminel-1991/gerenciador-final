@@ -7,7 +7,10 @@ internal sealed partial class MainForm
 {
     private Task<DriverInventoryResult>? _driverReadTask;
 
-    private Control BuildDriversPlaceholder()
+    private Control BuildDriversPlaceholder(
+        Func<CancellationToken, Task<DriverInventoryResult>>? readForTest = null,
+        TimeSpan? timeoutForTest = null,
+        Action<Action>? onTestReadActionReady = null)
     {
         // Mesma hierarquia visual de Aplicativos: pesquisa, acoes, filtros,
         // cartoes e estado. Nada nesta tela instala, remove ou edita drivers.
@@ -66,6 +69,7 @@ internal sealed partial class MainForm
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
         refresh.Name = "DriverInventoryRefresh";
+        refresh.AccessibleName = "Consultar drivers";
         refresh.Dock = DockStyle.Fill;
         refresh.Margin = new Padding(0, 2, 6, 2);
         actionPanel.Controls.Add(refresh, 0, 0);
@@ -95,6 +99,7 @@ internal sealed partial class MainForm
         actionInfo.Controls.Add(compactFilter);
         var investigate = CreateSecondaryButton("Investigar");
         investigate.Name = "DriverReadOnlyInvestigation";
+        investigate.AccessibleName = "Investigar drivers e histórico, somente leitura";
         investigate.Dock = DockStyle.Fill;
         investigate.Margin = new Padding(0, 2, 6, 2);
         investigate.Enabled = false;
@@ -151,6 +156,7 @@ internal sealed partial class MainForm
         var empty = new Label
         {
             Name = "DriverInventoryEmpty", Dock = DockStyle.Fill,
+            AccessibleName = "Estado da lista de drivers",
             Text = "Clique em Consultar drivers para iniciar a leitura.",
             Font = new Font("Segoe UI", 10f), ForeColor = Muted,
             BackColor = PanelBackground,
@@ -176,18 +182,39 @@ internal sealed partial class MainForm
         var state = new Label
         {
             Name = "DriverInventoryStatus", Dock = DockStyle.Fill, ForeColor = Muted,
+            AccessibleName = "Estado da consulta de drivers",
             AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
             Text = "Nenhuma consulta iniciada. Não é o inventário completo do Driver Store."
         };
         var history = new Label
         {
             Name = "DriverHistoryStatus", Dock = DockStyle.Fill, ForeColor = Muted,
+            AccessibleName = "Histórico local de drivers",
             AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
             Text = "Histórico próprio: comparações locais a partir da primeira consulta."
         };
         footer.Controls.Add(state, 0, 0);
         footer.Controls.Add(history, 0, 1);
         root.Controls.Add(footer, 0, 4);
+        history.AccessibleDescription = history.Text;
+        void SetDriverStatus(string message)
+        {
+            if (state.IsDisposed) return;
+            state.Text = message;
+            state.AccessibleDescription = message + Environment.NewLine + history.Text +
+                (history.AccessibleDescription == history.Text ? "" : Environment.NewLine + history.AccessibleDescription);
+            _toolTips.SetToolTip(state, state.AccessibleDescription);
+        }
+        void SetRefreshCaption(string caption, string description)
+        {
+            if (refresh.IsDisposed) return;
+            refresh.Text = caption;
+            refresh.AccessibleName = caption;
+            refresh.AccessibleDescription = description;
+            _toolTips.SetToolTip(refresh, description);
+        }
+        SetDriverStatus(state.Text);
+        SetRefreshCaption("Consultar drivers", "Consulta apenas dispositivos e vínculos locais. Não modifica drivers.");
 
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
         DriverInventoryResult? lastResult = null;
@@ -220,6 +247,7 @@ internal sealed partial class MainForm
             int count = snapshot?.Count ?? 0;
             title.Text = snapshot is null ? "Drivers · consulta não iniciada"
                 : $"Drivers: {count} · Exibidos: {visible.Length}";
+            title.AccessibleDescription = title.Text;
             _toolTips.SetToolTip(title,
                 "Associações de drivers a dispositivos, não pacotes exclusivos do Driver Store.");
             empty.Text = snapshot is null ? "Clique em Consultar drivers para iniciar a leitura."
@@ -227,6 +255,12 @@ internal sealed partial class MainForm
                 : count == 0 ? "Nenhuma associação retornada pela consulta."
                 : "Nenhuma associação nesta categoria.";
             empty.Visible = visible.Length == 0;
+            empty.AccessibleDescription = empty.Text;
+            investigate.AccessibleDescription = lastResult is null
+                ? "Disponível depois de uma consulta local. Sem instalação ou atualização."
+                : list.SelectedItem is null
+                    ? "Abre relatório geral de drivers, sem dispositivo selecionado e sem verificação INF."
+                    : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
             if (empty.Visible) empty.BringToFront();
             foreach (var (button, name) in new[]
                 { (all, "Todos"), (present, "Presentes"), (problems, "Problemas"), (other, "Não confirmados") })
@@ -235,7 +269,10 @@ internal sealed partial class MainForm
                 button.BackColor = selected ? Color.FromArgb(43, 66, 89)
                     : Color.FromArgb(43, 56, 70);
                 button.ForeColor = selected ? Accent : Ink;
+                button.AccessibleDescription = selected
+                    ? "Filtro ativo: " + name : "Ativar filtro: " + name;
             }
+            compactFilter.AccessibleDescription = "Filtro atual: " + activeFilter;
         }
 
         search.TextChanged += (_, _) => Render();
@@ -260,39 +297,40 @@ internal sealed partial class MainForm
             invalidateOpenReport?.Invoke();
             driverQuery.RequestCancel();
         };
-        refresh.Click += async (_, _) =>
+        async Task RunRefresh()
         {
             if (driverQuery.InProgress)
             {
                 if (resultPublished)
                 {
-                    state.Text = "Finalizando o histórico da consulta já concluída.";
+                    SetDriverStatus("Finalizando o histórico da consulta já concluída.");
                     return;
                 }
                 // Cancel() pode retomar WaitAsync/catch/finally imediatamente
                 // na thread da UI. Mudar estado ANTES de cancelar evita a
                 // corrida da .36 que deixava Cancelando... desabilitado.
-                refresh.Text = "Cancelando...";
-                state.Text = "Cancelamento solicitado. Lista anterior preservada.";
+                SetRefreshCaption("Cancelando...", "Cancelamento da espera solicitado. A leitura nativa pode continuar em execução.");
+                SetDriverStatus("Cancelamento solicitado. Lista anterior preservada.");
                 DiagnosticTrace.Write("DRIVERS.CANCELAMENTO_SOLICITADO");
                 driverQuery.RequestCancel();
                 return;
             }
             if (_driverReadTask is { IsCompleted: false })
             {
-                state.Text = "A leitura nativa anterior ainda está encerrando.";
+                SetDriverStatus("A leitura nativa anterior ainda está encerrando.");
                 return;
             }
-            var token = driverQuery.Begin(TimeSpan.FromSeconds(20));
+            var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
             // Invalida relatórios antigos antes da próxima leitura nativa,
             // inclusive se ela falhar, cancelar ou terminar fora de ordem.
             inventoryGeneration++;
             invalidateOpenReport?.Invoke();
             resultPublished = false;
-            refresh.Text = "Cancelar";
+            SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
-            state.Text = "Consultando drivers em segundo plano…";
-            _driverReadTask = Task.Run(() => DriverStoreAudit.CaptureWithPackages(token));
+            SetDriverStatus("Consultando drivers em segundo plano…");
+            _driverReadTask = readForTest is null
+                ? Task.Run(() => DriverStoreAudit.CaptureWithPackages(token)) : readForTest(token);
             try
             {
                 var result = await _driverReadTask.WaitAsync(token);
@@ -302,12 +340,16 @@ internal sealed partial class MainForm
                 investigate.Enabled = true;
                 resultPublished = true;
                 Render();
+                // Depois da publicação, só resta concluir o histórico; não existe
+                // mais consulta WMI aguardando cancelamento por este botão.
+                refresh.Enabled = false;
+                SetRefreshCaption("Finalizando...", "Concluindo o histórico local da consulta. Ações de drivers continuam desabilitadas.");
                 var links = DriverPackageLinks.Analyze(result);
                 var signedEntries = result.Items.Where(x => !x.WithoutSignedDriverAssociation).ToArray();
-                state.Text = $"{result.Status}: {result.Items.Count} dispositivos/associações, " +
+                SetDriverStatus($"{result.Status}: {result.Items.Count} dispositivos/associações, " +
                     $"{result.Items.Count(x => x.HasPnpProblem)} com código PnP, " +
                     $"{result.Items.Count(x => x.WithoutSignedDriverAssociation)} sem driver associado, " +
-                    $"{links.Packages.Count} INFs. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem alterações.";
+                    $"{links.Packages.Count} INFs. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem alterações.");
                 _toolTips.SetToolTip(state,
                     state.Text + " " + result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
@@ -333,47 +375,56 @@ internal sealed partial class MainForm
                     ("presenca_indeterminada", signedEntries.Count(x => !x.Present.HasValue)),
                     ("nao_presentes", signedEntries.Count(x => x.Present == false)),
                     ("parcial", result.Partial ? 1 : 0));
-                var recorded = await Task.Run(() => DriverHistory.Record(
-                    DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));
-                if (!root.IsDisposed)
+                // Fixtures sintéticas exercitam a mesma publicação WinForms,
+                // mas jamais escrevem no histórico pessoal do runner.
+                if (readForTest is null)
                 {
-                    history.Text = recorded.Message;
-                    history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
-                    _toolTips.SetToolTip(history,
-                        recorded.Timeline.Length == 0 ? recorded.Message : recorded.Timeline);
-                    FitVerticalSpace();
+                    var recorded = await Task.Run(() => DriverHistory.Record(
+                        DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));
+                    if (!root.IsDisposed)
+                    {
+                        history.Text = recorded.Message;
+                        history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
+                        _toolTips.SetToolTip(history,
+                            recorded.Timeline.Length == 0 ? recorded.Message : recorded.Timeline);
+                        SetDriverStatus(state.Text);
+                        FitVerticalSpace();
+                    }
+                    DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
                 }
-                DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
             }
             catch (OperationCanceledException)
             {
-                if (!root.IsDisposed) state.Text = refresh.Text == "Cancelando..."
+                if (!root.IsDisposed) SetDriverStatus(refresh.Text == "Cancelando..."
                     ? "Consulta cancelada. Lista anterior preservada; sem alterações."
-                    : "Tempo esgotado. Lista anterior preservada; sem alterações.";
+                    : "Tempo esgotado. Lista anterior preservada; sem alterações.");
                 DiagnosticTrace.Write("DRIVERS.CONSULTA_CANCELADA");
             }
             catch (Exception ex)
             {
                 DiagnosticTrace.Failure("DRIVERS.INVENTARIO_FALHA", ex);
-                if (!root.IsDisposed) state.Text =
-                    "Consulta indisponível. Nenhuma alteração foi feita.";
+                if (!root.IsDisposed) SetDriverStatus(
+                    "Consulta indisponível. Nenhuma alteração foi feita.");
             }
             finally
             {
                 driverQuery.End(token);
                 if (!refresh.IsDisposed)
                 {
-                    refresh.Text = "Consultar drivers";
+                    SetRefreshCaption("Consultar drivers", "Consulta apenas dispositivos e vínculos locais. Não modifica drivers.");
                     // WMI pode ignorar o cancelamento nativo por algum tempo.
                     // Nunca bloquear a interface: o teste de _driverReadTask
                     // no inicio do clique continua impedindo consultas simultaneas.
                     refresh.Enabled = true;
                     investigate.Enabled = lastResult is not null;
                     if (_driverReadTask is { IsCompleted: false })
-                        state.Text = "Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.";
+                        SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 }
             }
-        };
+        }
+        refresh.Click += async (_, _) => await RunRefresh();
+        // Apenas fixture: usa o mesmo handler, com provedor local sintético.
+        onTestReadActionReady?.Invoke(() => _ = RunRefresh());
         // Em resolucoes menores, deixar a area da lista prevalecer.
         // O rodape detalhado permanece acessivel pela descricao/tooltip.
         void FitVerticalSpace()
@@ -393,9 +444,7 @@ internal sealed partial class MainForm
             if (tiny && compactFilter.SelectedItem is string current && current != activeFilter)
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
-            state.AccessibleDescription = state.Text + Environment.NewLine +
-                history.Text + Environment.NewLine + history.AccessibleDescription;
-            if (compact) _toolTips.SetToolTip(state, state.AccessibleDescription);
+            SetDriverStatus(state.Text);
         }
         root.SizeChanged += (_, _) => FitVerticalSpace();
         root.DpiChangedAfterParent += (_, _) => FitVerticalSpace();

@@ -1,0 +1,198 @@
+using System.Drawing;
+using System.Reflection;
+using System.Windows.Forms;
+using GerenciadorAplicativos;
+
+// Exercita o PAINEL WinForms real; leituras são Task sintéticas e não
+// acessam WMI/SetupAPI/Windows Update nem escrevem histórico no runner.
+internal static class DriverMainPanelTemporalTests
+{
+    internal static void Run(MainForm owner)
+    {
+        var a = new DriverInventoryEntry(@"PCI\G112\A", "Dispositivo com falha PnP",
+            "Fornecedor A", "1.0", "oem17.inf", true, true) { PnpProblemCode = 28 };
+        var b = new DriverInventoryEntry(@"PCI\G112\B", "Dispositivo ausente",
+            "Fornecedor B", "2.0", "oem18.inf", null, false);
+        var c = new DriverInventoryEntry(@"PCI\G112\C", "Dispositivo presente",
+            "Fornecedor C", "3.0", "oem19.inf", true, true);
+        var snapshots = new[]
+        {
+            new DriverInventoryResult([a, b, c], false, "completo sintético"),
+            new DriverInventoryResult([a], true, "parcial sintético"),
+            new DriverInventoryResult([], false, "vazio sintético")
+        };
+        int reads = 0;
+        using (var page = Open(owner,
+            _ => Task.FromResult(snapshots[Math.Min(reads++, snapshots.Length - 1)]),
+            TimeSpan.FromSeconds(3), out var read))
+        {
+            var list = Find<DarkDriverList>(page, "DriverInventoryList");
+            var status = Find<Label>(page, "DriverInventoryStatus");
+            var refresh = Find<Button>(page, "DriverInventoryRefresh");
+            var investigate = Find<Button>(page, "DriverReadOnlyInvestigation");
+            var search = Find<TextBox>(page, "DriverInventorySearch");
+            var title = Find<Label>(page, "DriverInventoryTitle");
+            read();
+            Pump();
+            if (reads != 1 || list.Items.Count != 3 || !investigate.Enabled ||
+                !title.Text.Contains("Exibidos: 3") || !status.Text.Contains("completo sintético"))
+                throw new Exception("G1.12: publicação sintética inicial não atualizou a página.");
+            CheckStatus(status, refresh);
+            if (list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true)
+                throw new Exception("G1.12: lista sem seleção não é acessível.");
+            typeof(DarkDriverList).GetMethod("OnKeyDown",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(list, [new KeyEventArgs(Keys.Down)]);
+            if (list.SelectedItem?.DeviceId != a.DeviceId ||
+                list.AccessibleDescription?.Contains(a.DeviceName) != true)
+                throw new Exception("G1.12: seta não selecionou/anunciou dispositivo.");
+            var problems = Descendants(page).OfType<Button>().Single(x => x.Text == "Falhas PnP");
+            Click(problems);
+            if (list.Items.Count != 1 || list.SelectedItem?.DeviceId != a.DeviceId ||
+                problems.AccessibleDescription?.Contains("Filtro ativo") != true)
+                throw new Exception("G1.12: filtro PnP não preservou seleção e estado acessível.");
+            search.Text = "nome inexistente";
+            Pump();
+            if (list.Items.Count != 0 || list.SelectedItem is not null ||
+                list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true)
+                throw new Exception("G1.12: refiltro não invalidou seleção.");
+            search.Clear();
+            Click(Descendants(page).OfType<Button>().Single(x => x.Text == "Todos"));
+            if (list.Items.Count != 3) throw new Exception("G1.12: filtro Todos não restaurou as linhas.");
+            foreach (var size in new[] { new Size(540, 320), new Size(500, 210),
+                new Size(1200, 720), new Size(1450, 820) })
+            {
+                page.ClientSize = size;
+                Pump();
+                CheckStatus(status, refresh);
+                var compact = Find<ComboBox>(page, "DriverCompactFilter");
+                if (size.Height == 210 && !compact.Visible)
+                    throw new Exception("G1.12: filtro compacto não apareceu na viewport mínima.");
+            }
+            read();
+            Pump();
+            if (reads != 2 || list.Items.Count != 1 || !title.Text.Contains("Exibidos: 1") ||
+                !status.Text.Contains("parcial sintético") || !investigate.Enabled)
+                throw new Exception("G1.12: inventário parcial não ficou consultivo.");
+            CheckStatus(status, refresh);
+            read();
+            Pump();
+            if (reads != 3 || list.Items.Count != 0 ||
+                !title.Text.Contains("Exibidos: 0") || !investigate.Enabled)
+                throw new Exception("G1.12: inventário vazio não preservou diagnóstico.");
+            CheckStatus(status, refresh);
+            Console.WriteLine("OK G1.12: filtros, seleção por teclado, vazio/parcial, viewport compacta e acessibilidade");
+        }
+
+        // Cancelamento da espera não interrompe a Task nativa fictícia;
+        // segundo acionamento não deve iniciar outra captura.
+        {
+            var pending = new TaskCompletionSource<DriverInventoryResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            int started = 0;
+            using var page = Open(owner, _ => { started++; return pending.Task; },
+                TimeSpan.FromSeconds(4), out var read);
+            var status = Find<Label>(page, "DriverInventoryStatus");
+            var refresh = Find<Button>(page, "DriverInventoryRefresh");
+            var list = Find<DarkDriverList>(page, "DriverInventoryList");
+            read();
+            if (started != 1 || refresh.Text != "Cancelar" ||
+                refresh.AccessibleName != "Cancelar" ||
+                status.Text != "Consultando drivers em segundo plano…")
+                throw new Exception("G1.12: estado de leitura pendente não anuncia cancelamento.");
+            CheckStatus(status, refresh);
+            read();
+            Pump();
+            if (started != 1 || list.Items.Count != 0 ||
+                !status.Text.Contains("Leitura nativa ainda encerrando"))
+                throw new Exception("G1.12: cancelamento iniciou duplicata ou publicou resultado.");
+            read();
+            if (started != 1) throw new Exception("G1.12: segunda leitura iniciada antes da anterior terminar.");
+            pending.TrySetResult(new DriverInventoryResult([a], false, "resultado tardio"));
+            Pump();
+            if (list.Items.Count != 0)
+                throw new Exception("G1.12: resposta cancelada foi publicada após retornar tarde.");
+            CheckStatus(status, refresh);
+            Console.WriteLine("OK G1.12: cancelamento, resposta tardia e trava contra segunda leitura");
+        }
+
+        // Timeout curto do chamador e descarte da página: nada pode ser publicado
+        // posteriormente, mesmo que a Task sintética conclua depois do fechamento.
+        {
+            var pending = new TaskCompletionSource<DriverInventoryResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            int started = 0;
+            var page = Open(owner, _ => { started++; return pending.Task; },
+                TimeSpan.FromMilliseconds(35), out var read);
+            var status = Find<Label>(page, "DriverInventoryStatus");
+            var list = Find<DarkDriverList>(page, "DriverInventoryList");
+            read();
+            Pump(240);
+            if (started != 1 || list.Items.Count != 0 ||
+                !status.Text.Contains("Leitura nativa ainda encerrando"))
+                throw new Exception("G1.12: timeout não preservou inventário anterior.");
+            CheckStatus(status, Find<Button>(page, "DriverInventoryRefresh"));
+            page.Dispose();
+            pending.TrySetResult(new DriverInventoryResult([a], false, "tardio após descarte"));
+            Pump();
+            Console.WriteLine("OK G1.12: timeout WaitAsync e descarte impedem publicação tardia");
+        }
+    }
+
+    private static Form Open(MainForm owner,
+        Func<CancellationToken, Task<DriverInventoryResult>> fake,
+        TimeSpan timeout, out Action read)
+    {
+        Action? action = null;
+        var method = typeof(MainForm).GetMethod("BuildDriversPlaceholder",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var control = (Control)method.Invoke(owner, [fake, (TimeSpan?)timeout,
+            (Action<Action>)(callback => action = callback)])!;
+        var form = new Form { Text = "G1.12 Fixture", ClientSize = new Size(800, 520),
+            ShowInTaskbar = false };
+        control.Dock = DockStyle.Fill;
+        form.Controls.Add(control);
+        form.Show(owner);
+        Pump();
+        read = action ?? throw new Exception("G1.12: callback real não disponível.");
+        return form;
+    }
+
+    private static void Pump(int milliseconds = 90)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < milliseconds)
+        {
+            Application.DoEvents();
+            Thread.Sleep(10);
+        }
+        Application.DoEvents();
+    }
+
+    private static void Click(Button button)
+    {
+        typeof(Control).GetMethod("OnClick",
+            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(button, [EventArgs.Empty]);
+        Pump(20);
+    }
+
+    private static void CheckStatus(Label status, Button refresh)
+    {
+        if (status.AccessibleName != "Estado da consulta de drivers" ||
+            status.AccessibleDescription?.Contains(status.Text, StringComparison.Ordinal) != true ||
+            refresh.AccessibleName != refresh.Text ||
+            string.IsNullOrWhiteSpace(refresh.AccessibleDescription))
+            throw new Exception("G1.12: mensagem elidida ou ação sem descrição acessível.");
+    }
+
+    private static T Find<T>(Control parent, string name) where T : Control =>
+        Descendants(parent).OfType<T>().Single(x => x.Name == name);
+
+    private static IEnumerable<Control> Descendants(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            yield return c;
+            foreach (var child in Descendants(c)) yield return child;
+        }
+    }
+}
