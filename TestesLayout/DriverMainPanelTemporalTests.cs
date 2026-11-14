@@ -49,7 +49,7 @@ internal static class DriverMainPanelTemporalTests
             Click(problems);
             if (list.Items.Count != 1 || list.SelectedItem?.DeviceId != a.DeviceId ||
                 problems.AccessibleDescription?.Contains("Filtro ativo") != true)
-                throw new Exception("G1.12: filtro PnP não preservou seleção e estado acessível.");
+                throw new Exception($"G1.12: filtro PnP falhou: itens={list.Items.Count}; selecionado={list.SelectedItem?.DeviceId ?? "(null)"}; esperado={a.DeviceId}; descrição={problems.AccessibleDescription ?? "(null)"}; título={title.Text}.");
             search.Text = "nome inexistente";
             Pump();
             if (list.Items.Count != 0 || list.SelectedItem is not null ||
