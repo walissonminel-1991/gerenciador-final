@@ -237,7 +237,20 @@ internal sealed partial class MainForm
         DriverInventoryResult? lastResult = null;
         long inventoryGeneration = 0;
         Action? invalidateOpenReport = null;
-        list.SelectionChanged += (_, _) => invalidateOpenReport?.Invoke();
+        void SyncInvestigationDescription()
+        {
+            if (investigate.IsDisposed) return;
+            investigate.AccessibleDescription = lastResult is null
+                ? "Disponível depois de uma consulta local. Sem instalação ou atualização."
+                : list.SelectedItem is null
+                    ? "Abre relatório geral de drivers, sem dispositivo selecionado e sem verificação INF."
+                    : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
+        }
+        list.SelectionChanged += (_, _) =>
+        {
+            SyncInvestigationDescription();
+            invalidateOpenReport?.Invoke();
+        };
         investigate.Click += (_, _) =>
         {
             if (lastResult is not { } captured) return;
@@ -273,11 +286,7 @@ internal sealed partial class MainForm
                 : "Nenhuma associação nesta categoria.";
             empty.Visible = visible.Length == 0;
             empty.AccessibleDescription = empty.Text;
-            investigate.AccessibleDescription = lastResult is null
-                ? "Disponível depois de uma consulta local. Sem instalação ou atualização."
-                : list.SelectedItem is null
-                    ? "Abre relatório geral de drivers, sem dispositivo selecionado e sem verificação INF."
-                    : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
+            SyncInvestigationDescription();
             if (empty.Visible) empty.BringToFront();
             foreach (var (button, name) in new[]
                 { (all, "Todos"), (present, "Presentes"), (problems, "Problemas"), (other, "Não confirmados") })

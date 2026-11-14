@@ -41,13 +41,15 @@ internal static class DriverMainPanelTemporalTests
             if (!Descendants(page).OfType<Button>().Any(x => x.Text == "Outros" &&
                 x.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true))
                 throw new Exception("G1.12: filtro Outros perdeu explicação sobre presença incerta.");
-            if (list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true)
-                throw new Exception("G1.12: lista sem seleção não é acessível.");
+            if (list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true ||
+                investigate.AccessibleDescription?.Contains("sem dispositivo selecionado") != true)
+                throw new Exception("G1.12: lista/botão Investigar sem seleção não são acessíveis.");
             typeof(DarkDriverList).GetMethod("OnKeyDown",
                 BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(list, [new KeyEventArgs(Keys.Down)]);
             if (list.SelectedItem?.DeviceId != a.DeviceId ||
-                list.AccessibleDescription?.Contains(a.DeviceName) != true)
-                throw new Exception("G1.12: seta não selecionou/anunciou dispositivo.");
+                list.AccessibleDescription?.Contains(a.DeviceName) != true ||
+                investigate.AccessibleDescription?.Contains("dispositivo selecionado") != true)
+                throw new Exception("G1.12: seta não selecionou/anunciou dispositivo ou ação Investigar.");
             var problems = Descendants(page).OfType<Button>().Single(x => x.Text == "Falhas PnP");
             filter("Problemas");
             Pump(20);
@@ -57,8 +59,9 @@ internal static class DriverMainPanelTemporalTests
             search.Text = "nome inexistente";
             Pump();
             if (list.Items.Count != 0 || list.SelectedItem is not null ||
-                list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true)
-                throw new Exception("G1.12: refiltro não invalidou seleção.");
+                list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true ||
+                investigate.AccessibleDescription?.Contains("sem dispositivo selecionado") != true)
+                throw new Exception("G1.12: refiltro não invalidou seleção ou texto acessível de Investigar.");
             search.Clear();
             filter("Todos");
             Pump(20);
