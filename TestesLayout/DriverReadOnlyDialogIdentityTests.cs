@@ -48,10 +48,10 @@ internal static class DriverReadOnlyDialogIdentityTests
         Inspect(owner, partial, device, "DeviceId duplicado",
             "já ambígua na abertura", true, true, expectedInf: false);
         Inspect(owner, conflict, null, "ATENÇÃO: DeviceId",
-            "DeviceId duplicado no inventário completo", false, true);
+            "DeviceId duplicado no inventário completo", false, true, expectedInf: false);
         Inspect(owner, full, device, "Dispositivo sintético A",
             "Consultas locais", false, false, expectedInf: true);
-        Inspect(owner, full, null, "Sem dispositivo selecionado",
+        Inspect(owner, full, null, "Selecione um dispositivo",
             "Sem dispositivo selecionado", false, false, expectedInf: false);
 
         // Com seleção única e outra identidade duplicada, bloquear WUA
@@ -70,8 +70,8 @@ internal static class DriverReadOnlyDialogIdentityTests
         int starts = 0;
         int checks = 0;
         var guard = new DriverReportPublicationGuard(inventory, selected, 10);
-        if (!initialInvalid && !guard.IsCurrent(inventory, selected, 10))
-            throw new Exception("G1.14: fixture esperava guarda válida.");
+        if (guard.IsCurrent(inventory, selected, 10) == initialInvalid)
+            throw new Exception("G1.14: pré-condição de identidade/guard divergente.");
         Action? runOfficial = null, runInf = null;
         Action? invalidation = null;
         Exception? failure = null;
