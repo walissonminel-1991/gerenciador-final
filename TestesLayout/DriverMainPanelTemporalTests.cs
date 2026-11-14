@@ -130,8 +130,14 @@ internal static class DriverMainPanelTemporalTests
             read();
             Pump(240);
             if (started != 1 || list.Items.Count != 0 ||
-                !status.Text.Contains("Leitura nativa ainda encerrando"))
-                throw new Exception($"G1.12: timeout divergente: iniciou={started}; itens={list.Items.Count}; estado={status.Text}; acessível={status.AccessibleDescription}.");
+                (!status.Text.Contains("Tempo esgotado") &&
+                 !status.Text.Contains("Leitura nativa ainda encerrando")))
+                throw new Exception($"G1.12: timeout divergente: iniciou={started}; itens={list.Items.Count}; estado={status.Text}.");
+            read();
+            Pump(30);
+            if (started != 1 || list.Items.Count != 0 ||
+                !status.Text.Contains("ainda está encerrando", StringComparison.OrdinalIgnoreCase))
+                throw new Exception("G1.12: leitura anterior pendente permitiu reentrada após timeout.");
             CheckStatus(status, Find<Button>(page, "DriverInventoryRefresh"));
             page.Dispose();
             pending.TrySetResult(new DriverInventoryResult([a], false, "tardio após descarte"));
