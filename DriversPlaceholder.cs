@@ -147,9 +147,10 @@ internal sealed partial class MainForm
         _toolTips.SetToolTip(problems, "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.");
         var other = Filter("Outros", 4);
         other.AccessibleName = "Não confirmados";
-        other.AccessibleDescription =
+        const string uncertainFilterExplanation =
             "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
-        _toolTips.SetToolTip(other, other.AccessibleDescription);
+        other.AccessibleDescription = uncertainFilterExplanation;
+        _toolTips.SetToolTip(other, uncertainFilterExplanation);
         root.Controls.Add(heading, 0, 2);
 
         var list = new DarkDriverList { Dock = DockStyle.Fill, Margin = Padding.Empty };
@@ -285,8 +286,9 @@ internal sealed partial class MainForm
                 button.BackColor = selected ? Color.FromArgb(43, 66, 89)
                     : Color.FromArgb(43, 56, 70);
                 button.ForeColor = selected ? Accent : Ink;
-                button.AccessibleDescription = selected
-                    ? "Filtro ativo: " + name : "Ativar filtro: " + name;
+                button.AccessibleDescription = (selected
+                    ? "Filtro ativo: " + name : "Ativar filtro: " + name) +
+                    (ReferenceEquals(button, other) ? ". " + uncertainFilterExplanation : "");
             }
             compactFilter.AccessibleDescription = "Filtro atual: " + activeFilter;
         }

@@ -38,6 +38,9 @@ internal static class DriverMainPanelTemporalTests
                 !title.Text.Contains("Exibidos: 3") || !status.Text.Contains("completo sintético"))
                 throw new Exception("G1.12: publicação sintética inicial não atualizou a página.");
             CheckStatus(status, refresh);
+            if (!Descendants(page).OfType<Button>().Any(x => x.Text == "Outros" &&
+                x.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true))
+                throw new Exception("G1.12: filtro Outros perdeu explicação sobre presença incerta.");
             if (list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true)
                 throw new Exception("G1.12: lista sem seleção não é acessível.");
             typeof(DarkDriverList).GetMethod("OnKeyDown",
