@@ -38,6 +38,8 @@ internal static class DriverReadOnlyDialogAccessibilityTests
                 callback => notify = callback,
                 _ => { started++; return Task.FromResult(
                     new DriverOfficialResult([], 0, 0, false, "sintético")); },
+                _ => Task.FromResult(new DriverInfVerificationResult(DriverInfTrust.Rejected,
+                    "", "", "")),
                 (dialog, runOfficial, runInf) =>
                 {
                     var (body, status, official, verify, close) = Controls(dialog);
@@ -72,7 +74,12 @@ internal static class DriverReadOnlyDialogAccessibilityTests
         string statusFragment, string bodyFragment)
     {
         int count = 0;
-        RunModal(owner, inventory, selected, () => 1, _ => { }, null,
+        int started = 0;
+        RunModal(owner, inventory, selected, () => 1, _ => { },
+            _ => { started++; return Task.FromResult(
+                new DriverOfficialResult([], 0, 0, false, "sintético")); },
+            _ => { started++; return Task.FromResult(new DriverInfVerificationResult(
+                DriverInfTrust.Rejected, "", "", "")); },
             (dialog, runOfficial, runInf) =>
             {
                 var (body, status, official, verify, close) = Controls(dialog);
@@ -88,7 +95,6 @@ internal static class DriverReadOnlyDialogAccessibilityTests
                     string.IsNullOrWhiteSpace(close.AccessibleName) ||
                     status.AccessibleName != "Estado da investigação de drivers")
                     throw new Exception("G1.11: fechamento por Esc, tabulação ou nomes acessíveis ausentes.");
-                int started = 0;
                 // Os handlers injetados são os mesmos do Click; botões desabilitados
                 // não podem chamar o provedor mesmo via acionador sintético.
                 if (!expectedOfficial) runOfficial();
@@ -120,6 +126,7 @@ internal static class DriverReadOnlyDialogAccessibilityTests
         DriverInventoryEntry? selected, Func<long> generation,
         Action<Action?> observe,
         Func<CancellationToken, Task<DriverOfficialResult>>? fakeOfficial,
+        Func<CancellationToken, Task<DriverInfVerificationResult>>? fakeInf,
         Action<Form, Action, Action> inspect)
     {
         var method = typeof(MainForm).GetMethod("ShowDriverReadOnlyReport",
@@ -154,7 +161,7 @@ internal static class DriverReadOnlyDialogAccessibilityTests
                 guard.CanPublish(inventory, selected, generation(), token, result)),
             (Func<CancellationToken, DriverInfVerificationResult, bool>)((token, result) =>
                 guard.CanPublishInf(inventory, selected, generation(), token, result)),
-            observe, fakeOfficial, null, (TimeSpan?)TimeSpan.FromSeconds(5),
+            observe, fakeOfficial, fakeInf, (TimeSpan?)TimeSpan.FromSeconds(5),
             (Action<Action, Action>)((runOfficial, runInf) =>
             { officialAction = runOfficial; infAction = runInf; })]);
         timer.Stop();
