@@ -56,6 +56,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                             !body.RenderedText.Contains("falha registrada"))
                             throw new Exception("G1.10: diálogo válido não mostra investigação inicial.");
                         runOfficial();
+                        _ = Controls(dialog); // verifica acessibilidade do botão Cancelar em operação
                         if (launched != 1)
                             throw new Exception($"G1.10: evento Click WUA sintético inconsistente; launched={launched}, enabled={official.Enabled}, status={status.Text}, canSelect={official.CanSelect}.");
                         generation = 2;
@@ -94,6 +95,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                     if (stage++ == 0)
                     {
                         runOfficial();
+                        _ = Controls(dialog);
                         if (launched != 1)
                             throw new Exception("G1.10: tarefa WUA sintética não iniciou.");
                         return false;
@@ -135,6 +137,7 @@ internal static class DriverReadOnlyDialogTemporalTests
                 {
                     var (body, status, official, verify, close) = Controls(dialog);
                     runInf();
+                    _ = Controls(dialog);
                     if (launched != 1)
                         throw new Exception("G1.10: tarefa INF sintética não iniciou.");
                     generation = 6;
