@@ -185,7 +185,7 @@ internal static class DriverMainPanelTemporalTests
             status.AccessibleDescription?.Contains(status.Text, StringComparison.Ordinal) != true ||
             refresh.AccessibleName != refresh.Text ||
             string.IsNullOrWhiteSpace(refresh.AccessibleDescription))
-            throw new Exception("G1.12: mensagem elidida ou ação sem descrição acessível.");
+            throw new Exception($"G1.12: acessibilidade divergente: estadoNome={status.AccessibleName}; estadoTexto={status.Text}; descriçãoStatus={status.AccessibleDescription}; botãoTexto={refresh.Text}; botãoNome={refresh.AccessibleName}; descriçãoBotão={refresh.AccessibleDescription}.");
     }
 
     private static T Find<T>(Control parent, string name) where T : Control =>
