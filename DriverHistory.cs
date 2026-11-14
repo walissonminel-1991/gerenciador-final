@@ -21,14 +21,24 @@ internal static class DriverHistory
         // O historico v1 representa associacoes WMI assinadas, nao dispositivos
         // problematicos que nao tenham uma linha em Win32_PnPSignedDriver.
         var associated = inventory.Items.Where(x => !x.WithoutSignedDriverAssociation).ToArray();
-        if (inventory.Partial || associated.Length == 0 || associated.Length > 4000 ||
-            associated.Any(x => string.IsNullOrWhiteSpace(x.DeviceId)))
-            throw new InvalidDataException("Consulta incompleta nao substitui historico.");
-        return associated.GroupBy(x => x.DeviceId.Trim().ToUpperInvariant())
-            .ToDictionary(g => Hash(g.Key), g => Hash(string.Join("\n", g.Select(x =>
-                JsonSerializer.Serialize(new[] { x.Provider.Trim().ToUpperInvariant(), x.Version.Trim(),
-                    x.InfName.Trim().ToUpperInvariant(), x.Signed?.ToString() ?? "?", x.Present?.ToString() ?? "?" }))
-                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))));
+        var identities = inventory.Items.Select(x => x.DeviceId?.Trim().ToUpperInvariant()).ToArray();
+        // G1.19: nem duas linhas WMI identicas comprovam uma unica instancia.
+        // A linha sem associacao tambem nao pode compartilhar DeviceId com uma
+        // linha associada. A captura registra SignedRows antes da correlacao:
+        // qualquer perda de linhas brutas impede a substituicao do historico.
+        if (inventory.Partial || inventory.Items.Count is 0 or > 4000 ||
+            associated.Length == 0 ||
+            identities.Any(x => !DriverInventory.ValidHardwareId(x)) ||
+            identities.Distinct(StringComparer.Ordinal).Count() != identities.Length ||
+            (inventory.SignedRows > 0 && inventory.SignedRows != associated.Length))
+            throw new InvalidDataException("Consulta ambigua ou incompleta nao substitui historico.");
+        // Uma associacao por DeviceId: preservar EXATAMENTE o hash legado v1
+        // para cada linha unica (o GroupBy anterior gerava este mesmo texto).
+        return associated.ToDictionary(x => Hash(x.DeviceId.Trim().ToUpperInvariant()),
+            x => Hash(JsonSerializer.Serialize(new[] {
+                x.Provider.Trim().ToUpperInvariant(), x.Version.Trim(),
+                x.InfName.Trim().ToUpperInvariant(),
+                x.Signed?.ToString() ?? "?", x.Present?.ToString() ?? "?" })));
     }
     internal static DriverHistoryChange Compare(Dictionary<string, string> before,
         Dictionary<string, string> after, DateTimeOffset at) => new(at,

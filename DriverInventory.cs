@@ -60,9 +60,9 @@ internal static class DriverInventory
                 HardwareIds = d.HardwareIds.Distinct(StringComparer.OrdinalIgnoreCase)
                     .Order(StringComparer.OrdinalIgnoreCase).ToArray()
             })
-            // Não descartar HardwareIDs divergentes antes de avaliar a ambiguidade.
-            .DistinctBy(d => (d.DeviceId.ToUpperInvariant(), d.InfName.ToUpperInvariant(), d.Version,
-                d.Provider.ToUpperInvariant(), d.Signed, d.Present, string.Join('\n', d.HardwareIds).ToUpperInvariant()))
+            // G1.19: preservar inclusive as linhas WMI identicas. Deduplicar
+            // antes do guard global esconderia uma instancia ambigua de
+            // INF/WUA e permitiria uma falsa comparacao historica.
             .OrderBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 

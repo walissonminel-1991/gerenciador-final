@@ -150,8 +150,10 @@ var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };
 var result = DriverInventory.Correlate(new[] { a, a, b, c }, new Dictionary<string, bool?>
     { ["pci\\one"] = true, ["PCI\\TWO"] = false });
-Check(result.Count == 3, "Mesmo INF em dispositivos distintos nao e duplicata");
-Check(result.Single(d => d.DeviceId == a.DeviceId).Present == true, "Correlacao nao diferencia maiusculas");
+Check(result.Count == 4 && result.Count(d => d.DeviceId == a.DeviceId) == 2,
+    "G1.19: correlacao preserva ate duplicata identica para o guard global");
+Check(result.Where(d => d.DeviceId == a.DeviceId).All(d => d.Present == true),
+    "Correlacao nao diferencia maiusculas");
 Check(result.Single(d => d.DeviceId == b.DeviceId).PresenceLabel == "Não presente", "Ausencia explicita e separada de desconhecimento");
 Check(result.Single(d => d.DeviceId == c.DeviceId).Present is null && c.SignatureLabel == "Indeterminado", "Ausencia de evidencias nao inventa presenca nem assinatura");
 Check(DriverInventory.Correlate(new[] { a, a with { Signed = false } }, new Dictionary<string, bool?>()).Count == 2,
@@ -180,9 +182,12 @@ try
     string baseline = File.ReadAllText(file);
     Check(!baseline.Contains(a.DeviceId) && !baseline.Contains(a.DeviceName) && !baseline.Contains(a.Provider) &&
         !baseline.Contains(a.InfName), "Arquivo nao contem nomes nem IDs brutos");
-    var same = DriverHistory.Record(file, Complete(b, a, a), now.AddSeconds(1));
+    var duplicateAttempt = DriverHistory.Record(file, Complete(b, a, a), now.AddSeconds(1));
+    Check(!duplicateAttempt.Saved && File.ReadAllText(file) == baseline,
+        "G1.19: duplicata identica preserva historico valido em vez de criar mudanca");
+    var same = DriverHistory.Record(file, Complete(b, a), now.AddSeconds(1));
     Check(same.Saved && !same.Baseline && same.Added + same.Missing + same.Changed == 0,
-        "Ordem e duplicatas nao criam mudancas historicas");
+        "Ordem de associacoes unicas nao cria mudancas historicas");
     var changed = DriverHistory.Record(file, Complete(a with { Version = "2.0" }, c), now.AddSeconds(2));
     Check(changed.Added == 1 && changed.Missing == 1 && changed.Changed == 1,
         "Distinguir novo, nao observado e versao alterada");
@@ -217,8 +222,12 @@ try
     var before = DriverHistory.Snapshot(Complete(a));
     var after = DriverHistory.Snapshot(Complete(a with { DeviceName = "Nome traduzido", DeviceId = "pci\\one" }));
     Check(DriverHistory.Compare(before, after, now).Changed == 0, "Nome traduzido e caixa do ID nao alteram historico");
-    Check(DriverHistory.Compare(before, DriverHistory.Snapshot(Complete(a, a with { Signed = false })), now).Changed == 1,
-        "Assinatura conflitante preservada na comparacao");
+    bool rejectedConflict = false;
+    try { DriverHistory.Snapshot(Complete(a, a with { Signed = false })); }
+    catch (InvalidDataException) { rejectedConflict = true; }
+    Check(rejectedConflict, "G1.19: assinatura contraditoria nao se torna hash historico");
+    Check(DriverHistory.Compare(before, DriverHistory.Snapshot(Complete(a with { Signed = false })), now).Changed == 1,
+        "Mudanca inequivoca de assinatura continua comparavel");
 }
 finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
 var links = DriverPackageLinks.Analyze(Complete(a, b, a with { InfName = "OEM1.INF", Version = "2", Signed = false },

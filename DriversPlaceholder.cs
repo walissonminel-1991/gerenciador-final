@@ -391,8 +391,11 @@ internal sealed partial class MainForm
                     $"{result.Items.Count(x => x.HasPnpProblem)} com código PnP, " +
                     $"{result.Items.Count(x => x.WithoutSignedDriverAssociation)} sem driver associado, " +
                     $"{links.Packages.Count} INFs. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem alterações.");
+                // A dica deve incluir o MESMO historico anunciado ao leitor de
+                // tela, e nao apenas o inventario recem-publicado.
                 _toolTips.SetToolTip(state,
-                    state.Text + " " + result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
+                    state.AccessibleDescription + Environment.NewLine +
+                    result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
                 if (result.Store is { } store)
                     TestDiagnosticDetail.Record("PACOTES", ("pacotes", store.Packages.Count),
@@ -426,8 +429,7 @@ internal sealed partial class MainForm
                     {
                         history.Text = recorded.Message;
                         history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
-                        _toolTips.SetToolTip(history,
-                            recorded.Timeline.Length == 0 ? recorded.Message : recorded.Timeline);
+                        _toolTips.SetToolTip(history, history.AccessibleDescription);
                         SetDriverStatus(state.Text);
                         FitVerticalSpace();
                     }
