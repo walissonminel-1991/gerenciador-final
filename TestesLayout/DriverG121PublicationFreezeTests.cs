@@ -165,7 +165,13 @@ internal static class DriverG121PublicationFreezeTests
                     finally { modal.Close(); }
                 };
                 timer.Start();
-                investigate.PerformClick();
+                // O controle real pode ficar fora da area selecionavel quando
+                // a fixture alterna viewports maiores que o formulario host.
+                // Disparar seu OnClick protegido aciona o MESMO handler real
+                // do painel, sem sintetizar ou substituir o dialogo.
+                Ensure(investigate.Enabled, "botao de investigacao desabilitado");
+                typeof(Control).GetMethod("OnClick", Private)!
+                    .Invoke(investigate, [EventArgs.Empty]);
             }
             Ensure(checkedReport, "modal de investigacao nao foi exercitado");
 
