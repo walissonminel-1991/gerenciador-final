@@ -141,7 +141,8 @@ internal static class DriverMainPanelTemporalTests
             read();
             Pump(30);
             if (started != 1 || list.Items.Count != 0 ||
-                !status.Text.Contains("ainda encerrando", StringComparison.OrdinalIgnoreCase))
+                !status.Text.Contains("leitura nativa", StringComparison.OrdinalIgnoreCase) ||
+                !status.Text.Contains("encerrando", StringComparison.OrdinalIgnoreCase))
                 throw new Exception($"G1.12: pós-timeout: iniciou={started}; itens={list.Items.Count}; estado={status.Text}; botão={Find<Button>(page, "DriverInventoryRefresh").Text}.");
             CheckStatus(status, Find<Button>(page, "DriverInventoryRefresh"));
             page.Dispose();

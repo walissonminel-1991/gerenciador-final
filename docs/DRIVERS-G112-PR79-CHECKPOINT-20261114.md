@@ -50,3 +50,7 @@ A [CI 43601055958](https://github.com/walissonminel-1991/gerenciador-final/actio
 ### Reentrância da fixture no timeout
 
 A [CI 43601353696](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43601353696) reproduziu estado transitório `Cancelando...` no botão durante a chamada adicional, com `iniciou=1` e nenhum inventário publicado. O teste estava acionando uma segunda rotina ANTES de `RunRefresh.finally` restaurar `Consultar drivers`; isso não demonstra segunda leitura concorrente. A fixture agora aguarda explicitamente a restauração desse botão (limite de 1,8 s, **somente no teste**) e só então aciona nova leitura para exigir rejeição pela Task nativa ainda pendente. Não foi adicionado timer ou espera à produção.
+
+### Estados equivalentes após timeout, sem tolerar publicação indevida
+
+A [CI 43601612138](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43601612138) confirmou `iniciou=1`, `itens=0`, botão **Consultar drivers**, status **"A leitura nativa anterior ainda está encerrando."** no caminho de bloqueio do segundo acionamento. O estado é conservador e diferente da frase do `finally` ("Leitura nativa ainda encerrando..."). A asserção agora exige a presença semântica de **leitura nativa** e **encerrando**, além de `iniciou == 1` e `itens == 0`, sem aceitar atualização, resultado tardio ou segunda leitura. A acessibilidade é checada independentemente em `CheckStatus`.
