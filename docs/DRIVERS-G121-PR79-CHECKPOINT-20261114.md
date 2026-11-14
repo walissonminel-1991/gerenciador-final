@@ -25,6 +25,10 @@ Novo TestesLayout/DriverG121PublicationFreezeTests.cs usa WinForms real, duas li
 - Correção na fixture: retirar dependência do clique/modal e executar o **DriverReadOnlyReport.Format real** sobre a fotografia que o próprio `DarkDriverList` WinForms publicou. Exigir IDs, hardware, evidência Store/INF e eventos originais, ausência das alterações injetadas. Os testes G1.10–G1.20, preservados no mesmo gate, continuam exercitando o **modal WinForms real** e seus bloqueios de geração, INF/WUA e acessibilidade. Não alegar que G1.21 isoladamente abriu o modal.
 - Nenhuma alteração adicional de produção ou relaxamento de guard.
 
+## Quarta CI — teste acessível temporal
+- SHA `3d126e09636395c610c97ad62e4adec9e31015c0`, [Windows 43648343933](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43648343933): G1.21 superou a mutação de coleção, filtro/pesquisa/seleção, formatação consultiva e persistência v1, mas falhou em `G1.21: descricao acessivel e historico divergem` após o rótulo ter deixado o estado `em andamento`. A fixture leu `AccessibleDescription` imediatamente após o primeiro campo ser publicado; não houve evidência de divergência permanente. Gate NO-GO para este SHA; matrizes não executadas devido à interrupção.
+- Correção somente na fixture: exigir convergência limitada por timeout de `history.Text`, `state.AccessibleDescription`, tooltip do estado e tooltip do histórico, do mesmo modo que a prova G1.20. Nenhuma espera arbitrária de produção, nenhum novo timer; se a divergência persistir, o teste falha e não se declara GO. Código de produto e guards permanecem iguais.
+
 ## Gate G1.21
 PENDENTE: executar primeiro a fixture adversarial sem correção, registrar falha literal e somente então aplicar a menor modificação. CI final deverá comprovar Windows 2022/2025, 24/24 G1.9 por runner, G1.10–G1.21 WinForms, 36/36 mutações negativas, testes visuais/gerais, segurança/privacidade, consentimento, compilação Windows x64 e integridade externa completed/SUCCESS no MESMO SHA.
 

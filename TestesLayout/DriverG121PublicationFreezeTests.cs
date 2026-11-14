@@ -174,13 +174,14 @@ internal static class DriverG121PublicationFreezeTests
                 saved.Devices.Count == expected.Count &&
                 saved.Devices.All(kv => expected.TryGetValue(kv.Key, out var v) && v == kv.Value),
                 "arquivo v1 divergente da lista historica publicada");
-            Ensure(state.AccessibleDescription?.Contains(label.Text, StringComparison.Ordinal) == true,
-                "descricao acessivel e historico divergem");
             var tooltip = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!
                 .GetValue(owner)!;
-            Ensure(tooltip.GetToolTip(state).Contains(label.Text, StringComparison.Ordinal) &&
-                tooltip.GetToolTip(label).Contains(label.Text, StringComparison.Ordinal),
-                "tooltip diverge do historico da fotografia publicada");
+            // O texto de Label pode mudar antes do SyncStatusAccessibility
+            // completar eventos WinForms reentrantes. Exigir convergencia
+            // de TODOS os campos da mesma fotografia, com timeout curto.
+            PumpUntil(() => state.AccessibleDescription?.Contains(label.Text, StringComparison.Ordinal) == true &&
+                tooltip.GetToolTip(state).Contains(label.Text, StringComparison.Ordinal) &&
+                tooltip.GetToolTip(label).Contains(label.Text, StringComparison.Ordinal));
             Console.WriteLine("OK G1.21: fotografia publicada imutavel, filtros e selecao, guard, modal, fontes Store/INF e historico v1 coerentes");
         }
         finally
