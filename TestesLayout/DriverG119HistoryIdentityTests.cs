@@ -87,8 +87,8 @@ internal static class DriverG119HistoryIdentityTests
             (Func<CancellationToken, Task<DriverInventoryResult>>)(_ =>
                 Task.FromResult(ambiguous)),
             (TimeSpan?)TimeSpan.FromSeconds(3),
-            (Action<Action>)(a => refresh = a),
-            (Action<Action<string>>)(a => filter = a)])!;
+            (Action<Action>)(callback => refresh = callback),
+            (Action<Action<string>>)(callback => filter = callback)])!;
         using var form = new Form { Text = "G1.19 sintético",
             ClientSize = new Size(900, 560), ShowInTaskbar = false };
         page.Dock = DockStyle.Fill;
