@@ -93,11 +93,17 @@ internal sealed partial class MainForm
         bool canOfficial = validAtOpening && !inventory.Partial &&
             inventory.Items.Count > 0 && !duplicatedIds;
         bool canVerify = validAtOpening && !ambiguousSelection &&
-            selected?.PackageEvidence?.State == DriverStoreState.Mapped;
+            selected is { WithoutSignedDriverAssociation: false,
+                PackageEvidence.State: DriverStoreState.Mapped };
         // Nenhuma tarefa WUA/INF deve ser iniciada com identidade inicialmente
         // ambígua/incoerente; o guard G1.9 continua sendo a autoridade final.
         officialButton.Enabled = canOfficial;
         verifyButton.Enabled = canVerify;
+        verifyButton.AccessibleDescription = canVerify
+            ? "Verifica somente o INF local associado à seleção, sem modificar drivers."
+            : !validAtOpening
+                ? "Indisponível: identidade ou evidência incoerente já na abertura; nenhuma verificação INF será iniciada."
+                : DriverReadOnlyReport.InfAvailability(selected);
         SetStatus(!validAtOpening
             ? ambiguousSelection
                 ? "DeviceId duplicado ou ausente no inventário completo; INF/WUA bloqueados."

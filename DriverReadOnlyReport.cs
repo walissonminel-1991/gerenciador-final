@@ -4,6 +4,25 @@ namespace GerenciadorAplicativos;
 
 internal static class DriverReadOnlyReport
 {
+    // Estado consultivo da leitura: não tentar inferir presença/ausência
+    // de INF ou assinatura a partir de consulta não feita/incompleta.
+    internal static string InfAvailability(DriverInventoryEntry? selected) =>
+        selected is null
+            ? "Indisponível: selecione um dispositivo com INF mapeado."
+            : selected.WithoutSignedDriverAssociation
+                ? "Indisponível: nenhuma associação de driver assinado observada nesta leitura; preservar."
+                : selected.PackageEvidence is null
+                    ? "Indisponível: vínculo com Driver Store não informado nesta leitura; não prova ausência de INF."
+                    : selected.PackageEvidence.State switch
+                    {
+                        DriverStoreState.Mapped => "Ainda não solicitada para este dispositivo.",
+                        DriverStoreState.NotConsulted =>
+                            "Indisponível: Driver Store não consultado para este INF; não prova ausência do pacote.",
+                        DriverStoreState.Unavailable =>
+                            "Indisponível: consulta do vínculo Driver Store não disponível; preservar.",
+                        _ => "Indisponível: vínculo do INF com Driver Store inconsistente; preservar."
+                    };
+
     // Relatório de tela local. Não enviar ao diagnóstico: contém identificadores
     // necessários à conferência humana. Não contém linhas brutas de setupapi.dev.log.
     internal static string Format(DriverInventoryResult inventory, DriverInventoryEntry? selected,
@@ -42,10 +61,13 @@ internal static class DriverReadOnlyReport
             text.AppendLine();
         }
         text.AppendLine("VERIFICAÇÃO DO INF INSTALADO");
-        text.AppendLine(selected is null
-            ? "Indisponível: selecione um dispositivo com INF mapeado."
-            : verification?.Label ?? "Ainda não solicitada para este dispositivo.");
-        if (verification is not null)
+        bool evidenceAllowsVerification = selected is not null &&
+            !selected.WithoutSignedDriverAssociation &&
+            selected.PackageEvidence?.State == DriverStoreState.Mapped;
+        text.AppendLine(evidenceAllowsVerification
+            ? verification?.Label ?? InfAvailability(selected)
+            : InfAvailability(selected));
+        if (verification is not null && evidenceAllowsVerification)
         {
             text.AppendLine(verification.Scope);
             text.AppendLine("SHA-256 do INF: " + verification.Sha256);
@@ -55,17 +77,23 @@ internal static class DriverReadOnlyReport
         }
         text.AppendLine();
         text.AppendLine("OFERTAS OFICIAIS");
+        bool canShowOfficial = !ambiguousIdentity && !inventory.Partial &&
+            inventory.Items.Count > 0;
         text.AppendLine(ambiguousIdentity
             ? "Consulta ao Windows Update indisponível: DeviceId repetido ou ausente no inventário completo; nenhum vínculo WUA publicado."
-            : official?.Status ?? "Consulta ao Windows Update ainda não solicitada. Consulta a fonte Microsoft e respeita falhas de política; exige conexão.");
-        if (official is not null && !ambiguousIdentity)
+            : inventory.Partial
+                ? "Consulta ao Windows Update indisponível: inventário parcial; falta de dados não prova ausência de oferta."
+                : inventory.Items.Count == 0
+                    ? "Consulta ao Windows Update indisponível: inventário vazio nesta leitura; não prova ausência de drivers."
+                    : official?.Status ?? "Consulta ao Windows Update ainda não solicitada. Consulta a fonte Microsoft e respeita falhas de política; exige conexão.");
+        if (official is not null && canShowOfficial)
             text.AppendLine("IDENTIDADE DO PACOTE REMOTO: NÃO COMPROVADA. WUA DownloadContents expõe URLs de conteúdo e indicador de compressão delta, mas não fornece hash autenticado, INF, DriverVer ou TargetOSVersion. O GF não consulta URLs nem baixa conteúdo nesta investigação; nenhuma oferta vira atualização autorizada.");
-        if (!ambiguousIdentity && official?.SearchContext is { } context)
+        if (canShowOfficial && official?.SearchContext is { } context)
         {
             text.AppendLine($"Contexto da busca: {context.Source}; {(context.Online ? "online" : "cache local")}; Windows {context.HostOsVersion}; arquitetura do SO {context.HostArchitecture}; UTC {context.SearchedAtUtc:u}.");
             text.AppendLine("Estes são atributos do Windows consultado, NÃO a arquitetura ou compatibilidade certificada do pacote oferecido.");
         }
-        if (!ambiguousIdentity && official is not null)
+        if (canShowOfficial && official is not null)
             foreach (var match in official.Matches.Take(200))
             {
                 text.AppendLine($"{match.DeviceName}: {match.Offer.Title}");
@@ -112,7 +140,7 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("  " + match.Label);
                 text.AppendLine("  Não há versão numérica da oferta nem comparação de ranking do Windows; nenhuma atualização, instalação ou remoção foi autorizada.");
             }
-        if (!ambiguousIdentity && official?.Matches.Count > 200)
+        if (canShowOfficial && official?.Matches.Count > 200)
             text.AppendLine("Exibição limitada a 200 vínculos; não representa a totalidade.");
         text.AppendLine();
         text.AppendLine("INFs PUBLICADOS — ASSOCIAÇÕES OBSERVADAS");
