@@ -34,3 +34,7 @@ A [CI 43599548422](https://github.com/walissonminel-1991/gerenciador-final/actio
 ### Revisão de timeout em fixture
 
 A [CI 43599906554](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43599906554) confirmou filtros, teclado, inventário parcial/vazio e bloqueio de duplicata; falhou no timeout por exigir uma única frase. A [CI diagnóstica 43600064364](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43600064364) identificou: `iniciou=1`, `itens=0` e estado **"Tempo esgotado. Lista anterior preservada; sem alterações."** — diagnóstico conservador, sem publicação. A fixture agora aceita esse estado ou o aviso de leitura nativa pendente e **exige** que um novo acionamento não inicie leitura duplicada enquanto a Task anterior não concluiu. Sem alterações no mecanismo nativo.
+
+### Evidência conclusiva de bloqueio após timeout
+
+A [CI diagnóstica 43600485965](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43600485965) mostrou `iniciou=1`, `itens=0`, botão restaurado a **Consultar drivers** e o status real **"Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois."**. Portanto, o segundo acionamento foi bloqueado corretamente e a fixture falhava exclusivamente por procurar "ainda está encerrando" (expressão não presente). A comparação passou a exigir a frase real "ainda encerrando", sem afrouxar as condições `iniciou=1` e `itens=0`. Não modificar guards, consulta WMI nem cancelamento.
