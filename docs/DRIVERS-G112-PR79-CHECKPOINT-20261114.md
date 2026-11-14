@@ -46,3 +46,7 @@ A [CI diagnóstica 43600854518](https://github.com/walissonminel-1991/gerenciado
 ### F5 — correção de vínculo entre acessibilidade e texto realmente visível
 
 A [CI 43601055958](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43601055958) ainda reproduziu a divergência entre `state.Text` novo e `AccessibleDescription` antigo após o controle de revisão local. A hipótese de revisão por si só não garante equivalência em callbacks reentrantes. A correção mínima substitui o texto de entrada pelo **`state.Text` efetivamente exibido** como origem da descrição, invocada tanto por `SetDriverStatus` quanto por `Label.TextChanged`. Mantém tooltip e histórico local; não adiciona timer, thread, bloqueio ou tarefa. O teste G1.12 deve comprovar a equivalência ao final do timeout e da tentativa duplicada.
+
+### Reentrância da fixture no timeout
+
+A [CI 43601353696](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43601353696) reproduziu estado transitório `Cancelando...` no botão durante a chamada adicional, com `iniciou=1` e nenhum inventário publicado. O teste estava acionando uma segunda rotina ANTES de `RunRefresh.finally` restaurar `Consultar drivers`; isso não demonstra segunda leitura concorrente. A fixture agora aguarda explicitamente a restauração desse botão (limite de 1,8 s, **somente no teste**) e só então aciona nova leitura para exigir rejeição pela Task nativa ainda pendente. Não foi adicionado timer ou espera à produção.

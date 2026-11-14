@@ -133,6 +133,11 @@ internal static class DriverMainPanelTemporalTests
                 (!status.Text.Contains("Tempo esgotado") &&
                  !status.Text.Contains("Leitura nativa ainda encerrando")))
                 throw new Exception($"G1.12: timeout divergente: iniciou={started}; itens={list.Items.Count}; estado={status.Text}.");
+            // O Text do botão é restaurado no finally do handler assíncrono.
+            // Não pressionar de novo enquanto a primeira ação ainda está
+            // terminando o próprio cancelamento na thread WinForms.
+            var refresh = Find<Button>(page, "DriverInventoryRefresh");
+            PumpUntil(() => refresh.Text == "Consultar drivers");
             read();
             Pump(30);
             if (started != 1 || list.Items.Count != 0 ||
@@ -177,6 +182,17 @@ internal static class DriverMainPanelTemporalTests
             Thread.Sleep(10);
         }
         Application.DoEvents();
+    }
+
+    private static void PumpUntil(Func<bool> condition, int timeoutMs = 1800)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition() && sw.ElapsedMilliseconds < timeoutMs)
+        {
+            Application.DoEvents();
+            Thread.Sleep(10);
+        }
+        if (!condition()) throw new Exception("G1.12: handler de timeout não restaurou a ação Consultar drivers.");
     }
 
     private static void CheckStatus(Label status, Button refresh)
