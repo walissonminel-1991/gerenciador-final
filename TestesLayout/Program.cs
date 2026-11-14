@@ -43,6 +43,7 @@ internal static class LayoutTests
             DriverHistoryRecoveryTests.Run();
             DriverG119HistoryIdentityTests.Run(driverForm);
             DriverG120HistoryLifetimeTests.Run(driverForm);
+            DriverG121PublicationFreezeTests.Run(driverForm);
             return;
         }
         if (args.Contains("--work9"))
