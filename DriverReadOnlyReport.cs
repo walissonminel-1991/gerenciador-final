@@ -12,6 +12,11 @@ internal static class DriverReadOnlyReport
         var text = new StringBuilder("DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n");
         text.AppendLine("Dados locais de hardware nesta janela; nenhum pacote é instalado, removido ou baixado.");
         text.AppendLine($"Dispositivos/associações: {inventory.Items.Count}; inventário parcial: {(inventory.Partial ? "sim" : "não")}.");
+        if (inventory.Items.GroupBy(x => x.DeviceId.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Any(group => string.IsNullOrWhiteSpace(group.Key) || group.Count() > 1))
+            text.AppendLine("ATENÇÃO: DeviceId ausente ou duplicado no inventário completo. " +
+                "Uma linha filtrada não comprova associação única de INF/WUA; " +
+                "consulta oficial bloqueada até nova leitura coerente.");
         text.AppendLine(inventory.PublishedPackages?.Summary ?? "INFs publicados ainda não consultados.");
         text.AppendLine(inventory.WindowsHistory?.Summary ?? "Histórico Windows ainda não consultado.");
         text.AppendLine();

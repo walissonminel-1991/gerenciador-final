@@ -80,23 +80,49 @@ internal sealed partial class MainForm
         DriverOfficialResult? official = null;
         DriverInfVerificationResult? verification = null;
         CancellationTokenSource? current = null;
-        bool canOfficial = !inventory.Partial && inventory.Items.Count > 0;
-        bool canVerify = selected?.PackageEvidence?.State == DriverStoreState.Mapped;
-        // A primeira pintura já precisa refletir as capacidades da fotografia.
+        // A identidade é julgada sobre o INVENTÁRIO COMPLETO, nunca apenas
+        // sobre as linhas que um filtro deixou visíveis.
+        bool duplicatedIds = inventory.Items.GroupBy(x => x.DeviceId.Trim(),
+            StringComparer.OrdinalIgnoreCase).Any(group =>
+                string.IsNullOrWhiteSpace(group.Key) || group.Count() > 1);
+        bool ambiguousSelection = selected is not null &&
+            (string.IsNullOrWhiteSpace(selected.DeviceId) ||
+             inventory.Items.Count(x => string.Equals(x.DeviceId, selected.DeviceId,
+                 StringComparison.OrdinalIgnoreCase)) != 1);
+        bool validAtOpening = isCurrent();
+        bool canOfficial = validAtOpening && !inventory.Partial &&
+            inventory.Items.Count > 0 && !duplicatedIds;
+        bool canVerify = validAtOpening && !ambiguousSelection &&
+            selected?.PackageEvidence?.State == DriverStoreState.Mapped;
+        // Nenhuma tarefa WUA/INF deve ser iniciada com identidade inicialmente
+        // ambígua/incoerente; o guard G1.9 continua sendo a autoridade final.
         officialButton.Enabled = canOfficial;
         verifyButton.Enabled = canVerify;
-        SetStatus(inventory.Partial
-            ? "Inventário parcial: consulta oficial indisponível; INF local depende de vínculo mapeado."
-            : inventory.Items.Count == 0
-                ? "Inventário vazio nesta leitura: nenhuma consulta oficial disponível."
-                : selected is null
-                    ? "Sem dispositivo selecionado: a consulta oficial é geral; verificar INF exige seleção."
-                    : "Consultas locais; os IDs nesta janela não são enviados ao diagnóstico.");
+        SetStatus(!validAtOpening
+            ? ambiguousSelection
+                ? "DeviceId duplicado ou ausente no inventário completo; INF/WUA bloqueados."
+                : "Evidência incoerente já na abertura; INF/WUA bloqueados."
+            : duplicatedIds
+                ? "DeviceId duplicado no inventário completo; consulta WUA indisponível."
+                : inventory.Partial
+                    ? "Inventário parcial: consulta oficial indisponível; INF local depende de vínculo mapeado."
+                    : inventory.Items.Count == 0
+                        ? "Inventário vazio nesta leitura: nenhuma consulta oficial disponível."
+                        : selected is null
+                            ? "Sem dispositivo selecionado: a consulta oficial é geral; verificar INF exige seleção."
+                            : "Consultas locais; os IDs nesta janela não são enviados ao diagnóstico.");
         bool obsolete = false;
         bool closing = false;
         const string obsoleteText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
             "Inventário ou seleção alterados. Feche esta janela e abra uma nova investigação. " +
             "Nenhum resultado antigo será publicado.";
+        const string invalidOpeningText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
+            "A evidência já era incoerente na abertura. A seleção ou o vínculo de INF " +
+            "não podem ser confirmados; nenhuma consulta ou resultado INF/WUA será publicado.";
+        const string duplicateOpeningText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
+            "DeviceId duplicado ou ausente no inventário completo ANTES da abertura. " +
+            "A seleção visual não comprova qual INF pertence a esta instância. " +
+            "Consulta oficial e verificação INF bloqueadas; nenhum resultado será publicado.";
         void CheckCurrent()
         {
             if (dialog.IsDisposed || closing || obsolete) return;
@@ -107,8 +133,14 @@ internal sealed partial class MainForm
             official = null;
             verification = null;
             current?.Cancel(); // cancela a espera, não força fim do Search COM
-            body.SetText(obsoleteText);
-            SetStatus("Inventário ou seleção alterados; reabra a investigação.");
+            body.SetText(!validAtOpening
+                ? ambiguousSelection ? duplicateOpeningText : invalidOpeningText
+                : obsoleteText);
+            SetStatus(!validAtOpening
+                ? ambiguousSelection
+                    ? "Identidade DeviceId já ambígua na abertura; consultas INF/WUA bloqueadas."
+                    : "Evidência local já incoerente na abertura; consultas INF/WUA bloqueadas."
+                : "Inventário ou seleção alterados; reabra a investigação.");
             officialButton.Enabled = false;
             verifyButton.Enabled = false;
         }
