@@ -271,6 +271,12 @@ internal static class DriverReadOnlyDialogTemporalTests
         var official = buttons.Single(x => x.Name == "DriverOfficialReadOnly");
         var verify = buttons.Single(x => x.Name == "DriverVerifyInfReadOnly");
         var close = buttons.Single(x => x.Text == "Fechar");
+        var activeButtons = new[] { official, verify }
+            .Where(b => b.Text == "Cancelar").ToArray();
+        foreach (var active in activeButtons)
+            if (active.AccessibleName?.StartsWith("Cancelar", StringComparison.OrdinalIgnoreCase) != true ||
+                active.AccessibleDescription?.Contains("operação nativa síncrona", StringComparison.OrdinalIgnoreCase) != true)
+                throw new Exception("G1.11: botão Cancelar não anuncia a ação e o limite da espera.");
         var status = nodes.OfType<Label>().Single(x =>
             x.Text.Contains("Consult", StringComparison.OrdinalIgnoreCase) ||
             x.Text.Contains("reabra", StringComparison.OrdinalIgnoreCase) ||

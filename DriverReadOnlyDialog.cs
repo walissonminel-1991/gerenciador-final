@@ -130,7 +130,13 @@ internal sealed partial class MainForm
             using var source = new CancellationTokenSource(timeout);
             current = source;
             string label = button.Text;
+            string? accessibleLabel = button.AccessibleName;
+            string? accessibleDescription = button.AccessibleDescription;
             button.Text = "Cancelar";
+            button.AccessibleName = button == officialButton
+                ? "Cancelar consulta oficial de drivers" : "Cancelar verificação do INF";
+            button.AccessibleDescription =
+                "Solicita cancelamento da espera. Uma operação nativa síncrona pode continuar em execução.";
             officialButton.Enabled = button == officialButton;
             verifyButton.Enabled = button == verifyButton;
             SetStatus("Consultando em segundo plano… Nenhuma instalação ou remoção.");
@@ -171,6 +177,8 @@ internal sealed partial class MainForm
                 if (!dialog.IsDisposed && !closing)
                 {
                     button.Text = label;
+                    button.AccessibleName = accessibleLabel;
+                    button.AccessibleDescription = accessibleDescription;
                     CheckCurrent();
                     officialButton.Enabled = !obsolete && canOfficial;
                     verifyButton.Enabled = !obsolete && canVerify;

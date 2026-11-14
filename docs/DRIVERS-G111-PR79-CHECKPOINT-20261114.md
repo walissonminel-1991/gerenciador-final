@@ -38,3 +38,7 @@ Auditoria apenas de navegação e consistência do painel principal de drivers f
 ### Complemento do ensaio temporal
 
 A fixture preexistente `DriverReadOnlyDialogTemporalTests.Controls` agora verifica também `AccessibleName`, `AutoEllipsis` e equivalência `AccessibleDescription == Text` em todos os estados que já testa: consulta em andamento, resultado tardio, timeout, bloqueio de nova busca, obsolescência, fechamento e reabertura. Os provedores permanecem sintéticos e nenhum mecanismo é acionado fora do diálogo.
+
+### F5 — nome acessível dinâmico durante cancelamento
+
+No estado `Run`, o texto visual do botão mudava para **Cancelar**, mas `AccessibleName` permanecia descrevendo "Consultar ofertas" ou "Verificar assinatura", resultando em ação anunciada incorretamente a usuários de leitor de tela. Agora o botão recebe temporariamente nome e descrição próprios de cancelamento, avisando que a operação nativa síncrona pode prosseguir, e restaura as propriedades originais no `finally`. A fixture temporal exige esse contrato sempre que um botão exibe "Cancelar". Não muda `WaitAsync` nem `Search` COM.
