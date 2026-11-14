@@ -35,6 +35,7 @@ internal static class LayoutTests
             DriverReadOnlyDialogTemporalTests.Run(driverForm);
             DriverReadOnlyDialogAccessibilityTests.Run(driverForm);
             DriverMainPanelTemporalTests.Run(driverForm);
+            DriverListIdentityTests.Run();
             return;
         }
         if (args.Contains("--work9"))

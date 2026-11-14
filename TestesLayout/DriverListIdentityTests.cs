@@ -1,0 +1,140 @@
+using System.Drawing;
+using System.Reflection;
+using System.Windows.Forms;
+using GerenciadorAplicativos;
+
+// Seleção da lista WinForms REAL; todos os registros são sintéticos.
+// Nunca executa WMI, SetupAPI, COM, INF, rede ou grava histórico.
+internal static class DriverListIdentityTests
+{
+    internal static void Run()
+    {
+        var a = new DriverInventoryEntry(@"PCI\G113\A", "Mesmo nome sintético",
+            "Fornecedor A", "1.0", "oem11.inf", true, true)
+        {
+            HardwareIds = [@"PCI\VEN_1111&DEV_0001"]
+        };
+        var b = new DriverInventoryEntry(@"PCI\G113\B", "Mesmo nome sintético",
+            "Fornecedor B", "2.0", "oem22.inf", true, true)
+        {
+            HardwareIds = [@"PCI\VEN_2222&DEV_0002"]
+        };
+        var differentInf = b with { InfName = "oem99.inf" };
+        var copy = b with { }; // Record.Equals pode aceitar; referência NÃO é a selecionada.
+        if (!b.Equals(copy) || ReferenceEquals(b, copy))
+            throw new Exception("G1.13: fixture não reproduz a igualdade estrutural enganosa.");
+
+        using var host = new Form
+        {
+            Text = "G1.13 Identidade sintética",
+            ClientSize = new Size(800, 510), ShowInTaskbar = false
+        };
+        using var list = new DarkDriverList { Dock = DockStyle.Fill };
+        host.Controls.Add(list);
+        host.Show();
+        Application.DoEvents();
+        int changes = 0;
+        list.SelectionChanged += (_, _) => changes++;
+        var key = typeof(DarkDriverList).GetMethod("OnKeyDown",
+            BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var mouse = typeof(DarkDriverList).GetMethod("OnMouseDown",
+            BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var select = typeof(DarkDriverList).GetMethod("SelectIndex",
+            BindingFlags.NonPublic | BindingFlags.Instance)!;
+        void Down() => key.Invoke(list, [new KeyEventArgs(Keys.Down)]);
+        void Click(int index)
+        {
+            int row = DriverRowGeometry.Height(list.DeviceDpi);
+            mouse.Invoke(list, [new MouseEventArgs(MouseButtons.Left, 1,
+                Math.Min(20, Math.Max(1, list.ClientSize.Width / 3)),
+                index * row + Math.Max(1, row / 2), 0)]);
+        }
+        void Current(DriverInventoryEntry expected, string context)
+        {
+            if (!ReferenceEquals(list.SelectedItem, expected) ||
+                list.AccessibleDescription?.Contains(expected.DeviceId, StringComparison.Ordinal) != true ||
+                list.AccessibleDescription?.Contains(expected.InfName, StringComparison.Ordinal) != true)
+                throw new Exception("G1.13: seleção ou descrição acessível errada em " + context);
+        }
+        void None(string context)
+        {
+            if (list.SelectedItem is not null ||
+                list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true)
+                throw new Exception("G1.13: seleção ambígua não foi invalidada em " + context);
+        }
+
+        list.SetItems([a, b]);
+        Down();
+        Current(a, "seta primeiro item");
+        Down();
+        Current(b, "seta segundo item com nome idêntico");
+        int beforeReorder = changes;
+        list.SetItems([b, a]);
+        Current(b, "ordem invertida sem mudar a identidade");
+        if (list.SelectedIndex != 0 || changes != beforeReorder)
+            throw new Exception("G1.13: inversão de ordem trocou a identidade da seleção.");
+
+        // Substituir por record clone sem mudar campos não pode transferir foco
+        // ou habilitar prova de dispositivo que não foi escolhido explicitamente.
+        list.SetItems([copy, a]);
+        None("substituição por objeto estruturalmente igual");
+        if (changes != beforeReorder + 1)
+            throw new Exception("G1.13: troca de identidade não notificou a página.");
+
+        list.SetItems([a, b]);
+        select.Invoke(list, [1]);
+        Current(b, "seleção antes de duplicar DeviceId");
+        list.SetItems([a, b, differentInf]);
+        None("duplicata conflitante da mesma instância");
+
+        // A seleção manual é somente visual: anunciar a duplicidade,
+        // nunca promover a linha escolhida a prova INF/WUA inequívoca.
+        select.Invoke(list, [2]);
+        Current(differentInf, "seleção manual conflitante");
+        if (list.AccessibleDescription?.Contains("Associação de INF/WUA não é inequívoca") != true)
+            throw new Exception("G1.13: duplicata não anunciada à acessibilidade.");
+        var duplicatedInventory = new DriverInventoryResult([b, differentInf],
+            false, "inventário sintético com DeviceId duplicado");
+        var guard = new DriverReportPublicationGuard(duplicatedInventory, differentInf, 1);
+        if (guard.IsCurrent(duplicatedInventory, differentInf, 1) ||
+            guard.CanPublishInf(duplicatedInventory, differentInf, 1,
+                CancellationToken.None, new DriverInfVerificationResult(DriverInfTrust.VerifiedInf,
+                    new string('A', 64), "catalogo.cat", "Fornecedor de teste")))
+            throw new Exception("G1.13: duplicata recebeu falsa autoridade INF.");
+
+        list.SetItems([differentInf, b]);
+        None("reordenação de duplicatas conflitantes");
+
+        // Mesmo objeto repetido em duas posições: o FindIndex antigo retornava
+        // a primeira linha, mesmo quando a segunda havia sido selecionada.
+        list.SetItems([b, b]);
+        select.Invoke(list, [1]);
+        if (list.SelectedIndex != 1) throw new Exception("G1.13: pré-condição duplicata idêntica");
+        list.SetItems([b, b]);
+        None("repetição idêntica por referência");
+
+        list.SetItems([a, b]);
+        Click(1); // evento MouseDown do controle real
+        Current(b, "clique do mouse");
+        list.SetItems([a]);
+        None("filtro excluindo seleção");
+
+        // Refaça seleção com troca de tamanho e scroll sem reconectar dispositivo
+        // de mesmo nome/INF; não equivale a teste de DPI físico diferente.
+        foreach (var size in new[] { new Size(540, 320), new Size(500, 210),
+            new Size(1200, 720), new Size(1450, 820) })
+        {
+            list.Size = size;
+            list.SetItems([a, b]);
+            select.Invoke(list, [1]);
+            Current(b, $"viewport {size.Width}x{size.Height}");
+            list.SetItems([b, a]);
+            Current(b, $"reordenação viewport {size.Width}x{size.Height}");
+            list.SetItems([]);
+            None($"vazio viewport {size.Width}x{size.Height}");
+        }
+        if (changes < 10) throw new Exception("G1.13: eventos de seleção insuficientes.");
+        Console.WriteLine("OK G1.13: referência única, nomes iguais, duplicatas DeviceId, teclado/mouse e acessibilidade");
+        host.Close();
+    }
+}

@@ -87,9 +87,24 @@ internal sealed class DarkDriverList : Control
     internal void SetItems(IEnumerable<DriverInventoryEntry> items)
     {
         DriverInventoryEntry? selected = SelectedItem;
+        // A mesma identidade PnP pode ter linhas WMI repetidas ou conflitantes.
+        // Nunca remapear a escolha pelo record.Equals (que encontra a primeira
+        // duplicata) nem por nome/INF: preservar somente o objeto original
+        // quando o DeviceId era e continua único na lista apresentada.
+        bool unambiguousBefore = selected is not null &&
+            !string.IsNullOrWhiteSpace(selected.DeviceId) &&
+            _items.Count(item => string.Equals(item.DeviceId, selected.DeviceId,
+                StringComparison.OrdinalIgnoreCase)) == 1;
         _items.Clear();
         _items.AddRange(items);
-        _selectedIndex = selected is null ? -1 : _items.FindIndex(item => item == selected);
+        _selectedIndex = -1;
+        if (unambiguousBefore)
+        {
+            int sameReference = _items.FindIndex(item => ReferenceEquals(item, selected));
+            if (sameReference >= 0 && _items.Count(item =>
+                string.Equals(item.DeviceId, selected!.DeviceId, StringComparison.OrdinalIgnoreCase)) == 1)
+                _selectedIndex = sameReference;
+        }
         _tipIndex = -1;
         _tips.SetToolTip(this, "");
         UpdateMetrics();
@@ -103,11 +118,25 @@ internal sealed class DarkDriverList : Control
     private void UpdateAccessibleSelection()
     {
         var selected = SelectedItem;
-        AccessibleDescription = selected is null
-            ? $"Nenhum dispositivo selecionado; {_items.Count} associações exibidas. Use as setas para escolher."
-            : $"Selecionado {_selectedIndex + 1} de {_items.Count}: " +
-              (string.IsNullOrWhiteSpace(selected.DeviceName) ? "Dispositivo não identificado" : selected.DeviceName) +
-              "; " + selected.PnpStatusLabel + ". Somente leitura; pressione Tab para Investigar.";
+        if (selected is null)
+        {
+            AccessibleDescription = $"Nenhum dispositivo selecionado; {_items.Count} associações exibidas. Use as setas para escolher.";
+            return;
+        }
+        int sameDeviceId = _items.Count(item => string.Equals(item.DeviceId,
+            selected.DeviceId, StringComparison.OrdinalIgnoreCase));
+        string identity = string.IsNullOrWhiteSpace(selected.DeviceId)
+            ? "ID da instância não informado"
+            : "ID da instância: " + selected.DeviceId;
+        string ambiguity = sameDeviceId > 1
+            ? $"; ATENÇÃO: {sameDeviceId} linhas exibidas com o mesmo DeviceId. Associação de INF/WUA não é inequívoca"
+            : "";
+        AccessibleDescription = $"Selecionado {_selectedIndex + 1} de {_items.Count}: " +
+            (string.IsNullOrWhiteSpace(selected.DeviceName) ? "Dispositivo não identificado" : selected.DeviceName) +
+            "; " + identity + "; INF relatado: " +
+            (string.IsNullOrWhiteSpace(selected.InfName) ? "não informado" : selected.InfName) +
+            "; " + selected.PnpStatusLabel + ambiguity +
+            ". Somente leitura; pressione Tab para Investigar.";
     }
 
     private void UpdateMetrics()
