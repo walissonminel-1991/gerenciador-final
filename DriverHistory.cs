@@ -28,6 +28,10 @@ internal static class DriverHistory
         // qualquer perda de linhas brutas impede a substituicao do historico.
         if (inventory.Partial || inventory.Items.Count is 0 or > 4000 ||
             associated.Length == 0 ||
+            // Validar caracteres de controle ANTES de Trim(): newline no fim
+            // nao pode desaparecer e transformar identidade bruta invalida
+            // em fotografia historica confiavel.
+            inventory.Items.Any(x => x.DeviceId is null || x.DeviceId.Any(char.IsControl)) ||
             identities.Any(x => !DriverInventory.ValidHardwareId(x)) ||
             identities.Distinct(StringComparer.Ordinal).Count() != identities.Length ||
             (inventory.SignedRows > 0 && inventory.SignedRows != associated.Length))

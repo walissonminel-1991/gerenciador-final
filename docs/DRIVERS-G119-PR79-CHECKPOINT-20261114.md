@@ -18,6 +18,11 @@ SHA `5a1eeb4c43a5a12570a07c202973f6b80d8a549d`. CIs [Windows 43630027130](https:
 
 **Invariantes:** CanInstall=false, CanMaintain=false, IsNewerProven=false, CompletePackageVerified=false. Nada no histórico comprova desinstalação, resíduo, versão superior, ranking, assinatura remota ou compatibilidade. WaitAsync não encerra Search COM síncrono. Nenhuma modificação em main, G5, D1, Worker, Cron, Secrets, BETA, releases ou PCs pessoais.
 
+## Falha adversarial e correção na tentativa inicial
+- O primeiro commit G1.19 `b0e391274b6835810218cf8b11d3f28c973f2f78` teve a CI Windows 43643503866 cancelada ao ser substituído por ajuste de nome de variável da fixture; não serve de gate.
+- A tentativa `8190882297e5ec28bf2110198dfbc83a3889bc07`, CI Windows 43643583871, apresentou FAILURE real no job de regressões: `G1.19: rejeição byte a byte: identidade com controle`. Causa: `Trim()` eliminava newline terminal antes de `ValidHardwareId`. O teste de mutação negativa impediu o GO. Mensagens subsequentes de ausência de arquivos de matriz foram decorrentes da interrupção precoce desse job.
+- Correção mínima: rejeitar caracteres de controle no DeviceId bruto, **antes** de normalizar. O v1 válido continua intocado. Reexecutar gate completo no novo SHA, sem tratar a tentativa anterior como SUCCESS.
+
 ## Gate final
 **PENDENTE DE CI NO SHA CANDIDATO.** Exigir Windows 2022/2025 24/24 G1.9 por runner, WinForms G1.10–G1.19, regressões gerais, testes visuais, mutações negativas, segurança/privacidade, consentimento, compilação Windows x64 e integridade externa `completed/SUCCESS` no MESMO SHA. GO restrito apenas após confirmação; documentar falhas e reexecuções.
 
