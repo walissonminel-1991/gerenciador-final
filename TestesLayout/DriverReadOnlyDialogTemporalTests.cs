@@ -170,6 +170,31 @@ internal static class DriverReadOnlyDialogTemporalTests
                 });
             Console.WriteLine("OK G1.10: reabertura nova restabelece relatório somente leitura válido");
         }
+        // Caso 5: descarte do controle-pai sem trocar a seleção ou o inventário.
+        // O evento WinForms real deve invalidar a geração ANTES de notificar
+        // o diálogo; somente notificar não basta se IsCurrent continuar true.
+        {
+            long generation = 9;
+            Action? notify = null;
+            using var page = new Panel();
+            page.Disposed += (_, _) => { generation++; notify?.Invoke(); };
+            RunModal(owner, method, inventory, device, () => generation,
+                callback => notify = callback,
+                null, null, TimeSpan.FromSeconds(30),
+                (dialog, _, _) =>
+                {
+                    var (body, status, official, verify, close) = Controls(dialog);
+                    if (!body.RenderedText.Contains("falha registrada") ||
+                        !official.Enabled || !verify.Enabled || !close.Enabled)
+                        throw new Exception("G1.10: pré-condição da página descartada falhou.");
+                    page.Dispose();
+                    AssertObsolete(dialog, device);
+                    return true;
+                });
+            if (notify is not null)
+                throw new Exception("G1.10: observador da página descartada não foi removido.");
+            Console.WriteLine("OK G1.10: descarte de página invalida relatório nos dois viewports");
+        }
     }
 
     private static DriverOfficialResult FakeOfficial(DriverInventoryEntry device)

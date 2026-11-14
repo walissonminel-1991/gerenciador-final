@@ -54,3 +54,13 @@ O commit que inclui **este documento** precisa ter **CI Windows 2022/2025**, reg
 Antes de ampliar motores, verificar a **integridade da interface consultiva real**: se avisos de obsolescência e de bloqueio aparecem corretamente com dispositivo selecionado, nenhum dispositivo e enumeração parcial; testar redução de DPI/resize, navegação via teclado e acessibilidade com foco, sem modificar motor WUA nem habilitar atualização. Se faltar evidência de WUA positiva real, declarar bloqueio de homologação funcional, não inventar oferta.
 
 **Fora de escopo e intactos:** `main`, G5 autoatualizador, D1, Worker, Cron, Secrets, BETA, releases, Driver Store, políticas, UAC, instalação/staging/rollback/remover drivers, downloads, PC FORTE, PC FRACO.
+
+## 7. Revisão adversarial complementar — descarte da página
+
+**Contraexemplo no HEAD anterior `394c9d49...`:** `DriversPlaceholder.root.Disposed` invocava `invalidateOpenReport` sem alterar `inventoryGeneration`. Caso a última lista e seleção continuassem referenciadas, `DriverReportPublicationGuard.IsCurrent` ainda podia retornar `true` durante a notificação. Portanto, descartar a página não eliminava necessariamente o texto de INF/WUA já renderizado. É uma falha distinta do cancelamento e retorno tardio cobertos nos ensaios anteriores.
+
+**Correção localizada:** avançar `inventoryGeneration` **antes** do callback de descarte, sem tocar WUA, STA, Store, formato de pacotes, instalação ou o diálogo. A transição irreversível de `CheckCurrent` continua responsável por limpar texto, descartar resultados e desarmar botões.
+
+**Regressão WinForms sintética adicional:** o ensaio temporal inclui o evento real `Panel.Disposed`, geração aposentada antes da notificação, e `AssertObsolete` nos viewports 500×340 e 790×510; a ligação específica com o `root.Disposed` de produção foi inspecionada no código-fonte, sem pretender que o painel sintético substitua a página real. Nenhuma leitura ou escrita de drivers.
+
+**Gate:** revisão complementar sujeita a novo par de CIs Windows + integridade, ambas `completed/SUCCESS` no mesmo SHA final; até a conclusão, esta revisão **não** substitui o gate verde anterior do SHA `394c9d49...`. PR #79 preservada como Draft, G1–G5 abertos, roadmap 27/42.

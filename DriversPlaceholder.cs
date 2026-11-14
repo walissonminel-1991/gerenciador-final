@@ -255,6 +255,8 @@ internal sealed partial class MainForm
         bool resultPublished = false;
         root.Disposed += (_, _) =>
         {
+            // Uma página descartada invalida a fotografia mesmo que seleção e listas não tenham mudado.
+            inventoryGeneration++;
             invalidateOpenReport?.Invoke();
             driverQuery.RequestCancel();
         };
