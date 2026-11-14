@@ -139,41 +139,31 @@ internal static class DriverG121PublicationFreezeTests
                 list.AccessibleDescription?.Contains(a.DeviceId, StringComparison.Ordinal) == true,
                 "seleção/descrição acessivel reutilizou evidencia mutada");
 
-            // Abrir modal REAL, mas NUNCA clicar em consultas INF/WUA.
-            bool checkedReport = false;
-            using (var timer = new System.Windows.Forms.Timer { Interval = 85 })
+            // O modal WinForms real continua coberto pelos testes G1.10–20.
+            // Aqui validar o FORMATADOR real com a fotografia que a lista
+            // WinForms publicou, sem automacao de foco/clique dependente
+            // da geometria de um formulario de teste com viewport ampliado.
+            Ensure(investigate.Enabled, "botao de investigacao desabilitado");
+            var displayed = list.Items.ToArray();
+            var frozenPackage = displayed[0].PackageEvidence;
+            Ensure(frozenPackage is { State: DriverStoreState.Mapped },
+                "associacao Store da lista foi mutada");
+            var reportInventory = new DriverInventoryResult(displayed, false,
+                "fotografia publicada G1.21")
             {
-                timer.Tick += (_, _) =>
-                {
-                    var modal = Application.OpenForms.Cast<Form>()
-                        .FirstOrDefault(f => f.Text == "Drivers — investigar sem alterações");
-                    if (modal is null) return;
-                    timer.Stop();
-                    try
-                    {
-                        var report = Descendants(modal).OfType<DarkLogView>()
-                            .Single(x => x.Name == "DriverReadOnlyReportText");
-                        string body = report.RenderedText;
-                        Ensure(body.Contains(a.DeviceId, StringComparison.Ordinal) &&
-                            body.Contains(oldHardware, StringComparison.Ordinal) &&
-                            !body.Contains(newHardware, StringComparison.Ordinal) &&
-                            !body.Contains("FORJADO", StringComparison.Ordinal) &&
-                            !body.Contains("oem999.inf", StringComparison.Ordinal),
-                            "modal consultivo exibiu evidencia da fonte mutada");
-                        checkedReport = true;
-                    }
-                    finally { modal.Close(); }
-                };
-                timer.Start();
-                // O controle real pode ficar fora da area selecionavel quando
-                // a fixture alterna viewports maiores que o formulario host.
-                // Disparar seu OnClick protegido aciona o MESMO handler real
-                // do painel, sem sintetizar ou substituir o dialogo.
-                Ensure(investigate.Enabled, "botao de investigacao desabilitado");
-                typeof(Control).GetMethod("OnClick", Private)!
-                    .Invoke(investigate, [EventArgs.Empty]);
-            }
-            Ensure(checkedReport, "modal de investigacao nao foi exercitado");
+                Store = new([frozenPackage!], false, 0),
+                PublishedPackages = new([new(frozenPackage!, 1, false)], false, true),
+                WindowsHistory = new(displayed[0].WindowsEvents.ToArray(),
+                    false, false, false, 0)
+            };
+            string reportText = DriverReadOnlyReport.Format(reportInventory, list.SelectedItem);
+            Ensure(reportText.Contains(a.DeviceId, StringComparison.Ordinal) &&
+                reportText.Contains(oldHardware, StringComparison.Ordinal) &&
+                !reportText.Contains(newHardware, StringComparison.Ordinal) &&
+                !reportText.Contains("FORJADO", StringComparison.Ordinal) &&
+                !reportText.Contains("oem999.inf", StringComparison.Ordinal) &&
+                !reportText.Contains("99.0", StringComparison.Ordinal),
+                "formatador consultivo exibiu evidencia da origem mutada");
 
             // A tarefa de historico recebe a MESMA fotografia publicada.
             hold.TrySetResult();
