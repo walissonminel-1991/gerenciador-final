@@ -131,7 +131,7 @@ internal static class DriverMainPanelTemporalTests
             Pump(240);
             if (started != 1 || list.Items.Count != 0 ||
                 !status.Text.Contains("Leitura nativa ainda encerrando"))
-                throw new Exception("G1.12: timeout não preservou inventário anterior.");
+                throw new Exception($"G1.12: timeout divergente: iniciou={started}; itens={list.Items.Count}; estado={status.Text}; acessível={status.AccessibleDescription}.");
             CheckStatus(status, Find<Button>(page, "DriverInventoryRefresh"));
             page.Dispose();
             pending.TrySetResult(new DriverInventoryResult([a], false, "tardio após descarte"));
