@@ -198,21 +198,24 @@ internal sealed partial class MainForm
         footer.Controls.Add(history, 0, 1);
         root.Controls.Add(footer, 0, 4);
         history.AccessibleDescription = history.Text;
-        int statusRevision = 0;
         int refreshRevision = 0;
+        void SyncStatusAccessibility()
+        {
+            if (state.IsDisposed) return;
+            // A fonte da descrição deve ser SEMPRE o texto atualmente exibido:
+            // eventos WinForms podem reentrar durante uma transição de estado.
+            string visible = state.Text;
+            var description = visible + Environment.NewLine + history.Text +
+                (history.AccessibleDescription == history.Text ? "" : Environment.NewLine + history.AccessibleDescription);
+            state.AccessibleDescription = description;
+            if (!state.IsDisposed) _toolTips.SetToolTip(state, description);
+        }
+        state.TextChanged += (_, _) => SyncStatusAccessibility();
         void SetDriverStatus(string message)
         {
             if (state.IsDisposed) return;
-            int revision = ++statusRevision;
             state.Text = message;
-            // Atualizações de WinForms podem reentrar entre Text, acessibilidade
-            // e ToolTip. Nunca restaurar uma descrição de geração anterior.
-            if (state.IsDisposed || revision != statusRevision) return;
-            var description = message + Environment.NewLine + history.Text +
-                (history.AccessibleDescription == history.Text ? "" : Environment.NewLine + history.AccessibleDescription);
-            state.AccessibleDescription = description;
-            if (state.IsDisposed || revision != statusRevision) return;
-            _toolTips.SetToolTip(state, description);
+            SyncStatusAccessibility();
         }
         void SetRefreshCaption(string caption, string description)
         {
