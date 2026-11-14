@@ -130,7 +130,69 @@ internal static class DriverG122ConcurrentFreezeTests
                     File.ReadAllBytes(path).SequenceEqual(stableBytes),
                     "reentrada/refiltro publicou fotografia rasgada em " + size);
             }
-            Console.WriteLine("OK G1.22: mutação durante copia Items/Store rejeitada; painel vazio, historico v1 byte a byte intacto");
+            // Sem abrir o historico para outros cenarios: a verificacao
+            // direta da fronteira nao deve converter fonte rasgada em UI.
+            void MustReject(string name, DriverInventoryResult candidate)
+            {
+                bool rejected = false;
+                try { _ = DriverInventorySnapshot.FreezeStable(candidate, CancellationToken.None); }
+                catch (InvalidDataException) { rejected = true; }
+                Ensure(rejected, "congelamento aceitou mutação durante " + name);
+                Ensure(File.ReadAllBytes(path).SequenceEqual(stableBytes),
+                    "teste direto alterou historico: " + name);
+            }
+            var h = new List<string> { @"PCI\VEN_1220&DEV_0001" };
+            var changingHardware = new ChangeAfterRead<string>(h,
+                () => h[0] = @"PCI\VEN_1220&DEV_9999");
+            MustReject("HardwareIds", baseline with { Items =
+                [a with { HardwareIds = changingHardware }, b] });
+
+            var ev = new List<DriverWindowsEvent> {
+                new(a.DeviceId, a.InfName, new DateTime(2026, 11, 14), DriverInstallOutcome.Succeeded)
+            };
+            var changingEvents = new ChangeAfterRead<DriverWindowsEvent>(ev,
+                () => ev[0] = ev[0] with { Outcome = DriverInstallOutcome.Failed });
+            MustReject("WindowsEvents", baseline with { Items =
+                [a with { WindowsEvents = changingEvents }, b] });
+
+            var storeItems = new List<DriverStoreEvidence> { originalPackage };
+            var changingStore = new ChangeAfterRead<DriverStoreEvidence>(storeItems,
+                () => storeItems[0] = originalPackage with { State = DriverStoreState.Inconsistent });
+            MustReject("Store", baseline with {
+                Store = new(changingStore, false, 0) });
+
+            var pubItems = new List<DriverPublishedPackage> { new(originalPackage, 1, false) };
+            var changingPublished = new ChangeAfterRead<DriverPublishedPackage>(pubItems,
+                () => pubItems[0] = new(originalPackage, 0, true));
+            MustReject("PublishedPackages", baseline with {
+                PublishedPackages = new(changingPublished, false, true) });
+
+            var logs = new List<DriverWindowsEvent> {
+                new(a.DeviceId, a.InfName, new DateTime(2026, 11, 14), DriverInstallOutcome.Succeeded)
+            };
+            var changingLog = new ChangeAfterRead<DriverWindowsEvent>(logs,
+                () => logs[0] = logs[0] with { Outcome = DriverInstallOutcome.Failed });
+            MustReject("WindowsHistory", baseline with {
+                WindowsHistory = new(changingLog, false, false, false, 0) });
+
+            var moved = new List<DriverInventoryEntry> { a, b };
+            MustReject("reordenação Items", baseline with {
+                Items = new ChangeOnFirstEnumeration(moved, () => moved.Reverse()) });
+
+            var duplicated = new List<DriverInventoryEntry> { a, b };
+            MustReject("duplicação DeviceId durante Items", baseline with {
+                Items = new ChangeOnFirstEnumeration(duplicated,
+                    () => duplicated.Add(a with { Version = "99.0" })) });
+
+            // Uma fonte estavel parcial permanece consultiva; ela nao grava v1.
+            var partial = DriverInventorySnapshot.FreezeStable(baseline with { Partial = true },
+                CancellationToken.None);
+            Ensure(partial.Partial &&
+                !DriverHistory.Record(path, partial, DateTimeOffset.UtcNow).Saved &&
+                File.ReadAllBytes(path).SequenceEqual(stableBytes),
+                "snapshot parcial não preservou histórico anterior");
+
+            Console.WriteLine("OK G1.22: interleaving Items/Store, HardwareIds, WindowsEvents, Published, WindowsHistory, ordem, DeviceId e parcial fail-closed");
         }
         finally
         {
@@ -141,6 +203,26 @@ internal static class DriverG122ConcurrentFreezeTests
             if (Directory.Exists(folder)) Directory.Delete(folder, true);
         }
     }
+
+    // Provas diretas e deterministicas da fronteira; mutacoes in-place
+    // acontecem em diferentes colecoes durante a primeira enumeracao.
+    private sealed class ChangeAfterRead<T> : IReadOnlyList<T>
+    {
+        private readonly List<T> list;
+        private readonly Action change;
+        private bool fired;
+        internal ChangeAfterRead(List<T> list, Action change)
+        { this.list = list; this.change = change; }
+        public int Count => list.Count;
+        public T this[int index] => list[index];
+        public IEnumerator<T> GetEnumerator()
+        {
+            foreach (T item in list) yield return item;
+            if (!fired) { fired = true; change(); }
+        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     private static T Find<T>(Control control, string name) where T : Control =>
         Descendants(control).OfType<T>().Single(x => x.Name == name);
     private static IEnumerable<Control> Descendants(Control control)

@@ -381,32 +381,11 @@ internal sealed partial class MainForm
             {
                 var captured = await _driverReadTask.WaitAsync(token);
                 if (root.IsDisposed || !driverQuery.CanPublish(token)) return;
-                // G1.21: publicar UMA unica fotografia de propriedade local.
-                // Referencias de listas recebidas podem mudar depois do await;
-                // filtros, relatorio, guard e historico devem observar as
-                // MESMAS evidencias, inclusive colecoes internas.
-                var result = captured with
-                {
-                    Items = captured.Items.Select(item => item with
-                    {
-                        HardwareIds = item.HardwareIds.ToArray(),
-                        WindowsEvents = item.WindowsEvents.ToArray()
-                    }).ToArray(),
-                    Store = captured.Store is null ? null : captured.Store with
-                    {
-                        Packages = captured.Store.Packages.ToArray()
-                    },
-                    PublishedPackages = captured.PublishedPackages is null ? null :
-                        captured.PublishedPackages with
-                        {
-                            Packages = captured.PublishedPackages.Packages.ToArray()
-                        },
-                    WindowsHistory = captured.WindowsHistory is null ? null :
-                        captured.WindowsHistory with
-                        {
-                            Events = captured.WindowsHistory.Events.ToArray()
-                        }
-                };
+                // G1.22: nenhuma lista ou evidencia e publicada antes de
+                // detectar alteracao durante a fronteira de congelamento.
+                // Nao promete atomicidade contra escritor externo que coopere
+                // zero; rejeita incoerencias observadas sem retry/timer.
+                var result = DriverInventorySnapshot.FreezeStable(captured, token);
                 var historyInventory = result;
                 long publishedGeneration = inventoryGeneration;
                 snapshot = result.Items;
