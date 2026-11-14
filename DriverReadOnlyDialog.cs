@@ -34,20 +34,38 @@ internal sealed partial class MainForm
         var body = new DarkLogView
         {
             Name = "DriverReadOnlyReportText", Dock = DockStyle.Fill,
-            AccessibleName = "Relatório de drivers somente leitura"
+            AccessibleName = "Relatório de drivers somente leitura",
+            AccessibleDescription = "Texto consultivo. Use Tab para acessar as ações; nenhuma ação modifica drivers."
         };
         body.UseReadableFont(new Font("Segoe UI", 9F));
         var status = new Label { Dock = DockStyle.Fill, ForeColor = Muted,
-            AutoEllipsis = true, Text = "Consultas locais; os IDs nesta janela não são enviados ao diagnóstico." };
+            Name = "DriverReadOnlyStatus", AccessibleName = "Estado da investigação de drivers",
+            AutoEllipsis = true };
+        using var statusTip = new ToolTip();
+        void SetStatus(string message)
+        {
+            if (status.IsDisposed) return;
+            status.Text = message;
+            // Mensagens extensas podem ser elididas visualmente em 500×340.
+            status.AccessibleDescription = message;
+            statusTip.SetToolTip(status, message);
+        }
         var bar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
         var officialButton = CreateSecondaryButton("Versões oficiais");
         officialButton.Name = "DriverOfficialReadOnly";
+        officialButton.AccessibleName = "Consultar ofertas oficiais de drivers, somente leitura";
+        officialButton.AccessibleDescription = "Metadados do Windows Update; não comprovam compatibilidade nem permitem instalação.";
         var verifyButton = CreateSecondaryButton("Verificar INF");
         verifyButton.Name = "DriverVerifyInfReadOnly";
+        verifyButton.AccessibleName = "Verificar assinatura do INF instalado, somente leitura";
+        verifyButton.AccessibleDescription = "Verifica somente o INF local associado à seleção, sem modificar drivers.";
         var close = CreateSecondaryButton("Fechar");
+        close.AccessibleName = "Fechar investigação de drivers";
+        close.DialogResult = DialogResult.Cancel;
+        dialog.CancelButton = close;
         foreach (var button in new[] { officialButton, verifyButton, close })
         { button.Dock = DockStyle.Fill; button.Margin = new Padding(2); button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold); }
         bar.Controls.Add(officialButton, 0, 0); bar.Controls.Add(verifyButton, 1, 0); bar.Controls.Add(close, 2, 0);
@@ -62,7 +80,18 @@ internal sealed partial class MainForm
         DriverOfficialResult? official = null;
         DriverInfVerificationResult? verification = null;
         CancellationTokenSource? current = null;
+        bool canOfficial = !inventory.Partial && inventory.Items.Count > 0;
         bool canVerify = selected?.PackageEvidence?.State == DriverStoreState.Mapped;
+        // A primeira pintura já precisa refletir as capacidades da fotografia.
+        officialButton.Enabled = canOfficial;
+        verifyButton.Enabled = canVerify;
+        SetStatus(inventory.Partial
+            ? "Inventário parcial: consulta oficial indisponível; INF local depende de vínculo mapeado."
+            : inventory.Items.Count == 0
+                ? "Inventário vazio nesta leitura: nenhuma consulta oficial disponível."
+                : selected is null
+                    ? "Sem dispositivo selecionado: a consulta oficial é geral; verificar INF exige seleção."
+                    : "Consultas locais; os IDs nesta janela não são enviados ao diagnóstico.");
         bool obsolete = false;
         bool closing = false;
         const string obsoleteText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
@@ -79,7 +108,7 @@ internal sealed partial class MainForm
             verification = null;
             current?.Cancel(); // cancela a espera, não força fim do Search COM
             body.SetText(obsoleteText);
-            status.Text = "Inventário ou seleção alterados; reabra a investigação.";
+            SetStatus("Inventário ou seleção alterados; reabra a investigação.");
             officialButton.Enabled = false;
             verifyButton.Enabled = false;
         }
@@ -104,7 +133,7 @@ internal sealed partial class MainForm
             button.Text = "Cancelar";
             officialButton.Enabled = button == officialButton;
             verifyButton.Enabled = button == verifyButton;
-            status.Text = "Consultando em segundo plano… Nenhuma instalação ou remoção.";
+            SetStatus("Consultando em segundo plano… Nenhuma instalação ou remoção.");
             try
             {
                 bool accepted = await read(source.Token);
@@ -113,9 +142,9 @@ internal sealed partial class MainForm
                     Render();
                     CheckCurrent();
                     if (!obsolete)
-                        status.Text = accepted
+                        SetStatus(accepted
                             ? "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."
-                            : "Resultado inconsistente descartado; relatório anterior preservado.";
+                            : "Resultado inconsistente descartado; relatório anterior preservado.");
                 }
             }
             catch (OperationCanceledException)
@@ -124,7 +153,7 @@ internal sealed partial class MainForm
                 {
                     CheckCurrent();
                     if (!obsolete)
-                        status.Text = "Consulta cancelada ou prazo esgotado; resultado anterior preservado.";
+                        SetStatus("Consulta cancelada ou prazo esgotado; resultado anterior preservado.");
                 }
             }
             catch (Exception ex)
@@ -133,7 +162,7 @@ internal sealed partial class MainForm
                 {
                     CheckCurrent();
                     if (!obsolete)
-                        status.Text = "Consulta indisponível (" + ex.GetType().Name + "); resultado anterior preservado.";
+                        SetStatus("Consulta indisponível (" + ex.GetType().Name + "); resultado anterior preservado.");
                 }
             }
             finally
@@ -143,7 +172,7 @@ internal sealed partial class MainForm
                 {
                     button.Text = label;
                     CheckCurrent();
-                    officialButton.Enabled = !obsolete && !inventory.Partial && inventory.Items.Count > 0;
+                    officialButton.Enabled = !obsolete && canOfficial;
                     verifyButton.Enabled = !obsolete && canVerify;
                 }
             }
@@ -151,9 +180,9 @@ internal sealed partial class MainForm
         async Task RunOfficial()
         {
             CheckCurrent();
-            if (obsolete || closing) return;
+            if (obsolete || closing || !officialButton.Enabled) return;
             if (current is null && _driverOfficialReadTask is { IsCompleted: false })
-            { CheckCurrent(); if (!obsolete) status.Text = "Consulta nativa anterior ainda encerrando; resultado preservado."; return; }
+            { CheckCurrent(); if (!obsolete) SetStatus("Consulta nativa anterior ainda encerrando; resultado preservado."); return; }
             await Run(officialButton, async token =>
             {
                 _driverOfficialReadTask = officialReadForTest is null
@@ -168,9 +197,9 @@ internal sealed partial class MainForm
         async Task RunInf()
         {
             CheckCurrent();
-            if (obsolete || closing) return;
+            if (obsolete || closing || !verifyButton.Enabled) return;
             if (current is null && _driverInfReadTask is { IsCompleted: false })
-            { CheckCurrent(); if (!obsolete) status.Text = "Verificação nativa anterior ainda encerrando; resultado preservado."; return; }
+            { CheckCurrent(); if (!obsolete) SetStatus("Verificação nativa anterior ainda encerrando; resultado preservado."); return; }
             if (selected?.PackageEvidence is not { } package) return;
             await Run(verifyButton, async token =>
             {
@@ -198,7 +227,11 @@ internal sealed partial class MainForm
             verification = null;
         };
         Render();
-        dialog.Shown += (_, _) => officialButton.Focus();
+        dialog.Shown += (_, _) =>
+        {
+            // Não enviar o foco inicial para uma ação indisponível.
+            (officialButton.Enabled ? officialButton : verifyButton.Enabled ? verifyButton : close).Focus();
+        };
         onInvalidationChanged(CheckCurrent);
         try { dialog.ShowDialog(this); }
         finally { onInvalidationChanged(null); }

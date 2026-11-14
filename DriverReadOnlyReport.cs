@@ -35,7 +35,9 @@ internal static class DriverReadOnlyReport
             text.AppendLine();
         }
         text.AppendLine("VERIFICAÇÃO DO INF INSTALADO");
-        text.AppendLine(verification?.Label ?? "Ainda não solicitada para este dispositivo.");
+        text.AppendLine(selected is null
+            ? "Indisponível: selecione um dispositivo com INF mapeado."
+            : verification?.Label ?? "Ainda não solicitada para este dispositivo.");
         if (verification is not null)
         {
             text.AppendLine(verification.Scope);
