@@ -71,8 +71,11 @@ internal static class DriverHistory
                         previous.Devices.Any(x => !IsHash(x.Key) || !IsHash(x.Value)) ||
                         previous.Changes.Any(x => x is null || x.Added < 0 || x.Missing < 0 || x.Changed < 0))
                         throw new InvalidDataException();
-                    if (at < previous.At)
-                        return new(false, false, 0, 0, 0, "Histórico preservado: relógio anterior à última consulta.");
+                    // A próxima fotografia deve avançar no tempo. Duas
+                    // gravações com timestamp idêntico poderiam reescrever
+                    // provas distintas sem ordem temporal demonstrável.
+                    if (at <= previous.At)
+                        return new(false, false, 0, 0, 0, "Histórico preservado: data não posterior à última consulta.");
                 }
                 var change = previous is null ? new DriverHistoryChange(at, 0, 0, 0) : Compare(previous.Devices, current, at);
                 var changes = previous?.Changes.ToList() ?? new List<DriverHistoryChange>();
