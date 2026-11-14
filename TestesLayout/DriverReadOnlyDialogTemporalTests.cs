@@ -277,6 +277,11 @@ internal static class DriverReadOnlyDialogTemporalTests
             x.Text.Contains("cancel", StringComparison.OrdinalIgnoreCase) ||
             x.Text.Contains("encerrando", StringComparison.OrdinalIgnoreCase) ||
             x.Text.Contains("resultado", StringComparison.OrdinalIgnoreCase));
+        // G1.11: toda transição temporal (espera, timeout, invalidação e retorno)
+        // precisa preservar o aviso integral para leitor de tela.
+        if (status.AccessibleName != "Estado da investigação de drivers" ||
+            status.AccessibleDescription != status.Text || !status.AutoEllipsis)
+            throw new Exception("G1.11: aviso dinâmico sem descrição acessível íntegra.");
         return (body, status, official, verify, close);
     }
 

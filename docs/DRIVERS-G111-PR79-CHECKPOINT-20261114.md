@@ -34,3 +34,7 @@ PR #79 permanece Draft; roadmap 27/42 e G1–G5 abertos. Não tocar main, G5, D1
 ## 6. Continuidade G1.12 sugerida
 
 Auditoria apenas de navegação e consistência do painel principal de drivers frente a filtro/seleção, estado parcial e mensagens de progresso. Não ampliar motores nem habilitar atualização.
+
+### Complemento do ensaio temporal
+
+A fixture preexistente `DriverReadOnlyDialogTemporalTests.Controls` agora verifica também `AccessibleName`, `AutoEllipsis` e equivalência `AccessibleDescription == Text` em todos os estados que já testa: consulta em andamento, resultado tardio, timeout, bloqueio de nova busca, obsolescência, fechamento e reabertura. Os provedores permanecem sintéticos e nenhum mecanismo é acionado fora do diálogo.
