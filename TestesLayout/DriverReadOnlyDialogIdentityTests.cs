@@ -40,19 +40,19 @@ internal static class DriverReadOnlyDialogIdentityTests
             if (!ReferenceEquals(visibleList.SelectedItem, device))
                 throw new Exception("G1.14: seleção filtrada sintética incorreta.");
             Inspect(owner, conflict, visibleList.SelectedItem, "DeviceId duplicado",
-                "já ambígua na abertura", true, false);
+                "já ambígua na abertura", true, true, expectedInf: false);
         }
 
         Inspect(owner, identical, device, "DeviceId duplicado",
-            "já ambígua na abertura", true, false);
+            "já ambígua na abertura", true, true, expectedInf: false);
         Inspect(owner, partial, device, "DeviceId duplicado",
-            "já ambígua na abertura", true, false);
+            "já ambígua na abertura", true, true, expectedInf: false);
         Inspect(owner, conflict, null, "ATENÇÃO: DeviceId",
             "DeviceId duplicado no inventário completo", false, true);
         Inspect(owner, full, device, "Dispositivo sintético A",
-            "Consultas locais", false, false);
+            "Consultas locais", false, false, expectedInf: true);
         Inspect(owner, full, null, "Sem dispositivo selecionado",
-            "Sem dispositivo selecionado", false, true);
+            "Sem dispositivo selecionado", false, false, expectedInf: false);
 
         // Com seleção única e outra identidade duplicada, bloquear WUA
         // sem impedir a mera leitura do relatório e INF desta seleção.
