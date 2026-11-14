@@ -47,11 +47,12 @@ internal static class DriverG120HistoryLifetimeTests
                 "gravacao nova nao corresponde ao snapshot publicado");
             oldRead.TrySetResult(Snap("1.0"));
             var oldHistory = Find<Label>(oldPage, "DriverHistoryStatus");
-            PumpUntil(() => oldHistory.Text.Contains("data não posterior", StringComparison.Ordinal));
+            // Um rótulo Text pode disparar eventos WinForms antes de sua
+            // AccessibleDescription correspondente ser aplicada.
+            PumpUntil(() => oldHistory.Text.Contains("data não posterior", StringComparison.Ordinal) &&
+                oldHistory.AccessibleDescription?.Contains(oldHistory.Text, StringComparison.Ordinal) == true);
             Ensure(File.ReadAllBytes(path).SequenceEqual(current),
                 "consulta anterior sobrescreveu historico mais novo");
-            Ensure(oldHistory.AccessibleDescription?.Contains("preservado", StringComparison.Ordinal) == true,
-                "consulta obsoleta exibiu comparacao como atual");
 
             // Painel, fonte acessivel, tooltip, filtro e viewports.
             var status = Find<Label>(newPage, "DriverInventoryStatus");

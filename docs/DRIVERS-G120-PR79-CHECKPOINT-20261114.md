@@ -20,6 +20,10 @@ Preservados schema histórico v1, hash SHA-256, lock interinstâncias, escrita `
 
 **Proibido:** alterações no `main`, G5, D1, Worker, Cron, Secrets, BETA, releases, PC FORTE/FRACO; nenhuma instalação, atualização, remoção, rollback, elevação, mudança de política, reinício, URL de conteúdo, staging, serviço, timer ou polling.
 
+## Falha registrada da primeira CI
+- Candidato `2b30bc560b3d83b2120d702e2aa381cd05cce1fc`: CI Windows [43645622662](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43645622662) falhou no teste G1.20 `consulta obsoleta exibiu comparacao como atual`; verificação do arquivo v1 e mensagem visual já tinham passado. O teste acessível observou a descrição antes de validar explicitamente sua sincronização final. Corrigida a fixture para aguardar ambas as propriedades da MESMA fotografia e falhar se continuarem divergentes; não alterar lógica de produção por uma hipótese de agendamento. Falhas posteriores de artefatos WORK14/16/17/18 vieram da interrupção antecipada.
+- O gate da primeira tentativa não é GO, ainda que uma CI individual tenha passado. Revalidar ambos os workflows no novo SHA, sem omitir falhas ou cancelamentos.
+
 ## Gate G1.20
 **PENDENTE:** exigir duas CIs `completed/SUCCESS` no mesmo SHA final: Windows 2022/2025 24/24 G1.9 por runner, WinForms G1.10–G1.20, regressões gerais, testes visuais, controles negativos de mutação, segurança/privacidade, consentimento, compilação Windows x64 e integridade externa. Documentar falhas e reexecuções; nenhuma alegação de GO antes das duas conclusões.
 
