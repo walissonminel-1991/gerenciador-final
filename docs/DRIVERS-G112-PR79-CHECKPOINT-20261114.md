@@ -26,3 +26,7 @@ Dados de teste não comprovam pacote remoto compatível, versão/ranking, INF as
 
 ## 5. Próxima etapa G1.13
 Auditar somente semântica de acessibilidade e correspondência da lista virtualizada no painel em cenários de seleção ambígua, dispositivos repetidos e leitores de tela sem depender de heurísticas de versão. Validar por testes reais; nenhuma autorização de driver.
+
+### Regressão intermediária de fixture e correção
+
+A [CI 43599548422](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43599548422) falhou na asserção do filtro PnP, sem falha de compilação. A [CI diagnóstica 43599704300](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43599704300) confirmou que o acionamento via reflexão de `Control.OnClick` não disparou o evento real de `Button` no runner: itens=3, seleção=PCI\\G112\\A preservada, descrição ainda "Ativar filtro: Problemas". Assim, não havia prova de erro no mecanismo de filtragem. Foi substituído o acionamento programático por um callback exclusivamente de fixture para a MESMA rotina local `ApplyFilter` utilizada pelos handlers reais de botão e ComboBox, como já feito com o botão de consulta G1.10. Nenhuma mudança no predicado `DriverListFilters.Apply`; exigir novo gate global no SHA final.

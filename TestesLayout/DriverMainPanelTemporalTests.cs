@@ -24,7 +24,7 @@ internal static class DriverMainPanelTemporalTests
         int reads = 0;
         using (var page = Open(owner,
             _ => Task.FromResult(snapshots[Math.Min(reads++, snapshots.Length - 1)]),
-            TimeSpan.FromSeconds(3), out var read))
+            TimeSpan.FromSeconds(3), out var read, out var filter))
         {
             var list = Find<DarkDriverList>(page, "DriverInventoryList");
             var status = Find<Label>(page, "DriverInventoryStatus");
@@ -46,7 +46,8 @@ internal static class DriverMainPanelTemporalTests
                 list.AccessibleDescription?.Contains(a.DeviceName) != true)
                 throw new Exception("G1.12: seta não selecionou/anunciou dispositivo.");
             var problems = Descendants(page).OfType<Button>().Single(x => x.Text == "Falhas PnP");
-            Click(problems);
+            filter("Problemas");
+            Pump(20);
             if (list.Items.Count != 1 || list.SelectedItem?.DeviceId != a.DeviceId ||
                 problems.AccessibleDescription?.Contains("Filtro ativo") != true)
                 throw new Exception($"G1.12: filtro PnP falhou: itens={list.Items.Count}; selecionado={list.SelectedItem?.DeviceId ?? "(null)"}; esperado={a.DeviceId}; descrição={problems.AccessibleDescription ?? "(null)"}; título={title.Text}.");
@@ -56,7 +57,8 @@ internal static class DriverMainPanelTemporalTests
                 list.AccessibleDescription?.Contains("Nenhum dispositivo selecionado") != true)
                 throw new Exception("G1.12: refiltro não invalidou seleção.");
             search.Clear();
-            Click(Descendants(page).OfType<Button>().Single(x => x.Text == "Todos"));
+            filter("Todos");
+            Pump(20);
             if (list.Items.Count != 3) throw new Exception("G1.12: filtro Todos não restaurou as linhas.");
             foreach (var size in new[] { new Size(540, 320), new Size(500, 210),
                 new Size(1200, 720), new Size(1450, 820) })
@@ -90,7 +92,7 @@ internal static class DriverMainPanelTemporalTests
                 TaskCreationOptions.RunContinuationsAsynchronously);
             int started = 0;
             using var page = Open(owner, _ => { started++; return pending.Task; },
-                TimeSpan.FromSeconds(4), out var read);
+                TimeSpan.FromSeconds(4), out var read, out _);
             var status = Find<Label>(page, "DriverInventoryStatus");
             var refresh = Find<Button>(page, "DriverInventoryRefresh");
             var list = Find<DarkDriverList>(page, "DriverInventoryList");
@@ -122,7 +124,7 @@ internal static class DriverMainPanelTemporalTests
                 TaskCreationOptions.RunContinuationsAsynchronously);
             int started = 0;
             var page = Open(owner, _ => { started++; return pending.Task; },
-                TimeSpan.FromMilliseconds(35), out var read);
+                TimeSpan.FromMilliseconds(35), out var read, out _);
             var status = Find<Label>(page, "DriverInventoryStatus");
             var list = Find<DarkDriverList>(page, "DriverInventoryList");
             read();
@@ -140,13 +142,15 @@ internal static class DriverMainPanelTemporalTests
 
     private static Form Open(MainForm owner,
         Func<CancellationToken, Task<DriverInventoryResult>> fake,
-        TimeSpan timeout, out Action read)
+        TimeSpan timeout, out Action read, out Action<string> filter)
     {
         Action? action = null;
+        Action<string>? applyFilter = null;
         var method = typeof(MainForm).GetMethod("BuildDriversPlaceholder",
             BindingFlags.Instance | BindingFlags.NonPublic)!;
         var control = (Control)method.Invoke(owner, [fake, (TimeSpan?)timeout,
-            (Action<Action>)(callback => action = callback)])!;
+            (Action<Action>)(callback => action = callback),
+            (Action<Action<string>>)(callback => applyFilter = callback)])!;
         var form = new Form { Text = "G1.12 Fixture", ClientSize = new Size(800, 520),
             ShowInTaskbar = false };
         control.Dock = DockStyle.Fill;
@@ -154,6 +158,7 @@ internal static class DriverMainPanelTemporalTests
         form.Show(owner);
         Pump();
         read = action ?? throw new Exception("G1.12: callback real não disponível.");
+        filter = applyFilter ?? throw new Exception("G1.12: ação real de filtro não disponível.");
         return form;
     }
 
@@ -166,13 +171,6 @@ internal static class DriverMainPanelTemporalTests
             Thread.Sleep(10);
         }
         Application.DoEvents();
-    }
-
-    private static void Click(Button button)
-    {
-        typeof(Control).GetMethod("OnClick",
-            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(button, [EventArgs.Empty]);
-        Pump(20);
     }
 
     private static void CheckStatus(Label status, Button refresh)

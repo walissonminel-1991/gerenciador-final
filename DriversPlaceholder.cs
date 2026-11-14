@@ -10,7 +10,8 @@ internal sealed partial class MainForm
     private Control BuildDriversPlaceholder(
         Func<CancellationToken, Task<DriverInventoryResult>>? readForTest = null,
         TimeSpan? timeoutForTest = null,
-        Action<Action>? onTestReadActionReady = null)
+        Action<Action>? onTestReadActionReady = null,
+        Action<Action<string>>? onTestFilterReady = null)
     {
         // Mesma hierarquia visual de Aplicativos: pesquisa, acoes, filtros,
         // cartoes e estado. Nada nesta tela instala, remove ou edita drivers.
@@ -275,17 +276,23 @@ internal sealed partial class MainForm
             compactFilter.AccessibleDescription = "Filtro atual: " + activeFilter;
         }
 
+        void ApplyFilter(string name)
+        {
+            activeFilter = name;
+            Render();
+        }
         search.TextChanged += (_, _) => Render();
-        all.Click += (_, _) => { activeFilter = "Todos"; Render(); };
-        present.Click += (_, _) => { activeFilter = "Presentes"; Render(); };
-        other.Click += (_, _) => { activeFilter = "Não confirmados"; Render(); };
-        problems.Click += (_, _) => { activeFilter = "Problemas"; Render(); };
+        all.Click += (_, _) => ApplyFilter("Todos");
+        present.Click += (_, _) => ApplyFilter("Presentes");
+        other.Click += (_, _) => ApplyFilter("Não confirmados");
+        problems.Click += (_, _) => ApplyFilter("Problemas");
+        // Apenas fixture: invoca a mesma ação dos botões e do filtro compacto.
+        onTestFilterReady?.Invoke(ApplyFilter);
         compactFilter.SelectedIndexChanged += (_, _) =>
         {
             if (compactFilter.SelectedItem is string selected)
             {
-                activeFilter = selected;
-                Render();
+                ApplyFilter(selected);
             }
         };
         var driverQuery = new DriverQueryCoordinator();
