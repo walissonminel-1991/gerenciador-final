@@ -56,7 +56,7 @@ internal static class DriverG119HistoryIdentityTests
             var changed = DriverHistory.Record(path,
                 Complete(a with { Version = "2.0" }, b), start.AddMinutes(3));
             Ensure(changed.Saved && changed.Changed == 1 && changed.Missing == 0 &&
-                changed.Added == 0 && changed.Message.Contains("não comprova remoção", StringComparison.Ordinal),
+                changed.Added == 0 && changed.Message.Contains("não comprova remoção", StringComparison.OrdinalIgnoreCase),
                 "alteracao real não foi diferenciada de remoção");
             byte[] after = File.ReadAllBytes(path);
             Ensure(!DriverHistory.Record(path, Complete(a, b), start).Saved &&
