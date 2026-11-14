@@ -6,6 +6,11 @@ namespace GerenciadorAplicativos;
 internal sealed partial class MainForm
 {
     private Task<DriverInventoryResult>? _driverReadTask;
+    // Exclusivo das fixtures com readForTest: jamais acessar DefaultPath
+    // do usuario nos testes temporais ou iniciar captura nativa.
+    private string? _driverHistoryPathForTest;
+    private Func<CancellationToken, Task>? _driverHistoryBeforeWriteForTest;
+    private Action? _driverHistoryBeforeReplaceForTest;
 
     private Control BuildDriversPlaceholder(
         Func<CancellationToken, Task<DriverInventoryResult>>? readForTest = null,
@@ -354,6 +359,14 @@ internal sealed partial class MainForm
                 return;
             }
             var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
+            // Uma captura antiga conserva sua precedencia temporal mesmo
+            // se o gravador for agendado muito depois, inclusive entre janelas.
+            var queryStartedAt = DateTimeOffset.UtcNow;
+            string? historyTestPath = readForTest is null ? null : _driverHistoryPathForTest;
+            Func<CancellationToken, Task>? beforeHistoryWrite =
+                readForTest is null ? null : _driverHistoryBeforeWriteForTest;
+            Action? beforeHistoryReplace = readForTest is null ? null : _driverHistoryBeforeReplaceForTest;
+            bool saveHistory = readForTest is null || historyTestPath is not null;
             // Invalida relatórios antigos antes da próxima leitura nativa,
             // inclusive se ela falhar, cancelar ou terminar fora de ordem.
             inventoryGeneration++;
@@ -368,6 +381,13 @@ internal sealed partial class MainForm
             {
                 var result = await _driverReadTask.WaitAsync(token);
                 if (root.IsDisposed || !driverQuery.CanPublish(token)) return;
+                // Congelar os campos de historico antes de aguardar a
+                // persistencia: uma lista mutavel nao troca as evidencias.
+                var historyInventory = result with
+                {
+                    Items = result.Items.Select(item => item with { }).ToArray()
+                };
+                long publishedGeneration = inventoryGeneration;
                 snapshot = result.Items;
                 lastResult = result;
                 investigate.Enabled = true;
@@ -376,7 +396,7 @@ internal sealed partial class MainForm
                 // A lista agora representa OUTRA fotografia. O rodapé não deve
                 // anunciar a comparação da fotografia anterior enquanto a
                 // gravação desta ainda ocorre. Fixtures não gravam histórico.
-                history.Text = readForTest is null
+                history.Text = saveHistory
                     ? "Histórico local: comparação desta consulta em andamento; resultado ainda não confirmado."
                     : "Histórico sintético desta consulta: não gravado nem comparado com o histórico local.";
                 history.AccessibleDescription = history.Text;
@@ -421,11 +441,17 @@ internal sealed partial class MainForm
                     ("parcial", result.Partial ? 1 : 0));
                 // Fixtures sintéticas exercitam a mesma publicação WinForms,
                 // mas jamais escrevem no histórico pessoal do runner.
-                if (readForTest is null)
+                if (saveHistory)
                 {
+                    if (beforeHistoryWrite is not null)
+                        await beforeHistoryWrite(token);
+                    if (root.IsDisposed || publishedGeneration != inventoryGeneration ||
+                        !driverQuery.CanPublish(token)) return;
                     var recorded = await Task.Run(() => DriverHistory.Record(
-                        DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));
-                    if (!root.IsDisposed)
+                        readForTest is null ? DriverHistory.DefaultPath : historyTestPath!,
+                        historyInventory, queryStartedAt, token, beforeHistoryReplace));
+                    if (!root.IsDisposed && publishedGeneration == inventoryGeneration &&
+                        driverQuery.CanPublish(token))
                     {
                         history.Text = recorded.Message;
                         history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;

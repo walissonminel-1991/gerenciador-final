@@ -53,8 +53,13 @@ internal static class DriverHistory
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "GerenciadorFinal", "Historico", "drivers-v1.json");
 
-    internal static DriverHistoryResult Record(string path, DriverInventoryResult inventory, DateTimeOffset at)
+    internal static DriverHistoryResult Record(string path, DriverInventoryResult inventory, DateTimeOffset at,
+        CancellationToken validity = default, Action? beforeReplaceForTest = null)
     {
+        // G1.20: uma pagina/generacao descartada nao pode gravar uma
+        // fotografia tardia. O token e reavaliado antes da troca atomica.
+        if (validity.IsCancellationRequested)
+            return new(false, false, 0, 0, 0, "Histórico preservado: consulta invalidada antes da gravação.");
         if (inventory.Partial || inventory.Items.Count == 0)
             return new(false, false, 0, 0, 0, "Histórico preservado: consulta parcial ou vazia.");
         // Uma fotografia PnP completa pode não conter associação obtida de
@@ -69,6 +74,8 @@ internal static class DriverHistory
             try
             {
                 var current = Snapshot(inventory);
+                if (validity.IsCancellationRequested)
+                    return new(false, false, 0, 0, 0, "Histórico preservado: consulta invalidada antes da gravação.");
                 string full = Path.GetFullPath(path);
                 Directory.CreateDirectory(Path.GetDirectoryName(full)!);
                 // Serializa tambem instancias diferentes do programa; conflito preserva a base.
@@ -102,6 +109,11 @@ internal static class DriverHistory
                     JsonSerializer.Serialize(stream, next);
                     stream.Flush(true);
                 }
+                // Interleaving exclusivo das fixtures; no produto e sempre
+                // nulo, sem espera, timer ou polling de producao.
+                beforeReplaceForTest?.Invoke();
+                if (validity.IsCancellationRequested)
+                    return new(false, false, 0, 0, 0, "Histórico preservado: consulta invalidada antes da publicação.");
                 File.Move(temporary, full, true);
                 return new(true, previous is null, change.Added, change.Missing, change.Changed,
                     previous is null ? "Histórico local iniciado nesta consulta; sem reconstrução do passado." :
