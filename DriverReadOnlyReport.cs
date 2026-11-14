@@ -39,7 +39,14 @@ internal static class DriverReadOnlyReport
                 "Uma linha filtrada não comprova associação única de INF/WUA; " +
                 "consulta oficial bloqueada até nova leitura coerente.");
         text.AppendLine(inventory.PublishedPackages?.Summary ?? "INFs publicados ainda não consultados.");
-        text.AppendLine(inventory.WindowsHistory?.Summary ?? "Histórico Windows ainda não consultado.");
+        var windowsHistory = inventory.WindowsHistory;
+        text.AppendLine(windowsHistory?.Summary ?? "Histórico Windows ainda não consultado.");
+        // Lacuna na leitura ou trecho rejeitado não é prova negativa da história.
+        if (windowsHistory is { Unavailable: false } &&
+            (windowsHistory.Partial || windowsHistory.TailOnly ||
+             windowsHistory.RejectedSections > 0))
+            text.AppendLine("Histórico Windows incompleto: apenas eventos observados nesta leitura; " +
+                "lacunas não comprovam ausência de instalações anteriores.");
         text.AppendLine();
         if (selected is null) text.AppendLine("Selecione um dispositivo na lista para conferir histórico e assinatura do INF.");
         else
@@ -54,10 +61,21 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("Sem linha de driver assinado associada nesta leitura. Não significa pacote removível nem prova de versão disponível.");
             text.AppendLine(selected.PackageEvidence?.Label ?? "Vínculo de pacote indisponível.");
             text.AppendLine("Relato de assinatura WMI: " + selected.SignatureLabel + " (não é a verificação abaixo).");
-            foreach (var change in selected.WindowsEvents)
+            // A apresentação nunca deve alegar "trecho lido" se a fonte
+            // histórica nem foi consultada ou informou indisponibilidade.
+            var visibleEvents = windowsHistory?.Unavailable == true
+                ? Array.Empty<DriverWindowsEvent>() : selected.WindowsEvents;
+            foreach (var change in visibleEvents)
                 text.AppendLine($"Log Windows {change.Started:yyyy-MM-dd HH:mm:ss} (hora local registrada): {change.InfName}; " +
                     (change.Outcome == DriverInstallOutcome.Succeeded ? "sucesso registrado" : change.Outcome == DriverInstallOutcome.Failed ? "falha registrada" : "resultado indeterminado"));
-            if (selected.WindowsEvents.Count == 0) text.AppendLine("Nenhum vínculo histórico explícito encontrado no trecho lido. Não significa ausência de instalações anteriores.");
+            if (visibleEvents.Count == 0)
+                text.AppendLine(windowsHistory is null
+                    ? "Histórico deste dispositivo não consultado nesta fotografia; não inferir ausência de instalações."
+                    : windowsHistory.Unavailable
+                        ? "Histórico deste dispositivo indisponível; não inferir ausência de instalações."
+                        : windowsHistory.Partial || windowsHistory.TailOnly || windowsHistory.RejectedSections > 0
+                            ? "Nenhum vínculo explícito observado no trecho parcial consultado; não inferir ausência de instalações."
+                            : "Nenhum vínculo histórico explícito encontrado no trecho lido. Não significa ausência de instalações anteriores.");
             text.AppendLine();
         }
         text.AppendLine("VERIFICAÇÃO DO INF INSTALADO");
@@ -146,9 +164,18 @@ internal static class DriverReadOnlyReport
         text.AppendLine("INFs PUBLICADOS — ASSOCIAÇÕES OBSERVADAS");
         if (inventory.PublishedPackages is { } packages)
         {
+            if (packages.Partial || !packages.EnumerationComplete)
+                text.AppendLine("Relação de INFs publicados parcial ou inconclusiva: a lista abaixo " +
+                    "contém somente itens observados; não representa todos os pacotes existentes.");
+            if (packages.Packages.Count == 0)
+                text.AppendLine(packages.Partial || !packages.EnumerationComplete
+                    ? "Nenhum INF retornado na parcela consultada; não comprova ausência de pacotes publicados."
+                    : "Nenhum INF observado nesta enumeração; não comprova ausência de drivers no sistema.");
             foreach (var item in packages.Packages)
                 text.AppendLine($"{item.Evidence.InfName}: {item.AssociationLabel}; {item.Evidence.Label}.");
         }
+        else
+            text.AppendLine("Enumeração de INFs publicados não consultada; não há evidência de ausência de pacotes.");
         text.AppendLine("Pacote sem dispositivo observado, versão antiga ou nome parecido não comprova resíduo. R6 exige atribuição concreta; nenhuma exclusão é autorizada.");
         return text.ToString();
     }
