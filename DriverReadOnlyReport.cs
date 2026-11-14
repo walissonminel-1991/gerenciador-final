@@ -23,6 +23,9 @@ internal static class DriverReadOnlyReport
             text.AppendLine("ID da instância: " + selected.DeviceId);
             text.AppendLine("IDs de hardware: " + (selected.HardwareIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.HardwareIds)));
             text.AppendLine($"Versão instalada (WMI): {selected.Version}; INF: {selected.InfName}; {selected.PresenceLabel}.");
+            text.AppendLine("Diagnóstico PnP do Windows: " + selected.PnpStatusLabel + ".");
+            if (selected.WithoutSignedDriverAssociation)
+                text.AppendLine("Sem linha de driver assinado associada nesta leitura. Não significa pacote removível nem prova de versão disponível.");
             text.AppendLine(selected.PackageEvidence?.Label ?? "Vínculo de pacote indisponível.");
             text.AppendLine("Relato de assinatura WMI: " + selected.SignatureLabel + " (não é a verificação abaixo).");
             foreach (var change in selected.WindowsEvents)
@@ -45,12 +48,58 @@ internal static class DriverReadOnlyReport
         text.AppendLine("OFERTAS OFICIAIS");
         text.AppendLine(official?.Status ?? "Consulta ao Windows Update ainda não solicitada. Consulta a fonte Microsoft e respeita falhas de política; exige conexão.");
         if (official is not null)
+            text.AppendLine("IDENTIDADE DO PACOTE REMOTO: NÃO COMPROVADA. WUA DownloadContents expõe URLs de conteúdo e indicador de compressão delta, mas não fornece hash autenticado, INF, DriverVer ou TargetOSVersion. O GF não consulta URLs nem baixa conteúdo nesta investigação; nenhuma oferta vira atualização autorizada.");
+        if (official?.SearchContext is { } context)
+        {
+            text.AppendLine($"Contexto da busca: {context.Source}; {(context.Online ? "online" : "cache local")}; Windows {context.HostOsVersion}; arquitetura do SO {context.HostArchitecture}; UTC {context.SearchedAtUtc:u}.");
+            text.AppendLine("Estes são atributos do Windows consultado, NÃO a arquitetura ou compatibilidade certificada do pacote oferecido.");
+        }
+        if (official is not null)
             foreach (var match in official.Matches.Take(200))
             {
                 text.AppendLine($"{match.DeviceName}: {match.Offer.Title}");
                 text.AppendLine($"  Fornecedor: {match.Offer.Provider}; modelo: {match.Offer.Model}; data informada: {match.Offer.VersionDate:yyyy-MM-dd}.");
-                text.AppendLine($"  ID: {match.Offer.HardwareId}; oferta: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
-                text.AppendLine("  " + match.Label + " Versão numérica não fornecida separadamente pela API; não inferida do título.");
+                text.AppendLine($"  Instância PnP: {match.DeviceId}; HardwareID exato: {match.Offer.HardwareId}.");
+                text.AppendLine($"  Identidade da oferta WUA: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
+                if (match.Relations is { } relations)
+                {
+                    text.AppendLine($"  Relações WUA: {relations.State}; {relations.SupersededUpdateIds.Count} UpdateIDs substituídos declarados; {relations.Categories.Count} categorias.");
+                    if (relations.State == DriverOfficialRelationsState.Complete)
+                    {
+                        foreach (var id in relations.SupersededUpdateIds.Take(8))
+                            text.AppendLine($"    WUA informa que esta oferta substitui o UpdateID {id} (sem versão/revisão do destino; não demonstra driver melhor ou instalado).");
+                        if (relations.SupersededUpdateIds.Count > 8)
+                            text.AppendLine("    Referências restantes omitidas por limite de apresentação.");
+                        foreach (var cat in relations.Categories.Take(8))
+                            text.AppendLine($"    Categoria WUA: {cat.CategoryId}; tipo {cat.Type}; nome localizado {cat.Name}.");
+                        if (relations.Categories.Count > 8)
+                            text.AppendLine("    Categorias restantes omitidas por limite de apresentação.");
+                    }
+                    else
+                        text.AppendLine("    Metadados de supersedência/categorias indisponíveis ou inconclusivos; não concluir ausência de vínculos.");
+                    text.AppendLine("  Supersedência entre atualizações e categoria do serviço NÃO são ranking, versão, compatibilidade ou permissão de instalar driver.");
+                }
+                if (match.Offer.EntryAudit is { } audit)
+                {
+                    text.AppendLine($"  WUA4 — entradas da oferta: {audit.State}; {audit.Entries.Count} registros válidos observados.");
+                    if (match.MatchingWuaEntry is { } specific)
+                    {
+                        text.AppendLine($"  Entrada WUA vinculada por identificador exato: {specific.HardwareOrCompatibleId}; classe: {specific.DriverClass}; fornecedor: {specific.Provider}; modelo: {specific.Model}.");
+                        text.AppendLine($"  Estado e problema informados pela entrada WUA: {specific.DeviceStatus} / {specific.DeviceProblemNumber}; não são prova de identidade da instância física.");
+                    }
+                    text.AppendLine("  As entradas WUA não fornecem DriverVer numérico, arquitetura/TargetOSVersion do INF, ranking ou bytes do pacote.");
+                }
+                text.AppendLine($"  Classe informada: {(string.IsNullOrWhiteSpace(match.Offer.DriverClass) ? "não informada" : match.Offer.DriverClass)}; fabricante: {(string.IsNullOrWhiteSpace(match.Offer.Manufacturer) ? "não informado" : match.Offer.Manufacturer)}.");
+                if (match.Installed is { } current)
+                {
+                    text.AppendLine($"  Driver atual: INF {(string.IsNullOrEmpty(current.InfName) ? "não associado" : current.InfName)}; fornecedor {(string.IsNullOrEmpty(current.Provider) ? "não informado" : current.Provider)}; versão {(string.IsNullOrEmpty(current.Version) ? "não instalada/informada" : current.Version)}.");
+                    text.AppendLine($"  Assinatura relatada por WMI: {(current.SignedReportedByWindows is true ? "sim" : current.SignedReportedByWindows is false ? "não" : "indeterminada")}; Store: {current.StoreState?.ToString() ?? "não comprovado"}; problema PnP: {current.PnpProblemCode?.ToString() ?? "não informado"}.");
+                    text.AppendLine($"  Versão numérica normalizada SOMENTE do driver instalado: {match.InstalledNumericVersion ?? "não comprovada"}; versão numérica do driver oferecido: NÃO DISPONÍVEL pela interface WUA.");
+                    if (!current.WithoutSignedDriverAssociation)
+                        text.AppendLine("  Mesmo fornecedor atual/oferta: " + (match.ProviderMatchesInstalled ? "sim (nome)" : "não/indeterminado; não equivale a incompatibilidade."));
+                }
+                text.AppendLine("  " + match.Label);
+                text.AppendLine("  Não há versão numérica da oferta nem comparação de ranking do Windows; nenhuma atualização, instalação ou remoção foi autorizada.");
             }
         if (official?.Matches.Count > 200) text.AppendLine("Exibição limitada a 200 vínculos; não representa a totalidade.");
         text.AppendLine();

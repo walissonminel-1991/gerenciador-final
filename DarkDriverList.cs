@@ -56,6 +56,7 @@ internal sealed class DarkDriverList : Control
     private int _scrollOffset;
     private int _tipIndex = -1;
 
+    internal event EventHandler? SelectionChanged;
     internal IReadOnlyList<DriverInventoryEntry> Items => _items;
     internal int SelectedIndex => _selectedIndex;
     internal DriverInventoryEntry? SelectedItem =>
@@ -90,6 +91,8 @@ internal sealed class DarkDriverList : Control
         _tipIndex = -1;
         _tips.SetToolTip(this, "");
         UpdateMetrics();
+        if (!ReferenceEquals(selected, SelectedItem))
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void ScrollToTop() => _scrollbar.Value = 0;
@@ -103,6 +106,7 @@ internal sealed class DarkDriverList : Control
 
     private void SelectIndex(int index)
     {
+        int previous = _selectedIndex;
         _selectedIndex = index >= 0 && index < _items.Count ? index : -1;
         if (_selectedIndex >= 0)
         {
@@ -113,6 +117,8 @@ internal sealed class DarkDriverList : Control
                 _scrollbar.Value = bottom - ClientSize.Height;
         }
         Invalidate();
+        if (_selectedIndex != previous)
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -182,14 +188,14 @@ internal sealed class DarkDriverList : Control
         string inf = string.IsNullOrWhiteSpace(item.InfName)
             ? "não informado" : item.InfName;
         string second = "INF: " + inf + "  ·  Assinatura (Windows): " + item.SignatureLabel;
-        if (!showStatus) second += "  ·  " + item.PresenceLabel;
+        if (!showStatus) second += "  ·  " + item.PresenceLabel + "  ·  " + item.PnpStatusLabel;
         TextRenderer.DrawText(canvas, second, _detailsFont,
             DriverRowGeometry.Text(bounds, dpi, 48, 19), muted, single);
 
         if (showStatus)
         {
             Rectangle pill = DriverRowGeometry.Status(bounds, dpi);
-            Color fill = item.Present switch
+            Color fill = item.HasPnpProblem ? Color.FromArgb(121, 80, 43) : item.Present switch
             {
                 true => Color.FromArgb(44, 95, 82),
                 false => Color.FromArgb(103, 69, 52),
@@ -198,7 +204,8 @@ internal sealed class DarkDriverList : Control
             using var shape = ModernButton.RoundRect(pill, 7);
             using var brush = new SolidBrush(fill);
             canvas.FillPath(brush, shape);
-            TextRenderer.DrawText(canvas, item.PresenceLabel, _detailsFont, pill,
+            TextRenderer.DrawText(canvas, item.HasPnpProblem
+                ? $"Problema PnP {item.PnpProblemCode}" : item.PresenceLabel, _detailsFont, pill,
                 ForeColor, TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter |
                 TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
@@ -234,6 +241,7 @@ internal sealed class DarkDriverList : Control
             "Versão informada pelo Windows: " + item.Version,
             "INF: " + item.InfName,
             "Presença: " + item.PresenceLabel,
+            "Status: " + item.PnpStatusLabel,
             item.PackageEvidence?.Label ?? "Vínculo com Driver Store não consultado",
             "INF publicado (consulta local): " + item.PackageEvidence?.PublishedPath,
             "INF no Driver Store (consulta local): " + item.PackageEvidence?.StorePath,
@@ -306,13 +314,14 @@ internal static class DriverListFilters
         {
             "Presentes" => items.Where(item => item.Present == true),
             "Não confirmados" => items.Where(item => item.Present != true),
+            "Problemas" => items.Where(item => item.HasPnpProblem),
             _ => items
         };
         query = query.Trim();
         if (query.Length > 0)
             filtered = filtered.Where(item =>
                 string.Join(" ", item.DeviceName, item.DeviceId, item.Provider, item.Version,
-                    item.InfName, item.PresenceLabel, item.SignatureLabel)
+                    item.InfName, item.PresenceLabel, item.SignatureLabel, item.PnpStatusLabel)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
         return filtered.ToArray();
     }

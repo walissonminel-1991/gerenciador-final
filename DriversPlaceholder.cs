@@ -87,7 +87,7 @@ internal sealed partial class MainForm
             Visible = false, Margin = Padding.Empty
         };
         compactFilter.Items.AddRange(new object[]
-            { "Todos", "Presentes", "Não confirmados" });
+            { "Todos", "Presentes", "Não confirmados", "Problemas" });
         compactFilter.SelectedIndex = 0;
         _toolTips.SetToolTip(compactFilter,
             "Filtro apenas visual; sem atualização ou remoção de drivers.");
@@ -105,14 +105,15 @@ internal sealed partial class MainForm
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
             Margin = Padding.Empty
         };
         heading.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 73));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 94));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 147));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 113));
         var title = new Label
         {
             Name = "DriverInventoryTitle", Dock = DockStyle.Fill,
@@ -135,7 +136,10 @@ internal sealed partial class MainForm
         var present = Filter("Presentes", 2);
         // Rotulo compacto: a forma extensa ficava cortada ("Não") em
         // resolucoes intermediarias. O significado permanece explicito.
-        var other = Filter("Outros", 3);
+        var problems = Filter("Falhas PnP", 3);
+        problems.AccessibleName = "Problemas PnP relatados pelo Windows";
+        _toolTips.SetToolTip(problems, "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.");
+        var other = Filter("Outros", 4);
         other.AccessibleName = "Não confirmados";
         other.AccessibleDescription =
             "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
@@ -187,9 +191,21 @@ internal sealed partial class MainForm
 
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
         DriverInventoryResult? lastResult = null;
+        long inventoryGeneration = 0;
+        Action? invalidateOpenReport = null;
+        list.SelectionChanged += (_, _) => invalidateOpenReport?.Invoke();
         investigate.Click += (_, _) =>
         {
-            if (lastResult is not null) ShowDriverReadOnlyReport(lastResult, list.SelectedItem);
+            if (lastResult is not { } captured) return;
+            var selection = list.SelectedItem;
+            var guard = new DriverReportPublicationGuard(captured, selection, inventoryGeneration);
+            ShowDriverReadOnlyReport(captured, selection,
+                () => guard.IsCurrent(lastResult, list.SelectedItem, inventoryGeneration),
+                (token, result) => guard.CanPublish(lastResult, list.SelectedItem,
+                    inventoryGeneration, token, result),
+                (token, result) => guard.CanPublishInf(lastResult, list.SelectedItem,
+                    inventoryGeneration, token, result),
+                callback => invalidateOpenReport = callback);
         };
         string activeFilter = "Todos";
         void Render()
@@ -200,6 +216,7 @@ internal sealed partial class MainForm
                 snapshot ?? Array.Empty<DriverInventoryEntry>(), activeFilter, query);
             list.SetItems(visible);
             list.ScrollToTop();
+            invalidateOpenReport?.Invoke();
             int count = snapshot?.Count ?? 0;
             title.Text = snapshot is null ? "Drivers · consulta não iniciada"
                 : $"Drivers: {count} · Exibidos: {visible.Length}";
@@ -212,7 +229,7 @@ internal sealed partial class MainForm
             empty.Visible = visible.Length == 0;
             if (empty.Visible) empty.BringToFront();
             foreach (var (button, name) in new[]
-                { (all, "Todos"), (present, "Presentes"), (other, "Não confirmados") })
+                { (all, "Todos"), (present, "Presentes"), (problems, "Problemas"), (other, "Não confirmados") })
             {
                 bool selected = name == activeFilter;
                 button.BackColor = selected ? Color.FromArgb(43, 66, 89)
@@ -225,6 +242,7 @@ internal sealed partial class MainForm
         all.Click += (_, _) => { activeFilter = "Todos"; Render(); };
         present.Click += (_, _) => { activeFilter = "Presentes"; Render(); };
         other.Click += (_, _) => { activeFilter = "Não confirmados"; Render(); };
+        problems.Click += (_, _) => { activeFilter = "Problemas"; Render(); };
         compactFilter.SelectedIndexChanged += (_, _) =>
         {
             if (compactFilter.SelectedItem is string selected)
@@ -235,7 +253,13 @@ internal sealed partial class MainForm
         };
         var driverQuery = new DriverQueryCoordinator();
         bool resultPublished = false;
-        root.Disposed += (_, _) => driverQuery.RequestCancel();
+        root.Disposed += (_, _) =>
+        {
+            // Uma página descartada invalida a fotografia mesmo que seleção e listas não tenham mudado.
+            inventoryGeneration++;
+            invalidateOpenReport?.Invoke();
+            driverQuery.RequestCancel();
+        };
         refresh.Click += async (_, _) =>
         {
             if (driverQuery.InProgress)
@@ -260,6 +284,10 @@ internal sealed partial class MainForm
                 return;
             }
             var token = driverQuery.Begin(TimeSpan.FromSeconds(20));
+            // Invalida relatórios antigos antes da próxima leitura nativa,
+            // inclusive se ela falhar, cancelar ou terminar fora de ordem.
+            inventoryGeneration++;
+            invalidateOpenReport?.Invoke();
             resultPublished = false;
             refresh.Text = "Cancelar";
             investigate.Enabled = false;
@@ -275,8 +303,11 @@ internal sealed partial class MainForm
                 resultPublished = true;
                 Render();
                 var links = DriverPackageLinks.Analyze(result);
-                state.Text = $"{result.Status}: {result.Items.Count} associações, " +
-                    $"{links.Packages.Count} INFs, {links.WithoutInf} sem INF válido. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem remoções.";
+                var signedEntries = result.Items.Where(x => !x.WithoutSignedDriverAssociation).ToArray();
+                state.Text = $"{result.Status}: {result.Items.Count} dispositivos/associações, " +
+                    $"{result.Items.Count(x => x.HasPnpProblem)} com código PnP, " +
+                    $"{result.Items.Count(x => x.WithoutSignedDriverAssociation)} sem driver associado, " +
+                    $"{links.Packages.Count} INFs. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem alterações.";
                 _toolTips.SetToolTip(state,
                     state.Text + " " + result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
@@ -290,17 +321,17 @@ internal sealed partial class MainForm
                         ("parcial", store.Partial ? 1 : 0));
                 DiagnosticTrace.Write($"DRIVERS.INVENTARIO quantidade={result.Items.Count} parcial={result.Partial}");
                 TestDiagnosticDetail.Record("DRIVERS",
-                    ("associacoes", result.Items.Count),
-                    ("ids_unicos", result.Items.Select(x => x.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count()),
-                    ("sem_nome", result.Items.Count(x => string.IsNullOrWhiteSpace(x.DeviceName))),
-                    ("sem_fornecedor", result.Items.Count(x => string.IsNullOrWhiteSpace(x.Provider))),
-                    ("sem_versao", result.Items.Count(x => string.IsNullOrWhiteSpace(x.Version))),
-                    ("versao_incomum", result.Items.Count(x => !string.IsNullOrWhiteSpace(x.Version) &&
+                    ("associacoes", signedEntries.Length),
+                    ("ids_unicos", signedEntries.Select(x => x.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count()),
+                    ("sem_nome", signedEntries.Count(x => string.IsNullOrWhiteSpace(x.DeviceName))),
+                    ("sem_fornecedor", signedEntries.Count(x => string.IsNullOrWhiteSpace(x.Provider))),
+                    ("sem_versao", signedEntries.Count(x => string.IsNullOrWhiteSpace(x.Version))),
+                    ("versao_incomum", signedEntries.Count(x => !string.IsNullOrWhiteSpace(x.Version) &&
                         !Version.TryParse(x.Version, out _))),
                     ("sem_inf", links.WithoutInf),
-                    ("assinatura_indeterminada", result.Items.Count(x => !x.Signed.HasValue)),
-                    ("presenca_indeterminada", result.Items.Count(x => !x.Present.HasValue)),
-                    ("nao_presentes", result.Items.Count(x => x.Present == false)),
+                    ("assinatura_indeterminada", signedEntries.Count(x => !x.Signed.HasValue)),
+                    ("presenca_indeterminada", signedEntries.Count(x => !x.Present.HasValue)),
+                    ("nao_presentes", signedEntries.Count(x => x.Present == false)),
                     ("parcial", result.Partial ? 1 : 0));
                 var recorded = await Task.Run(() => DriverHistory.Record(
                     DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));

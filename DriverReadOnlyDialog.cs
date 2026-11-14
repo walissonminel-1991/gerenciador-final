@@ -8,7 +8,14 @@ internal sealed partial class MainForm
     private Task<DriverOfficialResult>? _driverOfficialReadTask;
     private Task<DriverInfVerificationResult>? _driverInfReadTask;
 
-    private void ShowDriverReadOnlyReport(DriverInventoryResult inventory, DriverInventoryEntry? selected)
+    private void ShowDriverReadOnlyReport(DriverInventoryResult inventory, DriverInventoryEntry? selected,
+        Func<bool> isCurrent, Func<CancellationToken, DriverOfficialResult, bool> canPublishOfficial,
+        Func<CancellationToken, DriverInfVerificationResult, bool> canPublishInf,
+        Action<Action?> onInvalidationChanged,
+        Func<CancellationToken, Task<DriverOfficialResult>>? officialReadForTest = null,
+        Func<CancellationToken, Task<DriverInfVerificationResult>>? infReadForTest = null,
+        TimeSpan? timeoutForTest = null,
+        Action<Action, Action>? onTestActionsReady = null)
     {
         using var dialog = new Form
         {
@@ -56,11 +63,40 @@ internal sealed partial class MainForm
         DriverInfVerificationResult? verification = null;
         CancellationTokenSource? current = null;
         bool canVerify = selected?.PackageEvidence?.State == DriverStoreState.Mapped;
-        verifyButton.Enabled = canVerify;
-        officialButton.Enabled = !inventory.Partial && inventory.Items.Count > 0;
-        void Render() { if (!body.IsDisposed) body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification)); }
-        async Task Run(Button button, Func<CancellationToken, Task> read, TimeSpan timeout)
+        bool obsolete = false;
+        bool closing = false;
+        const string obsoleteText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
+            "Inventário ou seleção alterados. Feche esta janela e abra uma nova investigação. " +
+            "Nenhum resultado antigo será publicado.";
+        void CheckCurrent()
         {
+            if (dialog.IsDisposed || closing || obsolete) return;
+            // O diálogo é modal, mas eventos de inventário/seleção ainda
+            // podem invalidar a fotografia; não confundir foco com validade.
+            if (isCurrent()) return;
+            obsolete = true;
+            official = null;
+            verification = null;
+            current?.Cancel(); // cancela a espera, não força fim do Search COM
+            body.SetText(obsoleteText);
+            status.Text = "Inventário ou seleção alterados; reabra a investigação.";
+            officialButton.Enabled = false;
+            verifyButton.Enabled = false;
+        }
+        void Render()
+        {
+            if (body.IsDisposed) return;
+            CheckCurrent();
+            if (!obsolete)
+                body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification));
+        }
+        // Revalidação só nos eventos de estado e foco, sem thread/timer novo.
+        dialog.Activated += (_, _) => CheckCurrent();
+        dialog.Enter += (_, _) => CheckCurrent();
+        async Task Run(Button button, Func<CancellationToken, Task<bool>> read, TimeSpan timeout)
+        {
+            CheckCurrent();
+            if (obsolete) return;
             if (current is not null) { current.Cancel(); return; }
             using var source = new CancellationTokenSource(timeout);
             current = source;
@@ -69,51 +105,102 @@ internal sealed partial class MainForm
             officialButton.Enabled = button == officialButton;
             verifyButton.Enabled = button == verifyButton;
             status.Text = "Consultando em segundo plano… Nenhuma instalação ou remoção.";
-            try { await read(source.Token); if (!dialog.IsDisposed) { Render(); status.Text = "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."; } }
+            try
+            {
+                bool accepted = await read(source.Token);
+                if (!dialog.IsDisposed && !closing)
+                {
+                    Render();
+                    CheckCurrent();
+                    if (!obsolete)
+                        status.Text = accepted
+                            ? "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."
+                            : "Resultado inconsistente descartado; relatório anterior preservado.";
+                }
+            }
             catch (OperationCanceledException)
-            { if (!dialog.IsDisposed) status.Text = "Consulta cancelada ou prazo esgotado; resultado anterior preservado."; }
+            {
+                if (!dialog.IsDisposed && !closing)
+                {
+                    CheckCurrent();
+                    if (!obsolete)
+                        status.Text = "Consulta cancelada ou prazo esgotado; resultado anterior preservado.";
+                }
+            }
             catch (Exception ex)
-            { if (!dialog.IsDisposed) status.Text = "Consulta indisponível (" + ex.GetType().Name + "); resultado anterior preservado."; }
+            {
+                if (!dialog.IsDisposed && !closing)
+                {
+                    CheckCurrent();
+                    if (!obsolete)
+                        status.Text = "Consulta indisponível (" + ex.GetType().Name + "); resultado anterior preservado.";
+                }
+            }
             finally
             {
                 current = null;
-                if (!dialog.IsDisposed)
+                if (!dialog.IsDisposed && !closing)
                 {
                     button.Text = label;
-                    officialButton.Enabled = !inventory.Partial && inventory.Items.Count > 0;
-                    verifyButton.Enabled = canVerify;
+                    CheckCurrent();
+                    officialButton.Enabled = !obsolete && !inventory.Partial && inventory.Items.Count > 0;
+                    verifyButton.Enabled = !obsolete && canVerify;
                 }
             }
         }
-        officialButton.Click += async (_, _) =>
+        async Task RunOfficial()
         {
+            CheckCurrent();
+            if (obsolete || closing) return;
             if (current is null && _driverOfficialReadTask is { IsCompleted: false })
-            { status.Text = "Consulta nativa anterior ainda encerrando; resultado preservado."; return; }
+            { CheckCurrent(); if (!obsolete) status.Text = "Consulta nativa anterior ainda encerrando; resultado preservado."; return; }
             await Run(officialButton, async token =>
             {
-                _driverOfficialReadTask = DriverOfficialLookup.Start(inventory, token);
+                _driverOfficialReadTask = officialReadForTest is null
+                    ? DriverOfficialLookup.Start(inventory, token) : officialReadForTest(token);
                 var result = await _driverOfficialReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (!dialog.IsDisposed) official = result;
-            }, TimeSpan.FromSeconds(90));
-        };
-        verifyButton.Click += async (_, _) =>
+                if (dialog.IsDisposed || closing || !canPublishOfficial(token, result)) return false;
+                official = result;
+                return true;
+            }, timeoutForTest ?? TimeSpan.FromSeconds(90));
+        }
+        async Task RunInf()
         {
+            CheckCurrent();
+            if (obsolete || closing) return;
             if (current is null && _driverInfReadTask is { IsCompleted: false })
-            { status.Text = "Verificação nativa anterior ainda encerrando; resultado preservado."; return; }
+            { CheckCurrent(); if (!obsolete) status.Text = "Verificação nativa anterior ainda encerrando; resultado preservado."; return; }
             if (selected?.PackageEvidence is not { } package) return;
             await Run(verifyButton, async token =>
             {
-                _driverInfReadTask = Task.Run(() => DriverInfVerification.Verify(package, token));
+                _driverInfReadTask = infReadForTest is null
+                    ? Task.Run(() => DriverInfVerification.Verify(package, token))
+                    : infReadForTest(token);
                 var result = await _driverInfReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (!dialog.IsDisposed) verification = result;
-            }, TimeSpan.FromSeconds(25));
-        };
+                if (dialog.IsDisposed || closing || !canPublishInf(token, result)) return false;
+                verification = result;
+                return true;
+            }, timeoutForTest ?? TimeSpan.FromSeconds(25));
+        }
+        officialButton.Click += async (_, _) => await RunOfficial();
+        verifyButton.Click += async (_, _) => await RunInf();
+        // Costura exclusivamente de fixture: invoca os mesmos handlers da UI,
+        // sem depender do foco/PerformClick do runner Windows.
+        onTestActionsReady?.Invoke(() => _ = RunOfficial(), () => _ = RunInf());
         close.Click += (_, _) => dialog.Close();
-        dialog.FormClosed += (_, _) => current?.Cancel();
+        dialog.FormClosed += (_, _) =>
+        {
+            closing = true;
+            current?.Cancel();
+            official = null;
+            verification = null;
+        };
         Render();
         dialog.Shown += (_, _) => officialButton.Focus();
-        dialog.ShowDialog(this);
+        onInvalidationChanged(CheckCurrent);
+        try { dialog.ShowDialog(this); }
+        finally { onInvalidationChanged(null); }
     }
 }
