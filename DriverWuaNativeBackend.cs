@@ -23,9 +23,14 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
         var done = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
-            try { done.TrySetResult(action()); }
-            catch (Exception ex) { done.TrySetException(ex); }
+            T? value = default;
+            Exception? failure = null;
+            try { value = action(); }
+            catch (Exception ex) { failure = ex; }
             finally { Interlocked.Exchange(ref activeSta, 0); }
+            // Só sinalizar o resultado APÓS liberar a exclusividade.
+            if (failure is not null) done.TrySetException(failure);
+            else done.TrySetResult(value!);
         }) { IsBackground = true, Name = "GF WUA piloto descartavel" };
         try
         {
@@ -55,6 +60,8 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
             return await StartSta(() =>
             {
                 token.ThrowIfCancellationRequested();
+                if (!DriverUpdatePilot.AllowedClass(choice.DriverClass))
+                    return new DriverUpdatePilotStep(false, false);
                 using var view = NativeView.Open(choice, token);
                 if (!GetCheck(view, choice, token).BeforeDownload)
                     return new DriverUpdatePilotStep(false, false);
@@ -83,6 +90,8 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
     public Task<DriverUpdatePilotStep> Install(DriverUpdatePilotChoice choice) =>
         StartSta(() =>
         {
+            if (!DriverUpdatePilot.AllowedClass(choice.DriverClass))
+                return new DriverUpdatePilotStep(false, false);
             using var view = NativeView.Open(choice, CancellationToken.None);
             if (!GetCheck(view, choice, CancellationToken.None).BeforeInstall)
                 return new DriverUpdatePilotStep(false, false);
@@ -122,6 +131,8 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
         DriverUpdatePilotChoice choice, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        if (!DriverUpdatePilot.AllowedClass(choice.DriverClass))
+            return Denied;
         using var view = NativeView.Open(choice, token);
         return GetCheck(view, choice, token);
     }
@@ -249,6 +260,7 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
 
         public void Dispose()
         {
+            bool releaseFailed = false;
             for (int i = owned.Count - 1; i >= 0; i--)
             {
                 try
@@ -256,10 +268,14 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
                     if (Marshal.IsComObject(owned[i]))
                         Marshal.FinalReleaseComObject(owned[i]);
                 }
-                catch { /* falha de limpeza jamais autoriza install */ }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                { releaseFailed = true; }
             }
             owned.Clear();
             tracked.Clear();
+            if (releaseFailed)
+                throw new InvalidOperationException(
+                    "WUA: falha ao liberar objeto COM; conclusão não confiável.");
         }
     }
 }

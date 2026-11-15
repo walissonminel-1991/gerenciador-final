@@ -69,7 +69,22 @@ internal sealed partial class MainForm
         foreach (var button in new[] { officialButton, verifyButton, close })
         { button.Dock = DockStyle.Fill; button.Margin = new Padding(2); button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold); }
         bar.Controls.Add(officialButton, 0, 0); bar.Controls.Add(verifyButton, 1, 0); bar.Controls.Add(close, 2, 0);
-        root.Controls.Add(body, 0, 0); root.Controls.Add(status, 0, 1); root.Controls.Add(bar, 0, 2);
+        // Link de revisão F3, preservando os TRES botões anteriores e as
+        // regressões de acessibilidade G1.10–G1.23.
+        var statusRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
+        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
+        var pilotLink = new LinkLabel
+        {
+            Name = "DriverPilotReviewLink", Dock = DockStyle.Fill,
+            Text = "Piloto WUA (revisar)", TextAlign = ContentAlignment.MiddleRight,
+            LinkColor = Accent, Enabled = false,
+            AccessibleName = "Revisar piloto WUA experimental",
+            AccessibleDescription = "Revisão somente leitura; instalação desativada nesta versão."
+        };
+        statusRow.Controls.Add(status, 0, 0);
+        statusRow.Controls.Add(pilotLink, 1, 0);
+        root.Controls.Add(body, 0, 0); root.Controls.Add(statusRow, 0, 1); root.Controls.Add(bar, 0, 2);
         dialog.Controls.Add(root);
         dialog.HandleCreated += (_, _) =>
         {
@@ -149,6 +164,7 @@ internal sealed partial class MainForm
                 : "Inventário ou seleção alterados; reabra a investigação.");
             officialButton.Enabled = false;
             verifyButton.Enabled = false;
+            pilotLink.Enabled = false;
         }
         void Render()
         {
@@ -156,6 +172,10 @@ internal sealed partial class MainForm
             CheckCurrent();
             if (!obsolete)
                 body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification));
+            pilotLink.Enabled = !obsolete && !closing && selected is not null &&
+                official is { Partial: false } result && isCurrent() &&
+                result.Matches.Any(m => DriverUpdatePilot.TryPrepare(inventory, result, m, out _) &&
+                    string.Equals(m.DeviceId, selected.DeviceId, StringComparison.OrdinalIgnoreCase));
         }
         // Revalidação só nos eventos de estado e foco, sem thread/timer novo.
         dialog.Activated += (_, _) => CheckCurrent();
@@ -259,6 +279,15 @@ internal sealed partial class MainForm
                 return true;
             }, timeoutForTest ?? TimeSpan.FromSeconds(25));
         }
+        pilotLink.LinkClicked += (_, _) =>
+        {
+            CheckCurrent();
+            if (obsolete || closing || !pilotLink.Enabled ||
+                selected is null || official is not { Partial: false } offers || !isCurrent()) return;
+            using var preview = DriverUpdatePilotDialog.Create(inventory, offers, selected, isCurrent);
+            preview.ShowDialog(dialog);
+            CheckCurrent();
+        };
         officialButton.Click += async (_, _) => await RunOfficial();
         verifyButton.Click += async (_, _) => await RunInf();
         // Costura exclusivamente de fixture: invoca os mesmos handlers da UI,
@@ -271,6 +300,7 @@ internal sealed partial class MainForm
             current?.Cancel();
             official = null;
             verification = null;
+            pilotLink.Enabled = false;
         };
         Render();
         dialog.Shown += (_, _) =>

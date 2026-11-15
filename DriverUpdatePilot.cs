@@ -104,73 +104,128 @@ internal static class DriverUpdatePilot
         string.Equals(approval.DeviceId, choice.DeviceId, StringComparison.OrdinalIgnoreCase) &&
         approval.AcceptedAt <= now && approval.AcceptedAt >= now.AddMinutes(-5);
 
+    private static void Notify(Action<string>? progress, string message)
+    {
+        // O observador não concede autoridade e pode ter sido descartado.
+        try { progress?.Invoke(message); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { }
+    }
+
+    private static bool Current(Func<bool>? check)
+    {
+        try { return check?.Invoke() ?? true; }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
+    private static bool MarkSafely(IDriverUpdatePilotJournal journal,
+        DriverUpdatePilotChoice choice, DriverUpdatePilotState state)
+    {
+        try { journal.Mark(choice, state); return true; }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
     internal static async Task<DriverUpdatePilotResult> Execute(
         DriverUpdatePilotChoice choice, DriverUpdatePilotApproval approval,
         IDriverUpdatePilotBackend backend, IDriverUpdatePilotJournal journal,
-        CancellationToken token, DateTimeOffset? nowForTest = null)
+        CancellationToken token, DateTimeOffset? nowForTest = null,
+        Func<bool>? stillCurrent = null, Action<string>? progress = null)
     {
         if (choice is null || approval is null || backend is null || journal is null ||
             !AllowedClass(choice.DriverClass) ||
             !ConsentValid(choice, approval, nowForTest ?? DateTimeOffset.UtcNow) ||
-            token.IsCancellationRequested)
-            return new(DriverUpdatePilotState.Blocked, "Sem autorizacao especifica valida.");
-        // Nao confiar no snapshot que criou o botao: revalidar na fonte nativa.
-        var first = await backend.Revalidate(choice, token);
-        if (!first.BeforeDownload || token.IsCancellationRequested)
-            return new(DriverUpdatePilotState.Blocked, "Oferta/dispositivo nao revalidados.");
+            token.IsCancellationRequested || !Current(stillCurrent))
+            return new(DriverUpdatePilotState.Blocked, "Autorizacao, consulta ou origem inválida.");
+        Notify(progress, "Revalidando oferta e dispositivo no Windows Update…");
+        DriverUpdatePilotCheck first;
+        try { first = await backend.Revalidate(choice, token); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new(DriverUpdatePilotState.Blocked,
+                "Revalidação indisponível; nenhuma operação de atualização.");
+        }
+        if (!first.BeforeDownload || token.IsCancellationRequested || !Current(stillCurrent))
+            return new(DriverUpdatePilotState.Blocked,
+                "Oferta, identidade ou janela revogadas antes do download.");
+
+        Notify(progress, "Baixando pacote oficial selecionado (sem instalar)…");
         DriverUpdatePilotStep downloaded;
         try { downloaded = await backend.Download(choice, token); }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return new(DriverUpdatePilotState.DownloadFailed, "Download WUA nao comprovado.");
+            return new(DriverUpdatePilotState.DownloadFailed, "Download não comprovado.");
         }
         if (!downloaded.Success)
-            return new(DriverUpdatePilotState.DownloadFailed, "Download nao concluido.");
-        if (token.IsCancellationRequested)
-            return new(DriverUpdatePilotState.DownloadedOnly, "Cancelado antes de instalar.");
-        var second = await backend.Revalidate(choice, token);
-        if (!second.BeforeInstall || token.IsCancellationRequested)
+            return new(DriverUpdatePilotState.DownloadFailed, "Download não concluído.");
+        if (token.IsCancellationRequested || !Current(stillCurrent))
             return new(DriverUpdatePilotState.DownloadedOnly,
-                "Nova leitura mudou oferta ou dispositivo; instalacao bloqueada.");
-        if (!journal.TryBegin(choice))
+                "Cancelado ou revogado após download; instalação não iniciada.");
+
+        Notify(progress, "Revalidando novamente antes de qualquer instalação…");
+        DriverUpdatePilotCheck second;
+        try { second = await backend.Revalidate(choice, token); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
             return new(DriverUpdatePilotState.DownloadedOnly,
-                "Intencao duravel nao persistida; instalacao bloqueada.");
-        // Install pode ter produzido efeito mesmo quando retorna erro. Nenhuma
-        // repeticao automatica nem rollback presumido em caso de incerteza.
+                "Segunda revalidação indisponível; instalação não iniciada.");
+        }
+        if (!second.BeforeInstall || token.IsCancellationRequested || !Current(stillCurrent))
+            return new(DriverUpdatePilotState.DownloadedOnly,
+                "Oferta ou instância mudou; instalação bloqueada.");
+        Notify(progress, "Registrando intenção durável antes da instalação…");
+        bool journalReady;
+        try { journalReady = journal.TryBegin(choice); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { journalReady = false; }
+        if (!journalReady)
+            return new(DriverUpdatePilotState.DownloadedOnly,
+                "Registro durável indisponível; instalação bloqueada.");
+        if (token.IsCancellationRequested || !Current(stillCurrent))
+        {
+            MarkSafely(journal, choice, DriverUpdatePilotState.DownloadedOnly);
+            return new(DriverUpdatePilotState.DownloadedOnly,
+                "Cancelado após registrar intenção, antes de instalar; conciliação necessária.");
+        }
+
+        // Não cancelar a chamada síncrona de Install: erro/timeout pode
+        // esconder efeitos em andamento. Só reconciliar, nunca repetir às cegas.
+        Notify(progress, "Instalando atualização selecionada; não desligar o Windows…");
         DriverUpdatePilotStep installed;
         try { installed = await backend.Install(choice); }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            journal.Mark(choice, DriverUpdatePilotState.InstallationUncertain);
+            MarkSafely(journal, choice, DriverUpdatePilotState.InstallationUncertain);
             return new(DriverUpdatePilotState.InstallationUncertain,
-                "Estado nativo incerto; reconciliar sem repetir a instalacao.");
+                "Instalação pode ter produzido efeito; conciliar sem repetir.");
         }
         if (!installed.Success)
         {
-            journal.Mark(choice, DriverUpdatePilotState.InstallationUncertain);
+            MarkSafely(journal, choice, DriverUpdatePilotState.InstallationUncertain);
             return new(DriverUpdatePilotState.InstallationUncertain,
-                "Windows nao confirmou a instalacao; sem repeticao automatica.");
+                "Windows não confirmou instalação; nenhuma repetição automática.");
         }
         if (installed.RebootRequired)
         {
-            journal.Mark(choice, DriverUpdatePilotState.PendingReboot);
+            MarkSafely(journal, choice, DriverUpdatePilotState.PendingReboot);
             return new(DriverUpdatePilotState.PendingReboot,
-                "Reinicio informado pelo Windows; sem reinicio automatico.");
+                "Reinício necessário; GF não reiniciou o computador.");
         }
+        Notify(progress, "Conferindo o mesmo dispositivo no inventário PnP…");
         DriverUpdatePilotObservation observed;
         try { observed = await backend.Observe(choice); }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            journal.Mark(choice, DriverUpdatePilotState.VerificationUncertain);
+            MarkSafely(journal, choice, DriverUpdatePilotState.VerificationUncertain);
             return new(DriverUpdatePilotState.VerificationUncertain,
-                "Verificacao pos-instalacao indisponivel.");
+                "Instalação nativa terminou, mas verificação PnP ficou inconclusiva.");
         }
         var state = observed.RebootRequired ? DriverUpdatePilotState.PendingReboot :
             observed.SameDevice && observed.InfOrVersionChanged && observed.Healthy
                 ? DriverUpdatePilotState.Verified : DriverUpdatePilotState.VerificationUncertain;
-        journal.Mark(choice, state);
+        if (!MarkSafely(journal, choice, state))
+            return new(DriverUpdatePilotState.VerificationUncertain,
+                "Falha ao persistir conclusão; resultado requer conciliação.");
+        Notify(progress, "Resultado da atualização registrado: " + state);
         return new(state, state == DriverUpdatePilotState.Verified
-            ? "Instancia PnP, versao ou INF e estado confirmados."
-            : "Sem prova completa de atualizacao; nao declarar sucesso.");
+            ? "Instalação concluída e mesma instância PnP verificada."
+            : "Resultado inconclusivo ou reinício pendente; não declarar sucesso.");
     }
 }

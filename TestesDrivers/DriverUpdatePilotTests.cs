@@ -13,11 +13,18 @@ internal static class DriverUpdatePilotTests
         internal DriverUpdatePilotObservation Observation = new(true, true, true, false);
         internal bool JournalAllowed = true;
         internal bool ThrowsOnInstall;
+        internal bool ThrowOnFirst;
+        internal bool ThrowOnSecond;
+        internal bool ThrowJournal;
+        internal bool ThrowMark;
         internal Action? DuringDownload;
         internal readonly List<DriverUpdatePilotState> Marked = [];
         public Task<DriverUpdatePilotCheck> Revalidate(DriverUpdatePilotChoice choice, CancellationToken token)
         {
             Calls.Add("check");
+            if ((Calls.Count(x => x == "check") == 1 && ThrowOnFirst) ||
+                (Calls.Count(x => x == "check") == 2 && ThrowOnSecond))
+                throw new InvalidOperationException("revalidacao simulada");
             return Task.FromResult(Calls.Count(x => x == "check") == 1 ? First : Second);
         }
         public Task<DriverUpdatePilotStep> Download(DriverUpdatePilotChoice choice, CancellationToken token)
@@ -37,11 +44,15 @@ internal static class DriverUpdatePilotTests
         }
         public bool TryBegin(DriverUpdatePilotChoice choice)
         {
-            Calls.Add("journal"); return JournalAllowed;
+            Calls.Add("journal");
+            if (ThrowJournal) throw new IOException("arquivo indisponivel");
+            return JournalAllowed;
         }
         public void Mark(DriverUpdatePilotChoice choice, DriverUpdatePilotState state)
         {
-            Calls.Add("mark"); Marked.Add(state);
+            Calls.Add("mark");
+            if (ThrowMark) throw new IOException("sem persistencia");
+            Marked.Add(state);
         }
     }
     private static DriverUpdatePilotCheck Ok(bool downloaded) =>
@@ -145,6 +156,29 @@ internal static class DriverUpdatePilotTests
         var unverified = await Run(f => f.Observation = new(true, false, true, false));
         Check(unverified.Result.State == DriverUpdatePilotState.VerificationUncertain,
             "retorno nativo positivo sem diferenca PnP nao vira sucesso");
+        var throwBefore = await Run(f => f.ThrowOnFirst = true);
+        Check(throwBefore.Result.State == DriverUpdatePilotState.Blocked &&
+            !throwBefore.Fake.Calls.Contains("download"),
+            "excecao na primeira revalidacao bloqueia download");
+        var throwAfter = await Run(f => f.ThrowOnSecond = true);
+        Check(throwAfter.Result.State == DriverUpdatePilotState.DownloadedOnly &&
+            !throwAfter.Fake.Calls.Contains("install"),
+            "excecao na segunda revalidacao bloqueia instalacao");
+        var journalThrow = await Run(f => f.ThrowJournal = true);
+        Check(journalThrow.Result.State == DriverUpdatePilotState.DownloadedOnly &&
+            !journalThrow.Fake.Calls.Contains("install"),
+            "excecao ao persistir intencao bloqueia instalacao");
+        var statusError = await Run(f => f.ThrowMark = true);
+        Check(statusError.Result.State == DriverUpdatePilotState.VerificationUncertain,
+            "falha em persistir conclusao nao declara sucesso");
+        var revoked = new Fake();
+        bool stillCurrent = true;
+        revoked.DuringDownload = () => stillCurrent = false;
+        var obsolete = await DriverUpdatePilot.Execute(choice!, Approval(), revoked, revoked,
+            CancellationToken.None, now, stillCurrent: () => stillCurrent);
+        Check(obsolete.State == DriverUpdatePilotState.DownloadedOnly &&
+            !revoked.Calls.Contains("install"),
+            "fotografia revogada apos download bloqueia install");
         var success = await Run();
         Check(success.Result.State == DriverUpdatePilotState.Verified &&
             success.Fake.Calls.SequenceEqual(
