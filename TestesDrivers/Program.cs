@@ -1,5 +1,7 @@
 using GerenciadorAplicativos;
 
+await DriverUpdatePilotTests.Run();
+
 if (args.Contains("--etapa2"))
 {
     int total = 0, failed = 0;
