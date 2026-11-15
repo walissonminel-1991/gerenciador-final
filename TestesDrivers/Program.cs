@@ -1,6 +1,7 @@
 using GerenciadorAplicativos;
 
 await DriverUpdatePilotTests.Run();
+DriverUpdatePilotJournalTests.Run();
 
 if (args.Contains("--etapa2"))
 {
