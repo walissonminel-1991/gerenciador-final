@@ -97,6 +97,7 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
                 return new DriverUpdatePilotStep(false, false);
             ((dynamic)view.Installer).IsForced = false;
             ((dynamic)view.Installer).AllowSourcePrompts = false;
+            ((dynamic)view.Installer).ClientApplicationID = "GerenciadorFinal.DriverPilot";
             var result = view.Keep(((dynamic)view.Installer).Install());
             var item = view.Keep(((dynamic)result).GetUpdateResult(0));
             bool success = (int)((dynamic)result).ResultCode == 2 &&
@@ -225,6 +226,7 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
                 view.ExactIdentity =
                     (int)u.Type == 2 && !((bool)u.IsInstalled) && !((bool)u.IsHidden) &&
                     !((bool)u.IsBeta) &&
+                    (int)u.DeploymentAction == 1 && !((bool)u.CanRequireSource) &&
                     string.Equals((string)u.DriverHardwareID, choice.HardwareId,
                         StringComparison.OrdinalIgnoreCase) &&
                     string.Equals((string)u.DriverProvider, choice.Provider,
@@ -233,6 +235,19 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
                         StringComparison.OrdinalIgnoreCase) &&
                     string.Equals((string)u.Title, choice.Title,
                         StringComparison.Ordinal);
+                // Recusar pacote com varias entradas, mesmo UpdateID correto.
+                var entries = view.Keep(u.WindowsDriverUpdateEntries);
+                int countEntries = (int)((dynamic)entries).Count;
+                bool oneMatchingEntry = false;
+                if (countEntries == 1)
+                {
+                    var entry = view.Keep(((dynamic)entries).Item(0));
+                    oneMatchingEntry = DriverWuaF4Gates.EntryMatches(choice,
+                        (string)((dynamic)entry).DriverHardwareID,
+                        (string)((dynamic)entry).DriverProvider,
+                        (string)((dynamic)entry).DriverClass);
+                }
+                view.ExactIdentity &= DriverWuaF4Gates.OneEntry(countEntries) && oneMatchingEntry;
                 view.Applicable = view.ExactIdentity;
                 view.EulaAccepted = (bool)u.EulaAccepted;
                 view.Downloaded = (bool)u.IsDownloaded;

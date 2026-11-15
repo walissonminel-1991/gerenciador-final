@@ -73,6 +73,10 @@ internal static class DriverUpdatePilot
         if (found.Length != 1 || offered.Length != 1 || !Equals(offered[0], selected))
             return false;
         var device = found[0];
+        // O mesmo HardwareID em duas instancias pode levar WUA a alterar ambas.
+        if (inventory.Items.Count(d => d.Present == true && d.HardwareIds.Contains(
+                selected.Offer.HardwareId, StringComparer.OrdinalIgnoreCase)) != 1)
+            return false;
         if (device.Signed != true || device.Present != true ||
             device.WithoutSignedDriverAssociation ||
             device.PackageEvidence is { State: not DriverStoreState.Mapped } ||

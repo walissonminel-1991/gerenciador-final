@@ -96,6 +96,10 @@ internal static class DriverUpdatePilotTests
             !DriverUpdatePilot.TryPrepare(inventory,
                 official with { Partial = true }, match, out _),
             "duplicacao global e fonte parcial bloqueiam autorizacao");
+        var other = device with { DeviceId = @"PCI\G4\OTHER" };
+        Check(!DriverUpdatePilot.TryPrepare(inventory with { Items = [device, other] },
+            official, match, out _),
+            "duas instancias presentes com mesmo HardwareID nao autorizam escrita");
         Check(!DriverUpdatePilot.AllowedClass("Net") &&
             !DriverUpdatePilot.AllowedClass("Display") &&
             !DriverUpdatePilot.AllowedClass("System") &&
