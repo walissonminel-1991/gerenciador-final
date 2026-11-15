@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json;
 
 // Compila somente no executavel TestesDrivers, NUNCA no GerenciadorFinal.exe.
-// Nenhum caminho da CI chama os argumentos --f4-vm-*.
+// O Actions usa --f4-runner-probe, separado dos argumentos --f4-vm-*.
 internal static class DriverWuaF4VmHarness
 {
     internal const string SnapshotPhrase = "VM DESCARTAVEL COM SNAPSHOT RESTAURAVEL";

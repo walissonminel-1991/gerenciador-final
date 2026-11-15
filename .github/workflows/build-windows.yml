@@ -14,6 +14,9 @@ permissions:
   contents: read
 
 jobs:
+  drivers-wua-f41:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/experimento-atualizador-drivers-wua-20261114' }}
+    uses: ./.github/workflows/drivers-wua-f41-consulta.yml
   validar:
     uses: ./.github/workflows/validar-candidata-windows.yml
   politica:

@@ -37,6 +37,33 @@ internal static class DriverWuaF4VmHarnessTests
             !DriverWuaF4Gates.EntryMatches(candidate,candidate.HardwareId,"OTHER","Image") &&
             !DriverWuaF4Gates.EntryMatches(candidate,candidate.HardwareId,
                 candidate.Provider,"Net"),"recusar entradas WUA com identidade distinta");
+        var runner = new Dictionary<string, string>
+        {
+            ["GITHUB_ACTIONS"] = "true",
+            ["RUNNER_ENVIRONMENT"] = "github-hosted",
+            ["RUNNER_OS"] = "Windows",
+            ["GITHUB_REPOSITORY"] = "walissonminel-1991/gerenciador-final",
+            ["GITHUB_REF"] = "refs/heads/experimento-atualizador-drivers-wua-20261114",
+            ["GITHUB_EVENT_NAME"] = "workflow_dispatch",
+            ["GF_F41_IMAGE"] = "windows-2022"
+        };
+        Check(DriverWuaF41RunnerProbe.IsHostedDispatch(true, runner.GetValueOrDefault) &&
+            !DriverWuaF41RunnerProbe.IsHostedDispatch(false, runner.GetValueOrDefault) &&
+            runner.Keys.All(key => !DriverWuaF41RunnerProbe.IsHostedDispatch(
+                true, name => name == key ? null : runner.GetValueOrDefault(name))),
+            "F4.1 exige Windows hospedado, branch exata e disparo manual");
+        var keyBytes = new byte[32];
+        string token = DriverWuaF41RunnerProbe.DeviceToken(keyBytes, candidate.DeviceId);
+        Check(token.Length == 64 &&
+            token == DriverWuaF41RunnerProbe.DeviceToken(keyBytes, candidate.DeviceId.ToLowerInvariant()) &&
+            token != DriverWuaF41RunnerProbe.DeviceToken(keyBytes, candidate.DeviceId + "B") &&
+            token != DriverWuaF41RunnerProbe.DeviceToken([1, 2, 3], candidate.DeviceId),
+            "F4.1 preserva identidade somente no escopo da chave do relatório");
+        Check(DriverWuaF41RunnerProbe.Verdict(false, 0, 0) == "QUERY_FAILED" &&
+            DriverWuaF41RunnerProbe.Verdict(true, 0, 0) == "NO_OFFERS" &&
+            DriverWuaF41RunnerProbe.Verdict(true, 1, 0) == "NO_ELIGIBLE_OFFERS" &&
+            DriverWuaF41RunnerProbe.Verdict(true, 1, 1) == "ELIGIBLE_OFFER",
+            "F4.1 distingue falha, ausência, rejeição e elegibilidade");
         Console.WriteLine("OK F4: gates VM, consentimento e pacote unico puramente sinteticos; sem WMI/WUA nativo");
     }
 }

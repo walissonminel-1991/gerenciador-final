@@ -1,11 +1,17 @@
 using GerenciadorAplicativos;
 
+if (args is ["--f4-runner-probe"])
+{
+    Environment.ExitCode = await DriverWuaF41RunnerProbe.Run();
+    return;
+}
+
 if (args.Length == 1 && args[0] is "--f4-vm-probe" or "--f4-vm-install")
 {
     Environment.ExitCode = await DriverWuaF4VmHarness.Run(args[0]);
     return;
 }
-if (args.Any(a => a.StartsWith("--f4-vm-", StringComparison.Ordinal)))
+if (args.Any(a => a.StartsWith("--f4-", StringComparison.Ordinal)))
 {
     Console.Error.WriteLine("F4: comando invalido; nao consultar WUA.");
     Environment.ExitCode = 4;

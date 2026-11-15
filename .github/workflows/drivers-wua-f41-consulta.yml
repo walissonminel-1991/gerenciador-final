@@ -1,0 +1,66 @@
+name: Drivers F4.1 — consulta WUA sem instalação
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  consulta:
+    name: Consulta PnP e WUA (${{ matrix.os }})
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/experimento-atualizador-drivers-wua-20261114' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    timeout-minutes: 15
+    env:
+      GF_F41_IMAGE: ${{ matrix.os }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout do SHA do disparo manual
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Preparar SDK .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Compilar apenas o projeto de testes
+        run: dotnet build TestesDrivers/TestesDrivers.csproj -c Release
+      - name: Consultar e registrar somente evidência sanitizada
+        shell: pwsh
+        run: |
+          $sha = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $sha -cne $env:GITHUB_SHA) { throw 'F41_SHA_DIVERGENTE' }
+          $PSNativeCommandUseErrorActionPreference = $false
+          $output = @(dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release --no-build -- --f4-runner-probe)
+          $exitCode = $LASTEXITCODE
+          if ($output.Count -ne 1) { throw 'F41_EVIDENCIA_AUSENTE_OU_INVALIDA' }
+          $probe = $output[0] | ConvertFrom-Json -ErrorAction Stop
+          if ($probe.Schema -ne 1 -or $probe.Verdict -cnotin @('NO_OFFERS', 'NO_ELIGIBLE_OFFERS', 'ELIGIBLE_OFFER', 'QUERY_FAILED')) {
+            throw 'F41_CONTRATO_DE_EVIDENCIA_INVALIDO'
+          }
+          $evidence = [ordered]@{
+            commit = $sha
+            run = $env:GITHUB_RUN_ID
+            attempt = $env:GITHUB_RUN_ATTEMPT
+            runner = $env:GF_F41_IMAGE
+            probe = $probe
+          }
+          $evidence | ConvertTo-Json -Depth 8 -Compress | Set-Content -LiteralPath 'wua-f41.json' -Encoding utf8
+          Write-Host "F41_WUA_EVIDENCE $(Get-Content -LiteralPath 'wua-f41.json' -Raw)"
+          if ($exitCode -ne 0 -or $probe.Verdict -ceq 'QUERY_FAILED') { throw 'F41_CONSULTA_INCONCLUSIVA' }
+      - name: Anexar evidência da consulta
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Drivers-WUA-F41-${{ matrix.os }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: wua-f41.json
+          if-no-files-found: error
+          retention-days: 7
