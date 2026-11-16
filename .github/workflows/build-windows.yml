@@ -14,9 +14,10 @@ permissions:
   contents: read
 
 jobs:
-  drivers-wua-f41:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/experimento-atualizador-drivers-wua-20261114' }}
-    uses: ./.github/workflows/drivers-wua-f41-consulta.yml
+  drivers-wua-f42:
+    # Somente leitura na PR interna #80; nao reutilizar a consulta Server F4.1.
+    if: ${{ github.event_name == 'pull_request' && github.repository == 'walissonminel-1991/gerenciador-final' && github.event.pull_request.number == 80 && github.event.pull_request.head.repo.full_name == 'walissonminel-1991/gerenciador-final' && github.event.pull_request.head.ref == 'experimento-atualizador-drivers-wua-20261114' }}
+    uses: ./.github/workflows/drivers-wua-f42-win11-arm.yml
   validar:
     uses: ./.github/workflows/validar-candidata-windows.yml
   politica:

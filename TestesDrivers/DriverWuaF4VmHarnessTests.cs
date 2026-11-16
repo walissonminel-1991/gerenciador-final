@@ -52,6 +52,30 @@ internal static class DriverWuaF4VmHarnessTests
             runner.Keys.All(key => !DriverWuaF41RunnerProbe.IsHostedDispatch(
                 true, name => name == key ? null : runner.GetValueOrDefault(name))),
             "F4.1 exige Windows hospedado, branch exata e disparo manual");
+        var arm = new Dictionary<string, string>
+        {
+            ["GITHUB_ACTIONS"] = "true",
+            ["RUNNER_ENVIRONMENT"] = "github-hosted",
+            ["RUNNER_OS"] = "Windows",
+            ["RUNNER_ARCH"] = "ARM64",
+            ["GITHUB_REPOSITORY"] = "walissonminel-1991/gerenciador-final",
+            ["GITHUB_EVENT_NAME"] = "pull_request",
+            ["GITHUB_REF"] = "refs/pull/80/merge",
+            ["GITHUB_HEAD_REF"] = "experimento-atualizador-drivers-wua-20261114",
+            ["GITHUB_BASE_REF"] = "drivers-pnp-problemas-consulta-20261113",
+            ["GF_F42_IMAGE"] = "windows-11-arm"
+        };
+        Check(DriverWuaF41RunnerProbe.IsHostedF42Pr(true, arm.GetValueOrDefault) &&
+            !DriverWuaF41RunnerProbe.IsHostedF42Pr(false, arm.GetValueOrDefault) &&
+            arm.Keys.All(key => !DriverWuaF41RunnerProbe.IsHostedF42Pr(
+                true, name => name == key ? null : arm.GetValueOrDefault(name))) &&
+            !DriverWuaF41RunnerProbe.IsHostedF42Pr(true,
+                name => name == "GITHUB_REF" ? "refs/pull/79/merge" : arm.GetValueOrDefault(name)) &&
+            !DriverWuaF41RunnerProbe.IsHostedF42Pr(true,
+                name => name == "RUNNER_ARCH" ? "X64" : arm.GetValueOrDefault(name)) &&
+            !DriverWuaF41RunnerProbe.IsHostedF42Pr(true,
+                name => name == "GITHUB_EVENT_NAME" ? "workflow_dispatch" : arm.GetValueOrDefault(name)),
+            "F4.2 ARM64 somente consulta na PR interna #80, sem aceitar runner ou evento distinto");
         var keyBytes = new byte[32];
         string token = DriverWuaF41RunnerProbe.DeviceToken(keyBytes, candidate.DeviceId);
         Check(token.Length == 64 &&

@@ -20,6 +20,19 @@ internal static class DriverWuaF41RunnerProbe
         env("GITHUB_EVENT_NAME") == "workflow_dispatch" &&
         env("GF_F41_IMAGE") is "windows-2022" or "windows-2025";
 
+    // F4.2: autorizacao de consulta exclusivamente na PR interna #80,
+    // Windows 11 ARM64 hospedado. Nao concede permissao para instalar.
+    internal static bool IsHostedF42Pr(bool windows, Func<string, string?> env) =>
+        windows && env("GITHUB_ACTIONS") == "true" &&
+        env("RUNNER_ENVIRONMENT") == "github-hosted" &&
+        env("RUNNER_OS") == "Windows" && env("RUNNER_ARCH") == "ARM64" &&
+        env("GITHUB_REPOSITORY") == Repository &&
+        env("GITHUB_EVENT_NAME") == "pull_request" &&
+        env("GITHUB_REF") == "refs/pull/80/merge" &&
+        env("GITHUB_HEAD_REF") == "experimento-atualizador-drivers-wua-20261114" &&
+        env("GITHUB_BASE_REF") == "drivers-pnp-problemas-consulta-20261113" &&
+        env("GF_F42_IMAGE") == "windows-11-arm";
+
     internal static string DeviceToken(byte[] key, string deviceId) =>
         Convert.ToHexString(HMACSHA256.HashData(key,
             Encoding.UTF8.GetBytes(deviceId.Trim().ToUpperInvariant())));
@@ -36,11 +49,20 @@ internal static class DriverWuaF41RunnerProbe
         return match.Success ? match.Value : null;
     }
 
-    internal static async Task<int> Run()
+    internal static Task<int> Run() => RunCore(false);
+    internal static Task<int> RunF42() => RunCore(true);
+
+    private static async Task<int> RunCore(bool f42)
     {
-        if (!IsHostedDispatch(OperatingSystem.IsWindows(), Environment.GetEnvironmentVariable))
+        bool permitted = f42
+            ? IsHostedF42Pr(OperatingSystem.IsWindows(), Environment.GetEnvironmentVariable) &&
+              RuntimeInformation.OSArchitecture == Architecture.Arm64 &&
+              RuntimeInformation.ProcessArchitecture == Architecture.Arm64 &&
+              Environment.OSVersion.Version.Build >= 22000
+            : IsHostedDispatch(OperatingSystem.IsWindows(), Environment.GetEnvironmentVariable);
+        if (!permitted)
         {
-            Console.Error.WriteLine("F4.1: ambiente de consulta não reconhecido.");
+            Console.Error.WriteLine("F4: ambiente de consulta não reconhecido.");
             return 4;
         }
 
