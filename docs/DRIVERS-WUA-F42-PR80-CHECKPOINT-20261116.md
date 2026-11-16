@@ -30,3 +30,16 @@ Instalacao real: **NO-GO**. Um runner GitHub-hosted descartavel nao equivale a s
 - Validacao planejada: jobs existentes Windows 2022/2025, regressao Drivers 24/24, G1.10–G1.23, F1–F4.1, mutacoes 36/36, WinForms, seguranca, consentimento, compilacao x64 e integridade externa.
 - Evidencia F4.2 dependera de job real `drivers-wua-f42` na PR #80; nao registrar como executado antes da CI.
 - Nenhum backend de instalacao, journal, G5, D1, Worker, Cron, Secrets, BETA ou release foi alterado.
+
+## Execucao real F4.2 (primeiro SHA)
+
+- Commit tecnico testado: `637fca203b2622d0439b74e53262b872c1fddcb8`; arvore de merge PR `585cea139a50f99b537eacafb494a4e9c7dd775e`.
+- [Run GitHub 43865809692 / job Windows 11 ARM64 133293935202](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43865809692/job/133293935202): job `completed/success`, .NET 10 compilado e cliente WUA consultado online.
+- Windows 11 build `10.0.26200.0`, `Arm64`; `PnpEntities=67`, `SignedRows=68`, `InventoryItems=68`, `PresentItems=67`.
+- `WuaOffered=1`, `WuaMatches=1`, `WuaUnmatched=0`, `Eligible=0`, `Verdict=NO_ELIGIBLE_OFFERS`; `Stage=COMPLETE`, `FailureCode=null`, `HResult=null`.
+- Oferta oficial associada: UpdateID `9243f9e1-976d-4a72-ae67-2163e58cf5e3`, revisao `1`; `PilotClass=null`, `Status=REJECTED_PILOT_GATE`. Classe fora da lista restrita; **nao autorizar instalacao**.
+- [Artefato 14225961028](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43865809692/artifacts/14225961028) preserva evidencia sanitizada, com token HMAC apenas naquele relatorio.
+- Nenhuma atualizacao/driver foi baixado ou instalado. Nao houve EULA, reboot, ou rollback. Windows 11 ARM64 nao comprova aptidao para Windows 11 x64.
+- No primeiro run, o gate de seguranca `test_actions_fixadas_e_sem_credenciais_persistentes` detectou corretamente um YAML novo fora da allowlist de CI. Revisao explicitamente autoriza somente o novo arquivo `drivers-wua-f42-win11-arm.yml` e a chamada local do mesmo, mantendo a negativa para qualquer outro arquivo/action.
+
+O sucesso global das CIs no commit de correcao da allowlist deve ser checado em execucoes novas. O checkpoint nao representa homologacao de instalacao nem snapshot restauravel.
