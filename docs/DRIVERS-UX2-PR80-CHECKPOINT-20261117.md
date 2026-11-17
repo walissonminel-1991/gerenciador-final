@@ -6,3 +6,10 @@ Data: 17/11/2026. PR #80 Draft, base `156b780d64d3e6a02941178b60a9204bec17b722`.
 - `DriverUpdatePilot.TryPrepare` permanece **única autoridade do candidato pré-download**, inalterada. Não há promoção para instalação real, comparação de versões ofertadas, download, reinício ou EULA.
 - Testes sintéticos de PnP e WUA integrados à suíte TestesDrivers. Exigir CIs Windows + integridade no mesmo SHA, gates G1.9–G1.23, F1–F4.2, 36/36 mutações e x64.
 - PC FRACO continuará reservado para testes manuais de leitura e simulação, após versão portátil candidata aprovada; nenhum teste instala driver.
+
+## Simulação textual — interface de revisão
+- `DriverUpdatePilotDialog` exibe `Simular etapas` quando uma oferta do piloto é selecionada e a fotografia permanece válida.
+- A simulação apenas substitui o texto do painel por oito passos marcados `NÃO EXECUTADO`, elimina checkboxes anteriormente marcadas e mantém o instalador da distribuição normal bloqueado.
+- Com backend sintético injetado, o teste WinForms exige zero chamadas e nenhum journal após simulação; só a ação experimental separada prossegue com confirmações explícitas.
+- Revogação da fotografia desativa também a simulação e apaga detalhes obsoletos.
+- Esta simulação não representa WUA real, nem prova de instalação/rollback.

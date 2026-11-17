@@ -101,9 +101,10 @@ internal static class DriverUpdatePilotDialog
         };
         var nonOwningHint = new ToolTip();
         form.Disposed += (_, _) => nonOwningHint.Dispose();
-        var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22));
         var start = new Button
         {
             Name = "DriverPilotStart", Dock = DockStyle.Fill, Enabled = false,
@@ -112,13 +113,20 @@ internal static class DriverUpdatePilotDialog
             AccessibleName = "Iniciar piloto em ambiente descartável",
             AccessibleDescription = "Execução nativa indisponível nesta compilação normal."
         };
+        var simulate = new Button
+        {
+            Name = "DriverPilotSimulatePlan", Dock = DockStyle.Fill, Enabled = false,
+            Text = "Simular etapas", AccessibleName = "Exibir plano textual sem executar driver",
+            AccessibleDescription = "Somente texto local; não chama backend, journal, rede ou instalação."
+        };
         var cancel = new Button
         {
             Name = "DriverPilotCancel", Dock = DockStyle.Fill,
             Text = "Fechar", AccessibleName = "Fechar ou cancelar a espera"
         };
         actions.Controls.Add(start, 0, 0);
-        actions.Controls.Add(cancel, 1, 0);
+        actions.Controls.Add(simulate, 1, 0);
+        actions.Controls.Add(cancel, 2, 0);
         root.Controls.Add(headline, 0, 0);
         root.Controls.Add(search, 0, 1);
         root.Controls.Add(choices, 0, 2);
@@ -150,6 +158,12 @@ internal static class DriverUpdatePilotDialog
             if (form.IsDisposed) return;
             if (!CanReview()) invalidated = true;
             bool validChoice = choices.SelectedItem is ChoiceRow;
+            simulate.Enabled = !invalidated && !busy && validChoice;
+            simulate.AccessibleDescription = invalidated
+                ? "Fotografia revogada; prévia indisponível."
+                : simulate.Enabled
+                    ? "Mostra somente um plano textual; nenhuma etapa é executada."
+                    : "Selecione uma oferta para visualizar um plano textual sem executar.";
             start.Enabled = !invalidated && !busy && validChoice &&
                 confirm.Checked && isolated.Checked &&
                 backendForTest is not null && journalForTest is not null;
@@ -162,6 +176,7 @@ internal static class DriverUpdatePilotDialog
             {
                 confirm.Checked = false;
                 isolated.Checked = false;
+                detail.Text = "Fotografia ou seleção revogada. Feche e reabra a investigação.";
                 SetStatus("Fotografia ou seleção revogada: nenhuma operação permitida.");
             }
         }
@@ -207,6 +222,18 @@ internal static class DriverUpdatePilotDialog
         isolated.CheckedChanged += (_, _) => UpdateEligibility();
         form.Activated += (_, _) => UpdateEligibility();
         form.Enter += (_, _) => UpdateEligibility();
+        simulate.Click += (_, _) =>
+        {
+            UpdateEligibility();
+            if (!simulate.Enabled || choices.SelectedItem is not ChoiceRow row ||
+                !available.Contains(row) || !CanReview()) return;
+            // Apenas StringBuilder/string.Join; nenhum backend ou journal é criado.
+            detail.Text = DriverPilotPreview.Format(row.Choice);
+            confirm.Checked = false;
+            isolated.Checked = false;
+            SetStatus("Simulação textual exibida. Nenhum passo executado; nenhuma autorização concedida.");
+            UpdateEligibility();
+        };
         start.Click += async (_, _) =>
         {
             UpdateEligibility();

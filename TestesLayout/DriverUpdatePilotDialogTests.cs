@@ -72,11 +72,19 @@ internal static class DriverUpdatePilotDialogTests
                 preview.Show(owner);
                 Pump(8);
                 var start = Find<Button>(preview, "DriverPilotStart");
+                var simulate = Find<Button>(preview, "DriverPilotSimulatePlan");
+                var details = Find<TextBox>(preview, "DriverPilotDetails");
                 var offers = Find<ListBox>(preview, "DriverPilotOffers");
                 var confirm = Find<CheckBox>(preview, "DriverPilotConfirm");
                 var vm = Find<CheckBox>(preview, "DriverPilotDisposable");
                 Ensure(offers.Items.Count == 1, "oferta sintética não listada");
                 offers.SelectedIndex = 0;
+                Ensure(simulate.Enabled, "prévia não habilitada após selecionar oferta");
+                simulate.PerformClick();
+                Ensure(details.Text.Contains("SIMULAÇÃO TEXTUAL") &&
+                    details.Text.Contains("NÃO EXECUTADO") &&
+                    Find<Label>(preview, "DriverPilotStatus").Text.Contains("Nenhum passo executado"),
+                    "prévia sem resultados inventados");
                 confirm.Checked = true;
                 vm.Checked = true;
                 Ensure(!start.Enabled && start.Text.Contains("bloqueada", StringComparison.OrdinalIgnoreCase),
@@ -98,6 +106,7 @@ internal static class DriverUpdatePilotDialogTests
                 var start = Find<Button>(dialog, "DriverPilotStart");
                 var status = Find<Label>(dialog, "DriverPilotStatus");
                 var close = Find<Button>(dialog, "DriverPilotCancel");
+                var simulate = Find<Button>(dialog, "DriverPilotSimulatePlan");
                 foreach (var size in new[] { new Size(500, 340), new Size(790, 510),
                     new Size(1200, 720), new Size(1450, 820) })
                 {
@@ -113,6 +122,10 @@ internal static class DriverUpdatePilotDialogTests
                 offers.SelectedIndex = 0;
                 Ensure(detail.Text.Contains(offer.UpdateId) &&
                     detail.Text.Contains("NÃO COMPROVADA"), "detalhe promoveu versão ofertada");
+                simulate.PerformClick();
+                Ensure(fake.Calls.Count == 0 && detail.Text.Contains("SIMULAÇÃO TEXTUAL") &&
+                    !start.Enabled && !File.Exists(path),
+                    "prévia invocou backend, journal ou habilitou instalação");
                 confirm.Checked = true;
                 Ensure(!start.Enabled, "confirmação isolada habilitou instalador");
                 vm.Checked = true;
@@ -188,6 +201,8 @@ internal static class DriverUpdatePilotDialogTests
                 Find<CheckBox>(revoked, "DriverPilotConfirm").Checked = true;
                 Find<CheckBox>(revoked, "DriverPilotDisposable").Checked = true;
                 Ensure(!Find<Button>(revoked, "DriverPilotStart").Enabled &&
+                    !Find<Button>(revoked, "DriverPilotSimulatePlan").Enabled &&
+                    Find<TextBox>(revoked, "DriverPilotDetails").Text.Contains("revogada") &&
                     Find<Label>(revoked, "DriverPilotStatus").Text.Contains("revogada"),
                     "fotografia revogada habilitou execução");
                 revoked.Close();
