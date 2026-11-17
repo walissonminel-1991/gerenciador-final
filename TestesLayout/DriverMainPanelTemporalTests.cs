@@ -37,7 +37,8 @@ internal static class DriverMainPanelTemporalTests
             if (!sim.Enabled) throw new Exception("UX3: laboratório inacessível antes da consulta.");
             string initialStatus = status.Text;
             sim.PerformClick();
-            Pump(20);
+            // ModernButton despacha Click após animação de 145 ms.
+            Pump(250);
             var lab = Application.OpenForms.Cast<Form>().SingleOrDefault(
                 form => form.Name == "DriverLabSimulationForm");
             if (lab is null) throw new Exception("UX3: janela fictícia não abriu.");
@@ -48,6 +49,7 @@ internal static class DriverMainPanelTemporalTests
                 reads != 0 || status.Text != initialStatus)
                 throw new Exception("UX3: laboratório não é independente.");
             sim.PerformClick();
+            Pump(250);
             if (Application.OpenForms.Cast<Form>().Count(
                 form => form.Name == "DriverLabSimulationForm") != 1)
                 throw new Exception("UX3: janela duplicada.");
