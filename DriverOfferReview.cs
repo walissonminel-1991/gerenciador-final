@@ -8,6 +8,10 @@ internal static class DriverOfferReview
     {
         if (inventory.Partial || official.Partial)
             return "Triagem WUA inconclusiva: inventário ou consulta parcial. Não inferir ausência de ofertas.";
+        if (official.Offered == 0 && official.Matches.Count == 0)
+            return "Consulta WUA concluída sem ofertas observadas nesta busca. Não garante ausência futura nem instalação disponível.";
+        if (official.Offered > 0 && official.Matches.Count == 0)
+            return $"Consulta WUA: {official.Offered} ofertas observadas; nenhum vínculo PnP exato aprovado. Não inferir incompatibilidade nem atualização.";
         int candidates = official.Matches.Count(m =>
             DriverUpdatePilot.TryPrepare(inventory, official, m, out _));
         return $"Triagem WUA: {official.Offered} ofertas observadas; " +
