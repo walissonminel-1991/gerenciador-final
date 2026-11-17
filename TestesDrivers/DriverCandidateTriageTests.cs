@@ -16,17 +16,17 @@ internal static class DriverCandidateTriageTests
             if (!DriverCandidateTriage.ClassDisposition(value).Contains("GRUPO DE ESTUDO"))
                 throw new Exception("UX4: grupo restrito não descrito: " + value);
         if (!DriverCandidateTriage.ClassDisposition("").Contains("NÃO CLASSIFICADO") ||
-            DriverInventory.NormalizePnpClass("Pr\ninter") != "" ||
-            DriverInventory.NormalizePnpClass(" Image ") != "Image" ||
-            DriverInventory.NormalizePnpClass(new string('X', 65)) != "")
+            DriverInventory.NormalizeDriverClass("Pr\ninter") != "" ||
+            DriverInventory.NormalizeDriverClass(" Image ") != "Image" ||
+            DriverInventory.NormalizeDriverClass(new string('X', 65)) != "")
             throw new Exception("UX4: classe PnP inválida foi promovida a elegibilidade.");
 
         var classes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var conflicts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!DriverInventory.RecordPnpClass(classes, conflicts, "ID1", "Image") ||
-            !DriverInventory.RecordPnpClass(classes, conflicts, "id1", "image") ||
-            DriverInventory.RecordPnpClass(classes, conflicts, "ID1", "System") ||
-            DriverInventory.RecordPnpClass(classes, conflicts, "ID1", "Image") ||
+        if (!DriverInventory.RecordDriverClass(classes, conflicts, "ID1", "Image") ||
+            !DriverInventory.RecordDriverClass(classes, conflicts, "id1", "image") ||
+            DriverInventory.RecordDriverClass(classes, conflicts, "ID1", "System") ||
+            DriverInventory.RecordDriverClass(classes, conflicts, "ID1", "Image") ||
             classes["id1"] != "" || !conflicts.Contains("ID1"))
             throw new Exception("UX4: classe divergente de DeviceId duplicado não foi revogada.");
 
@@ -35,12 +35,12 @@ internal static class DriverCandidateTriageTests
         var device = new DriverInventoryEntry(id, "Impressora fictícia", "Fornecedor fictício",
             "1.2.3.4", "oem7.inf", true, true)
         {
-            PnpClass = "Printer", HardwareIds = [hw], PnpProblemCode = 0,
+            ReportedDriverClass = "Printer", HardwareIds = [hw], PnpProblemCode = 0,
             PackageEvidence = new("oem7.inf", DriverStoreState.Mapped)
         };
         var other = new DriverInventoryEntry(@"USB\VID_1234&PID_0001\XYZ",
             "Periférico fictício", "Fornecedor fictício", "1.0", "oem9.inf", true, true)
-            { HardwareIds = [hw], PnpClass = "Ports" };
+            { HardwareIds = [hw], ReportedDriverClass = "Ports" };
         var staged = new DriverPublishedPackage(new("oem100.inf", DriverStoreState.Mapped),
             ObservedDevices: 0, DeviceInventoryPartial: false);
         var inv = new DriverInventoryResult([device], false, "fixture")
@@ -48,7 +48,7 @@ internal static class DriverCandidateTriageTests
             PublishedPackages = new([staged], false, true)
         };
         string local = DriverCandidateTriage.Format(inv, device);
-        if (!local.Contains("Classe PnP local (WMI): Printer") ||
+        if (!local.Contains("Classe do driver (WMI SignedDriver): Printer") ||
             !local.Contains("GRUPO DE ESTUDO") ||
             !local.Contains("WUA: consulta ainda não solicitada") ||
             !local.Contains("INFs publicados sem dispositivo observado na enumeração: 1") ||
@@ -114,7 +114,7 @@ internal static class DriverCandidateTriageTests
         if (!linked.Contains("CANDIDATO APENAS") || !linked.Contains("DriverVer ofertado NÃO COMPROVADO") ||
             !linked.Contains("Ação real permanece BLOQUEADA"))
             throw new Exception("UX4: oferta exata não permaneceu consultiva.");
-        var critical = device with { PnpClass = "system" };
+        var critical = device with { ReportedDriverClass = "system" };
         string forbidden = DriverCandidateTriage.Format(
             inv with { Items = [critical] }, critical, official);
         if (!forbidden.Contains("EXCLUÍDO DO LABORATÓRIO") ||
@@ -128,18 +128,18 @@ internal static class DriverCandidateTriageTests
             throw new Exception("UX4: diagnóstico alterou autoridade do piloto.");
         string report = DriverReadOnlyReport.Format(inv, device, official);
         if (!report.Contains("TRIAGEM DO PC FRACO") ||
-            !report.Contains("Classe PnP local (WMI)") ||
+            !report.Contains("Classe do driver (WMI SignedDriver)") ||
             !report.Contains("OFERTAS OFICIAIS"))
             throw new Exception("UX4: relatório real omitiu triagem local.");
 
         var result = DriverInventory.IncludeUnboundProblemDevices(
             [device], new Dictionary<string, int?> { [id] = 0, ["USB\\UNKNOWN"] = 28 },
             new Dictionary<string, string> { ["USB\\UNKNOWN"] = "Desconhecido" },
-            new Dictionary<string, string[]>(),
-            new Dictionary<string, string> { [id] = "Printer", ["USB\\UNKNOWN"] = "Image" });
-        if (result.Length != 2 || result.Single(x => x.DeviceId == id).PnpClass != "Printer" ||
-            result.Single(x => x.DeviceId == "USB\\UNKNOWN").PnpClass != "Image")
-            throw new Exception("UX4: classe PnP não chegou aos registros com e sem driver associado.");
+            new Dictionary<string, string[]>());
+        if (result.Length != 2 ||
+            result.Single(x => x.DeviceId == id).ReportedDriverClass != "Printer" ||
+            result.Single(x => x.DeviceId == "USB\\UNKNOWN").ReportedDriverClass != "")
+            throw new Exception("UX4: dispositivo sem driver ganhou classe sem evidência WMI.");
         Console.WriteLine("OK DRIVERS UX4: classe PnP, Store, WUA, identidades e laboratório fail-closed");
     }
 }

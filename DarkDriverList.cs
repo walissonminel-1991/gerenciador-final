@@ -135,8 +135,8 @@ internal sealed class DarkDriverList : Control
             (string.IsNullOrWhiteSpace(selected.DeviceName) ? "Dispositivo não identificado" : selected.DeviceName) +
             "; " + identity + "; INF relatado: " +
             (string.IsNullOrWhiteSpace(selected.InfName) ? "não informado" : selected.InfName) +
-            "; classe PnP relatada: " +
-            (string.IsNullOrWhiteSpace(selected.PnpClass) ? "não informada" : selected.PnpClass) +
+            "; classe do driver WMI: " +
+            (string.IsNullOrWhiteSpace(selected.ReportedDriverClass) ? "não informada" : selected.ReportedDriverClass) +
             "; " + selected.PnpStatusLabel + ambiguity +
             ". " + DriverPnpGuidance.Describe(selected.PnpProblemCode) +
             " Somente leitura; pressione Tab para Investigar.";
@@ -284,8 +284,8 @@ internal sealed class DarkDriverList : Control
             string.IsNullOrWhiteSpace(item.DeviceName) ? "Nome nao fornecido pelo Windows" : item.DeviceName,
             "ID do dispositivo (consulta local): " + item.DeviceId,
             "Fornecedor: " + item.Provider,
-            "Classe PnP relatada: " + (string.IsNullOrWhiteSpace(item.PnpClass) ? "não informada" : item.PnpClass),
-            "Grupo para laboratório: " + DriverCandidateTriage.ClassDisposition(item.PnpClass),
+            "Classe do driver WMI: " + (string.IsNullOrWhiteSpace(item.ReportedDriverClass) ? "não informada" : item.ReportedDriverClass),
+            "Grupo para laboratório: " + DriverCandidateTriage.ClassDisposition(item.ReportedDriverClass),
             "Versão informada pelo Windows: " + item.Version,
             "INF: " + item.InfName,
             "Presença: " + item.PresenceLabel,

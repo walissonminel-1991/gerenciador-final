@@ -12,7 +12,7 @@ internal static class DriverReadOnlyDialogTests
         {
             HardwareIds = [@"PCI\VEN_1234&DEV_5678"],
             PackageEvidence = new("oem17.inf", DriverStoreState.Mapped),
-            PnpClass = "Printer",
+            ReportedDriverClass = "Printer",
             WindowsEvents = [new(@"PCI\TEST\FIXTURE", "oem17.inf", new DateTime(2026, 10, 25, 12, 34, 56), DriverInstallOutcome.Failed)]
         };
         var inventory = new DriverInventoryResult([device], false, "fixture");
@@ -36,7 +36,7 @@ internal static class DriverReadOnlyDialogTests
                     var buttons = controls.OfType<Button>().ToArray();
                     if (!Descendants(body).OfType<TextBox>().Single().ReadOnly ||
                         !body.RenderedText.Contains("falha registrada") ||
-                        !body.RenderedText.Contains("Classe PnP local (WMI): Printer") ||
+                        !body.RenderedText.Contains("Classe do driver (WMI SignedDriver): Printer") ||
                         !body.RenderedText.Contains("TRIAGEM DO PC FRACO") ||
                         !body.RenderedText.Contains("WUA: consulta ainda não solicitada") ||
                         body.RenderedText.Contains("C:\\Users\\") ||

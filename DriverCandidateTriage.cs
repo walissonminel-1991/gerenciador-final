@@ -6,23 +6,23 @@ namespace GerenciadorAplicativos;
 // operações WUA, não lê hardware ou arquivos e não exporta identificadores.
 internal static class DriverCandidateTriage
 {
-    internal static string ClassDisposition(string? pnpClass)
+    internal static string ClassDisposition(string? reportedClass)
     {
-        string reported = DriverInventory.NormalizePnpClass(pnpClass);
+        string reported = DriverInventory.NormalizeDriverClass(reportedClass);
         if (string.IsNullOrEmpty(reported))
-            return "NÃO CLASSIFICADO: classe PnP não informada; exigir identificação adicional.";
+            return "NÃO CLASSIFICADO: classe do driver não informada; exigir identificação adicional.";
         if (reported.Equals("MEDIA", StringComparison.OrdinalIgnoreCase) ||
             reported.Equals("HIDClass", StringComparison.OrdinalIgnoreCase) ||
             reported.Equals("AudioEndpoint", StringComparison.OrdinalIgnoreCase) ||
             reported.Equals("Camera", StringComparison.OrdinalIgnoreCase))
-            return "SOMENTE CONSULTA: esta classe PnP não integra o piloto WUA permitido.";
+            return "SOMENTE CONSULTA: esta classe do driver não integra o piloto WUA permitido.";
         if (new[] { "System", "Firmware", "Net", "Display", "DiskDrive",
             "SCSIAdapter", "HDC", "USB", "USBDevice", "Keyboard", "Mouse",
             "Computer", "Processor", "Volume", "StorageVolume", "Battery",
             "SecurityDevices", "Monitor" }.Contains(reported, StringComparer.OrdinalIgnoreCase))
             return "EXCLUÍDO DO LABORATÓRIO: classe crítica ou dependência essencial.";
         if (DriverUpdatePilot.AllowedClass(reported))
-            return "GRUPO DE ESTUDO: classe PnP da lista restrita Printer/Image/Ports; não comprova elegibilidade WUA.";
+            return "GRUPO DE ESTUDO: classe do driver da lista restrita Printer/Image/Ports; não comprova elegibilidade WUA.";
         return "SOMENTE CONSULTA: classe não classificada como grupo de estudo nesta versão.";
     }
 
@@ -34,10 +34,10 @@ internal static class DriverCandidateTriage
         var text = new StringBuilder("TRIAGEM DO PC FRACO — APENAS CONSULTA LOCAL");
         text.AppendLine();
         text.AppendLine("Esta orientação NÃO é uma recomendação de instalar, remover ou reverter drivers.");
-        string pnpClass = DriverInventory.NormalizePnpClass(device.PnpClass);
-        text.AppendLine("Classe PnP local (WMI): " +
-            (pnpClass.Length == 0 ? "não informada" : pnpClass) + ".");
-        string disposition = ClassDisposition(pnpClass);
+        string reportedClass = DriverInventory.NormalizeDriverClass(device.ReportedDriverClass);
+        text.AppendLine("Classe do driver (WMI SignedDriver): " +
+            (reportedClass.Length == 0 ? "não informada" : reportedClass) + ".");
+        string disposition = ClassDisposition(reportedClass);
         text.AppendLine("Grupo de segurança consultivo: " + disposition);
         text.AppendLine("Presença PnP relatada: " + device.PresenceLabel + ".");
         text.AppendLine("Versão instalada relatada (WMI): " +
@@ -49,7 +49,7 @@ internal static class DriverCandidateTriage
         text.AppendLine("Associação Win32_PnPSignedDriver: " +
             (device.WithoutSignedDriverAssociation ? "não observada; NÃO comprova falta de driver." :
             "linha relatada; NÃO comprova integridade do pacote."));
-        text.AppendLine("INF publicado associado: " +
+        text.AppendLine("INF relatado por Win32_PnPSignedDriver: " +
             (string.IsNullOrWhiteSpace(device.InfName) ? "não informado" : device.InfName) + ".");
         text.AppendLine("Vínculo Driver Store: " +
             (device.PackageEvidence?.Label ?? "não consultado ou não informado; não comprova ausência.") + ".");
