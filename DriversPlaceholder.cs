@@ -66,12 +66,13 @@ internal sealed partial class MainForm
 
         var actionPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
             Margin = new Padding(0, 2, 0, 2)
         };
         actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 142));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
         refresh.Name = "DriverInventoryRefresh";
@@ -97,7 +98,7 @@ internal sealed partial class MainForm
             Visible = false, Margin = Padding.Empty
         };
         compactFilter.Items.AddRange(new object[]
-            { "Todos", "Presentes", "Não confirmados", "Problemas" });
+            { "Todos", "Presentes", "Problemas", "Sem driver", "Não confirmados" });
         compactFilter.SelectedIndex = 0;
         _toolTips.SetToolTip(compactFilter,
             "Filtro apenas visual; sem atualização ou remoção de drivers.");
@@ -111,20 +112,30 @@ internal sealed partial class MainForm
         investigate.Enabled = false;
         actionPanel.Controls.Add(investigate, 1, 0);
         _toolTips.SetToolTip(investigate, "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
-        actionPanel.Controls.Add(actionInfo, 2, 0);
+        var copySummary = CreateSecondaryButton("Copiar resumo");
+        copySummary.Name = "DriverCopySafetySummary";
+        copySummary.AccessibleName = "Copiar resumo de drivers sem identificadores";
+        copySummary.AccessibleDescription = "Disponível depois de uma consulta válida. Copia somente contagens.";
+        copySummary.Dock = DockStyle.Fill;
+        copySummary.Margin = new Padding(0, 2, 6, 2);
+        copySummary.Enabled = false;
+        _toolTips.SetToolTip(copySummary, "Copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
+        actionPanel.Controls.Add(copySummary, 2, 0);
+        actionPanel.Controls.Add(actionInfo, 3, 0);
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1,
             Margin = Padding.Empty
         };
         heading.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 73));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 94));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 113));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 98));
         var title = new Label
         {
             Name = "DriverInventoryTitle", Dock = DockStyle.Fill,
@@ -150,7 +161,13 @@ internal sealed partial class MainForm
         var problems = Filter("Falhas PnP", 3);
         problems.AccessibleName = "Problemas PnP relatados pelo Windows";
         _toolTips.SetToolTip(problems, "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.");
-        var other = Filter("Outros", 4);
+        var unbound = Filter("Sem driver", 4);
+        unbound.AccessibleName = "Dispositivos sem associação WMI de driver assinado";
+        const string unboundExplanation =
+            "Sem linha de driver assinado associada no WMI. Não prova ausência de driver nem atualização disponível.";
+        unbound.AccessibleDescription = unboundExplanation;
+        _toolTips.SetToolTip(unbound, unboundExplanation);
+        var other = Filter("Outros", 5);
         other.AccessibleName = "Não confirmados";
         const string uncertainFilterExplanation =
             "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
@@ -247,7 +264,12 @@ internal sealed partial class MainForm
         Action? invalidateOpenReport = null;
         void SyncInvestigationDescription()
         {
-            if (investigate.IsDisposed) return;
+            if (investigate.IsDisposed || copySummary.IsDisposed) return;
+            copySummary.AccessibleDescription = lastResult is null
+                ? "Disponível após uma consulta para copiar somente contagens."
+                : publishedSnapshotGeneration != inventoryGeneration
+                    ? "Fotografia anterior revogada: faça nova consulta para copiar o resumo."
+                    : "Copia somente as contagens desta fotografia, sem identificadores.";
             investigate.AccessibleDescription = lastResult is null
                 ? "Disponível depois de uma consulta local. Sem instalação ou atualização."
                 : publishedSnapshotGeneration != inventoryGeneration
@@ -260,6 +282,23 @@ internal sealed partial class MainForm
         {
             SyncInvestigationDescription();
             invalidateOpenReport?.Invoke();
+        };
+        copySummary.Click += (_, _) =>
+        {
+            if (root.IsDisposed || copySummary.IsDisposed || !copySummary.Enabled ||
+                publishedSnapshotGeneration != inventoryGeneration ||
+                lastResult is not { } captured) return;
+            try
+            {
+                Clipboard.SetText(DriverTriageSummary.Format(captured));
+                actionHint.Text = "Resumo de contagens copiado, sem identificadores.";
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                actionHint.Text = "Área de transferência indisponível; nenhum dado enviado.";
+            }
+            actionHint.AccessibleDescription = actionHint.Text;
+            _toolTips.SetToolTip(actionHint, actionHint.Text);
         };
         investigate.Click += (_, _) =>
         {
@@ -302,15 +341,23 @@ internal sealed partial class MainForm
             SyncInvestigationDescription();
             if (empty.Visible) empty.BringToFront();
             foreach (var (button, name) in new[]
-                { (all, "Todos"), (present, "Presentes"), (problems, "Problemas"), (other, "Não confirmados") })
+                { (all, "Todos"), (present, "Presentes"), (problems, "Problemas"),
+                  (unbound, "Sem driver"), (other, "Não confirmados") })
             {
                 bool selected = name == activeFilter;
                 button.BackColor = selected ? Color.FromArgb(43, 66, 89)
                     : Color.FromArgb(43, 56, 70);
                 button.ForeColor = selected ? Accent : Ink;
+                int inCategory = DriverListFilters.Apply(
+                    snapshot ?? Array.Empty<DriverInventoryEntry>(), name, "").Length;
+                string caution = ReferenceEquals(button, other) ? uncertainFilterExplanation :
+                    ReferenceEquals(button, unbound) ? unboundExplanation :
+                    ReferenceEquals(button, problems)
+                        ? "Problema relatado pelo Windows, não atualização comprovada." : "";
                 button.AccessibleDescription = (selected
                     ? "Filtro ativo: " + name : "Ativar filtro: " + name) +
-                    (ReferenceEquals(button, other) ? ". " + uncertainFilterExplanation : "");
+                    $". {inCategory} associações nesta categoria. " + caution;
+                _toolTips.SetToolTip(button, button.AccessibleDescription);
             }
             compactFilter.AccessibleDescription = "Filtro atual: " + activeFilter;
         }
@@ -318,6 +365,8 @@ internal sealed partial class MainForm
         void ApplyFilter(string name)
         {
             activeFilter = name;
+            if (compactFilter.SelectedItem is not string current || current != name)
+                compactFilter.SelectedItem = name;
             Render();
         }
         search.TextChanged += (_, _) => Render();
@@ -325,6 +374,7 @@ internal sealed partial class MainForm
         present.Click += (_, _) => ApplyFilter("Presentes");
         other.Click += (_, _) => ApplyFilter("Não confirmados");
         problems.Click += (_, _) => ApplyFilter("Problemas");
+        unbound.Click += (_, _) => ApplyFilter("Sem driver");
         // Apenas fixture: invoca a mesma ação dos botões e do filtro compacto.
         onTestFilterReady?.Invoke(ApplyFilter);
         compactFilter.SelectedIndexChanged += (_, _) =>
@@ -382,6 +432,9 @@ internal sealed partial class MainForm
             resultPublished = false;
             SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
+            copySummary.Enabled = false;
+            actionHint.Text = "Consulta em andamento. Resumo anterior revogado.";
+            actionHint.AccessibleDescription = actionHint.Text;
             SyncInvestigationDescription();
             SetDriverStatus("Consultando drivers em segundo plano…");
             _driverReadTask = readForTest is null
@@ -401,8 +454,15 @@ internal sealed partial class MainForm
                 snapshot = result.Items;
                 lastResult = result;
                 investigate.Enabled = true;
+                copySummary.Enabled = true;
                 resultPublished = true;
                 Render();
+                actionHint.Text =
+                    $"PnP: {result.Items.Count(x => x.HasPnpProblem)} · " +
+                    $"Sem vínculo WMI: {result.Items.Count(x => x.WithoutSignedDriverAssociation)} · " +
+                    $"Não confirmados: {result.Items.Count(x => x.Present != true)}. Só consulta.";
+                actionHint.AccessibleDescription = actionHint.Text;
+                _toolTips.SetToolTip(actionHint, actionHint.Text);
                 // A lista agora representa OUTRA fotografia. O rodapé não deve
                 // anunciar a comparação da fotografia anterior enquanto a
                 // gravação desta ainda ocorre. Fixtures não gravam histórico.
@@ -497,6 +557,7 @@ internal sealed partial class MainForm
                     refresh.Enabled = true;
                     investigate.Enabled = lastResult is not null &&
                         publishedSnapshotGeneration == inventoryGeneration;
+                    copySummary.Enabled = investigate.Enabled;
                     SyncInvestigationDescription();
                     if (_driverReadTask is { IsCompleted: false })
                         SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
@@ -513,16 +574,21 @@ internal sealed partial class MainForm
             if (root.IsDisposed) return;
             bool tiny = root.ClientSize.Height < 230;
             bool compact = root.ClientSize.Height < 360;
+            bool narrow = root.ClientSize.Width < 760;
+            bool compactFilters = tiny || narrow;
+            bool showCopy = !tiny && !narrow;
             root.RowStyles[0].Height = tiny ? 28 : compact ? 30 : 35;
             root.RowStyles[1].Height = tiny ? 31 : compact ? 36 : 44;
-            root.RowStyles[2].Height = tiny ? 0 : compact ? 29 : 33;
+            root.RowStyles[2].Height = compactFilters ? 0 : compact ? 29 : 33;
             root.RowStyles[4].Height = tiny ? 22 : compact ? 31 : 67;
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
-            heading.Visible = !tiny;
-            actionHint.Visible = !tiny;
-            compactFilter.Visible = tiny;
-            if (tiny && compactFilter.SelectedItem is string current && current != activeFilter)
+            heading.Visible = !compactFilters;
+            actionPanel.ColumnStyles[2].Width = showCopy ? 142 : 0;
+            copySummary.Visible = showCopy;
+            actionHint.Visible = !compactFilters;
+            compactFilter.Visible = compactFilters;
+            if (compactFilter.SelectedItem is string current && current != activeFilter)
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
             SetDriverStatus(state.Text);
