@@ -110,6 +110,8 @@ internal static class DriverMainPanelTemporalTests
                     throw new Exception("DRIVERS: filtro compacto não acompanhou altura e largura.");
                 if (size.Width < 760 && copySummary.Visible)
                     throw new Exception("DRIVERS: botão de resumo não liberou espaço em janela estreita.");
+                if (!sim.Visible || !sim.Enabled || sim.Width < 75)
+                    throw new Exception("UX3: botão Simular inacessível em " + size);
             }
             read();
             Pump();
