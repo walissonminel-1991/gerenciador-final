@@ -11,6 +11,8 @@ internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, 
     internal IReadOnlyList<DriverWindowsEvent> WindowsEvents { get; init; } = [];
     // Codigo informado pelo PnP do Windows, não diagnóstico independente de hardware.
     internal int? PnpProblemCode { get; init; }
+    // DeviceClass relatado por Win32_PnPSignedDriver, não inferido do hardware.
+    internal string ReportedDriverClass { get; init; } = "";
     internal bool WithoutSignedDriverAssociation { get; init; }
     internal bool HasPnpProblem => PnpProblemCode is > 0;
     internal string PnpStatusLabel => PnpProblemCode switch
@@ -104,9 +106,37 @@ internal static class DriverInventory
         !string.IsNullOrWhiteSpace(name) ? name.Trim() :
         !string.IsNullOrWhiteSpace(description) ? description.Trim() : "";
 
+    internal static string NormalizeDriverClass(string? value)
+    {
+        var text = value?.Trim() ?? "";
+        return text.Length is > 0 and <= 64 &&
+            text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-')
+            ? text : "";
+    }
+
+    // Duplicatas de um DeviceId com classes PnP conflitantes nunca escolhem
+    // a ultima linha. Na captura real a divergencia marca leitura parcial.
+    internal static bool RecordDriverClass(IDictionary<string, string> values,
+        ISet<string> conflicted, string deviceId, string? reportedClass)
+    {
+        if (conflicted.Contains(deviceId)) return false;
+        string value = NormalizeDriverClass(reportedClass);
+        if (values.TryGetValue(deviceId, out var previous) &&
+            !string.Equals(previous, value, StringComparison.OrdinalIgnoreCase))
+        {
+            values[deviceId] = "";
+            conflicted.Add(deviceId);
+            return false;
+        }
+        values[deviceId] = value;
+        return true;
+    }
+
     internal static DriverInventoryResult Capture(CancellationToken token)
     {
         var rows = new List<DriverInventoryEntry>();
+        var driverClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var classConflicts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         var deviceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var hardwareIds = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
@@ -202,15 +232,20 @@ internal static class DriverInventory
                     }
                 }
             });
-            Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned FROM Win32_PnPSignedDriver", get =>
+            Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned, DeviceClass FROM Win32_PnPSignedDriver", get =>
             {
                 string Text(string key) => Convert.ToString(get(key)) ?? "";
                 string id = Text("DeviceID").Trim();
                 if (id.Length == 0) { partial = true; return; }
+                if (!RecordDriverClass(driverClasses, classConflicts, id, Text("DeviceClass")))
+                    partial = true;
                 rows.Add(new(id, Text("DeviceName"), Text("DriverProviderName"), Text("DriverVersion"),
                     Text("InfName"), get("IsSigned") is bool b ? b : null, null)
                     { HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [] });
             });
+            // A divergência de classe só pode ser descoberta ao fim da leitura.
+            rows = rows.Select(d => d with
+                { ReportedDriverClass = driverClasses.GetValueOrDefault(d.DeviceId, "") }).ToList();
             return new(Correlate(
                 IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds),
                 presence, deviceNames), partial, partial ? "Consulta parcial" : "Consulta concluída")

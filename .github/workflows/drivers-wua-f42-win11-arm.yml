@@ -1,0 +1,64 @@
+name: Drivers F4.2 — Windows 11 ARM64 somente consulta
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  consulta-windows-11:
+    name: Consultar WUA (Windows 11 ARM64)
+    if: ${{ github.event_name == 'pull_request' && github.repository == 'walissonminel-1991/gerenciador-final' && github.event.pull_request.number == 80 && github.event.pull_request.head.repo.full_name == 'walissonminel-1991/gerenciador-final' && github.event.pull_request.head.ref == 'experimento-atualizador-drivers-wua-20261114' && github.event.pull_request.base.ref == 'drivers-pnp-problemas-consulta-20261113' }}
+    runs-on: windows-11-arm
+    timeout-minutes: 20
+    env:
+      GF_F42_IMAGE: windows-11-arm
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout do merge da PR sem credenciais
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Preparar SDK .NET 10 ARM64
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Compilar apenas os testes de drivers
+        run: dotnet build TestesDrivers/TestesDrivers.csproj -c Release
+      - name: Consultar Windows 11 ARM64 e preservar evidência sanitizada
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sha = (& git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sha -cne $env:GITHUB_SHA) { throw 'F42_SHA_DIVERGENTE' }
+          if ($env:RUNNER_ARCH -cne 'ARM64' -or [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() -cne 'Arm64') { throw 'F42_ARCH_DIVERGENTE' }
+          if ([Environment]::OSVersion.Version.Build -lt 22000) { throw 'F42_NAO_E_WINDOWS_11' }
+          $PSNativeCommandUseErrorActionPreference = $false
+          $output = @(dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release --no-build -- --f42-win11-arm-probe)
+          $code = $LASTEXITCODE
+          if ($output.Count -ne 1) { throw 'F42_EVIDENCIA_AUSENTE' }
+          $probe = $output[0] | ConvertFrom-Json -ErrorAction Stop
+          if ($probe.Schema -ne 1 -or $probe.Architecture -cne 'Arm64' -or $probe.Verdict -cnotin @('NO_OFFERS', 'NO_ELIGIBLE_OFFERS', 'ELIGIBLE_OFFER', 'QUERY_FAILED')) { throw 'F42_EVIDENCIA_INVALIDA' }
+          $evidence = [ordered]@{
+            schema = 1
+            commit = $sha
+            run = $env:GITHUB_RUN_ID
+            attempt = $env:GITHUB_RUN_ATTEMPT
+            runner = 'windows-11-arm'
+            mode = 'READ_ONLY_NO_INSTALL'
+            probe = $probe
+          }
+          $evidence | ConvertTo-Json -Depth 8 -Compress | Set-Content -LiteralPath 'wua-f42-win11-arm.json' -Encoding utf8
+          Write-Host "F42_WUA_EVIDENCE $(Get-Content -LiteralPath 'wua-f42-win11-arm.json' -Raw)"
+          if ($code -ne 0 -or $probe.Verdict -ceq 'QUERY_FAILED') { throw 'F42_CONSULTA_INCONCLUSIVA' }
+      - name: Anexar evidência sanitizada mesmo em falhas
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Drivers-WUA-F42-Windows11-ARM64-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: wua-f42-win11-arm.json
+          if-no-files-found: ignore
+          retention-days: 7

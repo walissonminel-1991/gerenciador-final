@@ -1,5 +1,35 @@
 using GerenciadorAplicativos;
 
+if (args is ["--f4-runner-probe"])
+{
+    Environment.ExitCode = await DriverWuaF41RunnerProbe.Run();
+    return;
+}
+if (args is ["--f42-win11-arm-probe"])
+{
+    Environment.ExitCode = await DriverWuaF41RunnerProbe.RunF42();
+    return;
+}
+
+if (args.Length == 1 && args[0] is "--f4-vm-probe" or "--f4-vm-install")
+{
+    Environment.ExitCode = await DriverWuaF4VmHarness.Run(args[0]);
+    return;
+}
+if (args.Any(a => a.StartsWith("--f4-", StringComparison.Ordinal) ||
+    a.StartsWith("--f42-", StringComparison.Ordinal)))
+{
+    Console.Error.WriteLine("F4: comando invalido; nao consultar WUA.");
+    Environment.ExitCode = 4;
+    return;
+}
+DriverWuaF4VmHarnessTests.Run();
+DriverUxGuidanceTests.Run();
+DriverLabSimulationTests.Run();
+DriverCandidateTriageTests.Run();
+await DriverUpdatePilotTests.Run();
+DriverUpdatePilotJournalTests.Run();
+
 if (args.Contains("--etapa2"))
 {
     int total = 0, failed = 0;

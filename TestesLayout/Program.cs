@@ -46,6 +46,7 @@ internal static class LayoutTests
             DriverG121PublicationFreezeTests.Run(driverForm);
             DriverG122ConcurrentFreezeTests.Run(driverForm);
             DriverG123AbaRevocationTests.Run(driverForm);
+            DriverUpdatePilotDialogTests.Run(driverForm);
             return;
         }
         if (args.Contains("--work9"))
@@ -339,6 +340,9 @@ internal static class LayoutTests
         if (!Descendants(placeholder).OfType<Button>().Any(b =>
                 b.Text == "Falhas PnP" && b.AccessibleName.Contains("Problemas PnP")))
             throw new Exception("Filtro de falhas PnP ausente.");
+        if (Descendants(placeholder).OfType<Button>().SingleOrDefault(b =>
+            b.Name == "DriverSyntheticLabOpen") is not { Enabled: true })
+            throw new Exception("UX3: laboratório deve estar acessível sem consulta.");
         // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
         if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
             throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
@@ -368,6 +372,29 @@ internal static class LayoutTests
         if (DriverListFilters.Apply(pnpFixture, "Problemas", "").Length != 1 ||
             DriverListFilters.Apply(pnpFixture, "Problemas", "PnP 28").Length != 1)
             throw new Exception("Filtro de diagnostico PnP nao distingue problemas.");
+        var unboundFixture = pnpFixture.Select((d, i) => i == 1
+            ? d with { WithoutSignedDriverAssociation = true } : d).ToArray();
+        if (DriverListFilters.Apply(unboundFixture, "Sem driver", "").Length != 1 ||
+            DriverListFilters.Apply(pnpFixture, "Sem driver", "").Length != 0 ||
+            DriverListFilters.Apply(unboundFixture, "Sem driver", "PnP 28").Length != 1)
+            throw new Exception("Filtro sem driver confundiu problema PnP com ausência de associação WMI.");
+        var privateRecord = new DriverInventoryEntry(@"PCI\ID-SIGILOSO", "NOME-SIGILOSO",
+            "PROVEDOR-SIGILOSO", "1.0", "SIGILOSO.inf", null, false)
+        {
+            HardwareIds = [@"PCI\HARDWARE-SIGILOSO"],
+            PnpProblemCode = 28,
+            WithoutSignedDriverAssociation = true
+        };
+        var anonymous = DriverTriageSummary.Format(new DriverInventoryResult(
+            [privateRecord], true, "ERRO-SIGILOSO"));
+        if (!anonymous.Contains("Inventário parcial: sim") ||
+            !anonymous.Contains("Falhas PnP relatadas pelo Windows: 1") ||
+            !anonymous.Contains("Sem linha de driver assinado associada no WMI: 1") ||
+            new[] { privateRecord.DeviceId, privateRecord.DeviceName, privateRecord.Provider,
+                privateRecord.InfName, privateRecord.HardwareIds[0], "ERRO-SIGILOSO" }
+                .Any(value => anonymous.Contains(value, StringComparison.OrdinalIgnoreCase)))
+            throw new Exception("Resumo anônimo vazou dado sensível ou perdeu contagem.");
+        Console.WriteLine("OK DRIVERS UX: filtro ausência WMI e resumo de contagens sem identificadores.");
         // Todos os drivers continuam apenas texto; filtros nao fazem instalacoes.
         driverCards.SetItems(Array.Empty<DriverInventoryEntry>());
         DriverReadOnlyDialogTests.Run(form);
@@ -611,8 +638,8 @@ internal static class LayoutTests
                             $"lista={driverCards.Size} raiz={placeholder.Size}");
                     var mobileFilter = Descendants(placeholder).OfType<ComboBox>()
                         .SingleOrDefault(c => c.Name == "DriverCompactFilter");
-                    if (mobileFilter is null || mobileFilter.Visible != tinyDrivers ||
-                        mobileFilter.Items.Count != 4)
+                    if (mobileFilter is null || mobileFilter.Visible != (tinyDrivers || placeholder.Width < 760) ||
+                        mobileFilter.Items.Count != 5)
                         throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
                     if (Descendants(placeholder).OfType<DataGridView>().Any() ||
                         Descendants(placeholder).OfType<Button>().Any(b =>

@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 APPROVED_WORKFLOWS = frozenset({
     "build-windows.yml",
     "integridade-externa.yml",
+    "drivers-wua-f41-consulta.yml",
+    "drivers-wua-f42-win11-arm.yml",  # F4.2: somente consulta na PR interna #80
     "validar-candidata-windows.yml",
     "triagem-diagnostico-github.yml",
 })
@@ -89,6 +91,8 @@ class PoliticasDeSeguranca(unittest.TestCase):
                     self.assertIn(action, {
                         "./.github/workflows/validar-candidata-windows.yml",
                         "./.github/workflows/triagem-diagnostico-github.yml",
+                        "./.github/workflows/drivers-wua-f41-consulta.yml",
+                        "./.github/workflows/drivers-wua-f42-win11-arm.yml",
                     })
                     continue
                 self.assertRegex(action, r"^actions/[a-z-]+@[a-f0-9]{40}$", str(file))

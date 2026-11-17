@@ -57,6 +57,8 @@ internal static class DriverReadOnlyReport
             text.AppendLine("IDs de hardware: " + (selected.HardwareIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.HardwareIds)));
             text.AppendLine($"Versão instalada (WMI): {selected.Version}; INF: {selected.InfName}; {selected.PresenceLabel}.");
             text.AppendLine("Diagnóstico PnP do Windows: " + selected.PnpStatusLabel + ".");
+            text.AppendLine("Orientação consultiva PnP: " +
+                DriverPnpGuidance.Describe(selected.PnpProblemCode));
             if (selected.WithoutSignedDriverAssociation)
                 text.AppendLine("Sem linha de driver assinado associada nesta leitura. Não significa pacote removível nem prova de versão disponível.");
             text.AppendLine(selected.PackageEvidence?.Label ?? "Vínculo de pacote indisponível.");
@@ -94,6 +96,11 @@ internal static class DriverReadOnlyReport
             text.AppendLine($"Código nativo: 0x{unchecked((uint)verification.NativeError):X8}");
         }
         text.AppendLine();
+        if (selected is not null)
+        {
+            text.AppendLine(DriverCandidateTriage.Format(inventory, selected, official));
+            text.AppendLine();
+        }
         text.AppendLine("OFERTAS OFICIAIS");
         bool canShowOfficial = !ambiguousIdentity && !inventory.Partial &&
             inventory.Items.Count > 0;
@@ -104,6 +111,8 @@ internal static class DriverReadOnlyReport
                 : inventory.Items.Count == 0
                     ? "Consulta ao Windows Update indisponível: inventário vazio nesta leitura; não prova ausência de drivers."
                     : official?.Status ?? "Consulta ao Windows Update ainda não solicitada. Consulta a fonte Microsoft e respeita falhas de política; exige conexão.");
+        if (official is not null && canShowOfficial)
+            text.AppendLine(DriverOfferReview.Summary(inventory, official));
         if (official is not null && canShowOfficial)
             text.AppendLine("IDENTIDADE DO PACOTE REMOTO: NÃO COMPROVADA. WUA DownloadContents expõe URLs de conteúdo e indicador de compressão delta, mas não fornece hash autenticado, INF, DriverVer ou TargetOSVersion. O GF não consulta URLs nem baixa conteúdo nesta investigação; nenhuma oferta vira atualização autorizada.");
         if (canShowOfficial && official?.SearchContext is { } context)
@@ -156,6 +165,8 @@ internal static class DriverReadOnlyReport
                         text.AppendLine("  Mesmo fornecedor atual/oferta: " + (match.ProviderMatchesInstalled ? "sim (nome)" : "não/indeterminado; não equivale a incompatibilidade."));
                 }
                 text.AppendLine("  " + match.Label);
+                text.AppendLine("  Triagem pré-download: " +
+                    DriverOfferReview.Explain(inventory, official, match));
                 text.AppendLine("  Não há versão numérica da oferta nem comparação de ranking do Windows; nenhuma atualização, instalação ou remoção foi autorizada.");
             }
         if (canShowOfficial && official?.Matches.Count > 200)

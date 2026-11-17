@@ -12,6 +12,7 @@ internal static class DriverReadOnlyDialogTests
         {
             HardwareIds = [@"PCI\VEN_1234&DEV_5678"],
             PackageEvidence = new("oem17.inf", DriverStoreState.Mapped),
+            ReportedDriverClass = "Printer",
             WindowsEvents = [new(@"PCI\TEST\FIXTURE", "oem17.inf", new DateTime(2026, 10, 25, 12, 34, 56), DriverInstallOutcome.Failed)]
         };
         var inventory = new DriverInventoryResult([device], false, "fixture");
@@ -33,7 +34,12 @@ internal static class DriverReadOnlyDialogTests
                     var controls = Descendants(dialog).ToArray();
                     var body = controls.OfType<DarkLogView>().Single(c => c.Name == "DriverReadOnlyReportText");
                     var buttons = controls.OfType<Button>().ToArray();
-                    if (!Descendants(body).OfType<TextBox>().Single().ReadOnly || !body.RenderedText.Contains("falha registrada") || body.RenderedText.Contains("C:\\Users\\") ||
+                    if (!Descendants(body).OfType<TextBox>().Single().ReadOnly ||
+                        !body.RenderedText.Contains("falha registrada") ||
+                        !body.RenderedText.Contains("Classe do driver (WMI SignedDriver): Printer") ||
+                        !body.RenderedText.Contains("TRIAGEM DO PC FRACO") ||
+                        !body.RenderedText.Contains("WUA: consulta ainda não solicitada") ||
+                        body.RenderedText.Contains("C:\\Users\\") ||
                         !body.RenderedText.Contains("nenhuma exclusão é autorizada") || buttons.Length != 3)
                         throw new Exception("Relatório de drivers deve distinguir falha histórica e manter consulta sem escrita.");
                     foreach (var button in buttons)
