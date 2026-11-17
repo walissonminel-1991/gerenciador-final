@@ -340,6 +340,9 @@ internal static class LayoutTests
         if (!Descendants(placeholder).OfType<Button>().Any(b =>
                 b.Text == "Falhas PnP" && b.AccessibleName.Contains("Problemas PnP")))
             throw new Exception("Filtro de falhas PnP ausente.");
+        if (Descendants(placeholder).OfType<Button>().SingleOrDefault(b =>
+            b.Name == "DriverSyntheticLabOpen") is not { Enabled: true })
+            throw new Exception("UX3: laboratório deve estar acessível sem consulta.");
         // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
         if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
             throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
