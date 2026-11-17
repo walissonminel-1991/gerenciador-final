@@ -32,10 +32,14 @@ internal static class DriverMainPanelTemporalTests
             var investigate = Find<Button>(page, "DriverReadOnlyInvestigation");
             var search = Find<TextBox>(page, "DriverInventorySearch");
             var title = Find<Label>(page, "DriverInventoryTitle");
+            var copySummary = Find<Button>(page, "DriverCopySafetySummary");
+            if (copySummary.Enabled)
+                throw new Exception("DRIVERS: resumo disponível sem consulta.");
             read();
             Pump();
             if (reads != 1 || list.Items.Count != 3 || !investigate.Enabled ||
-                !title.Text.Contains("Exibidos: 3") || !status.Text.Contains("completo sintético"))
+                !title.Text.Contains("Exibidos: 3") || !status.Text.Contains("completo sintético") ||
+                !copySummary.Enabled)
                 throw new Exception("G1.12: publicação sintética inicial não atualizou a página.");
             CheckStatus(status, refresh);
             if (!Descendants(page).OfType<Button>().Any(x => x.Text == "Outros" &&
@@ -63,6 +67,10 @@ internal static class DriverMainPanelTemporalTests
                 investigate.AccessibleDescription?.Contains("sem dispositivo selecionado") != true)
                 throw new Exception("G1.12: refiltro não invalidou seleção ou texto acessível de Investigar.");
             search.Clear();
+            filter("Sem driver");
+            Pump(20);
+            if (list.Items.Count != 0)
+                throw new Exception("DRIVERS: filtro sem vínculo WMI confundiu falha PnP com ausência WMI.");
             filter("Todos");
             Pump(20);
             if (list.Items.Count != 3) throw new Exception("G1.12: filtro Todos não restaurou as linhas.");
@@ -73,13 +81,16 @@ internal static class DriverMainPanelTemporalTests
                 Pump();
                 CheckStatus(status, refresh);
                 var compact = Find<ComboBox>(page, "DriverCompactFilter");
-                if (size.Height == 210 && !compact.Visible)
-                    throw new Exception("G1.12: filtro compacto não apareceu na viewport mínima.");
+                if (compact.Visible != (size.Height < 230 || size.Width < 760) ||
+                    compact.Items.Count != 5)
+                    throw new Exception("DRIVERS: filtro compacto não acompanhou altura e largura.");
+                if (size.Width < 760 && copySummary.Visible)
+                    throw new Exception("DRIVERS: botão de resumo não liberou espaço em janela estreita.");
             }
             read();
             Pump();
             if (reads != 2 || list.Items.Count != 1 || !title.Text.Contains("Exibidos: 1") ||
-                !status.Text.Contains("parcial sintético") || !investigate.Enabled)
+                !status.Text.Contains("parcial sintético") || !investigate.Enabled || !copySummary.Enabled)
                 throw new Exception("G1.12: inventário parcial não ficou consultivo.");
             CheckStatus(status, refresh);
             read();
