@@ -33,6 +33,30 @@ internal static class DriverMainPanelTemporalTests
             var search = Find<TextBox>(page, "DriverInventorySearch");
             var title = Find<Label>(page, "DriverInventoryTitle");
             var copySummary = Find<Button>(page, "DriverCopySafetySummary");
+            var sim = Find<Button>(page, "DriverSyntheticLabOpen");
+            if (!sim.Enabled) throw new Exception("UX3: laboratório inacessível antes da consulta.");
+            string initialStatus = status.Text;
+            sim.PerformClick();
+            Pump(20);
+            var lab = Application.OpenForms.Cast<Form>().SingleOrDefault(
+                form => form.Name == "DriverLabSimulationForm");
+            if (lab is null) throw new Exception("UX3: janela fictícia não abriu.");
+            var selector = Find<ComboBox>(lab, "DriverLabScenarioSelect");
+            var preview = Find<TextBox>(lab, "DriverLabPreview");
+            if (selector.Items.Count != 17 ||
+                !preview.Text.Contains("CENÁRIO INTEIRAMENTE FICTÍCIO") ||
+                reads != 0 || status.Text != initialStatus)
+                throw new Exception("UX3: laboratório não é independente.");
+            sim.PerformClick();
+            if (Application.OpenForms.Cast<Form>().Count(
+                form => form.Name == "DriverLabSimulationForm") != 1)
+                throw new Exception("UX3: janela duplicada.");
+            selector.SelectedIndex = selector.Items.Count - 1;
+            Pump(20);
+            if (reads != 0 || !preview.Text.Contains("NENHUM DRIVER FOI ALTERADO"))
+                throw new Exception("UX3: cenário fictício fez consulta nativa.");
+            lab.Close();
+            Pump(20);
             if (copySummary.Enabled)
                 throw new Exception("DRIVERS: resumo disponível sem consulta.");
             read();
