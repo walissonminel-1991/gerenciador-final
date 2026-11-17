@@ -96,6 +96,11 @@ internal static class DriverReadOnlyReport
             text.AppendLine($"Código nativo: 0x{unchecked((uint)verification.NativeError):X8}");
         }
         text.AppendLine();
+        if (selected is not null)
+        {
+            text.AppendLine(DriverCandidateTriage.Format(inventory, selected, official));
+            text.AppendLine();
+        }
         text.AppendLine("OFERTAS OFICIAIS");
         bool canShowOfficial = !ambiguousIdentity && !inventory.Partial &&
             inventory.Items.Count > 0;

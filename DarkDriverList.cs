@@ -135,6 +135,8 @@ internal sealed class DarkDriverList : Control
             (string.IsNullOrWhiteSpace(selected.DeviceName) ? "Dispositivo não identificado" : selected.DeviceName) +
             "; " + identity + "; INF relatado: " +
             (string.IsNullOrWhiteSpace(selected.InfName) ? "não informado" : selected.InfName) +
+            "; classe PnP relatada: " +
+            (string.IsNullOrWhiteSpace(selected.PnpClass) ? "não informada" : selected.PnpClass) +
             "; " + selected.PnpStatusLabel + ambiguity +
             ". " + DriverPnpGuidance.Describe(selected.PnpProblemCode) +
             " Somente leitura; pressione Tab para Investigar.";
@@ -282,6 +284,8 @@ internal sealed class DarkDriverList : Control
             string.IsNullOrWhiteSpace(item.DeviceName) ? "Nome nao fornecido pelo Windows" : item.DeviceName,
             "ID do dispositivo (consulta local): " + item.DeviceId,
             "Fornecedor: " + item.Provider,
+            "Classe PnP relatada: " + (string.IsNullOrWhiteSpace(item.PnpClass) ? "não informada" : item.PnpClass),
+            "Grupo para laboratório: " + DriverCandidateTriage.ClassDisposition(item.PnpClass),
             "Versão informada pelo Windows: " + item.Version,
             "INF: " + item.InfName,
             "Presença: " + item.PresenceLabel,

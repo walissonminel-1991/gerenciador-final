@@ -8,6 +8,8 @@ internal static class DriverOfferReview
     {
         if (inventory.Partial || official.Partial)
             return "Triagem WUA inconclusiva: inventário ou consulta parcial. Não inferir ausência de ofertas.";
+        if (official.SearchContext is not { Source: "Windows Update", Online: true })
+            return "Triagem WUA inconclusiva: origem Windows Update online não comprovada. Não inferir ausência de ofertas.";
         if (official.Offered == 0 && official.Matches.Count == 0)
             return "Consulta WUA concluída sem ofertas observadas nesta busca. Não garante ausência futura nem instalação disponível.";
         if (official.Offered > 0 && official.Matches.Count == 0)

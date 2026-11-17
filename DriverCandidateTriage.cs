@@ -16,10 +16,10 @@ internal static class DriverCandidateTriage
             reported.Equals("AudioEndpoint", StringComparison.OrdinalIgnoreCase) ||
             reported.Equals("Camera", StringComparison.OrdinalIgnoreCase))
             return "SOMENTE CONSULTA: esta classe PnP não integra o piloto WUA permitido.";
-        if (reported is "System" or "Firmware" or "Net" or "Display" or
-            "DiskDrive" or "SCSIAdapter" or "HDC" or "USB" or "USBDevice" or
-            "Keyboard" or "Mouse" or "Computer" or "Processor" or "Volume" or
-            "StorageVolume" or "Battery" or "SecurityDevices" or "Monitor")
+        if (new[] { "System", "Firmware", "Net", "Display", "DiskDrive",
+            "SCSIAdapter", "HDC", "USB", "USBDevice", "Keyboard", "Mouse",
+            "Computer", "Processor", "Volume", "StorageVolume", "Battery",
+            "SecurityDevices", "Monitor" }.Contains(reported, StringComparer.OrdinalIgnoreCase))
             return "EXCLUÍDO DO LABORATÓRIO: classe crítica ou dependência essencial.";
         if (DriverUpdatePilot.AllowedClass(reported))
             return "GRUPO DE ESTUDO: classe PnP da lista restrita Printer/Image/Ports; não comprova elegibilidade WUA.";
