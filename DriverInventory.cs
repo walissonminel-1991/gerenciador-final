@@ -11,8 +11,8 @@ internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, 
     internal IReadOnlyList<DriverWindowsEvent> WindowsEvents { get; init; } = [];
     // Codigo informado pelo PnP do Windows, não diagnóstico independente de hardware.
     internal int? PnpProblemCode { get; init; }
-    // Classe relatada por Win32_PnPEntity; pode faltar ou estar inconclusiva.
-    internal string PnpClass { get; init; } = "";
+    // DeviceClass relatado por Win32_PnPSignedDriver, não inferido do hardware.
+    internal string ReportedDriverClass { get; init; } = "";
     internal bool WithoutSignedDriverAssociation { get; init; }
     internal bool HasPnpProblem => PnpProblemCode is > 0;
     internal string PnpStatusLabel => PnpProblemCode switch
@@ -75,13 +75,11 @@ internal static class DriverInventory
         IEnumerable<DriverInventoryEntry> signedDrivers,
         IReadOnlyDictionary<string, int?> problemCodes,
         IReadOnlyDictionary<string, string> deviceNames,
-        IReadOnlyDictionary<string, string[]> hardwareIds,
-        IReadOnlyDictionary<string, string>? pnpClasses = null)
+        IReadOnlyDictionary<string, string[]> hardwareIds)
     {
         var rows = signedDrivers.Select(d => d with
         {
-            PnpProblemCode = problemCodes.GetValueOrDefault(d.DeviceId.Trim()),
-            PnpClass = pnpClasses?.GetValueOrDefault(d.DeviceId.Trim()) ?? d.PnpClass
+            PnpProblemCode = problemCodes.GetValueOrDefault(d.DeviceId.Trim())
         }).ToList();
         var withDriver = rows.Select(d => d.DeviceId.Trim())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -95,7 +93,6 @@ internal static class DriverInventory
             {
                 HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [],
                 PnpProblemCode = pair.Value,
-                PnpClass = pnpClasses?.GetValueOrDefault(id) ?? "",
                 WithoutSignedDriverAssociation = true
             });
             withDriver.Add(id);
@@ -109,7 +106,7 @@ internal static class DriverInventory
         !string.IsNullOrWhiteSpace(name) ? name.Trim() :
         !string.IsNullOrWhiteSpace(description) ? description.Trim() : "";
 
-    internal static string NormalizePnpClass(string? value)
+    internal static string NormalizeDriverClass(string? value)
     {
         var text = value?.Trim() ?? "";
         return text.Length is > 0 and <= 64 &&
@@ -119,11 +116,11 @@ internal static class DriverInventory
 
     // Duplicatas de um DeviceId com classes PnP conflitantes nunca escolhem
     // a ultima linha. Na captura real a divergencia marca leitura parcial.
-    internal static bool RecordPnpClass(IDictionary<string, string> values,
+    internal static bool RecordDriverClass(IDictionary<string, string> values,
         ISet<string> conflicted, string deviceId, string? reportedClass)
     {
         if (conflicted.Contains(deviceId)) return false;
-        string value = NormalizePnpClass(reportedClass);
+        string value = NormalizeDriverClass(reportedClass);
         if (values.TryGetValue(deviceId, out var previous) &&
             !string.Equals(previous, value, StringComparison.OrdinalIgnoreCase))
         {
@@ -138,10 +135,10 @@ internal static class DriverInventory
     internal static DriverInventoryResult Capture(CancellationToken token)
     {
         var rows = new List<DriverInventoryEntry>();
+        var driverClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var classConflicts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         var deviceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var pnpClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var conflictedClasses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var hardwareIds = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         var problemCodes = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
         var conflictedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -196,7 +193,7 @@ internal static class DriverInventory
                 }
                 finally { Release(result); }
             }
-            Query("SELECT PNPDeviceID, Name, Description, Present, PNPClass, HardwareID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
+            Query("SELECT PNPDeviceID, Name, Description, Present, HardwareID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
             {
                 string id = (Convert.ToString(get("PNPDeviceID")) ?? "").Trim();
                 if (id.Length > 0)
@@ -208,8 +205,6 @@ internal static class DriverInventory
                     string name = ReportedDeviceName(
                         Convert.ToString(get("Name")), Convert.ToString(get("Description")));
                     if (name.Length > 0) deviceNames[id] = name;
-                    if (!RecordPnpClass(pnpClasses, conflictedClasses, id,
-                        Convert.ToString(get("PNPClass")))) partial = true;
                     string[] ids = get("HardwareID") is Array list ? list.Cast<object>()
                         .OfType<string>().Where(ValidHardwareId).Distinct(StringComparer.OrdinalIgnoreCase)
                         .Take(64).ToArray() : [];
@@ -237,24 +232,29 @@ internal static class DriverInventory
                     }
                 }
             });
-            Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned FROM Win32_PnPSignedDriver", get =>
+            Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned, DeviceClass FROM Win32_PnPSignedDriver", get =>
             {
                 string Text(string key) => Convert.ToString(get(key)) ?? "";
                 string id = Text("DeviceID").Trim();
                 if (id.Length == 0) { partial = true; return; }
+                if (!RecordDriverClass(driverClasses, classConflicts, id, Text("DeviceClass")))
+                    partial = true;
                 rows.Add(new(id, Text("DeviceName"), Text("DriverProviderName"), Text("DriverVersion"),
                     Text("InfName"), get("IsSigned") is bool b ? b : null, null)
                     { HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [] });
             });
+            // A divergência de classe só pode ser descoberta ao fim da leitura.
+            rows = rows.Select(d => d with
+                { ReportedDriverClass = driverClasses.GetValueOrDefault(d.DeviceId, "") }).ToList();
             return new(Correlate(
-                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds, pnpClasses),
+                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds),
                 presence, deviceNames), partial, partial ? "Consulta parcial" : "Consulta concluída")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
         }
         catch (Exception ex)
         {
             return new(Correlate(
-                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds, pnpClasses),
+                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds),
                 presence, deviceNames), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
         }
