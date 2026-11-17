@@ -66,12 +66,13 @@ internal sealed partial class MainForm
 
         var actionPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
             Margin = new Padding(0, 2, 0, 2)
         };
         actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 142));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
@@ -112,6 +113,16 @@ internal sealed partial class MainForm
         investigate.Enabled = false;
         actionPanel.Controls.Add(investigate, 1, 0);
         _toolTips.SetToolTip(investigate, "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
+        var labOpen = CreateSecondaryButton("Simular");
+        labOpen.Name = "DriverSyntheticLabOpen";
+        labOpen.AccessibleName = "Abrir laboratório fictício multiclasses de drivers";
+        labOpen.AccessibleDescription =
+            "Disponível sem consulta; não usa dispositivos, Windows Update ou instalador.";
+        labOpen.Dock = DockStyle.Fill;
+        labOpen.Margin = new Padding(0, 2, 6, 2);
+        _toolTips.SetToolTip(labOpen,
+            "17 cenários sintéticos de impressoras, webcam, porta COM, áudio e controle. Não altera o Windows.");
+        actionPanel.Controls.Add(labOpen, 2, 0);
         var copySummary = CreateSecondaryButton("Copiar resumo");
         copySummary.Name = "DriverCopySafetySummary";
         copySummary.AccessibleName = "Copiar resumo de drivers sem identificadores";
@@ -120,8 +131,8 @@ internal sealed partial class MainForm
         copySummary.Margin = new Padding(0, 2, 6, 2);
         copySummary.Enabled = false;
         _toolTips.SetToolTip(copySummary, "Copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
-        actionPanel.Controls.Add(copySummary, 2, 0);
-        actionPanel.Controls.Add(actionInfo, 3, 0);
+        actionPanel.Controls.Add(copySummary, 3, 0);
+        actionPanel.Controls.Add(actionInfo, 4, 0);
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
@@ -282,6 +293,23 @@ internal sealed partial class MainForm
         {
             SyncInvestigationDescription();
             invalidateOpenReport?.Invoke();
+        };
+        Form? labWindow = null;
+        labOpen.Click += (_, _) =>
+        {
+            if (root.IsDisposed) return;
+            if (labWindow is { IsDisposed: false })
+            {
+                labWindow.Activate();
+                return;
+            }
+            // Não lê snapshot, lastResult, WMI, WUA, disco ou backend.
+            labWindow = DriverLabSimulationDialog.Create();
+            labWindow.Show(this);
+        };
+        root.Disposed += (_, _) =>
+        {
+            if (labWindow is { IsDisposed: false }) labWindow.Close();
         };
         copySummary.Click += (_, _) =>
         {
@@ -584,7 +612,7 @@ internal sealed partial class MainForm
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
             heading.Visible = !compactFilters;
-            actionPanel.ColumnStyles[2].Width = showCopy ? 142 : 0;
+            actionPanel.ColumnStyles[3].Width = showCopy ? 142 : 0;
             copySummary.Visible = showCopy;
             actionHint.Visible = !compactFilters;
             compactFilter.Visible = compactFilters;
