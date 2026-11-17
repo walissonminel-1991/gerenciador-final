@@ -26,6 +26,7 @@ if (args.Any(a => a.StartsWith("--f4-", StringComparison.Ordinal) ||
 DriverWuaF4VmHarnessTests.Run();
 DriverUxGuidanceTests.Run();
 DriverLabSimulationTests.Run();
+DriverCandidateTriageTests.Run();
 await DriverUpdatePilotTests.Run();
 DriverUpdatePilotJournalTests.Run();
 
