@@ -24,6 +24,7 @@ if (args.Any(a => a.StartsWith("--f4-", StringComparison.Ordinal) ||
     return;
 }
 DriverWuaF4VmHarnessTests.Run();
+DriverUxGuidanceTests.Run();
 await DriverUpdatePilotTests.Run();
 DriverUpdatePilotJournalTests.Run();
 

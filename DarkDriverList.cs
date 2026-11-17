@@ -136,7 +136,8 @@ internal sealed class DarkDriverList : Control
             "; " + identity + "; INF relatado: " +
             (string.IsNullOrWhiteSpace(selected.InfName) ? "não informado" : selected.InfName) +
             "; " + selected.PnpStatusLabel + ambiguity +
-            ". Somente leitura; pressione Tab para Investigar.";
+            ". " + DriverPnpGuidance.Describe(selected.PnpProblemCode) +
+            " Somente leitura; pressione Tab para Investigar.";
     }
 
     private void UpdateMetrics()
@@ -285,6 +286,7 @@ internal sealed class DarkDriverList : Control
             "INF: " + item.InfName,
             "Presença: " + item.PresenceLabel,
             "Status: " + item.PnpStatusLabel,
+            "Orientação: " + DriverPnpGuidance.Describe(item.PnpProblemCode),
             item.PackageEvidence?.Label ?? "Vínculo com Driver Store não consultado",
             "INF publicado (consulta local): " + item.PackageEvidence?.PublishedPath,
             "INF no Driver Store (consulta local): " + item.PackageEvidence?.StorePath,
