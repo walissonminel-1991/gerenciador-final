@@ -358,6 +358,7 @@ internal static class DriverListFilters
             "Presentes" => items.Where(item => item.Present == true),
             "Não confirmados" => items.Where(item => item.Present != true),
             "Problemas" => items.Where(item => item.HasPnpProblem),
+            "Sem driver" => items.Where(item => item.WithoutSignedDriverAssociation),
             _ => items
         };
         query = query.Trim();
@@ -367,5 +368,29 @@ internal static class DriverListFilters
                     item.InfName, item.PresenceLabel, item.SignatureLabel, item.PnpStatusLabel)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
         return filtered.ToArray();
+    }
+}
+
+// Resumo para compartilhar as contagens do PC FRACO sem dados de hardware.
+// Não incluir Status WMI, consultas, IDs, nomes, fornecedor, INF ou caminhos.
+internal static class DriverTriageSummary
+{
+    internal static string Format(DriverInventoryResult inventory)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        var items = inventory.Items;
+        return string.Join(Environment.NewLine,
+            "GERENCIADOR FINAL — DRIVERS — RESUMO SEM IDENTIFICADORES",
+            "Somente consulta local; não comprova atualização disponível.",
+            "Inventário parcial: " + (inventory.Partial ? "sim" : "não"),
+            "Dispositivos/associações observados: " + items.Count,
+            "Falhas PnP relatadas pelo Windows: " + items.Count(x => x.HasPnpProblem),
+            "Sem linha de driver assinado associada no WMI: " +
+                items.Count(x => x.WithoutSignedDriverAssociation),
+            "Presença não confirmada: " + items.Count(x => x.Present != true),
+            "Assinatura WMI indeterminada: " + items.Count(x => x.Signed is null),
+            "As categorias podem se sobrepor. Ausência no WMI não comprova ausência de driver.",
+            "Sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.",
+            "Nenhum driver foi instalado, baixado ou removido por este resumo.");
     }
 }
