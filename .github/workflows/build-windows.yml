@@ -1,144 +1,184 @@
-name: Compilar Windows (sem assinatura)
-
+# UX5.19 - PROPOSTA INERTE. NAO COPIAR PARA .github/workflows SEM AUTORIZACAO.
+# Future destination, only on lab-gate-a-probe-20261119: .github/workflows/build-windows.yml
+name: GF UX515 authorization probe only
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-
+permissions: {}
 jobs:
-  build:
-    name: Compilação Windows x64
-    permissions:
-      contents: read
-    outputs:
-      artifact_name: ${{ steps.pacote.outputs.nome }}
+  probe:
+    name: GF UX515 probe only
+    if: >-
+      github.repository == 'walissonminel-1991/gerenciador-final' &&
+      github.repository_id == '1423533003' &&
+      github.actor_id == '344032217' &&
+      github.actor == 'walissonminel-1991' &&
+      github.triggering_actor == 'walissonminel-1991' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/lab-gate-a-probe-20261119' &&
+      github.run_attempt == '1'
     runs-on: windows-2022
-    timeout-minutes: 30
-    env:
-      GF_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      GF_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+    timeout-minutes: 3
+    environment: gf-gate-a-probe-ux515
     steps:
-      - name: Baixar fonte
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Preparar SDK .NET 10
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Identificar pacote pela versao e commit
-        id: pacote
+      - name: Read native review, emit proof only
         shell: pwsh
         run: |
-          [xml]$project = Get-Content 'GerenciadorAplicativos.csproj' -Raw
-          $version = [string]$project.Project.PropertyGroup.Version
-          if ($version -notmatch '^[0-9]+([.][0-9]+){3}$') { throw 'Versao invalida no projeto' }
-          $shortCommit = $env:GITHUB_SHA.Substring(0, 8).ToLowerInvariant()
-          $artifactName = "GerenciadorFinal-v$version-$shortCommit-TESTE-win-x64"
-          "nome=$artifactName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "Artefato identificado como: $artifactName"
-
-      - name: Publicar para Windows x64 (self-contained)
-        shell: pwsh
-        run: |
-          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "$env:GITHUB_WORKSPACE\Distribuicao"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path "$env:GITHUB_WORKSPACE\Distribuicao\GerenciadorFinal.exe")) { throw 'GerenciadorFinal.exe ausente' }
-
-      - name: Verificar ativacao do manifesto Win32 no executavel
-        shell: pwsh
-        run: |
-          ./TestesManifesto/Testar-Ativacao.ps1 -ExecutablePath './Distribuicao/GerenciadorFinal.exe'
-
-      - name: Registrar origem e versao da compilacao
-        shell: pwsh
-        run: |
-          [xml]$project = Get-Content 'GerenciadorAplicativos.csproj' -Raw
-          $version = [string]$project.Project.PropertyGroup.Version
-          @(
-            'Produto: Gerenciador Final'
-            "Versao: $version"
-            "Commit Git: $env:GITHUB_SHA"
-            "Commit fonte: $env:GF_SOURCE_SHA"
-            "Base da PR (quando aplicavel): $env:GF_BASE_SHA"
-            "Execucao GitHub Actions: $env:GITHUB_RUN_ID"
-            'Assinatura digital: AUSENTE (pacote experimental)'
-            'Status AVG: NAO VALIDADO; nao executar se estiver em quarentena'
-            'Origem: https://github.com/walissonminel-1991/gerenciador-final'
-          ) | Set-Content 'Distribuicao/BUILD-INFO.txt' -Encoding utf8
-
-      - name: Gerar e verificar SHA256SUMS.txt
-        shell: pwsh
-        run: |
-          $root = (Resolve-Path 'Distribuicao').Path
-          $files = @(Get-ChildItem -LiteralPath $root -File -Recurse |
-            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
-            Sort-Object FullName)
-          if ($files.Count -lt 3) { throw 'Distribuicao incompleta' }
-          $lines = foreach ($file in $files) {
-            $relative = [IO.Path]::GetRelativePath($root, $file.FullName).Replace('\', '/')
-            $digest = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$digest  $relative"
-          }
-          $lines | Set-Content 'Distribuicao/SHA256SUMS.txt' -Encoding utf8
-          $verified = 0
-          foreach ($line in (Get-Content 'Distribuicao/SHA256SUMS.txt')) {
-            if ($line -notmatch '^([a-f0-9]{64})  (.+)$') { throw 'Manifesto SHA256 invalido' }
-            $expected = $Matches[1]
-            $relative = $Matches[2]
-            $path = Join-Path $root ($relative.Replace('/', [IO.Path]::DirectorySeparatorChar))
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Arquivo ausente: $relative" }
-            $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actual -ne $expected) { throw "SHA256 divergente: $relative" }
-            $verified++
-          }
-          if ($verified -ne $files.Count) { throw 'Contagem de arquivos do checksum divergente' }
-          Write-Host "Integridade aprovada: $verified arquivos."
-
-      - name: Conservar artefato para testes (nao assinado)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ${{ steps.pacote.outputs.nome }}
-          path: Distribuicao/
-          retention-days: 7
-          if-no-files-found: error
-
-  # OIDC e permissao de atestacao somente em contexto confiavel da main.
-  # PRs externos nunca recebem id-token:write nem attestations:write.
-  attest:
-    name: Atestar pacote apenas na main
-    needs: build
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.private == false }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-    steps:
-      - name: Recuperar somente artefato do build deste workflow
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: ${{ needs.build.outputs.artifact_name }}
-          path: Distribuicao
-      - name: Verificar manifesto e integridade antes de atestar
-        shell: bash
-        run: |
-          test -s Distribuicao/GerenciadorFinal.exe
-          test -s Distribuicao/SHA256SUMS.txt
-          (cd Distribuicao && sha256sum --check SHA256SUMS.txt)
-      # Atestado de procedencia GitHub nao substitui assinatura Authenticode.
-      - name: Atestar procedencia do executavel da main
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
-        with:
-          subject-path: Distribuicao/GerenciadorFinal.exe
+          $ErrorActionPreference = 'Stop'
+          @'
+          import datetime as dt, json, os, re, ssl, urllib.request
+          UTC = dt.timezone.utc
+          REPO = 'walissonminel-1991/gerenciador-final'
+          REPO_ID = 1423533003
+          OWNER = 'walissonminel-1991'
+          OWNER_ID = 344032217
+          BRANCH = 'lab-gate-a-probe-20261119'
+          REF = 'refs/heads/' + BRANCH
+          ENV = 'gf-gate-a-probe-ux515'
+          PATH = '.github/workflows/build-windows.yml'
+          WORKFLOW_ID = 387821257
+          BASE = '410d65e23546976db456337c71e4705f10217d36'
+          STOP = dt.datetime(2026,11,26,2,59,tzinfo=UTC)
+          API = 'https://api.github.com/repos/' + REPO
+          class Denied(Exception): pass
+          class StageDenied(Exception): pass
+          def need(value):
+              if not value: raise Denied()
+          def observe(stage, check, *args):
+              try:
+                  return check(*args)
+              except Exception:
+                  raise StageDenied(stage) from None
+          def deny(stage):
+              print(json.dumps({'reason':'GF_PROBE_DENIED','execution_allowed':False,'stage':stage},sort_keys=True))
+              raise SystemExit(1)
+          def eq(obj, key, expected):
+              need(type(obj) is dict and key in obj and
+                   type(obj[key]) is type(expected) and obj[key] == expected)
+          def positive_id(value):
+              need(type(value) is int and value>0)
+              return value
+          def owner(obj):
+              eq(obj,'id',OWNER_ID); eq(obj,'login',OWNER); eq(obj,'type','User')
+          def repo(obj):
+              eq(obj,'id',REPO_ID); eq(obj,'full_name',REPO); eq(obj,'private',False)
+              owner(obj.get('owner'))
+          def date(s):
+              need(type(s) is str and re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ',s))
+              return dt.datetime.strptime(s,'%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=UTC)
+          def fmt(d): return d.strftime('%Y-%m-%dT%H:%M:%SZ')
+          def unique(pairs):
+              d = {}
+              for k,v in pairs:
+                  need(k not in d); d[k] = v
+              return d
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*a,**kw): raise Denied()
+          def create_opener():
+              return urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
+                        urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+          def read_json(opener, path):
+              url = API + path
+              q = urllib.request.Request(url,method='GET',headers={'Accept':'application/vnd.github+json',
+                      'X-GitHub-Api-Version':'2022-11-28','User-Agent':'GF-UX515-probe',
+                      'Cache-Control':'no-cache'})
+              with opener.open(q,timeout=8) as r:
+                  need(r.status == 200 and r.geturl() == url)
+                  need(r.headers.get_content_type() == 'application/json')
+                  b = r.read(1048577); need(len(b) <= 1048576)
+              return json.loads(b.decode('utf-8'),object_pairs_hook=unique)
+          def sha(s): return type(s) is str and re.fullmatch('[a-f0-9]{40}',s) is not None
+          def check_runner_context():
+              for k,v in {'GITHUB_REPOSITORY':REPO,'GITHUB_REPOSITORY_ID':str(REPO_ID),
+                          'GITHUB_ACTOR':OWNER,'GITHUB_ACTOR_ID':str(OWNER_ID),
+                          'GITHUB_TRIGGERING_ACTOR':OWNER,'GITHUB_REF':REF,
+                          'GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_RUN_ATTEMPT':'1',
+                          'GITHUB_WORKFLOW_REF':REPO+'/'+PATH+'@'+REF}.items():
+                  need(os.environ.get(k)==v)
+              commit = os.environ.get('GITHUB_SHA'); need(sha(commit))
+              need(os.environ.get('GITHUB_WORKFLOW_SHA') == commit)
+              rawid = os.environ.get('GITHUB_RUN_ID',''); need(re.fullmatch('[1-9][0-9]{0,18}',rawid))
+              return commit, rawid
+          def main():
+              commit, rawid = observe('runner_context', check_runner_context)
+              opener = observe('transport_setup', create_opener)
+              def get(path):
+                  return read_json(opener, path)
+              rid=int(rawid); rp='/actions/runs/'+rawid
+              def check_run():
+                  run=get(rp)
+                  for k,v in {'id':rid,'run_attempt':1,'workflow_id':WORKFLOW_ID,'path':PATH,
+                              'head_sha':commit,'head_branch':BRANCH,'event':'workflow_dispatch',
+                              'status':'in_progress','conclusion':None}.items(): eq(run,k,v)
+                  repo(run.get('repository')); repo(run.get('head_repository'))
+                  owner(run.get('actor')); owner(run.get('triggering_actor'))
+                  created=date(run.get('created_at'))
+                  end=min(created+dt.timedelta(minutes=30),STOP)
+                  need(created <= dt.datetime.now(UTC) < end)
+                  return created,end
+              def check_branch():
+                  b=get('/branches/'+BRANCH); eq(b,'name',BRANCH); eq(b,'protected',True)
+                  eq(b.get('commit'),'sha',commit)
+              def check_commit():
+                  c=get('/git/commits/'+commit); eq(c,'sha',commit)
+                  tree=c.get('tree',{}).get('sha'); need(sha(tree))
+                  parents=c.get('parents'); need(type(parents) is list and len(parents)==1)
+                  eq(parents[0],'sha',BASE)
+                  return tree
+              def check_environment():
+                  e=get('/environments/'+ENV); eq(e,'name',ENV)
+                  eid=positive_id(e.get('id'))
+                  eq(e,'can_admins_bypass',False)
+                  policy=e.get('deployment_branch_policy'); eq(policy,'protected_branches',False)
+                  eq(policy,'custom_branch_policies',True)
+                  rules=e.get('protection_rules'); need(type(rules) is list and len(rules)==2)
+                  need(all(type(rule) is dict and type(rule.get('type')) is str for rule in rules))
+                  by_type={rule['type']:rule for rule in rules}
+                  need(by_type.keys() == {'required_reviewers','branch_policy'})
+                  rr=by_type['required_reviewers']; eq(rr,'prevent_self_review',False)
+                  reviewer_rule_id=positive_id(rr.get('id'))
+                  branch_rule_id=positive_id(by_type['branch_policy'].get('id'))
+                  need(reviewer_rule_id != branch_rule_id)
+                  reviewers=rr.get('reviewers'); need(type(reviewers) is list and len(reviewers)==1)
+                  eq(reviewers[0],'type','User'); owner(reviewers[0].get('reviewer'))
+                  return eid,reviewer_rule_id,branch_rule_id
+              def check_branch_policy():
+                  b=get('/environments/'+ENV+'/deployment-branch-policies?per_page=100')
+                  eq(b,'total_count',1); rows=b.get('branch_policies')
+                  need(type(rows) is list and len(rows)==1); eq(rows[0],'name',BRANCH); eq(rows[0],'type','branch')
+                  return positive_id(rows[0].get('id'))
+              observe('repository', lambda: repo(get('')))
+              observe('branch_initial', check_branch)
+              created,end=observe('run_initial', check_run)
+              tree=observe('commit', check_commit)
+              environment=observe('environment_initial', check_environment)
+              eid=environment[0]
+              branch_policy_id=observe('branch_policy_initial', check_branch_policy)
+              expected=(f'GF_PROBE_ONLY_V1 repo={REPO_ID} owner={OWNER_ID} run={rid} attempt=1 '
+                        f'workflow={WORKFLOW_ID} env={eid} sha={commit} tree={tree} expires={fmt(end)}')
+              def check_review():
+                  rows=get(rp+'/approvals'); need(type(rows) is list and len(rows)==1)
+                  row=rows[0]; eq(row,'state','approved'); eq(row,'comment',expected)
+                  owner(row.get('user')); envs=row.get('environments')
+                  need(type(envs) is list and len(envs)==1); eq(envs[0],'id',eid); eq(envs[0],'name',ENV)
+              def check_job():
+                  j=get(rp+'/jobs?filter=all&per_page=100'); eq(j,'total_count',1)
+                  rows=j.get('jobs'); need(type(rows) is list and len(rows)==1)
+                  row=rows[0]; eq(row,'run_id',rid); eq(row,'run_attempt',1); eq(row,'head_sha',commit)
+                  eq(row,'name','GF UX515 probe only'); eq(row,'status','in_progress'); eq(row,'conclusion',None)
+                  eq(row,'labels',['windows-2022']); return positive_id(row.get('id'))
+              observe('review_initial', check_review)
+              jid=observe('job_initial', check_job)
+              observe('branch_recheck', check_branch)
+              observe('run_recheck', lambda: need(check_run()==(created,end)))
+              observe('environment_recheck', lambda: need(check_environment()==environment))
+              observe('branch_policy_recheck', lambda: need(check_branch_policy()==branch_policy_id))
+              observe('review_recheck', check_review)
+              observe('job_recheck', lambda: need(check_job()==jid))
+              observe('window_final', lambda: need(dt.datetime.now(UTC)<end))
+              print(json.dumps({'reason':'GF_PROBE_ONLY_OBSERVED','execution_allowed':False,
+                    'run_id':rid,'attempt':1,'job_id':jid,'environment_id':eid,'sha':commit,'tree':tree},sort_keys=True))
+          try: main()
+          except StageDenied as denial: deny(denial.args[0])
+          except Exception: deny('internal')
+          '@ | python -B -
+          if ($LASTEXITCODE -ne 0) { exit 1 }
