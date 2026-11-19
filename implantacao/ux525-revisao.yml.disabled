@@ -1,0 +1,15 @@
+name: UX526 review of one synthetic operation
+on:
+  push:
+    branches: [ux525/exec/qualificacao]
+permissions: {}
+jobs:
+  review:
+    if: >-
+      github.repository_id == '1423533003' && github.actor_id == '344032217' &&
+      github.run_attempt == 1 && github.ref == 'refs/heads/ux525/exec/qualificacao'
+    environment: ux525-autoridade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo UX526_NATIVE_REVIEW_COMPLETED

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "else": {
+        "properties": {
+          "ref": {
+            "const": "refs/heads/ux525/exec/produto"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "fixture"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "ref": {
+            "const": "refs/heads/ux525/exec/qualificacao"
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "attempt": {
+      "const": 1
+    },
+    "controller_sha": {
+      "pattern": "^[a-f0-9]{40}$",
+      "type": "string"
+    },
+    "controller_tree": {
+      "pattern": "^[a-f0-9]{40}$",
+      "type": "string"
+    },
+    "inputs_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "job": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "mode": {
+      "enum": [
+        "fixture",
+        "product"
+      ]
+    },
+    "n_end": {
+      "const": "2026-11-26T02:59:00Z"
+    },
+    "nonce_commitment": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "norma": {
+      "const": "04e4b082c2c71913a516ba9050c6a0f070e1c8b6fcf005af990324b79f776948"
+    },
+    "owner": {
+      "const": 344032217
+    },
+    "private_repo": {
+      "const": 1437181649
+    },
+    "receipt_key": {
+      "pattern": "^AAAAC3NzaC1lZDI1NTE5AAAAI[A-Za-z0-9+/]{43}$",
+      "type": "string"
+    },
+    "ref": {
+      "enum": [
+        "refs/heads/ux525/exec/qualificacao",
+        "refs/heads/ux525/exec/produto"
+      ]
+    },
+    "run": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "schema": {
+      "const": 2
+    },
+    "source_repo": {
+      "const": 1423533003
+    },
+    "source_sha": {
+      "pattern": "^[a-f0-9]{40}$",
+      "type": "string"
+    },
+    "source_tree": {
+      "pattern": "^[a-f0-9]{40}$",
+      "type": "string"
+    },
+    "trigger_actor": {
+      "const": 344032217
+    },
+    "workflow_id": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "workflow_sha": {
+      "pattern": "^[a-f0-9]{40}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "attempt",
+    "controller_sha",
+    "controller_tree",
+    "inputs_digest",
+    "job",
+    "mode",
+    "n_end",
+    "nonce_commitment",
+    "norma",
+    "owner",
+    "private_repo",
+    "receipt_key",
+    "ref",
+    "run",
+    "schema",
+    "source_repo",
+    "source_sha",
+    "source_tree",
+    "trigger_actor",
+    "workflow_id",
+    "workflow_sha"
+  ],
+  "title": "UX526 binding v2",
+  "type": "object"
+}
