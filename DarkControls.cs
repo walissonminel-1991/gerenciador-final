@@ -320,13 +320,12 @@ internal sealed class DarkProgramList : Control
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
-        if (item.CanUninstall && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.Active != true && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
-        // MSIX não recebe comando inventado: botão abre somente as Configurações.
-        if (!item.IsUpdate && ActionableInventory.CanManageWithWindows(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
-            return (item, "windows-manage");
-        if (ActionableInventory.CanManageExternally(item) &&
-            (!item.IsUpdate || VerifiedUpdaters.GetPrimaryAction(item)!="external-manage") && AppRowGeometry.UninstallButton(bounds).Contains(point))
-            return (item, "external-manage");
+        // Todos os cartões expõem Desinstalar. O caminho sem desinstalador
+        // validado nunca tenta executar comandos: oferece gerenciamento manual.
+        if (AppRowGeometry.UninstallButton(bounds).Contains(point) &&
+            UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
+            OperationFor?.Invoke(item)?.Active != true)
+            return (item, item.CanUninstall ? "uninstall" : "uninstall-manual");
         if (item.IsUpdate && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.PreventRetry != true &&
             AppRowGeometry.UpdateButton(bounds).Contains(point))
         {
