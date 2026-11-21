@@ -738,8 +738,8 @@ internal sealed partial class MainForm
                 TextRenderer.MeasureText("Consultar drivers", refresh.Font).Width + Scale(20));
             int investigationWidth = Math.Max(Scale(108),
                 TextRenderer.MeasureText("Investigar", investigate.Font).Width + Scale(20));
-            bool narrow = root.ClientSize.Width <
-                refreshWidth + investigationWidth + Scale(182);
+            bool narrow = root.ClientSize.Width < Math.Max(Scale(760),
+                refreshWidth + investigationWidth + Scale(182));
             bool compactFilters = tiny || root.ClientSize.Width < Scale(800);
             bool showCopy = !tiny && !narrow;
             bool splitActions = labOpen is null && root.ClientSize.Width <
