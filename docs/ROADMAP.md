@@ -1,5 +1,7 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+> **Planejamento futuro (registrado em 21/11/2026):** [backlog de 16 funcionalidades para versões posteriores a 23/11](BACKLOG-VERSOES-FUTURAS.md). Os itens VF01–VF16 **não integram os 42 checkpoints atuais**, não estão autorizados para implementação e **não alteram o progresso 27/42**, as prioridades da candidata de 23/11 nem os bloqueios de segurança.
+
 **Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
 [Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
 [guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
