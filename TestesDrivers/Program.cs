@@ -224,12 +224,43 @@ if (OperatingSystem.IsWindows())
     Check(inventory.PublishedPackages is { Packages.Count: > 0 }, "D2: enumeração SetupAPI real no Windows descartável retorna INFs publicados");
     Check(inventory.PublishedPackages!.Packages.All(p => !p.CanMaintain), "R6: pacotes nativos nunca autorizam manutenção");
     Console.WriteLine($"D2_CI publicados={inventory.PublishedPackages.Packages.Count} enumeracao_completa={inventory.PublishedPackages.EnumerationComplete} parcial={inventory.PublishedPackages.Partial} eventos={inventory.WindowsHistory?.Events.Count} historico_parcial={inventory.WindowsHistory?.Partial} historico_indisponivel={inventory.WindowsHistory?.Unavailable}");
-    var signatures = inventory.Store!.Packages.Where(p => p.State == DriverStoreState.Mapped).Take(24)
-        .Select(p => DriverInfVerification.Verify(p, nativeLimit.Token)).ToArray();
+    var g2Mappings = inventory.Store!.Packages.Where(p => p.State == DriverStoreState.Mapped).Take(24).ToArray();
+    var signatures = g2Mappings.Select(p => DriverInfVerification.Verify(p, nativeLimit.Token)).ToArray();
     foreach (var group in signatures.GroupBy(s => (s.Trust, s.NativeError)))
         Console.WriteLine($"G2_CI estado={group.Key.Trust} erro=0x{unchecked((uint)group.Key.NativeError):X8} quantidade={group.Count()}");
     Check(signatures.Any(s => s.Trust == DriverInfTrust.VerifiedInf), "G2: assinatura criptográfica de pelo menos um INF instalado confirmada no runner");
     Check(signatures.All(s => !s.CanInstall && !s.CanMaintain), "G2: prova criptográfica real não autoriza escrita");
+    // G2: PROVA POSITIVA real do mesmo catalogo do INF e PROVA NEGATIVA
+    // com copia adulterada em Temp; nenhum arquivo do Driver Store e tocado.
+    var signedMappings = g2Mappings.Zip(signatures, (p, s) => (Package: p, Signature: s))
+        .Where(pair => pair.Signature.Trust == DriverInfTrust.VerifiedInf).ToArray();
+    var firstMember = signedMappings.FirstOrDefault(pair =>
+        DriverPackageCatalogAudit.IsCatalogMember(pair.Package.StorePath, pair.Signature.Catalog, nativeLimit.Token));
+    Check(firstMember.Package is not null,
+        "G2: INF real pertence ao catalogo EXATO confirmado pelo Windows (SHA256)");
+    if (firstMember.Package is not null)
+    {
+        string alteredCopy = Path.Combine(Path.GetTempPath(), "GF-G2-alterado-" + Guid.NewGuid().ToString("N") + ".inf");
+        try
+        {
+            File.Copy(firstMember.Package.StorePath, alteredCopy);
+            using (var edit = new FileStream(alteredCopy, FileMode.Append, FileAccess.Write, FileShare.None))
+                edit.WriteByte(0x5A);
+            Check(!DriverPackageCatalogAudit.IsCatalogMember(alteredCopy, firstMember.Signature.Catalog, nativeLimit.Token),
+                "G2: alterar um byte na copia do INF invalida a cobertura do catalogo exato");
+        }
+        finally { if (File.Exists(alteredCopy)) File.Delete(alteredCopy); }
+    }
+    var packageCoverage = signedMappings.Take(16)
+        .Select(pair => DriverPackageCatalogAudit.Verify(pair.Package, nativeLimit.Token)).ToArray();
+    foreach (var group in packageCoverage.GroupBy(x => x.State))
+        Console.WriteLine($"G2_PACOTE_CI estado={group.Key} quantidade={group.Count()}");
+    Check(packageCoverage.All(x => !x.CanInstall && !x.CanMaintain && 
+            (x.State != DriverPackageCatalogState.Verified || x.FilesObserved > 0 &&
+                x.FilesObserved == x.FilesCovered)),
+        "G2: nenhum resultado autoriza instalar; completo exige 100% dos arquivos cobertos");
+    Check(packageCoverage.Any(x => x.State == DriverPackageCatalogState.Verified),
+        "G2: ao menos um pacote real inteiro coberto pelo mesmo catalogo confiavel");
     string scratch = Path.Combine(Path.GetTempPath(), "GF-INF-unsigned-" + Guid.NewGuid().ToString("N") + ".inf");
     try
     {
