@@ -710,6 +710,67 @@ internal sealed partial class MainForm
                     }
                     DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
                 }
+                // O único botão Consultar inclui agora uma pesquisa WUA
+                // SOMENTE LEITURA. Não consulta o mesmo catálogo em cada cartão.
+                // Fixtures seguem sem COM, sem rede e sem alteração de drivers.
+                if (readForTest is null && !result.Partial && result.Items.Count > 0 &&
+                    !root.IsDisposed && publishedGeneration == inventoryGeneration)
+                {
+                    using var officialTimeout = new CancellationTokenSource(
+                        TimeSpan.FromSeconds(90));
+                    wuaWait = officialTimeout;
+                    SetRefreshCaption("Cancelar WUA",
+                        "Cancela a espera; a pesquisa COM pode continuar terminando.");
+                    refresh.Enabled = true;
+                    SetDriverStatus("Inventário concluído. Consultando ofertas oficiais WUA...");
+                    try
+                    {
+                        _driverOfficialReadTask = DriverOfficialLookup.Start(
+                            result, officialTimeout.Token);
+                        var officialResult = await _driverOfficialReadTask.WaitAsync(
+                            officialTimeout.Token);
+                        if (!root.IsDisposed && publishedGeneration == inventoryGeneration)
+                        {
+                            if (officialResult.Partial)
+                                SetDriverStatus(
+                                    "Inventário concluído; consulta WUA parcial ou indisponível. " +
+                                    "Isso não comprova ausência de atualização.");
+                            else
+                            {
+                                latestOfficial = officialResult;
+                                officialGeneration = publishedGeneration;
+                                var deviceIds = officialResult.Matches
+                                    .Select(match => match.DeviceId)
+                                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                                list.SetOfferDevices(deviceIds);
+                                SetDriverStatus(
+                                    $"Consulta concluída: {result.Items.Count} dispositivos · " +
+                                    $"{deviceIds.Length} com oferta WUA consultiva. " +
+                                    "A oferta não comprova versão numericamente superior.");
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (!root.IsDisposed && publishedGeneration == inventoryGeneration)
+                            SetDriverStatus(
+                                "Inventário preservado. Pesquisa WUA interrompida ou esgotada; " +
+                                "nenhuma atualização foi instalada.");
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        DiagnosticTrace.Failure("DRIVERS.WUA_CONSULTA_FALHA", ex);
+                        if (!root.IsDisposed && publishedGeneration == inventoryGeneration)
+                            SetDriverStatus(
+                                "Inventário concluído. Consulta de atualizações indisponível.");
+                    }
+                    finally
+                    {
+                        wuaWait = null;
+                        if (!refresh.IsDisposed) refresh.Enabled = false;
+                    }
+                }
             }
             catch (OperationCanceledException)
             {
