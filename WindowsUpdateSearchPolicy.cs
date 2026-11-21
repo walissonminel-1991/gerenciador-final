@@ -4,6 +4,8 @@ namespace GerenciadorAplicativos;
 
 internal sealed record WinUpdateChoice(string Id, string Title, string Kb, bool Downloaded, bool EulaAccepted);
 
+internal sealed record WindowsUpdateScan(IReadOnlyList<WinUpdateChoice> Offers, bool? RebootRequired);
+
 internal static class WindowsUpdateSearchPolicy
 {
     // WUA OperationResultCode: 2=Succeeded; 3=SucceededWithErrors (incompleto).

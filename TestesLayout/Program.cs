@@ -20,6 +20,7 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
         if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
@@ -108,9 +109,11 @@ internal static class LayoutTests
                 throw new Exception("Identidade Windows Update ambigua foi aceita.");
         foreach (string invalidTask in new[] { "wu-install:", "wu-install:" + selectedIdentity + ",",
             "wu-install:" + selectedIdentity + "," + selectedIdentity,
+            "wu-install:" + selectedIdentity + "," + knownId + "@13",
             "wu-install:" + string.Join(",", Enumerable.Range(1, 31).Select(r => knownId + "@" + r)) })
             if (WorkerHost.TryParseUpdateTask(invalidTask, out _))
                 throw new Exception("Worker aceitou selecao vazia, duplicada ou acima do limite.");
+        WindowsUpdateP0Tests.Run();
         // Regressao da captura real: WinForms TextBox junta parágrafos se receber
         // somente LF em SetText. Validar CRLF idempotente, inclusive com CR solto.
         if (DarkLogView.NormalizeWindowsLineBreaks("um\n\ndois") != "um\r\n\r\ndois" ||

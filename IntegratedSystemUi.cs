@@ -25,6 +25,10 @@ internal sealed partial class MainForm
     private bool _windowsUpdateScanning;
     private bool _windowsUpdateChecked;
     private string? _windowsUpdateScanFailure;
+    private bool _windowsUpdateInstalling;
+    private bool? _windowsUpdateRebootRequired;
+    private WindowsUpdateOperation? _lastWindowsUpdateOperation;
+    private WinUpdateChoice[] _lastWindowsUpdateSelection = [];
     private string _activeSystemView = "memory";
     private bool _fittingSystemCards;
     private long _systemViewGeneration;
@@ -662,96 +666,123 @@ internal sealed partial class MainForm
         Log("RAM: acompanhamento local em segundo plano (2 s na aba RAM, 12 s em outras abas, 20 s na bandeja).");
     }
 
-    private async Task ScanWindowsUpdatesAsync()
-    {
-        await ScanWindowsUpdatesInBackgroundAsync(force: true);
-    }
+    private Task ScanWindowsUpdatesAsync() => ScanWindowsUpdatesInBackgroundAsync(force: true);
+
+    private bool WindowsUpdateViewActive => !IsDisposed && !Disposing && _activeSystemView == "update";
 
     private async Task ScanWindowsUpdatesInBackgroundAsync(bool force = false)
     {
-        if (IsDisposed) return;
-        if (_windowsUpdateScanning)
+        if (IsDisposed || Disposing || _betaClose.IsClosing || _windowsUpdateInstalling) return;
+        if (_windowsUpdateScanning || (!force && (_windowsUpdateChecked || _lastWindowsUpdateOperation is not null)))
         {
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
-            {
-                ReplaceSystemCards([]);
-                _systemPanelTitle.Text = "Windows Update · consultando...";
-                _systemPanelSummary.Text = "Busca automática em andamento. Nenhuma atualização será instalada sem confirmação.";
-            }
+            if (WindowsUpdateViewActive) DrawWindowsUpdates();
             return;
         }
-        if (_windowsUpdateChecked && !force)
-        {
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
-                DrawWindowsUpdates();
-            return;
-        }
+
         _windowsUpdateScanning = true;
         _updateSelection.Clear();
-        if (_installSelectedUpdates is not null) _installSelectedUpdates.Enabled = false;
         RenderTitle();
-        if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
-        {
-            ReplaceSystemCards([]);
-            _systemPanelTitle.Text = "Windows Update · consultando...";
-            _systemPanelSummary.Text = "Consulta oficial do Windows em segundo plano; pode demorar alguns minutos.";
-        }
-        Log("Windows Update: consulta iniciada automaticamente, sem instalar atualizações.");
+        if (WindowsUpdateViewActive) DrawWindowsUpdates();
+        Log("Windows Update: consulta oficial de atualizações de software iniciada.");
         try
         {
-            // A API Windows Update Agent roda numa thread STA própria e não bloqueia a janela.
             var found = await WindowsUpdateClient.ScanAsync();
-            if (IsDisposed) return;
-            _updateCatalog = found;
-            _updateSelection.Clear();
+            if (IsDisposed || Disposing) return;
+            _updateCatalog = found.Offers;
+            _windowsUpdateRebootRequired = found.RebootRequired ?? _windowsUpdateRebootRequired;
             _windowsUpdateChecked = true;
             _windowsUpdateScanFailure = null;
-            RenderTitle();
+            _lastWindowsUpdateOperation = null;
+            _lastWindowsUpdateSelection = [];
             Log($"Windows Update: {_updateCatalog.Count} atualização(ões) de software encontrada(s).");
-            DiagnosticTrace.Write($"WINDOWS_UPDATE.CONSULTA_OK quantidade={found.Count}");
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
-            {
-                DrawWindowsUpdates();
-                Status($"Windows Update: {found.Count} atualizações disponíveis");
-            }
+            DiagnosticTrace.Write($"WINDOWS_UPDATE.CONSULTA_OK quantidade={_updateCatalog.Count}");
+            if (WindowsUpdateViewActive && _nav.SelectedIndex == 5)
+                Status($"Windows Update: {_updateCatalog.Count} atualização(ões) disponível(is)");
         }
         catch (Exception ex)
         {
-            if (IsDisposed) return;
-            _windowsUpdateScanFailure = ex.GetType().Name;
+            if (IsDisposed || Disposing) return;
+            _windowsUpdateScanFailure = WindowsUpdateOperation.ErrorText(ex.HResult).TrimStart();
             _windowsUpdateChecked = false;
             _updateCatalog = [];
-            _updateSelection.Clear();
-            if (_installSelectedUpdates is not null) _installSelectedUpdates.Enabled = false;
-            RenderTitle();
             DiagnosticTrace.Failure("WINDOWS_UPDATE.CONSULTA_FALHA", ex);
-            Log("Windows Update: consulta indisponível (" + _windowsUpdateScanFailure + ").");
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
-            {
-                ReplaceSystemCards([]);
-                _systemPanelTitle.Text = "Windows Update · consulta indisponível";
-                _systemPanelSummary.Text = "O Windows Update não pôde ser consultado. Nenhuma instalação foi iniciada.";
-            }
+            Log("Windows Update: consulta inconclusiva " + _windowsUpdateScanFailure + ".");
+            if (WindowsUpdateViewActive && _nav.SelectedIndex == 5)
+                Status("Windows Update: consulta inconclusiva");
         }
         finally
         {
             _windowsUpdateScanning = false;
-            if (!IsDisposed) RenderTitle();
+            if (!IsDisposed && !Disposing)
+            {
+                RenderTitle();
+                if (WindowsUpdateViewActive) DrawWindowsUpdates();
+            }
         }
+    }
+
+    private bool CanSelectWindowsUpdates => !_busy && !_betaClose.IsClosing && !_windowsUpdateInstalling &&
+        !_windowsUpdateScanning && _windowsUpdateChecked && _windowsUpdateRebootRequired is not true;
+
+    private void RefreshWindowsUpdateInstallButton()
+    {
+        if (_installSelectedUpdates is not { IsDisposed: false } button) return;
+        button.Text = $"Baixar e instalar selecionadas ({_updateSelection.Count})";
+        button.Enabled = WindowsUpdateViewActive && CanSelectWindowsUpdates && _updateSelection.Count > 0;
+    }
+
+    private void ShowWindowsUpdateStatus(string title, string summary)
+    {
+        _systemPanelTitle.Text = title;
+        _systemPanelSummary.Text = summary;
+        FitSystemSummaryHeight();
     }
 
     private void DrawWindowsUpdates()
     {
-        _systemPanelTitle.Text = "Windows Update · atualizações disponíveis";
-        _systemPanelSummary.Text = _updateCatalog.Count == 0
-            ? "Nenhuma atualização de software disponível foi encontrada. Drivers e pacotes opcionais podem não aparecer nesta pesquisa."
-            : $"{_updateCatalog.Count} atualização(ões) encontradas. Selecione as desejadas e confirme para baixar e instalar. Pacotes com licença pendente não são instalados automaticamente.";
-        if (_installSelectedUpdates is not null)
+        RefreshWindowsUpdateInstallButton();
+        if (_windowsUpdateScanning)
         {
-            _installSelectedUpdates.Text = $"Baixar e instalar selecionadas ({_updateSelection.Count})";
-            _installSelectedUpdates.Enabled = _updateSelection.Count > 0;
+            ShowWindowsUpdateStatus("Windows Update · consultando",
+                "Busca oficial em andamento. A consulta pode demorar alguns minutos.");
+            ReplaceSystemCards([]);
+            return;
         }
-        ReplaceSystemCards(_updateCatalog.Select(BuildUpdateCard).ToArray());
+
+        string restart = _windowsUpdateRebootRequired is true
+            ? " Reinicialização necessária. Salve o trabalho e reinicie o Windows manualmente." : "";
+        if (_windowsUpdateChecked)
+        {
+            string available = _updateCatalog.Count switch
+            {
+                0 => "Nenhuma atualização de software disponível nesta consulta.",
+                1 => "1 atualização de software disponível.",
+                _ => $"{_updateCatalog.Count} atualizações de software disponíveis."
+            };
+            string guidance = _updateCatalog.Count > 0 && _windowsUpdateRebootRequired is not true
+                ? " Selecione as desejadas e confirme a instalação." : "";
+            ShowWindowsUpdateStatus("Windows Update", (_lastWindowsUpdateOperation?.Summary + " " +
+                available + guidance + restart).Trim());
+            ReplaceSystemCards(_updateCatalog.Select(BuildUpdateCard));
+            return;
+        }
+
+        string summary = _windowsUpdateScanFailure is string failure
+            ? $"Consulta inconclusiva {failure}. Clique em Windows Update para tentar novamente."
+            : _lastWindowsUpdateOperation?.Summary ??
+                "Clique em Windows Update para consultar atualizações de software.";
+        if (_lastWindowsUpdateOperation is { } result && _windowsUpdateScanFailure is null)
+        {
+            summary += WindowsUpdateOperation.ErrorText(result.Overall.Error);
+            if (result.Outcome == WindowsUpdateOutcome.Installation && result.Overall.RebootRequired is null &&
+                !result.RequiresRestart)
+                summary += " O Windows não confirmou se é necessário reiniciar.";
+            if (!result.RequiresRestart)
+                summary += " Clique em Windows Update para consultar novamente.";
+        }
+        ShowWindowsUpdateStatus(_windowsUpdateScanFailure is not null ? "Windows Update · consulta inconclusiva" :
+            "Windows Update · resultado", summary + restart);
+        ReplaceSystemCards(_lastWindowsUpdateSelection.Select(BuildWindowsUpdateResultCard));
     }
 
     private Control BuildUpdateCard(WinUpdateChoice update)
@@ -769,65 +800,132 @@ internal sealed partial class MainForm
             ForeColor = Ink, Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = false }, 0, 0);
         var details = new Label { Text = (update.Kb.Length > 0 ? update.Kb + " · " : "") +
             (update.Downloaded ? "Baixada" : "Download necessário") +
-            (update.EulaAccepted ? " · Licença já aceita" : " · Licença pendente"),
+            (update.EulaAccepted ? " · Licença já aceita" : " · Licença pendente no Windows Update"),
             Dock = DockStyle.Fill, ForeColor = Muted, Font = new Font("Segoe UI", 8.7F) };
         card.Controls.Add(details, 0, 1);
         var toggle = CreateButton(_updateSelection.Contains(update.Id) ? "✓ Selecionada" : "Selecionar atualização",
             _updateSelection.Contains(update.Id) ? AppServices.Green : AppServices.Blue, Color.White);
         toggle.Dock = DockStyle.Fill;
-        toggle.Enabled = update.EulaAccepted;
+        toggle.Enabled = update.EulaAccepted && _windowsUpdateRebootRequired is not true;
         toggle.Margin = Padding.Empty;
         toggle.Click += (_, _) =>
         {
-            if (_windowsUpdateScanning || !_windowsUpdateChecked || _windowsUpdateScanFailure is not null) return;
+            if (!CanSelectWindowsUpdates || !update.EulaAccepted) return;
             if (!_updateSelection.Add(update.Id)) _updateSelection.Remove(update.Id);
             toggle.Text = _updateSelection.Contains(update.Id) ? "✓ Selecionada" : "Selecionar atualização";
             toggle.BackColor = _updateSelection.Contains(update.Id) ? AppServices.Green : AppServices.Blue;
             toggle.Invalidate();
-            if (_installSelectedUpdates is not null)
-            {
-                _installSelectedUpdates.Text = $"Baixar e instalar selecionadas ({_updateSelection.Count})";
-                _installSelectedUpdates.Enabled = _updateSelection.Count > 0;
-            }
+            RefreshWindowsUpdateInstallButton();
         };
         card.Controls.Add(toggle, 0, 2);
         return card;
     }
 
+    private Control BuildWindowsUpdateResultCard(WinUpdateChoice update, int index)
+    {
+        var result = _lastWindowsUpdateOperation!;
+        string details = DescribeWindowsUpdateItem(result, index);
+        var card = new TableLayoutPanel
+        {
+            Width = 390, Height = 92, RowCount = 2, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(8, 5, 8, 5), AccessibleName = update.Title
+        };
+        card.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
+        card.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+        card.Controls.Add(new Label
+        {
+            Text = update.Title, Dock = DockStyle.Fill, ForeColor = Ink,
+            Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = true
+        }, 0, 0);
+        card.Controls.Add(new Label
+        {
+            Text = details, Dock = DockStyle.Fill, ForeColor = Muted,
+            Font = new Font("Segoe UI", 8.7F)
+        }, 0, 1);
+        return card;
+    }
+
+    private static string DescribeWindowsUpdateItem(WindowsUpdateOperation result, int index)
+    {
+        if (result.Items.Count == 0)
+            return result.Outcome is WindowsUpdateOutcome.Installation or WindowsUpdateOutcome.NoResult
+                ? "Resultado inconclusivo" : "Instalação não iniciada";
+        var item = result.Items[index];
+        string stage = result.Outcome == WindowsUpdateOutcome.Download ? "Download" : "Instalação";
+        string restart = item.RebootRequired is true ? " · Reinicialização necessária" : "";
+        return $"{stage} · {item.Description}{WindowsUpdateOperation.ErrorText(item.Error)}{restart}";
+    }
+
     private async Task InstallSelectedWindowsUpdatesAsync()
     {
-        if (_busy || _windowsUpdateScanning || !_windowsUpdateChecked ||
-            _windowsUpdateScanFailure is not null || _updateSelection.Count == 0) return;
-        if (_updateSelection.Count > 30)
+        if (!WindowsUpdateViewActive || !CanSelectWindowsUpdates || _updateSelection.Count == 0) return;
+        if (_updateSelection.Count > WindowsUpdateOperation.MaxSelection)
         {
-            MessageBox.Show(this, "Selecione no máximo 30 atualizações por operação para facilitar o acompanhamento.",
-                "Windows Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Status($"Selecione no máximo {WindowsUpdateOperation.MaxSelection} atualizações por operação.");
             return;
         }
-        string[] selected;
-        try { selected = _updateSelection.Select(s => WindowsUpdateClient.CanonicalSelectedIdentity(s)
-            ?? throw new FormatException("Identidade de atualização sem revisão válida.")).ToArray(); }
-        catch (FormatException)
+        var selected = _updateCatalog.Where(update => update.EulaAccepted && _updateSelection.Contains(update.Id))
+            .OrderBy(update => update.Id, StringComparer.Ordinal).ToArray();
+        if (selected.Length != _updateSelection.Count || selected.Any(update =>
+            WindowsUpdateClient.CanonicalSelectedIdentity(update.Id) != update.Id))
         {
-            MessageBox.Show(this, "O Windows retornou um identificador inválido. Procure as atualizações novamente.",
-                "Windows Update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Status("A seleção do Windows Update mudou. Consulte novamente.");
             return;
         }
+        string titles = string.Join(Environment.NewLine, selected.Select(update => "• " + update.Title));
         if (DarkConfirmDialog.Confirm(this,
-            $"Deseja instalar {selected.Length} atualização(ões) do Windows? Algumas podem exigir reinicialização.",
+            $"Baixar e instalar {selected.Length} atualização(ões) do Windows? " +
+            "Algumas podem exigir reinicialização." + Environment.NewLine + Environment.NewLine + titles,
             "Confirmar Windows Update") != DialogResult.Yes) return;
-        await ExecuteAsync("Instalando atualizações do Windows...", async () =>
+        if (!CanSelectWindowsUpdates || !_updateSelection.SetEquals(selected.Select(update => update.Id))) return;
+
+        await ExecuteAsync("Aguardando autorização administrativa…", async () =>
         {
-            // O trabalhador já existente solicita UAC e mostra as mensagens na janela principal.
-            await RunElevatedAsync("wu-install:" + string.Join(",", selected));
-            Log("Consulte os resultados acima. Reinicie manualmente se o Windows solicitar.");
-            _updateSelection.Clear();
-            // Não atualizamos a lista automaticamente para não reiniciar uma consulta custosa após instalar.
-            if (_installSelectedUpdates is not null)
+            _windowsUpdateInstalling = true;
+            var exchange = new WindowsUpdateExchange(selected.Length, phase =>
             {
-                _installSelectedUpdates.Text = "Procurar novamente na aba Windows Update";
-                _installSelectedUpdates.Enabled = false;
+                if (IsDisposed || Disposing) return;
+                string description = WindowsUpdateOperation.PhaseText(phase);
+                Status(description);
+                Log("Windows Update: " + description);
+                if (WindowsUpdateViewActive)
+                    ShowWindowsUpdateStatus("Windows Update · em andamento", description);
+            });
+            try
+            {
+                RefreshWindowsUpdateInstallButton();
+                ShowWindowsUpdateStatus("Windows Update · em andamento", "Aguardando autorização administrativa…");
+                ReplaceSystemCards([]);
+                await RunElevatedAsync("wu-install:" + string.Join(",", selected.Select(update => update.Id)),
+                    windowsUpdateMessage: exchange.Receive);
             }
+            catch (Exception ex)
+            {
+                DiagnosticTrace.Failure("WINDOWS_UPDATE.OPERACAO_SEM_RETORNO", ex);
+            }
+            finally { _windowsUpdateInstalling = false; }
+
+            if (IsDisposed || Disposing || _betaClose.IsShutdown) return;
+            var result = exchange.Result;
+            _lastWindowsUpdateOperation = result;
+            if (result.Outcome != WindowsUpdateOutcome.AuthorizationDeclined)
+            {
+                _lastWindowsUpdateSelection = selected;
+                _updateSelection.Clear();
+                _updateCatalog = [];
+                _windowsUpdateChecked = false;
+                _windowsUpdateScanFailure = null;
+                if (result.RequiresRestart) _windowsUpdateRebootRequired = true;
+            }
+            RenderTitle();
+            Log("Windows Update: " + result.Summary + WindowsUpdateOperation.ErrorText(result.Overall.Error));
+            for (int i = 0; i < selected.Length && i < result.Items.Count; i++)
+                Log(selected[i].Title + " · " + DescribeWindowsUpdateItem(result, i));
+            if (result.RequiresRestart)
+                Log("Windows Update: reinicialização necessária. Salve o trabalho e reinicie manualmente.");
+            Status(result.RequiresRestart ? "Windows Update · reinicialização necessária" : result.Summary);
+            if (WindowsUpdateViewActive) DrawWindowsUpdates();
         });
     }
 
