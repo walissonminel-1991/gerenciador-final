@@ -163,7 +163,7 @@ internal static class DriverReadOnlyDialogAccessibilityTests
                 guard.CanPublishInf(inventory, selected, generation(), token, result)),
             observe, fakeOfficial, fakeInf, (TimeSpan?)TimeSpan.FromSeconds(5),
             (Action<Action, Action>)((runOfficial, runInf) =>
-            { officialAction = runOfficial; infAction = runInf; })]);
+            { officialAction = runOfficial; infAction = runInf; }), false]);
         timer.Stop();
         if (failure is not null) throw failure;
         if (hits != 1) throw new Exception("G1.11: não houve inspeção WinForms.");

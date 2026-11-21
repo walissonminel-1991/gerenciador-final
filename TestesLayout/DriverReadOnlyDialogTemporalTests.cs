@@ -259,7 +259,7 @@ internal static class DriverReadOnlyDialogTemporalTests
             {
                 runOfficial = officialAction;
                 runInf = infAction;
-            })]);
+            }), false]);
         timer.Stop();
         if (failure is not null) throw failure;
         if (calls == 0) throw new Exception("G1.10: nenhum evento UI executado.");

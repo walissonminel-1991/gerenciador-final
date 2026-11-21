@@ -159,7 +159,7 @@ internal static class DriverReadOnlyDialogIdentityTests
                 return Task.FromResult(new DriverInfVerificationResult(DriverInfTrust.Rejected));
             }),
             (TimeSpan?)TimeSpan.FromSeconds(3),
-            (Action<Action, Action>)((a, b) => { runOfficial = a; runInf = b; })]);
+            (Action<Action, Action>)((a, b) => { runOfficial = a; runInf = b; }), false]);
         timer.Stop();
         if (failure is not null) throw failure;
         if (checks != 2 || invalidation is not null)
