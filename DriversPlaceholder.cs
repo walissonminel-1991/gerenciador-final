@@ -60,7 +60,8 @@ internal sealed partial class MainForm
             Name = "DriverInventorySearch", Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(19, 26, 34), ForeColor = Ink,
             BorderStyle = BorderStyle.FixedSingle,
-            PlaceholderText = "Dispositivo, versão, fabricante ou INF",
+            PlaceholderText = "Nome, fabricante, ID ou INF",
+            AccessibleDescription = "Pesquise por nome do dispositivo, fabricante, ID de hardware, versão ou INF.",
             Margin = new Padding(0, 3, 8, 3)
         };
         searchBar.Controls.Add(search, 1, 0);
@@ -706,7 +707,8 @@ internal sealed partial class MainForm
             SyncInvestigationDescription();
             SetDriverStatus("Consultando drivers em segundo plano…");
             _driverReadTask = readForTest is null
-                ? Task.Run(() => DriverStoreAudit.CaptureWithPackages(token)) : readForTest(token);
+                ? Task.Run(() => DriverDeviceMetadata.Enrich(DriverStoreAudit.CaptureWithPackages(token), token))
+                : readForTest(token);
             try
             {
                 var captured = await _driverReadTask.WaitAsync(token);

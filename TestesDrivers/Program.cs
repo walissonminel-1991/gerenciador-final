@@ -1,5 +1,11 @@
 using GerenciadorAplicativos;
 
+if (args is ["--hardware-catalog"])
+{
+    DriverHardwareCatalogTests.Run();
+    return;
+}
+
 if (args is ["--silent-uninstall"])
 {
     DriverSilentUninstallTests.Run();
@@ -29,6 +35,7 @@ if (args.Any(a => a.StartsWith("--f4-", StringComparison.Ordinal) ||
     Environment.ExitCode = 4;
     return;
 }
+DriverHardwareCatalogTests.Run();
 DriverWuaF4VmHarnessTests.Run();
 DriverUxGuidanceTests.Run();
 DriverLabSimulationTests.Run();
