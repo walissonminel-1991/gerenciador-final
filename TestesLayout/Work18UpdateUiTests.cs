@@ -40,8 +40,12 @@ internal static class Work18UpdateUiTests
             var hit=typeof(DarkProgramList).GetMethod("HitAction",Private)!;
             var primary=((ProgramEntry? Item,string Action))hit.Invoke(hitList,[new Point(first.Left+5,first.Top+5)])!;
             var secondary=((ProgramEntry? Item,string Action))hit.Invoke(hitList,[new Point(hidden.Left+5,hidden.Top+5)])!;
-            if(primary.Action!="external-manage" || secondary.Action!="")
-                throw new Exception("WORK18 gerenciamento deve ter uma unica acao visivel e clicavel");
+            // UX91: atualização gerenciada e desinstalação manual são ações
+            // distintas. Não conceder autorização a desinstalador desconhecido.
+            if(primary.Action!="external-manage" ||
+                secondary.Action!="uninstall-manual" ||
+                managed[0].CanUninstall)
+                throw new Exception("WORK18 deve oferecer atualização gerenciada e desinstalação manual sem execução direta");
         }
         int combinations=0;
         foreach(var screen in new[]{new Size(1440,900),new Size(2560,1440)})
