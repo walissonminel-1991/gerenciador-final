@@ -90,7 +90,7 @@ internal static class DriverUpdatePilotDialog
         {
             Name = "DriverPilotConfirm", Dock = DockStyle.Fill,
             Text = nativeWua
-                ? "Autorizo instalar exatamente a oferta e o dispositivo selecionados"
+                ? "Autorizo instalar a oferta vinculada ao dispositivo selecionado"
                 : "Confirmo a oferta selecionada (sem atualização automática)",
             Enabled = true,
             AccessibleName = "Confirmar explicitamente UpdateID, revisão e dispositivo"
@@ -394,13 +394,14 @@ internal static class DriverUpdatePilotDialog
                     : DriverG31Wiring.CanExecutePilot(backendForTest, journalForTest)) ||
                 !CanReview() || !available.Contains(row)) return;
             if (nativeWua && MessageBox.Show(form,
-                "Autoriza instalar UM driver pelo Windows Update neste computador?" +
+                "Autoriza instalar UMA oferta de driver pelo Windows Update neste computador?" +
                 Environment.NewLine + "UpdateID: " + row.Choice.UpdateId +
                 " / revisão: " + row.Choice.Revision +
                 Environment.NewLine + "Dispositivo: " + row.Choice.DeviceId +
                 Environment.NewLine + "Classe: " + row.Choice.DriverClass +
                 Environment.NewLine + "Um backup OEM verificado será obrigatório antes do download." +
-                Environment.NewLine + "Não há rollback automático; o Windows pode exigir reinício.",
+                Environment.NewLine + "O Windows pode afetar outros dispositivos compatíveis." +
+                Environment.NewLine + "Não há rollback automático; pode ser necessário reiniciar.",
                 "Confirmar instalação física de driver", MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
                 return;
