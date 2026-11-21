@@ -22,6 +22,8 @@ internal static class Program
         // O trabalhador elevado executa comandos sem criar janelas auxiliares.
         if (args.Length == 4 && args[0] == "--worker")
             return WorkerHost.RunAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
+        if (args.Length > 0 && args[0] == DriverElevatedUninstall.Command)
+            return DriverElevatedUninstall.RunAsync(args).GetAwaiter().GetResult();
 
         if (!DiagnosticTrace.Start() || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
         {
