@@ -12,13 +12,16 @@ internal static class DriverPackageLinks
         name.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-');
     internal static DriverPackageLinkResult Analyze(DriverInventoryResult inventory)
     {
-        var eligible = inventory.Items.Where(d => IsValidInf(d.InfName)).ToArray();
+        // Dispositivos PnP sem linha em Win32_PnPSignedDriver nao sao
+        // associacoes de pacote e nao devem inflar o contador de INFs ausentes.
+        var signedEntries = inventory.Items.Where(d => !d.WithoutSignedDriverAssociation).ToArray();
+        var eligible = signedEntries.Where(d => IsValidInf(d.InfName)).ToArray();
         var packages = eligible.GroupBy(d => d.InfName, StringComparer.OrdinalIgnoreCase)
             .Select(g => new DriverPackageLink(g.Key,
                 g.Select(d => d.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
                 g.Select(d => d.Version).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
                 g.Any(d => d.Signed == true) && g.Any(d => d.Signed == false)))
             .OrderBy(x => x.InfName, StringComparer.OrdinalIgnoreCase).ToArray();
-        return new(packages, inventory.Items.Count - eligible.Length, inventory.Partial);
+        return new(packages, signedEntries.Length - eligible.Length, inventory.Partial);
     }
 }

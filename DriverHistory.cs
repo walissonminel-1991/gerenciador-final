@@ -18,14 +18,31 @@ internal static class DriverHistory
     private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
     internal static Dictionary<string, string> Snapshot(DriverInventoryResult inventory)
     {
-        if (inventory.Partial || inventory.Items.Count == 0 || inventory.Items.Count > 4000 ||
-            inventory.Items.Any(x => string.IsNullOrWhiteSpace(x.DeviceId)))
-            throw new InvalidDataException("Consulta incompleta nao substitui historico.");
-        return inventory.Items.GroupBy(x => x.DeviceId.Trim().ToUpperInvariant())
-            .ToDictionary(g => Hash(g.Key), g => Hash(string.Join("\n", g.Select(x =>
-                JsonSerializer.Serialize(new[] { x.Provider.Trim().ToUpperInvariant(), x.Version.Trim(),
-                    x.InfName.Trim().ToUpperInvariant(), x.Signed?.ToString() ?? "?", x.Present?.ToString() ?? "?" }))
-                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))));
+        // O historico v1 representa associacoes WMI assinadas, nao dispositivos
+        // problematicos que nao tenham uma linha em Win32_PnPSignedDriver.
+        var associated = inventory.Items.Where(x => !x.WithoutSignedDriverAssociation).ToArray();
+        var identities = inventory.Items.Select(x => x.DeviceId?.Trim().ToUpperInvariant()).ToArray();
+        // G1.19: nem duas linhas WMI identicas comprovam uma unica instancia.
+        // A linha sem associacao tambem nao pode compartilhar DeviceId com uma
+        // linha associada. A captura registra SignedRows antes da correlacao:
+        // qualquer perda de linhas brutas impede a substituicao do historico.
+        if (inventory.Partial || inventory.Items.Count is 0 or > 4000 ||
+            associated.Length == 0 ||
+            // Validar caracteres de controle ANTES de Trim(): newline no fim
+            // nao pode desaparecer e transformar identidade bruta invalida
+            // em fotografia historica confiavel.
+            inventory.Items.Any(x => x.DeviceId is null || x.DeviceId.Any(char.IsControl)) ||
+            identities.Any(x => !DriverInventory.ValidHardwareId(x)) ||
+            identities.Distinct(StringComparer.Ordinal).Count() != identities.Length ||
+            (inventory.SignedRows > 0 && inventory.SignedRows != associated.Length))
+            throw new InvalidDataException("Consulta ambigua ou incompleta nao substitui historico.");
+        // Uma associacao por DeviceId: preservar EXATAMENTE o hash legado v1
+        // para cada linha unica (o GroupBy anterior gerava este mesmo texto).
+        return associated.ToDictionary(x => Hash(x.DeviceId.Trim().ToUpperInvariant()),
+            x => Hash(JsonSerializer.Serialize(new[] {
+                x.Provider.Trim().ToUpperInvariant(), x.Version.Trim(),
+                x.InfName.Trim().ToUpperInvariant(),
+                x.Signed?.ToString() ?? "?", x.Present?.ToString() ?? "?" })));
     }
     internal static DriverHistoryChange Compare(Dictionary<string, string> before,
         Dictionary<string, string> after, DateTimeOffset at) => new(at,
@@ -36,16 +53,29 @@ internal static class DriverHistory
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "GerenciadorFinal", "Historico", "drivers-v1.json");
 
-    internal static DriverHistoryResult Record(string path, DriverInventoryResult inventory, DateTimeOffset at)
+    internal static DriverHistoryResult Record(string path, DriverInventoryResult inventory, DateTimeOffset at,
+        CancellationToken validity = default, Action? beforeReplaceForTest = null)
     {
+        // G1.20: uma pagina/generacao descartada nao pode gravar uma
+        // fotografia tardia. O token e reavaliado antes da troca atomica.
+        if (validity.IsCancellationRequested)
+            return new(false, false, 0, 0, 0, "Histórico preservado: consulta invalidada antes da gravação.");
         if (inventory.Partial || inventory.Items.Count == 0)
             return new(false, false, 0, 0, 0, "Histórico preservado: consulta parcial ou vazia.");
+        // Uma fotografia PnP completa pode não conter associação obtida de
+        // Win32_PnPSignedDriver. Isso não é falha do arquivo histórico nem
+        // prova de inexistência de drivers: preservar sem abrir/escrever v1.
+        if (!inventory.Items.Any(item => !item.WithoutSignedDriverAssociation))
+            return new(false, false, 0, 0, 0,
+                "Histórico preservado: nenhuma associação de driver WMI observada nesta consulta; não comprova ausência de drivers.");
         lock (Gate)
         {
             string? temporary = null;
             try
             {
                 var current = Snapshot(inventory);
+                if (validity.IsCancellationRequested)
+                    return new(false, false, 0, 0, 0, "Histórico preservado: consulta invalidada antes da gravação.");
                 string full = Path.GetFullPath(path);
                 Directory.CreateDirectory(Path.GetDirectoryName(full)!);
                 // Serializa tambem instancias diferentes do programa; conflito preserva a base.
@@ -62,8 +92,11 @@ internal static class DriverHistory
                         previous.Devices.Any(x => !IsHash(x.Key) || !IsHash(x.Value)) ||
                         previous.Changes.Any(x => x is null || x.Added < 0 || x.Missing < 0 || x.Changed < 0))
                         throw new InvalidDataException();
-                    if (at < previous.At)
-                        return new(false, false, 0, 0, 0, "Histórico preservado: relógio anterior à última consulta.");
+                    // A próxima fotografia deve avançar no tempo. Duas
+                    // gravações com timestamp idêntico poderiam reescrever
+                    // provas distintas sem ordem temporal demonstrável.
+                    if (at <= previous.At)
+                        return new(false, false, 0, 0, 0, "Histórico preservado: data não posterior à última consulta.");
                 }
                 var change = previous is null ? new DriverHistoryChange(at, 0, 0, 0) : Compare(previous.Devices, current, at);
                 var changes = previous?.Changes.ToList() ?? new List<DriverHistoryChange>();
@@ -76,6 +109,11 @@ internal static class DriverHistory
                     JsonSerializer.Serialize(stream, next);
                     stream.Flush(true);
                 }
+                // Interleaving exclusivo das fixtures; no produto e sempre
+                // nulo, sem espera, timer ou polling de producao.
+                beforeReplaceForTest?.Invoke();
+                if (validity.IsCancellationRequested)
+                    return new(false, false, 0, 0, 0, "Histórico preservado: consulta invalidada antes da publicação.");
                 File.Move(temporary, full, true);
                 return new(true, previous is null, change.Added, change.Missing, change.Changed,
                     previous is null ? "Histórico local iniciado nesta consulta; sem reconstrução do passado." :

@@ -83,16 +83,77 @@ Check(TestDiagnosticDetail.TryFormat(1, "FONTES", new (string, int)[] {
     recordFontes.Contains("falha_programdata=1"),
     "Falha de fonte identificada apenas por categoria segura e nao pelo caminho real");
 DriverStoreTests.Run(Check);
+// D5: provas sinteticas de identificacao PnP, sem APIs de instalacao.
+const string goodDeviceId = @"PCI\VEN_1111&DEV_0001\INST";
+const string missingDeviceId = @"PCI\VEN_1111&DEV_0002\INST";
+const string disabledDeviceId = @"USB\VID_1234&PID_5678\INST";
+var signedDevice = new DriverInventoryEntry(goodDeviceId, "Dispositivo funcional",
+    "Fabricante", "1.0.0.0", "oem10.inf", true, true);
+var pnpCodes = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase)
+{
+    [goodDeviceId] = 0, [missingDeviceId] = 28, [disabledDeviceId] = 22
+};
+var syntheticPnp = DriverInventory.IncludeUnboundProblemDevices(
+    [signedDevice], pnpCodes,
+    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [missingDeviceId] = "Controlador sem driver",
+        [disabledDeviceId] = "Dispositivo desativado"
+    },
+    new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        [missingDeviceId] = [@"PCI\VEN_1111&DEV_0002"],
+        [disabledDeviceId] = [@"USB\VID_1234&PID_5678"]
+    });
+Check(syntheticPnp.Length == 3 && syntheticPnp.Single(x => x.DeviceId == goodDeviceId).PnpProblemCode == 0,
+    "PnP: dispositivo normal continua com INF e codigo zero, sem falso alerta");
+var missing = syntheticPnp.Single(x => x.DeviceId == missingDeviceId);
+Check(missing.PnpProblemCode == 28 && missing.WithoutSignedDriverAssociation &&
+    missing.InfName == "" && missing.HardwareIds.SequenceEqual([@"PCI\VEN_1111&DEV_0002"]) &&
+    missing.PnpStatusLabel.Contains("Driver não instalado", StringComparison.Ordinal),
+    "PnP: codigo 28 sem Win32_PnPSignedDriver permanece visivel e sem INF inventado");
+var disabled = syntheticPnp.Single(x => x.DeviceId == disabledDeviceId);
+Check(disabled.PnpProblemCode == 22 && disabled.WithoutSignedDriverAssociation &&
+    disabled.PnpStatusLabel.Contains("desativado", StringComparison.Ordinal),
+    "PnP: dispositivo desativado nao e classificado como driver antigo");
+Check(syntheticPnp.Count(x => x.HasPnpProblem) == 2 &&
+    DriverInventory.IncludeUnboundProblemDevices(syntheticPnp, pnpCodes,
+        new Dictionary<string, string>(), new Dictionary<string, string[]>()).Length == 3,
+    "PnP: apenas falhas relatadas entram e repeticao nao duplica instancias");
+var linksWithProblemDevices = DriverPackageLinks.Analyze(new(syntheticPnp, false, "fixture"));
+Check(!new DriverInfVerificationResult(DriverInfTrust.VerifiedInf).CanInstall &&
+    linksWithProblemDevices.Packages.Count == 1 &&
+    linksWithProblemDevices.WithoutInf == 0,
+    "PnP: dispositivos sem driver nao inflacionam o Store nem habilitam instalacao");
+Check(DriverHistory.Snapshot(new(syntheticPnp, false, "fixture")).Count == 1,
+    "PnP: historico v1 nao inventa associacoes para dispositivos sem driver");
+bool refusedEmptyHistory = false;
+try
+{
+    DriverHistory.Snapshot(new(syntheticPnp.Where(x => x.WithoutSignedDriverAssociation).ToArray(),
+        false, "fixture"));
+}
+catch (InvalidDataException) { refusedEmptyHistory = true; }
+Check(refusedEmptyHistory,
+    "PnP: consulta so com dispositivos sem driver preserva historico anterior");
 ReadOnlyDriverTests.Run(Check);
 Stage2DriverTests.Run(Check);
+G1EvidenceTests.Run(Check);
+G15CaptureTests.Run(Check);
+G16SessionTests.Run(Check);
+G17ReleaseTests.Run(Check);
+G18PublicationTests.Run(Check);
+G19CoherenceTests.Run(Check);
 DiagnosticFailureTests.Run(Check);
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };
 var result = DriverInventory.Correlate(new[] { a, a, b, c }, new Dictionary<string, bool?>
     { ["pci\\one"] = true, ["PCI\\TWO"] = false });
-Check(result.Count == 3, "Mesmo INF em dispositivos distintos nao e duplicata");
-Check(result.Single(d => d.DeviceId == a.DeviceId).Present == true, "Correlacao nao diferencia maiusculas");
+Check(result.Count == 4 && result.Count(d => d.DeviceId == a.DeviceId) == 2,
+    "G1.19: correlacao preserva ate duplicata identica para o guard global");
+Check(result.Where(d => d.DeviceId == a.DeviceId).All(d => d.Present == true),
+    "Correlacao nao diferencia maiusculas");
 Check(result.Single(d => d.DeviceId == b.DeviceId).PresenceLabel == "Não presente", "Ausencia explicita e separada de desconhecimento");
 Check(result.Single(d => d.DeviceId == c.DeviceId).Present is null && c.SignatureLabel == "Indeterminado", "Ausencia de evidencias nao inventa presenca nem assinatura");
 Check(DriverInventory.Correlate(new[] { a, a with { Signed = false } }, new Dictionary<string, bool?>()).Count == 2,
@@ -121,9 +182,12 @@ try
     string baseline = File.ReadAllText(file);
     Check(!baseline.Contains(a.DeviceId) && !baseline.Contains(a.DeviceName) && !baseline.Contains(a.Provider) &&
         !baseline.Contains(a.InfName), "Arquivo nao contem nomes nem IDs brutos");
-    var same = DriverHistory.Record(file, Complete(b, a, a), now.AddSeconds(1));
+    var duplicateAttempt = DriverHistory.Record(file, Complete(b, a, a), now.AddSeconds(1));
+    Check(!duplicateAttempt.Saved && File.ReadAllText(file) == baseline,
+        "G1.19: duplicata identica preserva historico valido em vez de criar mudanca");
+    var same = DriverHistory.Record(file, Complete(b, a), now.AddSeconds(1));
     Check(same.Saved && !same.Baseline && same.Added + same.Missing + same.Changed == 0,
-        "Ordem e duplicatas nao criam mudancas historicas");
+        "Ordem de associacoes unicas nao cria mudancas historicas");
     var changed = DriverHistory.Record(file, Complete(a with { Version = "2.0" }, c), now.AddSeconds(2));
     Check(changed.Added == 1 && changed.Missing == 1 && changed.Changed == 1,
         "Distinguir novo, nao observado e versao alterada");
@@ -158,8 +222,12 @@ try
     var before = DriverHistory.Snapshot(Complete(a));
     var after = DriverHistory.Snapshot(Complete(a with { DeviceName = "Nome traduzido", DeviceId = "pci\\one" }));
     Check(DriverHistory.Compare(before, after, now).Changed == 0, "Nome traduzido e caixa do ID nao alteram historico");
-    Check(DriverHistory.Compare(before, DriverHistory.Snapshot(Complete(a, a with { Signed = false })), now).Changed == 1,
-        "Assinatura conflitante preservada na comparacao");
+    bool rejectedConflict = false;
+    try { DriverHistory.Snapshot(Complete(a, a with { Signed = false })); }
+    catch (InvalidDataException) { rejectedConflict = true; }
+    Check(rejectedConflict, "G1.19: assinatura contraditoria nao se torna hash historico");
+    Check(DriverHistory.Compare(before, DriverHistory.Snapshot(Complete(a with { Signed = false })), now).Changed == 1,
+        "Mudanca inequivoca de assinatura continua comparavel");
 }
 finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
 var links = DriverPackageLinks.Analyze(Complete(a, b, a with { InfName = "OEM1.INF", Version = "2", Signed = false },
