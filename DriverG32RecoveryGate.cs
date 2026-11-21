@@ -134,7 +134,8 @@ internal sealed class DriverG32RecoveryTicket
                 InfSha256 = verification.Sha256, VerifiedAtUtc = DateTimeOffset.UtcNow,
                 Recovery = "Backup OEM; restauração exclusivamente supervisionada."
             });
-            string receiptPath = Path.Combine(destination, "recuperacao-g32.json");
+            // Recibo fora da pasta exportada: o hash do pacote permanece imutável.
+            string receiptPath = destination + ".json";
             using (var stream = new FileStream(receiptPath, FileMode.CreateNew,
                 FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             {
