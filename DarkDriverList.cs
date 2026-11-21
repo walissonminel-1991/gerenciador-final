@@ -277,16 +277,16 @@ internal sealed class DarkDriverList : Control
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
         TextRenderer.DrawText(canvas,
             string.IsNullOrWhiteSpace(item.DeviceName) ? "Dispositivo não identificado" : item.DeviceName,
-            _titleFont, DriverRowGeometry.Text(bounds, dpi, 5, 21),
+            _titleFont, DriverRowGeometry.Text(bounds, dpi, 4, 19),
             selected ? Color.FromArgb(111, 184, 255) : ForeColor, textFlags);
         TextRenderer.DrawText(canvas,
             "Versão: " + (string.IsNullOrWhiteSpace(item.Version) ? "não informada" : item.Version) +
             "  ·  " + (string.IsNullOrWhiteSpace(item.Provider) ? "Fornecedor não informado" : item.Provider),
-            _detailsFont, DriverRowGeometry.Text(bounds, dpi, 25, 18), muted, textFlags);
+            _detailsFont, DriverRowGeometry.Text(bounds, dpi, 25, 16), muted, textFlags);
         TextRenderer.DrawText(canvas,
             "INF: " + (string.IsNullOrWhiteSpace(item.InfName) ? "não informado" : item.InfName) +
             "  ·  Assinatura (Windows): " + item.SignatureLabel,
-            _detailsFont, DriverRowGeometry.Text(bounds, dpi, 43, 17), muted, textFlags);
+            _detailsFont, DriverRowGeometry.Text(bounds, dpi, 43, 16), muted, textFlags);
         Rectangle pill = DriverRowGeometry.Status(bounds, dpi);
         bool offered = _offeredDevices.Contains(item.DeviceId);
         Color fill = item.HasPnpProblem ? Color.FromArgb(121, 80, 43)
