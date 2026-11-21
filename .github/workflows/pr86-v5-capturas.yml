@@ -1,0 +1,104 @@
+name: PR 86 - V5 e capturas de Drivers
+on:
+  push:
+    branches: ['validacao/pr86-v5-939f19e5']
+    paths: [.github/workflows/pr86-v5-capturas.yml]
+permissions:
+  contents: read
+jobs:
+  v5-capturas:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    env:
+      PR86_SHA: 939f19e558d4679b7ed42bf37d099b806dbc0a11
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout do HEAD exato da PR 86
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.PR86_SHA }}
+          persist-credentials: false
+      - name: SDK .NET fixo
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: 10.0.402
+      - name: Executar somente o V5 e capturar o painel real com fixtures
+        shell: pwsh
+        run: |
+          $sourceSha = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sourceSha -cne $env:PR86_SHA) { throw 'PR86_SHA_DIVERGENTE' }
+          Write-Host "PR86 source $sourceSha"
+          $program = 'TestesLayout/Program.cs'
+          $entryMarker = '        if (!AppServices.TryParseUninstaller'
+          $entry = @'
+                  if (args.Contains("--pr86-v5"))
+                  {
+                      WheelScrollTests.Run();
+                      using var owner = new MainForm(startServices: false);
+                      owner.Show();
+                      Application.DoEvents();
+                      DriverMainPanelTemporalTests.CapturePr86Cards(owner);
+                      return;
+                  }
+          '@
+          $entrySource = Get-Content -LiteralPath $program -Raw
+          if (-not $entrySource.Contains($entryMarker)) { throw 'PR86_ENTRY_MARKER_AUSENTE' }
+          Set-Content -LiteralPath $program -NoNewline -Encoding utf8 -Value ($entrySource.Replace($entryMarker, $entry + "`n" + $entryMarker))
+          $panelTests = 'TestesLayout/DriverMainPanelTemporalTests.cs'
+          $captureMarker = '    private static Form Open(MainForm owner,'
+          $capture = @'
+              internal static void CapturePr86Cards(MainForm owner)
+              {
+                  DriverInventoryEntry[] items =
+                  [
+                      new(@"PCI\PR86\A", "Adaptador de vídeo de teste", "Fabricante fictício A", "32.0.1", "oem17.inf", true, true),
+                      new(@"USB\PR86\B", "Controlador USB de teste", "Fabricante fictício B", "10.2.3", "oem18.inf", true, true),
+                      new(@"HDAUDIO\PR86\C", "Dispositivo de áudio de teste", "Fabricante fictício C", "6.0.1", "oem19.inf", true, true)
+                          { PnpProblemCode = 28 },
+                      new(@"USB\PR86\D", "Adaptador de rede de teste", "Fabricante fictício D", "4.5.6", "oem20.inf", true, true)
+                  ];
+          
+                  using var page = Open(owner, _ => Task.FromResult(
+                      new DriverInventoryResult(items, false, "Inventário sintético do teste de layout")),
+                      TimeSpan.FromSeconds(3), out var read, out _);
+                  page.Text = "Gerenciador Final — Drivers (dados fictícios)";
+                  read();
+                  var list = Find<DarkDriverList>(page, "DriverInventoryList");
+                  PumpUntil(() => list.Items.Count == items.Length);
+                  if (list.ActionsCurrent) throw new Exception("PR86: fixture permite manutenção.");
+          
+                  Directory.CreateDirectory("LayoutCaptures");
+                  foreach ((string variant, Size size, bool wide) in new[]
+                  {
+                      ("normal", new Size(940, 610), true),
+                      ("compacta", new Size(500, 460), false)
+                  })
+                  {
+                      page.ClientSize = size;
+                      Pump();
+                      var bar = list.Controls.OfType<DarkVScrollBar>().Single();
+                      int width = list.ClientSize.Width - (bar.Visible ? bar.Width : 0);
+                      int rowHeight = DriverRowGeometry.Height(list.DeviceDpi, width);
+                      if (DriverRowGeometry.Wide(width, list.DeviceDpi) != wide || list.ClientSize.Height < rowHeight)
+                          throw new Exception($"PR86: {variant} não contém um cartão completo na largura solicitada.");
+          
+                      using var image = new Bitmap(page.Width, page.Height);
+                      page.DrawToBitmap(image, new Rectangle(Point.Empty, page.Size));
+                      image.Save($"LayoutCaptures/drivers-cartoes-{variant}.png", System.Drawing.Imaging.ImageFormat.Png);
+                      Console.WriteLine($"OK PR86 cartões {variant}: imagem {image.Width}x{image.Height}, cliente {page.ClientSize.Width}x{page.ClientSize.Height}, lista {width}x{list.ClientSize.Height}, cartão {rowHeight}px, DPI {list.DeviceDpi}.");
+                  }
+              }
+          '@
+          $panelSource = Get-Content -LiteralPath $panelTests -Raw
+          if (-not $panelSource.Contains($captureMarker)) { throw 'PR86_CAPTURE_MARKER_AUSENTE' }
+          Set-Content -LiteralPath $panelTests -NoNewline -Encoding utf8 -Value ($panelSource.Replace($captureMarker, $capture + "`n`n" + $captureMarker))
+          dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --pr86-v5
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publicar capturas sintéticas
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: PR86-V5-Drivers-939f19e5
+          path: LayoutCaptures/drivers-cartoes-*.png
+          if-no-files-found: error
+          retention-days: 7
