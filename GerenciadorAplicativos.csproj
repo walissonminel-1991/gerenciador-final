@@ -41,6 +41,8 @@
     <EmbeddedResource Include="CatalogoDesinstalacao.json" LogicalName="GerenciadorFinal.UninstallCatalog" />
     <EmbeddedResource Include="CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
     <EmbeddedResource Include="CatalogoAuditoriaHistorica.json" LogicalName="GerenciadorFinal.HistoricalOrphanCatalog" />
+    <EmbeddedResource Include="Assets/DriverCatalog/pci.ids.gz" LogicalName="GerenciadorFinal.DriverIds.pci" />
+    <EmbeddedResource Include="Assets/DriverCatalog/usb.ids.gz" LogicalName="GerenciadorFinal.DriverIds.usb" />
   </ItemGroup>
   <!-- Publicar avisos a partir dos mesmos packs resolvidos, sem copiar SDKs. -->
   <ItemGroup>

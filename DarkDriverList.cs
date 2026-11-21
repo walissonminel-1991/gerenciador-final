@@ -184,7 +184,7 @@ internal sealed class DarkDriverList : Control
             ? $"; ATENÇÃO: {sameDeviceId} linhas exibidas com o mesmo DeviceId. Associação de INF/WUA não é inequívoca"
             : "";
         AccessibleDescription = $"Selecionado {_selectedIndex + 1} de {_items.Count}: " +
-            (string.IsNullOrWhiteSpace(selected.DeviceName) ? "Dispositivo não identificado" : selected.DeviceName) +
+            DriverHardwareCatalog.DisplayName(selected) +
             "; ID da instância: " + selected.DeviceId +
             "; INF relatado: " + selected.InfName +
             "; classe WMI: " + selected.ReportedDriverClass +
@@ -270,15 +270,15 @@ internal sealed class DarkDriverList : Control
         Rectangle emblem = DriverRowGeometry.Emblem(bounds, dpi);
         using (var emblemBrush = new SolidBrush(Color.FromArgb(54, 67, 81)))
             canvas.FillEllipse(emblemBrush, emblem);
-        string initial = string.IsNullOrWhiteSpace(item.DeviceName)
-            ? "?" : item.DeviceName.Trim()[0].ToString().ToUpperInvariant();
+        string deviceName = DriverHardwareCatalog.DisplayName(item);
+        string initial = string.IsNullOrWhiteSpace(item.DeviceName) && deviceName == DriverHardwareCatalog.UnknownName
+            ? "?" : deviceName[0].ToString().ToUpperInvariant();
         TextRenderer.DrawText(canvas, initial, _markFont, emblem, ForeColor,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         Color muted = Color.FromArgb(167, 181, 196);
         const TextFormatFlags textFlags = TextFormatFlags.SingleLine |
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
-        TextRenderer.DrawText(canvas,
-            string.IsNullOrWhiteSpace(item.DeviceName) ? "Dispositivo não identificado" : item.DeviceName,
+        TextRenderer.DrawText(canvas, deviceName,
             _titleFont, DriverRowGeometry.Text(bounds, dpi, 4, 19),
             selected ? Color.FromArgb(111, 184, 255) : ForeColor, textFlags);
         TextRenderer.DrawText(canvas,
@@ -476,31 +476,6 @@ internal sealed class DarkDriverList : Control
             _actionFont.Dispose();
         }
         base.Dispose(disposing);
-    }
-}
-
-internal static class DriverListFilters
-{
-    // Apenas uma visao dos dados WMI. Nunca decide ausencia, obsolescencia ou
-    // autorizacao de limpeza/atualizacao com base nesses filtros.
-    internal static DriverInventoryEntry[] Apply(
-        IEnumerable<DriverInventoryEntry> items, string filter, string query)
-    {
-        IEnumerable<DriverInventoryEntry> filtered = filter switch
-        {
-            "Presentes" => items.Where(item => item.Present == true),
-            "Não confirmados" => items.Where(item => item.Present != true),
-            "Problemas" => items.Where(item => item.HasPnpProblem),
-            "Sem driver" => items.Where(item => item.WithoutSignedDriverAssociation),
-            _ => items
-        };
-        query = query.Trim();
-        if (query.Length > 0)
-            filtered = filtered.Where(item =>
-                string.Join(" ", item.DeviceName, item.DeviceId, item.Provider, item.Version,
-                    item.InfName, item.PresenceLabel, item.SignatureLabel, item.PnpStatusLabel)
-                .Contains(query, StringComparison.CurrentCultureIgnoreCase));
-        return filtered.ToArray();
     }
 }
 
