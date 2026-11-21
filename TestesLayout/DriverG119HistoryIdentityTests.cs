@@ -110,9 +110,13 @@ internal static class DriverG119HistoryIdentityTests
             BindingFlags.Instance | BindingFlags.NonPublic);
         var tips = tooltipField?.GetValue(owner) as ToolTip
             ?? throw new Exception("G1.19: tooltips do painel não encontrados");
-        Ensure(tips.GetToolTip(status).Contains(history.Text, StringComparison.Ordinal) &&
-            tips.GetToolTip(history).Contains(history.Text, StringComparison.Ordinal),
-            "tooltip diverge do texto e descrição acessivel");
+        // UX91: informações detalhadas continuam acessíveis a leitores de tela,
+        // mas nunca aparecem em pop-ups extensos ao passar o mouse.
+        Ensure(string.IsNullOrEmpty(tips.GetToolTip(status)) &&
+            string.IsNullOrEmpty(tips.GetToolTip(history)) &&
+            status.AccessibleDescription?.Contains(history.Text, StringComparison.Ordinal) == true &&
+            history.AccessibleDescription == history.Text,
+            "histórico não acessível ou tooltip de hover invasivo reapareceu");
 
         foreach (var size in new[] { new Size(500, 340), new Size(790, 510),
             new Size(1200, 720), new Size(1450, 820) })
@@ -120,8 +124,10 @@ internal static class DriverG119HistoryIdentityTests
             page.ClientSize = size;
             Pump(40);
             Ensure(status.AccessibleDescription?.Contains(history.Text, StringComparison.Ordinal) == true &&
-                tips.GetToolTip(status).Contains(history.Text, StringComparison.Ordinal),
-                "viewport perdeu histórico acessivel em " + size);
+                history.AccessibleDescription == history.Text &&
+                string.IsNullOrEmpty(tips.GetToolTip(status)) &&
+                string.IsNullOrEmpty(tips.GetToolTip(history)),
+                "viewport perdeu histórico acessível ou reintroduziu tooltip em " + size);
         }
         list.Focus();
         typeof(DarkDriverList).GetMethod("OnKeyDown",
@@ -136,7 +142,7 @@ internal static class DriverG119HistoryIdentityTests
         Pump();
         Ensure(status.AccessibleDescription?.Contains(history.Text, StringComparison.Ordinal) == true,
             "filtro/pesquisa apagou historico do snapshot publicado");
-        Console.WriteLine("OK G1.19: duplicatas WMI, identidade global, v1 intacto, relatorio, WinForms, tooltip e acessibilidade");
+        Console.WriteLine("OK G1.19: duplicatas WMI, identidade global, v1 intacto, relatório, WinForms, sem tooltip e acessibilidade");
     }
 
     private static void Ensure(bool ok, string context)
