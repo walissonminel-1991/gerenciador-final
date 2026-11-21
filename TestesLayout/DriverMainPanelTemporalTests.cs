@@ -34,10 +34,8 @@ internal static class DriverMainPanelTemporalTests
             var title = Find<Label>(page, "DriverInventoryTitle");
             var copySummary = Find<Button>(page, "DriverCopySafetySummary");
             var sim = Find<Button>(page, "DriverSyntheticLabOpen");
-            var update = Find<Button>(page, "DriverUpdateAction");
-            var uninstall = Find<Button>(page, "DriverUninstallAction");
-            if (update.Enabled || uninstall.Enabled)
-                throw new Exception("Drivers: ações de manutenção habilitadas antes de consultar.");
+            if (list.ActionsCurrent)
+                throw new Exception("Drivers: ações por cartão habilitadas antes da consulta.");
             if (!sim.Enabled) throw new Exception("UX3: laboratório inacessível antes da consulta.");
             string initialStatus = status.Text;
             sim.PerformClick();
@@ -105,7 +103,8 @@ internal static class DriverMainPanelTemporalTests
             Pump(20);
             if (list.Items.Count != 3) throw new Exception("G1.12: filtro Todos não restaurou as linhas.");
             foreach (var size in new[] { new Size(540, 320), new Size(500, 210),
-                new Size(1200, 720), new Size(1450, 820) })
+                new Size(500, 460), new Size(940, 610), new Size(1200, 720),
+                new Size(1450, 820) })
             {
                 page.ClientSize = size;
                 Pump();
@@ -118,10 +117,42 @@ internal static class DriverMainPanelTemporalTests
                     throw new Exception("DRIVERS: botão de resumo não liberou espaço em janela estreita.");
                 if (!sim.Visible || !sim.Enabled || sim.Width < 75)
                     throw new Exception("UX3: botão Simular inacessível em " + size);
-                if (!uninstall.Visible || uninstall.Enabled || update.Enabled ||
-                    uninstall.Parent?.ClientRectangle.Contains(uninstall.Bounds) != true ||
-                    compact.Visible && compact.Width <= 24)
-                    throw new Exception("Drivers: manutenção sintética ativa ou controles cortados em " + size);
+                // Regressão visual observada na captura normal: os rótulos
+                // não podem quebrar ou perder espaço para o texto completo.
+                if (size.Width == 940)
+                {
+                    var filterButtons = Descendants(page).OfType<ModernButton>()
+                        .Where(b => b.Text is "Falhas PnP" or "Sem driver").ToArray();
+                    if (filterButtons.Length != 2 || filterButtons.Any(b =>
+                        b.AllowMultilineText ||
+                        b.Width < TextRenderer.MeasureText(b.Text, b.Font,
+                            new Size(int.MaxValue, b.Height),
+                            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 24))
+                        throw new Exception("Drivers: rótulos Falhas PnP/Sem driver cortados em 940 px.");
+                }
+                if (list.ActionsCurrent || compact.Visible && compact.Width <= 24)
+                    throw new Exception("Drivers: manutenção sintética ativa ou filtro cortado em " + size);
+                int dpi = list.DeviceDpi;
+                int width = Math.Max(1, list.ClientSize.Width - 20);
+                int rowHeight = DriverRowGeometry.Height(dpi, width);
+                using var actionFont = new Font("Segoe UI", 9f, FontStyle.Bold);
+                var card = new Rectangle(0, 0, width, rowHeight);
+                var actions = DriverRowGeometry.Actions(card, dpi, actionFont);
+                if (!card.Contains(actions.Update) || !card.Contains(actions.Uninstall) ||
+                    actions.Update.IntersectsWith(actions.Uninstall) ||
+                    actions.Update.IntersectsWith(DriverRowGeometry.Status(card, dpi)))
+                    throw new Exception("Drivers: ações de cartão sobrepostas ou fora da viewport em " + size);
+                // Evidência visual de cartão REAL WinForms com dados de teste.
+                // Nenhum leitor nativo, comando WUA ou manutenção é iniciado.
+                if ((size.Width == 940 && size.Height == 610) ||
+                    (size.Width == 500 && size.Height == 460))
+                {
+                    Directory.CreateDirectory("LayoutCaptures");
+                    using var screenshot = new Bitmap(page.Width, page.Height);
+                    page.DrawToBitmap(screenshot, new Rectangle(Point.Empty, page.Size));
+                    screenshot.Save(Path.Combine("LayoutCaptures",
+                        $"Drivers-Cartoes-{size.Width}x{size.Height}.png"));
+                }
             }
             read();
             Pump();

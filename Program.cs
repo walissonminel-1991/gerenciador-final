@@ -2012,7 +2012,8 @@ internal sealed partial class MainForm : Form
         var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        // Rótulo curto e íntegro: a descrição preserva o significado completo.
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
         top.Controls.Add(new Label { Text = "REGISTRO", Dock = DockStyle.Fill, ForeColor = Ink,
             Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         _status.Text = "Pronto";
@@ -2021,8 +2022,10 @@ internal sealed partial class MainForm : Form
         _status.ForeColor = Muted;
         _status.TextAlign = ContentAlignment.MiddleRight;
         top.Controls.Add(_status, 1, 0);
-        var localReport = CreateSecondaryButton("Histórico / relatório");
+        var localReport = CreateSecondaryButton("Histórico");
         localReport.Name = "LocalReliabilityReportButton";
+        localReport.AccessibleName = "Abrir histórico e relatório local";
+        localReport.AccessibleDescription = "Relatório técnico local e comparação de inventários, somente leitura.";
         localReport.Dock = DockStyle.Fill;
         localReport.Font = new Font("Segoe UI", 8.2F, FontStyle.Bold);
         localReport.Margin = new Padding(5, 0, 0, 0);

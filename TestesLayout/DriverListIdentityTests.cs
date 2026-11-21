@@ -136,5 +136,66 @@ internal static class DriverListIdentityTests
         if (changes < 10) throw new Exception("G1.13: eventos de seleção insuficientes.");
         Console.WriteLine("OK G1.13: referência única, nomes iguais, duplicatas DeviceId, teclado/mouse e acessibilidade");
         host.Close();
+
+        // UX: ações são hit-testadas sobre a mesma geometria pintada, sem
+        // botões por dispositivo, WUA, PnPUtil ou escrita no Windows.
+        using var font = new Font("Segoe UI", 9f, FontStyle.Bold);
+        foreach (int dpi in new[] { 96, 120, 144, 192 })
+        foreach (int logicalWidth in new[] { 350, 500, 1200 })
+        {
+            int width = DriverRowGeometry.Scale(logicalWidth, dpi);
+            var row = new Rectangle(0, 0, width, DriverRowGeometry.Height(dpi, width));
+            var actions = DriverRowGeometry.Actions(row, dpi, font);
+            int minText = TextRenderer.MeasureText("Verificar atualização", font,
+                Size.Empty, TextFormatFlags.NoPadding).Width;
+            if (!row.Contains(actions.Update) || !row.Contains(actions.Uninstall) ||
+                actions.Update.IntersectsWith(actions.Uninstall) ||
+                actions.Update.IntersectsWith(DriverRowGeometry.Status(row, dpi)) ||
+                actions.Update.Width < minText)
+                throw new Exception($"UX Drivers: ação cortada/sobreposta em {logicalWidth}, DPI {dpi}");
+        }
+        using var actionHost = new Form
+        {
+            ClientSize = new Size(500, 500), ShowInTaskbar = false
+        };
+        using var actionsList = new DarkDriverList { Dock = DockStyle.Fill };
+        actionHost.Controls.Add(actionsList);
+        actionHost.Show();
+        Application.DoEvents();
+        actionsList.SetItems([a, b]);
+        actionsList.SetActionPolicy(true, _ => new DriverSilentUninstallDecision(true, "Fixture"));
+        int requested = 0;
+        DriverInventoryEntry? lastRequested = null;
+        DriverCardAction lastAction = DriverCardAction.VerifyUpdate;
+        actionsList.ActionRequested += (item, action) =>
+        {
+            requested++;
+            lastRequested = item;
+            lastAction = action;
+        };
+        void ClickAction(int index, DriverCardAction action)
+        {
+            int width = Math.Max(1, actionsList.ClientSize.Width - 20);
+            int height = DriverRowGeometry.Height(actionsList.DeviceDpi, width);
+            var row = new Rectangle(0, index * height, width, height);
+            var areas = DriverRowGeometry.Actions(row, actionsList.DeviceDpi, font);
+            var target = action == DriverCardAction.VerifyUpdate ? areas.Update : areas.Uninstall;
+            mouse.Invoke(actionsList, [new MouseEventArgs(MouseButtons.Left, 1,
+                target.Left + target.Width / 2, target.Top + target.Height / 2, 0)]);
+        }
+        ClickAction(0, DriverCardAction.VerifyUpdate);
+        if (requested != 1 || !ReferenceEquals(lastRequested, a) ||
+            lastAction != DriverCardAction.VerifyUpdate)
+            throw new Exception("UX Drivers: clique não preservou a identidade do cartão.");
+        ClickAction(1, DriverCardAction.Uninstall);
+        if (requested != 2 || !ReferenceEquals(lastRequested, b) ||
+            lastAction != DriverCardAction.Uninstall)
+            throw new Exception("UX Drivers: desinstalação não identificou o objeto selecionado.");
+        actionsList.SetActionPolicy(false, _ => new DriverSilentUninstallDecision(true, "Fixture"));
+        ClickAction(0, DriverCardAction.Uninstall);
+        if (requested != 2)
+            throw new Exception("UX Drivers: ação foi emitida após revogar autoridade.");
+        actionHost.Close();
+        Console.WriteLine("OK UX Drivers: geometria DPI, seleção por referência e revogação do clique");
     }
 }

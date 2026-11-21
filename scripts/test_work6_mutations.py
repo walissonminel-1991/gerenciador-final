@@ -19,10 +19,11 @@ mutants = [
 ]
 mutants.extend([
     ('partial-uninstall-authorized','UninstallBatch.cs',
-     'if(!before.Complete || matching.Length!=1', 'if(matching.Length!=1',
+     'CanStart(consent, before.Complete,', 'CanStart(consent, true,',
      'TestesResiduos','--work6-uninstall-flow','W6-U-PARTIAL'),
     ('transient-absence-confirmed','UninstallBatch.cs',
-     'complete && exit==0 && absent>=3', 'complete && exit==0 && sawAbsence',
+     'Confirmed(exit == 0, complete, absent >= 3, true)',
+     'Confirmed(exit == 0, complete, sawAbsence, true)',
      'TestesResiduos','--work6-uninstall-flow','W6-U-STABLE'),
 ])
 mutants.extend([
@@ -54,7 +55,8 @@ if os.name == 'nt':
     ])
     mutants.extend([
         ('residual-consent-bypassed','IntegratedResidualCleanup.cs',
-         'if (!consent || !ValidPlan(plan)', 'if (!ValidPlan(plan)',
+         'MayDeleteResidues(consent, ValidPlan(plan),',
+         'MayDeleteResidues(true, ValidPlan(plan),',
          'TestesResiduos','--work10-core','W10 NO preserves file'),
         ('residual-content-hash-bypassed','IntegratedResidualCleanup.cs',
          'Convert.ToHexString(SHA256.HashData(handle)) != file.Digest', 'false',
@@ -151,7 +153,10 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     for name in files:
         path=pathlib.Path(name)
         if not name or path.suffix not in ('.cs','.csproj','.props','.json'): continue
-        if len(path.parts)>1 and path.parts[0] not in ('TestesAtualizador','TestesMultifontes','TestesResiduos'): continue
+        # R7+G3 passou a vincular este único teste externo em TestesResiduos.csproj.
+        # Copiar a dependência explícita, sem trazer a suíte inteira de Drivers.
+        linked_contract_test = name == 'TestesDrivers/RemovalSafetyContractTests.cs'
+        if len(path.parts)>1 and path.parts[0] not in ('TestesAtualizador','TestesMultifontes','TestesResiduos') and not linked_contract_test: continue
         (target/path).parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(root/path,target/path)
     def run(project, argument):
