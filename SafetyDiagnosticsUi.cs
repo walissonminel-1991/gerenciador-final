@@ -150,9 +150,21 @@ internal sealed partial class MainForm
             var categories = await SafetyDiagnostics.EstimateCleanupAsync();
             var messages = categories.Select(c => $"{c.Category}: {c.EligibleBytes / 1048576d:N1} MiB / {c.EligibleFiles} arquivo(s)" +
                 (c.Partial ? " (estimativa parcial)" : "")).ToArray();
-            _cleanupPreview.Text = "Prévia: " + string.Join("  •  ", messages);
+            bool partial = categories.Any(c => c.Partial);
+            int totalFiles = categories.Sum(c => c.EligibleFiles);
+            double totalMiB = categories.Sum(c => c.EligibleBytes / 1048576d);
+            string preview = (partial ? "Prévia parcial" : "Prévia") + $" · {totalFiles} arquivo(s) · {totalMiB:N1} MiB";
+            _cleanupPreview.Text = preview;
+            _toolTips.SetToolTip(_cleanupPreview, string.Join(Environment.NewLine, messages));
             foreach (string item in messages) Log("Prévia de limpeza: " + item);
-            Status("Prévia concluída — nada foi removido");
+            Status(preview + ". Confira a estimativa por categoria no Registro.");
         });
+    }
+
+    private void ShowCleanupResult(string summary)
+    {
+        _cleanupPreview.Text = summary;
+        _toolTips.SetToolTip(_cleanupPreview, summary);
+        Status(summary);
     }
 }
