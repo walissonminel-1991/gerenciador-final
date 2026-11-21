@@ -414,6 +414,37 @@ internal sealed partial class MainForm
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
+            if (!DriverSilentUninstall.IsElevated())
+            {
+                // Solicitar UAC somente para esta remoção. O trabalhador
+                // recaptura todo o inventário e pede confirmação explícita;
+                // nenhum snapshot da interface vira autoridade administrativa.
+                uninstallBusy = true;
+                refresh.Enabled = false;
+                SyncDriverActions();
+                SetDriverStatus("Solicitando ao Windows autorização para remover o pacote OEM...");
+                bool started = false;
+                try
+                {
+                    var elevation = await DriverElevatedUninstall.RequestAsync(
+                        selected.DeviceId, selected.InfName);
+                    started = elevation.Started;
+                    if (!root.IsDisposed) SetDriverStatus(elevation.Message);
+                }
+                finally
+                {
+                    uninstallBusy = false;
+                    if (!root.IsDisposed)
+                    {
+                        refresh.Enabled = true;
+                        SyncDriverActions();
+                    }
+                }
+                // Mesmo com saída zero, o resultado do trabalhador não é
+                // aceito sem uma NOVA leitura do estado PnP local.
+                if (started && !root.IsDisposed) await RunRefresh();
+                return;
+            }
             string question = "Remover silenciosamente o pacote OEM deste dispositivo?" +
                 Environment.NewLine + Environment.NewLine +
                 "Dispositivo: " + selected.DeviceName + Environment.NewLine +
