@@ -106,6 +106,11 @@ if (args.Contains("--work6-uninstall-policy"))
     if(failures>0) throw new Exception($"WORK6 uninstall: {failures} falhas reproduzidas");
     return;
 }
+if (args is ["--from-notepad-history"])
+{
+    if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Registro Windows necessário.");
+    goto NotepadHistory;
+}
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
 Work14RegistryTests.Run(Check);
@@ -977,6 +982,7 @@ Check(!winMergeHistorical.UninstallConfirmed && winMergeHistorical.Historical &&
 
 // Notepad++ historico: nao basta encontrar AppData para autorizar
 // remocao. Protecao inclui outras arquiteturas e inventario parcial.
+NotepadHistory:
 var notepadActiveReport = ResidualAudit.InspectHistoricalNotepadPlusPlus(new[]
     { new ProgramEntry { Name = "Notepad++ (x64)", Publisher = "Don HO" } });
 Check(notepadActiveReport.Findings.Count == 0 &&
@@ -989,11 +995,26 @@ Check(notepadPartialReport.Findings.Count == 0 &&
     "Inventario parcial nao pode confirmar ausencia de Notepad++.");
 var notepadHistory = ResidualAudit.InspectHistoricalNotepadPlusPlus(
     Array.Empty<ProgramEntry>());
+var knownSharedHistoryKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Compatibility Assistant\Store",
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppSwitched",
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppLaunch",
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\ShowJumpView"
+};
 Check(notepadHistory.Historical && !notepadHistory.UninstallConfirmed &&
-    notepadHistory.Findings.All(f => !f.CanRemove &&
-        f.Disposition == ResidualDisposition.PreserveData &&
-        f.Location.Contains("Notepad++", StringComparison.OrdinalIgnoreCase)),
-    "Vestigios Notepad++ exatos sao consultivos e preservam preferencias; nenhuma chave Windows compartilhada.");
+    notepadHistory.Findings.All(f => !f.CanRemove && (f.Disposition switch
+    {
+        ResidualDisposition.PreserveData =>
+            f.Location.Contains("Notepad++", StringComparison.OrdinalIgnoreCase),
+        ResidualDisposition.PreserveShared =>
+            f.Sources == (ResidualSource.Registry | ResidualSource.Integration) &&
+            knownSharedHistoryKeys.Contains(f.Location),
+        _ => false
+    })),
+    "Notepad++ historico preserva dados exatos e referencias nas chaves compartilhadas conhecidas.");
+Console.WriteLine($"Notepad++ historico: dados={notepadHistory.Findings.Count(f => f.Disposition == ResidualDisposition.PreserveData)}, " +
+    $"compartilhados={notepadHistory.Findings.Count(f => f.Disposition == ResidualDisposition.PreserveShared)}.");
 Check(ResidualAudit.TrackedApplicationStillPresent("foobar2000",
     new[] { "foobar2000 v2.26.1 (x64)" }) &&
     !ResidualAudit.TrackedApplicationStillPresent("foobar2000",
