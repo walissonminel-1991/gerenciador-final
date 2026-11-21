@@ -65,9 +65,10 @@ internal static class DriverG120HistoryLifetimeTests
                 newPage.ClientSize = size;
                 Pump(25);
                 Ensure(status.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true &&
-                    tips.GetToolTip(status).Contains(newHistory.Text, StringComparison.Ordinal) &&
-                    tips.GetToolTip(newHistory).Contains(newHistory.Text, StringComparison.Ordinal),
-                    "tooltip ou AccessibleDescription divergente: " + size);
+                    newHistory.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true &&
+                    string.IsNullOrEmpty(tips.GetToolTip(status)) &&
+                    string.IsNullOrEmpty(tips.GetToolTip(newHistory)),
+                    "histórico inacessível ou tooltip invasivo no viewport: " + size);
             }
             list.Focus();
             typeof(DarkDriverList).GetMethod("OnKeyDown", Private)!
