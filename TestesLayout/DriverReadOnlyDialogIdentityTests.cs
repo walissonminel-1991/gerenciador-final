@@ -7,7 +7,7 @@ using GerenciadorAplicativos;
 // Sem chamadas WUA, SetupAPI, COM, WMI ou verificação de INF nativa.
 internal static class DriverReadOnlyDialogIdentityTests
 {
-    private const string Title = "Drivers — investigar sem alterações";
+    private const string Title = "Drivers — detalhes e evidências";
 
     internal static void Run(MainForm owner)
     {
