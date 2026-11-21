@@ -204,7 +204,15 @@ internal static class HistoricalResidualAudit
         var budget = new ResidualScanBudget(cancellationToken);
         budget.Source("HistoricalCatalog");
         if (Rules.Count == 0) budget.Unavailable("HistoricalCatalog");
-        if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
+        if (inventoryIncomplete)
+        {
+            // Sem inventário completo não é possível afirmar que a família
+            // histórica ou um dependente foi desinstalado. Não consultar seus
+            // locais como candidato órfão; preservar a incerteza na cobertura.
+            budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
+            return ResidualReportMerger.Merge(Array.Empty<ResidualAuditReport>(),
+                coverage: budget.Coverage with { CandidatesNotEvaluated = null });
+        }
         var result = new List<ResidualAuditReport>();
         foreach (var rule in Rules)
         {
