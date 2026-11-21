@@ -185,8 +185,18 @@ internal static class HistoricalResidualAudit
         int separator = suffix.IndexOf(' ');
         string numeric = separator < 0 ? suffix : suffix[..separator];
         if (!Version.TryParse(numeric, out _)) return false;
-        return separator < 0 || suffix[(separator + 1)..] is
-            "(x64)" or "(x86)" or "(64-bit)" or "(32-bit)";
+        if (separator < 0) return true;
+        // O inventário pode registrar arquitetura sem parênteses após a versão.
+        // Exigir etiqueta exata para não confundir aplicativos com nomes parecidos.
+        string architecture = suffix[(separator + 1)..];
+        return architecture.Equals("x64", StringComparison.OrdinalIgnoreCase) ||
+            architecture.Equals("x86", StringComparison.OrdinalIgnoreCase) ||
+            architecture.Equals("64-bit", StringComparison.OrdinalIgnoreCase) ||
+            architecture.Equals("32-bit", StringComparison.OrdinalIgnoreCase) ||
+            architecture.Equals("(x64)", StringComparison.OrdinalIgnoreCase) ||
+            architecture.Equals("(x86)", StringComparison.OrdinalIgnoreCase) ||
+            architecture.Equals("(64-bit)", StringComparison.OrdinalIgnoreCase) ||
+            architecture.Equals("(32-bit)", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool IsRuleInstalled(Rule rule, IReadOnlyCollection<ProgramEntry> inventory)
@@ -204,7 +214,14 @@ internal static class HistoricalResidualAudit
         var budget = new ResidualScanBudget(cancellationToken);
         budget.Source("HistoricalCatalog");
         if (Rules.Count == 0) budget.Unavailable("HistoricalCatalog");
-        if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
+        if (inventoryIncomplete)
+        {
+            // A fonte incompleta não prova desinstalação: não pesquisar nem
+            // classificar registros históricos como órfãos.
+            budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
+            return ResidualReportMerger.Merge(Array.Empty<ResidualAuditReport>(),
+                coverage: budget.Coverage with { CandidatesNotEvaluated = null });
+        }
         var result = new List<ResidualAuditReport>();
         foreach (var rule in Rules)
         {
