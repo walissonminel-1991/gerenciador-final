@@ -194,7 +194,9 @@ internal sealed class DarkDriverList : Control
             ". " + DriverPnpGuidance.Describe(selected.PnpProblemCode) +
             (_actionsCurrent
                 ? "; Detalhes: consulta oficial e evidências; Desinstalar: " +
-                  (CanUninstall(selected) ? "disponível com confirmação e backup" : UninstallReason(selected)) +
+                  (CanUninstall(selected)
+                    ? "disponível com confirmação e backup"
+                    : "gerenciamento manual no Windows; " + UninstallReason(selected)) +
                   ". Use Enter para abrir as ações acessíveis."
                 : "; ações bloqueadas até consulta válida; pressione Tab para Investigar.");
     }
@@ -309,8 +311,10 @@ internal sealed class DarkDriverList : Control
         }
 
         Rectangle uninstall = DriverRowGeometry.Uninstall(bounds, dpi, _actionFont);
-        DrawAction(canvas, uninstall, CanUninstall(item) ? "Desinstalar" : "Protegido",
-            CanUninstall(item), hover == DriverCardAction.Uninstall, true);
+        // A ação aparece para todos. O backend OEM continua protegido:
+        // casos não elegíveis seguem ao gerenciamento manual do Windows.
+        DrawAction(canvas, uninstall, "Desinstalar", _actionsCurrent,
+            hover == DriverCardAction.Uninstall, true);
     }
 
     private void DrawAction(Graphics canvas, Rectangle bounds, string text,
@@ -351,8 +355,7 @@ internal sealed class DarkDriverList : Control
     private void RequestSelected(DriverCardAction action)
     {
         var item = SelectedItem;
-        if (item is null || !_actionsCurrent || action == DriverCardAction.Uninstall && !CanUninstall(item))
-            return;
+        if (item is null || !_actionsCurrent) return;
         // O pai revalida snapshot, geração e referência antes de qualquer efeito.
         ActionRequested?.Invoke(item, action);
     }
@@ -413,7 +416,7 @@ internal sealed class DarkDriverList : Control
         if (item is null) return;
         _menuDevice = item;
         _detailsMenu.Enabled = _actionsCurrent;
-        _uninstallMenu.Enabled = CanUninstall(item);
+        _uninstallMenu.Enabled = _actionsCurrent;
         _detailsMenu.ToolTipText = "";
         _uninstallMenu.ToolTipText = "";
         _actionsMenu.Show(this, location);
