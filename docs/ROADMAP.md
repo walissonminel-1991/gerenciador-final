@@ -1,5 +1,20 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+## Roadmap de entregas
+
+**Atualização de 21/11/2026.** As 16 famílias VF01–VF16 passam a integrar o plano de implementação a pedido do proprietário. As [metas e os critérios de aceite](BACKLOG-VERSOES-FUTURAS.md) detalham cada família.
+
+| Etapa | Entregas | Ordem e condição de saída |
+|---|---|---|
+| **P0 · Portátil de 23/11/2026** | Candidata integrada, fluxo controlado de instalação WUA para o escopo G3.2 e EXE Windows x64 self-contained por rota pessoal autorizada. | A [PR #88](https://github.com/walissonminel-1991/gerenciador-final/pull/88) tem integração e CI aprovadas no SHA base. A [PR #89](https://github.com/walissonminel-1991/gerenciador-final/pull/89) reúne a implementação candidata G3.2. Registrar o resultado do fluxo físico e a entrega do pacote privado com identificação do SHA e do hash. O manifesto da CI comprova origem e hashes do build. |
+| **Onda 1 · Manutenção essencial** | VF01, VF03, VF04, VF06, VF08, VF09, VF12, VF13. | Usar G3.2 como base. Consolidar recuperação e instalação de drivers em conjunto. Ancorar resíduos na confirmação da desinstalação. Aproveitar lote e desempenho existentes e evoluir reparo, limpeza e inventário conforme os aceites. |
+| **Onda 2 · Cobertura especializada** | VF02, VF05, VF07, VF10, VF15. | Usar o motor de drivers após comprovar o VF01. Apoiar remoção difícil no VF06 e vincular tratamento de ameaças ao VF15. Dividir evidências por fabricante, navegador e ambiente Windows suportado. |
+| **Onda 3 · Monitoramento e privacidade** | VF11, VF14, VF16. | Reutilizar auditoria, consentimento e executores das ondas anteriores. Validar separadamente monitor, realocação, descarte, proteção de rastros e modos de operação. |
+
+**Progresso:** **27/42** checkpoints da linha original e **0/16** metas de expansão aceitas. A cobertura inicial da expansão é de **2 implementadas no escopo atual, 10 parciais e 4 não localizadas** no SHA `729d9c8912d7f97c677c9af7f0341f2dd4766716`. As duas contagens têm critérios próprios. As ondas de expansão começam na etapa pós-23/11 após o checkpoint da candidata. Versões e datas das ondas serão definidas conforme as frentes entregues e verificadas.
+
+## Histórico de desenvolvimento e validação
+
 **Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
 [Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
 [guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
