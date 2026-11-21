@@ -19,10 +19,11 @@ mutants = [
 ]
 mutants.extend([
     ('partial-uninstall-authorized','UninstallBatch.cs',
-     'if(!before.Complete || matching.Length!=1', 'if(matching.Length!=1',
+     'CanStart(consent, before.Complete,', 'CanStart(consent, true,',
      'TestesResiduos','--work6-uninstall-flow','W6-U-PARTIAL'),
     ('transient-absence-confirmed','UninstallBatch.cs',
-     'complete && exit==0 && absent>=3', 'complete && exit==0 && sawAbsence',
+     'Confirmed(exit == 0, complete, absent >= 3, true)',
+     'Confirmed(exit == 0, complete, sawAbsence, true)',
      'TestesResiduos','--work6-uninstall-flow','W6-U-STABLE'),
 ])
 mutants.extend([
