@@ -189,9 +189,19 @@ internal static class DriverListIdentityTests
         if (requested != 2 || !ReferenceEquals(lastRequested, b) ||
             lastAction != DriverCardAction.Uninstall)
             throw new Exception("UX Drivers: desinstalação não identificou objeto selecionado.");
-        actionsList.SetActionPolicy(false, _ => new DriverSilentUninstallDecision(true, "Fixture"));
+        // O botão existe também no cartão de dispositivo protegido.
+        // O handler de produção é responsável pelo encaminhamento manual;
+        // o motor de remoção continua recusando a operação direta.
+        actionsList.SetActionPolicy(true, _ =>
+            new DriverSilentUninstallDecision(false, "Dispositivo protegido"));
         ClickUninstall(0);
-        if (requested != 2)
+        if (requested != 3 || !ReferenceEquals(lastRequested, a) ||
+            lastAction != DriverCardAction.Uninstall || actionsList.CanUninstall(a))
+            throw new Exception("UX Drivers: ação manual em protegido foi omitida ou autorizou remoção.");
+        actionsList.SetActionPolicy(false, _ =>
+            new DriverSilentUninstallDecision(true, "Fixture"));
+        ClickUninstall(0);
+        if (requested != 3)
             throw new Exception("UX Drivers: ação foi emitida após revogar autoridade.");
         actionHost.Close();
         Console.WriteLine("OK UX Drivers: geometria DPI, seleção por referência e revogação do clique");
