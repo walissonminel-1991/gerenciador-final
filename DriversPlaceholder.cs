@@ -6,6 +6,9 @@ namespace GerenciadorAplicativos;
 internal sealed partial class MainForm
 {
     private Task<DriverInventoryResult>? _driverReadTask;
+    // Cache WUA válido somente para a mesma fotografia que o usuário consultou.
+    private DriverInventoryResult? _driverReusableInventory;
+    private DriverOfficialResult? _driverReusableOfficial;
     // Exclusivo das fixtures com readForTest: jamais acessar DefaultPath
     // do usuario nos testes temporais ou iniciar captura nativa.
     private string? _driverHistoryPathForTest;
@@ -394,8 +397,7 @@ internal sealed partial class MainForm
                 (token, result) => guard.CanPublishInf(lastResult, list.SelectedItem,
                     inventoryGeneration, token, result),
                 callback => invalidateOpenReport = callback,
-                startOfficialOnShow: autoStartOfficial && latestOfficial is null,
-                preloadedOfficial: officialGeneration == inventoryGeneration ? latestOfficial : null);
+                startOfficialOnShow: autoStartOfficial && latestOfficial is null);
         }
         investigate.Click += (_, _) => OpenDriverInvestigation(false);
         // Um handler por operação. O clique virtual entrega o mesmo objeto que
@@ -641,6 +643,8 @@ internal sealed partial class MainForm
             resultPublished = false;
             latestOfficial = null;
             officialGeneration = -1;
+            _driverReusableInventory = null;
+            _driverReusableOfficial = null;
             list.SetOfferDevices(Array.Empty<string>());
             SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
@@ -773,6 +777,8 @@ internal sealed partial class MainForm
                             {
                                 latestOfficial = officialResult;
                                 officialGeneration = publishedGeneration;
+                                _driverReusableInventory = result;
+                                _driverReusableOfficial = officialResult;
                                 var deviceIds = officialResult.Matches
                                     .Select(match => match.DeviceId)
                                     .Where(id => !string.IsNullOrWhiteSpace(id))
