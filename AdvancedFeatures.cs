@@ -247,21 +247,15 @@ internal static class WindowsUpdateClient
     public static Task<IReadOnlyList<WinUpdateChoice>> ScanAsync() => StaWorker.Run<IReadOnlyList<WinUpdateChoice>>(() =>
     {
         dynamic session = CreateSession();
-        dynamic searcher = session.CreateUpdateSearcher();
-        searcher.Online = true;
-        dynamic found = searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Software'");
-        WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode);
-        int count = (int)found.Updates.Count;
+        dynamic updates = SearchPendingSoftware((object)session);
+        int count = (int)updates.Count;
         var choices = new List<WinUpdateChoice>();
         for (int i = 0; i < count; i++)
         {
-            dynamic entry = found.Updates.Item(i);
+            dynamic entry = updates.Item(i);
             string kb = "";
             try { foreach (object number in entry.KBArticleIDs) { kb += "KB" + number + " "; } } catch { }
-            string rawId = (string)entry.Identity.UpdateID;
-            int revision = (int)entry.Identity.RevisionNumber;
-            string? id = VerifiedIdentity(rawId, revision);
-            if (id is null) throw new InvalidDataException("Oferta do Windows Update sem identidade válida.");
+            string id = ReadUpdateIdentity((object)entry);
             choices.Add(new WinUpdateChoice(id,
                 (string)entry.Title, kb.Trim(), (bool)entry.IsDownloaded, (bool)entry.EulaAccepted));
         }
@@ -272,32 +266,34 @@ internal static class WindowsUpdateClient
     {
         if (ids.Count == 0) return 2;
         dynamic session = CreateSession();
-        dynamic searcher = session.CreateUpdateSearcher();
-        searcher.Online = true;
         log("Verificando novamente as atualizações selecionadas antes de instalar...");
-        dynamic found = searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Software'");
-        WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode);
+        dynamic updates = SearchPendingSoftware((object)session);
         Type collectionType = Type.GetTypeFromProgID("Microsoft.Update.UpdateColl")
             ?? throw new NotSupportedException("A coleção do Windows Update não está disponível.");
         dynamic selected = Activator.CreateInstance(collectionType)!;
-        for (int i = 0; i < (int)found.Updates.Count; i++)
+        var matchedIds = new List<string>(ids.Count);
+        var selectedUpdates = ids.Select(id => id[..36]).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < (int)updates.Count; i++)
         {
-            dynamic entry = found.Updates.Item(i);
-            string rawId = (string)entry.Identity.UpdateID;
-            int revision = (int)entry.Identity.RevisionNumber;
-            string? id = VerifiedIdentity(rawId, revision);
-            if (id is null) throw new InvalidDataException("Oferta do Windows Update sem identidade válida.");
+            dynamic entry = updates.Item(i);
+            string id = ReadUpdateIdentity((object)entry);
+            if (!selectedUpdates.Contains(id[..36])) continue;
+            matchedIds.Add(id);
             if (!ids.Contains(id)) continue;
             if (!(bool)entry.EulaAccepted)
             {
                 // O programa não aceita contratos adicionais silenciosamente.
-                log("Ignorada (licença ainda não aceita): " + (string)entry.Title);
-                continue;
+                log("A licença de uma das atualizações selecionadas precisa ser aceita. Nenhum download ou instalação foi iniciado.");
+                return 2;
             }
             selected.Add(entry);
             log("Selecionada: " + (string)entry.Title);
         }
-        if ((int)selected.Count != ids.Count) { log("A seleção mudou, deixou de ser oferecida ou exige licença. Consulte novamente; nenhuma instalação iniciada."); return 2; }
+        if (!WindowsUpdateSearchPolicy.MatchesSelection(ids, matchedIds))
+        {
+            log("A seleção mudou, foi repetida ou exige licença. Consulte novamente; nenhum download ou instalação foi iniciado.");
+            return 2;
+        }
         log("Baixando " + (int)selected.Count + " atualizações pelo serviço oficial do Windows...");
         dynamic downloader = session.CreateUpdateDownloader();
         downloader.Updates = selected;
@@ -314,6 +310,22 @@ internal static class WindowsUpdateClient
         if ((bool)result.RebootRequired) log("REINICIALIZAÇÃO NECESSÁRIA: salve o trabalho e reinicie quando puder. Nenhum reinício foi solicitado pelo aplicativo.");
         return status == 2 ? 0 : 1;
     });
+
+    private static object SearchPendingSoftware(object session)
+    {
+        dynamic searcher = ((dynamic)session).CreateUpdateSearcher();
+        searcher.Online = true;
+        dynamic found = searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Software'");
+        WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode);
+        return found.Updates;
+    }
+
+    private static string ReadUpdateIdentity(object update)
+    {
+        dynamic identity = ((dynamic)update).Identity;
+        return VerifiedIdentity((string)identity.UpdateID, (int)identity.RevisionNumber)
+            ?? throw new InvalidDataException("Oferta do Windows Update sem identidade válida.");
+    }
 
     private static dynamic CreateSession()
     {
