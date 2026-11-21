@@ -302,6 +302,15 @@ internal sealed partial class MainForm
         void SetDriverStatus(string message)
         {
             if (state.IsDisposed) return;
+            // Publicar primeiro a nova descrição acessível. TextChanged,
+            // Paint e DoEvents podem reentrar imediatamente ao atribuir Text:
+            // nesse intervalo o leitor de tela já deve enxergar o novo estado,
+            // não a descrição anterior de uma consulta em encerramento.
+            string historyText = history.Text;
+            string? historyDescription = history.AccessibleDescription;
+            state.AccessibleDescription = message + Environment.NewLine + historyText +
+                (historyDescription == historyText ? "" :
+                    Environment.NewLine + historyDescription);
             state.Text = message;
             SyncStatusAccessibility();
         }
