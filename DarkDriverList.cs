@@ -94,6 +94,7 @@ internal sealed class DarkDriverList : Control
     private int _scrollOffset;
     private int _tipIndex = -1;
     private DriverCardAction? _tipAction;
+    private DriverInventoryEntry? _menuDevice;
     private bool _actionsCurrent;
     private Func<DriverInventoryEntry, DriverSilentUninstallDecision>? _evaluateRemoval;
 
@@ -128,8 +129,9 @@ internal sealed class DarkDriverList : Control
             Invalidate();
         };
         Controls.Add(_scrollbar);
-        _verifyMenu.Click += (_, _) => RequestSelected(DriverCardAction.VerifyUpdate);
-        _uninstallMenu.Click += (_, _) => RequestSelected(DriverCardAction.Uninstall);
+        _verifyMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.VerifyUpdate);
+        _uninstallMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Uninstall);
+        _actionsMenu.Closed += (_, _) => _menuDevice = null;
         _actionsMenu.Items.AddRange([_verifyMenu, _uninstallMenu]);
         Resize += (_, _) => UpdateMetrics();
         DpiChangedAfterParent += (_, _) => UpdateMetrics();
@@ -140,6 +142,7 @@ internal sealed class DarkDriverList : Control
     {
         _actionsCurrent = current;
         _evaluateRemoval = removalDecision;
+        if (!current && _actionsMenu.Visible) _actionsMenu.Close();
         UpdateAccessibleSelection();
         Invalidate();
     }
@@ -164,6 +167,8 @@ internal sealed class DarkDriverList : Control
         }
         _tipIndex = -1;
         _tipAction = null;
+        _menuDevice = null;
+        if (_actionsMenu.Visible) _actionsMenu.Close();
         _tips.SetToolTip(this, "");
         UpdateMetrics();
         UpdateAccessibleSelection();
@@ -353,6 +358,13 @@ internal sealed class DarkDriverList : Control
         ActionRequested?.Invoke(item, action);
     }
 
+    private void RequestMenuAction(DriverCardAction action)
+    {
+        // Menu aberto para dispositivo anterior não pode agir em nova seleção.
+        if (_menuDevice is not null && ReferenceEquals(SelectedItem, _menuDevice))
+            RequestSelected(action);
+    }
+
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
@@ -425,6 +437,7 @@ internal sealed class DarkDriverList : Control
     {
         var item = SelectedItem;
         if (item is null) return;
+        _menuDevice = item;
         _verifyMenu.Enabled = _actionsCurrent;
         _uninstallMenu.Enabled = CanUninstall(item);
         _verifyMenu.ToolTipText = "Consultar WUA, sem instalar.";
