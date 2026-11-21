@@ -1055,8 +1055,12 @@ internal sealed partial class MainForm
                 refreshWidth + updateWidth + investigationWidth + Scale(110));
             bool compactFilters = tiny || root.ClientSize.Width < Scale(800);
             bool showCopy = !tiny && !narrow;
-            bool splitActions = labOpen is null && root.ClientSize.Width <
-                refreshWidth + updateWidth + investigationWidth + Scale(92);
+            // A ação global ocupa uma coluna extra. Em janela estreita,
+            // também nas fixtures com Simular, mover o filtro compacto para
+            // a segunda linha em vez de deixá-lo com 0-24 px.
+            bool splitActions = root.ClientSize.Width <
+                refreshWidth + updateWidth + investigationWidth +
+                (labOpen is null ? Scale(92) : Scale(230));
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
             root.RowStyles[1].Height = splitActions ? Scale(79) :
                 tiny ? Scale(35) : Scale(44);
@@ -1081,11 +1085,28 @@ internal sealed partial class MainForm
                     actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
                 }
                 actionPanel.SetCellPosition(investigate, new TableLayoutPanelCellPosition(2, 0));
-                actionPanel.SetColumnSpan(actionInfo, 4);
-                actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(0, 1));
+                // Com laboratório sintético, Simular conserva a sua largura
+                // e o filtro ocupa duas colunas inteiras em modo compacto.
+                if (labOpen is not null)
+                {
+                    actionPanel.ColumnStyles[4].Width = 0;
+                    actionPanel.SetColumnSpan(actionInfo, 2);
+                    actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(0, 1));
+                    actionPanel.SetCellPosition(labOpen, new TableLayoutPanelCellPosition(2, 1));
+                }
+                else
+                {
+                    actionPanel.SetColumnSpan(actionInfo, 4);
+                    actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(0, 1));
+                }
             }
             else
             {
+                if (labOpen is not null)
+                {
+                    actionPanel.ColumnStyles[4].Width = Scale(100);
+                    actionPanel.SetCellPosition(labOpen, new TableLayoutPanelCellPosition(4, 0));
+                }
                 actionPanel.SetColumnSpan(actionInfo, 1);
                 actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(3, 0));
                 if (actionPanel.RowCount != 1)
