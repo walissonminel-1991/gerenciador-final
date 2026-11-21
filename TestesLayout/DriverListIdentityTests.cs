@@ -145,14 +145,13 @@ internal static class DriverListIdentityTests
         {
             int width = DriverRowGeometry.Scale(logicalWidth, dpi);
             var row = new Rectangle(0, 0, width, DriverRowGeometry.Height(dpi, width));
-            var actions = DriverRowGeometry.Actions(row, dpi, font);
-            int minText = TextRenderer.MeasureText("Verificar atualização", font,
+            var uninstall = DriverRowGeometry.Uninstall(row, dpi, font);
+            int minText = TextRenderer.MeasureText("Desinstalar", font,
                 Size.Empty, TextFormatFlags.NoPadding).Width;
-            if (!row.Contains(actions.Update) || !row.Contains(actions.Uninstall) ||
-                actions.Update.IntersectsWith(actions.Uninstall) ||
-                actions.Update.IntersectsWith(DriverRowGeometry.Status(row, dpi)) ||
-                actions.Update.Width < minText)
-                throw new Exception($"UX Drivers: ação cortada/sobreposta em {logicalWidth}, DPI {dpi}");
+            if (!row.Contains(uninstall) ||
+                uninstall.IntersectsWith(DriverRowGeometry.Status(row, dpi)) ||
+                uninstall.Width < minText)
+                throw new Exception($"UX Drivers: desinstalação lateral cortada/sobreposta em {logicalWidth}, DPI {dpi}");
         }
         using var actionHost = new Form
         {
@@ -166,33 +165,32 @@ internal static class DriverListIdentityTests
         actionsList.SetActionPolicy(true, _ => new DriverSilentUninstallDecision(true, "Fixture"));
         int requested = 0;
         DriverInventoryEntry? lastRequested = null;
-        DriverCardAction lastAction = DriverCardAction.VerifyUpdate;
+        DriverCardAction lastAction = DriverCardAction.Details;
         actionsList.ActionRequested += (item, action) =>
         {
             requested++;
             lastRequested = item;
             lastAction = action;
         };
-        void ClickAction(int index, DriverCardAction action)
+        void ClickUninstall(int index)
         {
             int width = Math.Max(1, actionsList.ClientSize.Width - 20);
             int height = DriverRowGeometry.Height(actionsList.DeviceDpi, width);
             var row = new Rectangle(0, index * height, width, height);
-            var areas = DriverRowGeometry.Actions(row, actionsList.DeviceDpi, font);
-            var target = action == DriverCardAction.VerifyUpdate ? areas.Update : areas.Uninstall;
+            var target = DriverRowGeometry.Uninstall(row, actionsList.DeviceDpi, font);
             mouse.Invoke(actionsList, [new MouseEventArgs(MouseButtons.Left, 1,
                 target.Left + target.Width / 2, target.Top + target.Height / 2, 0)]);
         }
-        ClickAction(0, DriverCardAction.VerifyUpdate);
+        ClickUninstall(0);
         if (requested != 1 || !ReferenceEquals(lastRequested, a) ||
-            lastAction != DriverCardAction.VerifyUpdate)
-            throw new Exception("UX Drivers: clique não preservou a identidade do cartão.");
-        ClickAction(1, DriverCardAction.Uninstall);
+            lastAction != DriverCardAction.Uninstall)
+            throw new Exception("UX Drivers: clique não preservou identidade do cartão.");
+        ClickUninstall(1);
         if (requested != 2 || !ReferenceEquals(lastRequested, b) ||
             lastAction != DriverCardAction.Uninstall)
-            throw new Exception("UX Drivers: desinstalação não identificou o objeto selecionado.");
+            throw new Exception("UX Drivers: desinstalação não identificou objeto selecionado.");
         actionsList.SetActionPolicy(false, _ => new DriverSilentUninstallDecision(true, "Fixture"));
-        ClickAction(0, DriverCardAction.Uninstall);
+        ClickUninstall(0);
         if (requested != 2)
             throw new Exception("UX Drivers: ação foi emitida após revogar autoridade.");
         actionHost.Close();
