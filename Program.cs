@@ -1490,7 +1490,7 @@ internal sealed partial class MainForm : Form
                 "Apaga permanentemente os itens da Lixeira. Não é possível desfazer.",
                 AppServices.Red,
                 EmptyRecycleBinAsync),
-            Tool("Limpeza de Disco",
+            Tool("Limpeza avançada",
                 "Abre a ferramenta do Windows para revisar e escolher o que será removido.",
                 AppServices.Blue,
                 () => ConfirmThenRun("cleanmgr-auto", "Abrir a Limpeza de Disco do Windows?")),
