@@ -34,7 +34,7 @@ internal static class DriverElevatedUninstall
     }
 
     internal static async Task<LaunchResult> RequestAsync(
-        string deviceId, string infName)
+        DriverInventoryEntry expected)
     {
         try
         {
@@ -47,7 +47,8 @@ internal static class DriverElevatedUninstall
             {
                 UseShellExecute = true, Verb = "runas",
                 Arguments = "", // ArgumentList mantém identidade e INF como dados.
-                ArgumentList = { Command, Encode(deviceId), Encode(infName) }
+                ArgumentList = { Command, Encode(expected.DeviceId), Encode(expected.InfName),
+                    Encode(expected.Provider), Encode(expected.Version) }
             });
             if (child is null)
                 return new(false, false, "O Windows não iniciou a operação administrativa.");
@@ -69,9 +70,11 @@ internal static class DriverElevatedUninstall
 
     internal static async Task<int> RunAsync(string[] args)
     {
-        if (args.Length != 3 ||
+        if (args.Length != 5 ||
             !TryDecode(args[1], 1024, out var deviceId) ||
             !TryDecode(args[2], 80, out var infName) ||
+            !TryDecode(args[3], 256, out var provider) ||
+            !TryDecode(args[4], 128, out var version) ||
             !System.Text.RegularExpressions.Regex.IsMatch(infName,
                 @"^oem[0-9]{1,7}\.inf$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             return 2;
@@ -92,7 +95,9 @@ internal static class DriverElevatedUninstall
         }
         var matches = snapshot.Items.Where(item =>
             string.Equals(item.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(item.InfName, infName, StringComparison.OrdinalIgnoreCase)).ToArray();
+            string.Equals(item.InfName, infName, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.Version, version, StringComparison.Ordinal)).ToArray();
         if (matches.Length != 1 ||
             snapshot.Items.Count(item => string.Equals(item.DeviceId, deviceId,
                 StringComparison.OrdinalIgnoreCase)) != 1)
@@ -114,7 +119,8 @@ internal static class DriverElevatedUninstall
             "Dispositivo: " + item.DeviceName + Environment.NewLine +
             "ID: " + item.DeviceId + Environment.NewLine +
             "INF: " + item.InfName + Environment.NewLine +
-            "Fornecedor: " + item.Provider + Environment.NewLine + Environment.NewLine +
+            "Fornecedor: " + item.Provider + Environment.NewLine +
+            "Versão instalada: " + item.Version + Environment.NewLine + Environment.NewLine +
             "O backup verificável é obrigatório. Nenhum pacote crítico ou compartilhado será removido.";
         if (MessageBox.Show(question, "GF — confirmar remoção administrativa",
             MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2)
