@@ -365,6 +365,11 @@ internal sealed partial class MainForm
                     : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
         }
         bool uninstallBusy = false;
+        // Estado WUA declarado antes dos handlers que o observam.
+        DriverOfficialResult? latestOfficial = null;
+        long officialGeneration = -1;
+        IReadOnlySet<string> eligibleUpdateIds =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         void SyncDriverActions()
         {
             // A autoridade é a fotografia publicada. O clique seleciona a
@@ -428,10 +433,6 @@ internal sealed partial class MainForm
         string activeFilter = "Todos";
         var driverQuery = new DriverQueryCoordinator();
         bool resultPublished = false;
-        DriverOfficialResult? latestOfficial = null;
-        long officialGeneration = -1;
-        IReadOnlySet<string> eligibleUpdateIds =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         CancellationTokenSource? wuaWait = null;
 
         void OpenDriverInvestigation(bool autoStartOfficial)
