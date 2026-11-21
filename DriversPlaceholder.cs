@@ -675,7 +675,7 @@ internal sealed partial class MainForm
             if (_driverReadTask is { IsCompleted: false } ||
                 readForTest is null && _driverOfficialReadTask is { IsCompleted: false })
             {
-                SetDriverStatus("A consulta nativa anterior ainda está encerrando.");
+                SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 return;
             }
             var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
