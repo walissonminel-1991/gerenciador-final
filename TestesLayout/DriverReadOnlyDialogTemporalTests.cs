@@ -7,7 +7,7 @@ using GerenciadorAplicativos;
 // Nenhum clique deste ensaio acessa o Windows Update ou o Driver Store real.
 internal static class DriverReadOnlyDialogTemporalTests
 {
-    private const string Title = "Drivers — investigar sem alterações";
+    private const string Title = "Drivers — detalhes e evidências";
     internal static void Run(MainForm owner)
     {
         var device = new DriverInventoryEntry(@"PCI\TEST\FIXTURE", "Dispositivo de teste G1.10",
