@@ -754,7 +754,9 @@ internal sealed partial class MainForm
             root.RowStyles[1].Height = splitActions ? Scale(79) :
                 tiny ? Scale(35) : Scale(44);
             root.RowStyles[2].Height = compactFilters ? 0 : Scale(36);
-            root.RowStyles[4].Height = tiny ? Scale(27) :
+            // Em SVGA, devolver altura à lista; no modo tiny o histórico
+            // já fica oculto e o estado completo continua no tooltip.
+            root.RowStyles[4].Height = tiny ? Scale(19) :
                 compact ? Scale(41) : Scale(78);
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
