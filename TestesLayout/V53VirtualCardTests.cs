@@ -28,7 +28,7 @@ internal static class V53VirtualCardTests
             int screenViewport = StartupWindowSizing.Fit(
                 new Rectangle(0, 0, screen.Width, screen.Height - 48)).Width - 48;
             int width = Math.Max(520, screenViewport);
-            var row = new Rectangle(0, 0, width, DriverRowGeometry.Height(dpi));
+            var row = new Rectangle(0, 0, width, DriverRowGeometry.Height(dpi, width));
             Rectangle card = DriverRowGeometry.Card(row, dpi);
             Rectangle emblem = DriverRowGeometry.Emblem(row, dpi);
             Rectangle title = DriverRowGeometry.Text(row, dpi, 5, 22);
@@ -40,13 +40,16 @@ internal static class V53VirtualCardTests
             Require(!title.IntersectsWith(version) && !version.IntersectsWith(inf) &&
                 title.Left >= emblem.Right,
                 $"driver sobrepoe titulo/versao/INF/emblema {screen} DPI={dpi}");
-            if (DriverRowGeometry.ShowStatus(row, dpi))
-            {
-                Rectangle pill = DriverRowGeometry.Status(row, dpi);
-                Require(row.Contains(pill) && title.Right <= pill.Left &&
-                    version.Right <= pill.Left && inf.Right <= pill.Left,
-                    $"status sobrepoe texto/viewport {screen} DPI={dpi}");
-            }
+            Rectangle pill = DriverRowGeometry.Status(row, dpi);
+            using var actionFont = new Font("Segoe UI", 9f, FontStyle.Bold);
+            var actions = DriverRowGeometry.Actions(row, dpi, actionFont);
+            Require(row.Contains(pill) && !title.IntersectsWith(pill) &&
+                !version.IntersectsWith(pill) && !inf.IntersectsWith(pill) &&
+                row.Contains(actions.Update) && row.Contains(actions.Uninstall) &&
+                !actions.Update.IntersectsWith(actions.Uninstall) &&
+                !actions.Update.IntersectsWith(pill) &&
+                !actions.Uninstall.IntersectsWith(pill),
+                $"status e ações sobrepostos ou fora da viewport {screen} DPI={dpi}");
             // Texto longo exige reticencias; nao basta a fixture ter nome curto.
             using var scaledFont = new Font(appFont.FontFamily,
                 appFont.SizeInPoints * dpi / 96f, FontStyle.Bold);
@@ -55,13 +58,13 @@ internal static class V53VirtualCardTests
             // Na tela larga a 100%, o nome pode caber por inteiro:
             // truncamento e exigido quando ha restricao real de largura,
             // nao artificialmente em todo viewport.
-            var constrainedRow = new Rectangle(0, 0, 800, DriverRowGeometry.Height(dpi));
+            var constrainedRow = new Rectangle(0, 0, 800, DriverRowGeometry.Height(dpi, 800));
             var constrainedTitle = DriverRowGeometry.Text(constrainedRow, dpi, 5, 22);
             Require(natural.Width > constrainedTitle.Width,
                 $"nome extenso nao exercita truncamento em largura limitada {screen} DPI={dpi}");
-            // Hit-test por indice, desenho e scroll partilham a altura DPI.
-            Require(DriverRowGeometry.Height(dpi) == DriverRowGeometry.Scale(73, dpi) &&
-                DriverRowGeometry.Height(dpi) >= inf.Bottom,
+            // Hit-test, desenho e scroll compartilham altura responsiva e escala DPI.
+            Require(row.Height == DriverRowGeometry.Height(dpi, width) &&
+                row.Height >= inf.Bottom && row.Height >= pill.Bottom,
                 $"rolagem nao acompanha linhas escaladas {screen} DPI={dpi}");
             checkedCases++;
         }
@@ -103,12 +106,14 @@ internal static class V53VirtualCardTests
         var paint = typeof(DarkDriverList).GetMethod("DrawCard",
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new Exception("V5.3: DrawCard nao localizado.");
-        using var output = new Bitmap(800, 73 * 5);
+        int realRowHeight = DriverRowGeometry.Height(driver.DeviceDpi, 800);
+        using var output = new Bitmap(800, realRowHeight * 5);
         using (var g = Graphics.FromImage(output))
         {
             g.Clear(driver.BackColor);
             for (int i = 0; i < 5; i++)
-                paint.Invoke(driver, [g, new Rectangle(0, i * 73, 800, 73), driverItem, i == 0]);
+                paint.Invoke(driver, [g, new Rectangle(0, i * realRowHeight, 800, realRowHeight),
+                    driverItem, i == 0, null]);
         }
         Directory.CreateDirectory("LayoutCaptures");
         output.Save("LayoutCaptures/V53-drivers-virtualizados-96dpi.png");
