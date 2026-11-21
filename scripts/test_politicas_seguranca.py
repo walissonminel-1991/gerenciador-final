@@ -72,7 +72,9 @@ class PoliticasDeSeguranca(unittest.TestCase):
 
     def test_work7_windows_update_exige_resultado_completo(self):
         code = read("AdvancedFeatures.cs")
-        self.assertGreaterEqual(code.count("WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode)"), 2)
+        self.assertEqual(code.count("SearchPendingSoftware((object)session)"), 2)
+        self.assertRegex(code, r"(?s)private static object SearchPendingSoftware\\(object session\\).*?"
+                              r"RequireSuccessfulSearch\\(\\(int\\)found.ResultCode\\);\\s*return found.Updates;")
 
     def test_actions_fixadas_e_sem_credenciais_persistentes(self):
         folder = ROOT / ".github/workflows"
