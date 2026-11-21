@@ -124,7 +124,6 @@ internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
     internal bool Incomplete => Registry.ReadFailures > 0 || Msix.Failures > 0 || Msix.Status != "ok" || Games.Partial;
 }
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
-internal sealed record CleanupResult(int FilesRemoved, int DirectoriesRemoved, int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples);
 internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes,
     string FileSystem = "");
 
@@ -379,12 +378,8 @@ internal static class AppServices
             inspected, hidden, updates, failures, entries.Count - distinct.Count);
     }
 
-    public static CleanupResult CleanDirectorySafely(string root, Action<string>? log = null)
-    {
-        var result = SafeTemporaryCleanup.Clean(root, log);
-        return new(result.FilesRemoved, result.DirectoriesRemoved, result.Failed,
-            result.ReparseSkipped, result.Skipped, result.Examples);
-    }
+    public static TemporaryCleanupResult CleanDirectorySafely(string root, Action<string>? log = null) =>
+        SafeTemporaryCleanup.Clean(root, log);
 
     public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
     {
@@ -3500,7 +3495,7 @@ internal sealed partial class MainForm : Form
                     Log("A pasta da limpeza não existe neste perfil. Nenhuma alteração realizada.");
                     if (SafeMaintenanceAudit.MissingSource(task) is { } missingSourceAudit)
                         DiagnosticTrace.Write(missingSourceAudit);
-                    Status("Nenhum cache encontrado");
+                    ShowCleanupResult("Nenhum cache encontrado.");
                     return;
                 }
                 Log("Pasta consultada: " + path);
@@ -3509,7 +3504,7 @@ internal sealed partial class MainForm : Form
                     result.DirectoriesRemoved, result.Skipped, result.ReparseSkipped,
                     result.Failed) is { } localResultAudit)
                     DiagnosticTrace.Write(localResultAudit);
-                Status(result.Failed == 0 ? "Limpeza concluída" : "Limpeza parcial, com avisos");
+                ShowCleanupResult(result.Summary);
             });
             return;
         }
@@ -3629,6 +3624,8 @@ internal sealed partial class MainForm : Form
                 }
             }
             bool gotResult = false;
+            string? cleanupSummary = null;
+            const string cleanupResultPrefix = "RESULT|CLEANUP:";
             while (await reader.ReadLineAsync() is { } line)
             {
                 if (task == "windows-check" &&
@@ -3647,6 +3644,11 @@ internal sealed partial class MainForm : Form
                 {
                     _windowsRepairable = false;
                     Log("Verificação inconclusiva. Reparo não liberado automaticamente.");
+                }
+                else if (task is ("clean-windows-temp" or "clear-update-cache") &&
+                    line.StartsWith(cleanupResultPrefix, StringComparison.Ordinal))
+                {
+                    cleanupSummary = line[cleanupResultPrefix.Length..];
                 }
                 else if (line.StartsWith("LOG|", StringComparison.Ordinal))
                 {
@@ -3669,7 +3671,9 @@ internal sealed partial class MainForm : Form
                     if (task == "windows-check" && code != "0") _windowsRepairable = false;
                     if (SafeMaintenanceAudit.ElevatedExit(task, code) is { } audit)
                         DiagnosticTrace.Write(audit);
-                    Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
+                    if (cleanupSummary is not null)
+                        ShowCleanupResult(code == "0" ? cleanupSummary : cleanupSummary + " · Operação com avisos");
+                    else Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
                     gotResult = true;
                 }
             }
@@ -3746,7 +3750,7 @@ internal static class WorkerHost
                     if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal))
                         Send("RESULT", line);
                     else Send("LOG", line);
-                });
+                }, result => Send("RESULT", "CLEANUP:" + result.Summary));
             }
             catch (Exception ex) { Send("LOG", "ERRO: " + ex.Message); exit = 1; }
             Send("DONE", exit.ToString());
@@ -3778,7 +3782,7 @@ internal static class WorkerHost
         return ids.Count == parts.Length;
     }
 
-    private static async Task<int> ExecuteAsync(string task, Action<string> log)
+    private static async Task<int> ExecuteAsync(string task, Action<string> log, Action<TemporaryCleanupResult> cleanupResult)
     {
         if (TryParseUpdateTask(task, out var updateIds))
             return await WindowsUpdateClient.InstallAsync(updateIds, log);
@@ -3910,6 +3914,7 @@ internal static class WorkerHost
         async Task<int> Clean(string path)
         {
             var result = await Task.Run(() => AppServices.CleanDirectorySafely(path, log));
+            cleanupResult(result);
             return result.Failed == 0 ? 0 : 1;
         }
     }

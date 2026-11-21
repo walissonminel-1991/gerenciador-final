@@ -14,6 +14,20 @@ internal static class SafeTemporaryCleanupTests
     internal static void Run()
     {
         checks = 0;
+        long cutoff = DateTime.UtcNow.AddHours(-24).ToFileTimeUtc();
+        Check(SafeTemporaryCleanup.IsEligibleFile(FileAttributes.Normal, 1, cutoff, cutoff),
+            "arquivo no limite de idade é elegível");
+        Check(!SafeTemporaryCleanup.IsEligibleFile(FileAttributes.Normal, 1, cutoff + 1, cutoff) &&
+              !SafeTemporaryCleanup.IsEligibleFile(FileAttributes.Normal, 1, 0, cutoff),
+            "arquivos recentes ou sem data válida são preservados");
+        Check(!SafeTemporaryCleanup.IsEligibleFile(FileAttributes.Normal, 2, cutoff, cutoff),
+            "mais de um vínculo impede contar ou remover o arquivo");
+        foreach (var attributes in new[] { FileAttributes.ReadOnly, FileAttributes.System, FileAttributes.ReparsePoint })
+            Check(!SafeTemporaryCleanup.IsEligibleFile(attributes, 1, cutoff, cutoff),
+                $"atributo {attributes} impede contar ou remover o arquivo");
+        var counts = new TemporaryCleanupResult(2, 1, 1, 4, 3, []);
+        Check(counts.Summary == "2 arquivo(s) removido(s) · 7 item(ns) preservado(s) · 1 falha(s)/limite(s)",
+            "resumo distingue arquivos removidos, itens e links preservados e falhas");
         using (var cancelled = new CancellationTokenSource())
         {
             cancelled.Cancel();
@@ -21,10 +35,14 @@ internal static class SafeTemporaryCleanupTests
             try { SafeTemporaryCleanup.Clean("não-consultar", cancellationToken: cancelled.Token); }
             catch (OperationCanceledException) { stopped = true; }
             Check(stopped, "cancelamento anterior à consulta não é mascarado como sucesso");
+            stopped = false;
+            try { SafeTemporaryCleanup.Estimate("não-consultar", cancelled.Token); }
+            catch (OperationCanceledException) { stopped = true; }
+            Check(stopped, "cancelamento anterior à prévia não é mascarado como sucesso");
         }
         if (!OperatingSystem.IsWindows())
         {
-            Console.WriteLine($"OK: {checks} teste de cancelamento; SKIP limpeza por handles exige Windows.");
+            Console.WriteLine($"OK: {checks} verificações portáveis de limpeza; SKIP prévia e limpeza por handles exigem Windows.");
             return;
         }
         string sandbox = Path.Combine(Path.GetTempPath(), "GF-Temporary-Cleanup-" + Guid.NewGuid().ToString("N"));
@@ -46,8 +64,11 @@ internal static class SafeTemporaryCleanupTests
             File.WriteAllText(recent, "recente");
             string readOnly = Old("readonly.tmp");
             File.SetAttributes(readOnly, FileAttributes.ReadOnly);
+            string system = Old("system.tmp");
+            File.SetAttributes(system, FileAttributes.System);
             string inUse = Old("inuse.tmp");
             string avg = Old(Path.Combine("_avg_preserve", "old.tmp"));
+            string avgFile = Old("_AVG_preserve.tmp");
             string sentinel = Path.Combine(outside, "sentinel.tmp");
             File.WriteAllText(sentinel, "preservar conteúdo fora da raiz");
             File.SetLastWriteTimeUtc(sentinel, DateTime.UtcNow.AddDays(-2));
@@ -65,6 +86,11 @@ internal static class SafeTemporaryCleanupTests
             using (var writing = new FileStream(inUse, FileMode.Open, FileAccess.ReadWrite,
                 FileShare.ReadWrite | FileShare.Delete))
             {
+                long expectedBytes = new FileInfo(old).Length + new FileInfo(nested).Length;
+                var estimate = SafeTemporaryCleanup.Estimate(root);
+                Check(estimate == new TemporaryCleanupEstimate(expectedBytes, 2, false),
+                    "prévia conta apenas os dois arquivos antigos elegíveis, mesmo com AVG, links e escritor ativo");
+                Check(File.Exists(old) && File.Exists(nested), "prévia preserva até os arquivos elegíveis");
                 result = SafeTemporaryCleanup.Clean(root, _ =>
                 {
                     if (callbacks++ != 0) return;
@@ -81,9 +107,12 @@ internal static class SafeTemporaryCleanupTests
                 Check(!File.Exists(old) && !File.Exists(nested), "arquivos antigos comuns são removidos");
                 Check(result.FilesRemoved == 2 && result.DirectoriesRemoved == 1 && result.Failed == 0,
                     "contagem real das fixtures removidas, sem erro de compartilhamento interno");
-                Check(File.Exists(recent) && File.Exists(readOnly) && File.Exists(inUse),
-                    "recentes, somente leitura e escritor ativo são preservados");
-                Check(File.Exists(avg) && Directory.Exists(root), "pasta AVG e própria raiz são preservadas");
+                Check(File.Exists(recent) && File.Exists(readOnly) && File.Exists(system) && File.Exists(inUse),
+                    "recentes, protegidos por atributo e escritor ativo são preservados");
+                Check(File.Exists(avg) && File.Exists(avgFile) && Directory.Exists(root),
+                    "arquivo e pasta AVG são preservados, incluindo grafia em maiúsculas");
+                Check(result.Skipped == 8 && result.FilesRemoved == estimate.EligibleFiles,
+                    "contadores reais refletem a prévia e os itens preservados após a criação concorrente");
                 Check(File.Exists(hardlink) && File.ReadAllText(sentinel) == "preservar conteúdo fora da raiz",
                     "hardlink preservado e conteúdo externo intacto");
                 Check(File.Exists(Path.Combine(root, "concurrent.tmp")), "criação normal de filhos continua permitida");
@@ -129,6 +158,10 @@ internal static class SafeTemporaryCleanupTests
             string deepFile = Path.Combine(deep, "old.tmp");
             File.WriteAllText(deepFile, "fora do orçamento de profundidade");
             File.SetLastWriteTimeUtc(deepFile, DateTime.UtcNow.AddDays(-2));
+            Check(SafeTemporaryCleanup.Estimate(deepRoot) == new TemporaryCleanupEstimate(0, 0, true),
+                "orçamento de profundidade torna a prévia parcial");
+            Check(SafeTemporaryCleanup.Estimate(Path.Combine(sandbox, "ausente")) == new TemporaryCleanupEstimate(0, 0, false),
+                "pasta ausente retorna estimativa vazia");
             var bounded = SafeTemporaryCleanup.Clean(deepRoot);
             Check(bounded.Failed == 1 && bounded.FilesRemoved == 0 && File.Exists(deepFile),
                 "limite de profundidade preserva dados e informa resultado parcial");
@@ -145,6 +178,8 @@ internal static class SafeTemporaryCleanupTests
         {
             string readOnly = Path.Combine(root, "readonly.tmp");
             if (File.Exists(readOnly)) File.SetAttributes(readOnly, FileAttributes.Normal);
+            string system = Path.Combine(root, "system.tmp");
+            if (File.Exists(system)) File.SetAttributes(system, FileAttributes.Normal);
             // As fixtures de links são removidas como links antes da pasta de teste.
             foreach (string link in new[] { Path.Combine(root, "redirect-file.tmp"), Path.Combine(root, "hardlink.tmp") })
                 if (File.Exists(link)) File.Delete(link);

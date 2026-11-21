@@ -93,43 +93,8 @@ internal static class SafetyDiagnostics
             ("Shaders DirectX", Path.Combine(local, "D3DSCache"))
         })
         {
-            long size = 0; int count = 0; bool partial = false, truncated = false;
-            int visited = 0;
-            if (!Directory.Exists(folder)) { result.Add(new(label, 0, 0, false)); continue; }
-            var stack = new Stack<string>(); stack.Push(folder);
-            while (stack.Count > 0)
-            {
-                if (++visited > 12000) { truncated = true; break; }
-                string current = stack.Pop();
-                try
-                {
-                    foreach (string file in Directory.EnumerateFiles(current))
-                    {
-                        if (++visited > 12000) { truncated = true; break; }
-                        try
-                        {
-                            var info = new FileInfo(file);
-                            if ((info.Attributes & (FileAttributes.ReparsePoint | FileAttributes.ReadOnly | FileAttributes.System)) != 0) continue;
-                            if (DateTime.Now - info.LastWriteTime < TimeSpan.FromHours(24)) continue;
-                            checked { size += info.Length; }
-                            count++;
-                        }
-                        catch { partial = true; }
-                    }
-                    if (truncated) break;
-                    foreach (string dir in Directory.EnumerateDirectories(current))
-                    {
-                        try
-                        {
-                            var attr = File.GetAttributes(dir);
-                            if ((attr & FileAttributes.ReparsePoint) == 0) stack.Push(dir);
-                        }
-                        catch { partial = true; }
-                    }
-                }
-                catch { partial = true; }
-            }
-            result.Add(new(label, size, count, partial || truncated));
+            var estimate = SafeTemporaryCleanup.Estimate(folder);
+            result.Add(new(label, estimate.EligibleBytes, estimate.EligibleFiles, estimate.Partial));
         }
         return result;
     });
