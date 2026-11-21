@@ -627,7 +627,7 @@ internal static class LayoutTests
                 }
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
-                // DRIVERS permite consulta, sem instalacao ou remocao.
+                // A página apresenta ações individuais, inativas antes da consulta.
                 if (tab == 1)
                 {
                     bool tinyDrivers = placeholder.Height < 230;
@@ -641,12 +641,15 @@ internal static class LayoutTests
                     if (mobileFilter is null || mobileFilter.Visible != (tinyDrivers || placeholder.Width < 760) ||
                         mobileFilter.Items.Count != 5)
                         throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
+                    var driverButtons = Descendants(placeholder).OfType<Button>().ToArray();
+                    var uninstall = driverButtons.Single(b => b.Name == "DriverUninstallAction");
+                    var update = driverButtons.Single(b => b.Name == "DriverUpdateAction");
                     if (Descendants(placeholder).OfType<DataGridView>().Any() ||
-                        Descendants(placeholder).OfType<Button>().Any(b =>
-                            b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase) ||
-                            b.Text.Contains("Atualizar driver", StringComparison.OrdinalIgnoreCase) ||
-                            b.Text.Contains("Remover driver", StringComparison.OrdinalIgnoreCase)))
-                        throw new Exception("DRIVERS ganhou acao destrutiva.");
+                        uninstall.Enabled || update.Enabled ||
+                        driverButtons.Any(b => b != uninstall &&
+                            (b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase) ||
+                             b.Text.Contains("Remover driver", StringComparison.OrdinalIgnoreCase))))
+                        throw new Exception("Drivers: ações individuais devem aguardar consulta e seleção.");
                 }
                 else if (allButtons.Length == 0)
                     throw new Exception($"Nenhum botao apresentado: {name} {resolution} aba={tab}");

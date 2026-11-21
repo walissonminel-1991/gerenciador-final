@@ -1,5 +1,11 @@
 using GerenciadorAplicativos;
 
+if (args is ["--silent-uninstall"])
+{
+    DriverSilentUninstallTests.Run();
+    return;
+}
+
 if (args is ["--f4-runner-probe"])
 {
     Environment.ExitCode = await DriverWuaF41RunnerProbe.Run();

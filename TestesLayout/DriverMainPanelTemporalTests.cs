@@ -34,6 +34,10 @@ internal static class DriverMainPanelTemporalTests
             var title = Find<Label>(page, "DriverInventoryTitle");
             var copySummary = Find<Button>(page, "DriverCopySafetySummary");
             var sim = Find<Button>(page, "DriverSyntheticLabOpen");
+            var update = Find<Button>(page, "DriverUpdateAction");
+            var uninstall = Find<Button>(page, "DriverUninstallAction");
+            if (update.Enabled || uninstall.Enabled)
+                throw new Exception("Drivers: ações de manutenção habilitadas antes de consultar.");
             if (!sim.Enabled) throw new Exception("UX3: laboratório inacessível antes da consulta.");
             string initialStatus = status.Text;
             sim.PerformClick();
@@ -114,6 +118,10 @@ internal static class DriverMainPanelTemporalTests
                     throw new Exception("DRIVERS: botão de resumo não liberou espaço em janela estreita.");
                 if (!sim.Visible || !sim.Enabled || sim.Width < 75)
                     throw new Exception("UX3: botão Simular inacessível em " + size);
+                if (!uninstall.Visible || uninstall.Enabled || update.Enabled ||
+                    uninstall.Parent?.ClientRectangle.Contains(uninstall.Bounds) != true ||
+                    compact.Visible && compact.Width <= 24)
+                    throw new Exception("Drivers: manutenção sintética ativa ou controles cortados em " + size);
             }
             read();
             Pump();

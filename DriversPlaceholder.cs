@@ -99,6 +99,7 @@ internal sealed partial class MainForm
             BackColor = Color.FromArgb(37, 48, 61), ForeColor = Ink,
             DropDownStyle = ComboBoxStyle.DropDownList,
             FlatStyle = FlatStyle.Flat,
+            DropDownWidth = 145,
             Visible = false, Margin = Padding.Empty
         };
         compactFilter.Items.AddRange(new object[]
@@ -435,6 +436,14 @@ internal sealed partial class MainForm
                         catch (InvalidOperationException) { }
                     });
                 if (root.IsDisposed) return;
+                if (outcome.RequiresInventoryRefresh)
+                {
+                    inventoryGeneration++;
+                    invalidateOpenReport?.Invoke();
+                    investigate.Enabled = false;
+                    copySummary.Enabled = false;
+                    refreshAfter = true;
+                }
                 SetDriverStatus(outcome.Message);
                 MessageBox.Show(this, outcome.Message + (outcome.BackupPath is null ? "" :
                     Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath),
@@ -442,24 +451,16 @@ internal sealed partial class MainForm
                     outcome.State == DriverSilentUninstallState.Verified ?
                         MessageBoxIcon.Information : MessageBoxIcon.Warning);
                 if (DriverResidualReviewPolicy.MayInspect(outcome.State))
-                {
-                    // Diferente de residuos de aplicativos, nenhum alvo de
-                    // DriverStore/Registro ganha autoridade de exclusao aqui.
                     SetDriverStatus("INF removido; resíduos protegidos, sem limpeza genérica.");
-                    // Um resultado real revoga a fotografia; uma nova consulta
-                    // é necessária antes de qualquer outra operação.
-                    inventoryGeneration++;
-                    invalidateOpenReport?.Invoke();
-                    investigate.Enabled = false;
-                    copySummary.Enabled = false;
-                    refreshAfter = true;
-                }
             }
             finally
             {
                 uninstallBusy = false;
-                if (!refresh.IsDisposed) refresh.Enabled = true;
-                SyncDriverActions();
+                if (!root.IsDisposed)
+                {
+                    refresh.Enabled = true;
+                    SyncDriverActions();
+                }
             }
             if (refreshAfter && !root.IsDisposed) await RunRefresh();
         };
@@ -736,9 +737,12 @@ internal sealed partial class MainForm
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
             heading.Visible = !compactFilters;
+            actionPanel.ColumnStyles[0].Width = narrow ? 119 : 160;
+            actionPanel.ColumnStyles[1].Width = narrow ? 82 : 100;
+            actionPanel.ColumnStyles[2].Width = narrow ? 82 : 110;
             actionPanel.ColumnStyles[3].Width = showCopy ? 125 : 0;
-            actionPanel.ColumnStyles[2].Width = narrow ? 0 : 110;
-            labOpen.Visible = !narrow;
+            actionPanel.ColumnStyles[4].Width = narrow ? 73 : 105;
+            actionPanel.ColumnStyles[5].Width = narrow ? 94 : 125;
             copySummary.Visible = showCopy;
             actionHint.Visible = !compactFilters;
             compactFilter.Visible = compactFilters;

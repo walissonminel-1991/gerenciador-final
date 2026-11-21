@@ -16,7 +16,11 @@ internal enum DriverSilentUninstallState
     Blocked, BackupFailed, InstallationUncertain, VerificationUncertain, Verified
 }
 internal sealed record DriverSilentUninstallOutcome(DriverSilentUninstallState State,
-    string Message, string? BackupPath = null);
+    string Message, string? BackupPath = null)
+{
+    internal bool RequiresInventoryRefresh => State is DriverSilentUninstallState.Verified or
+        DriverSilentUninstallState.InstallationUncertain or DriverSilentUninstallState.VerificationUncertain;
+}
 
 internal static class DriverSilentUninstall
 {
@@ -48,8 +52,8 @@ internal static class DriverSilentUninstall
         var current = inventory.Items.Single(d => string.Equals(d.DeviceId,
             selected.DeviceId, StringComparison.OrdinalIgnoreCase));
         if (!Equals(current, selected) || current.Present != true || current.Signed != true ||
-            current.WithoutSignedDriverAssociation || current.HasPnpProblem)
-            return new(false, "Dispositivo ausente, com problema ou sem associação assinada inequívoca.");
+            current.WithoutSignedDriverAssociation || current.PnpProblemCode != 0)
+            return new(false, "Presença, estado PnP ou associação assinada do dispositivo não confirmados.");
         if (!OemInf.IsMatch(current.InfName ?? ""))
             return new(false, "Apenas pacotes OEM publicados (oemNN.inf); INFs do Windows são protegidos.");
         if (current.PackageEvidence is not { State: DriverStoreState.Mapped } mapped ||
@@ -91,7 +95,7 @@ internal static class DriverSilentUninstall
             return new(DriverSilentUninstallState.Blocked,
                 "Outra remoção está ativa; operação paralela bloqueada.");
         string? backupPath = null;
-        string? pendingPath = null;
+        bool removalAttempted = false;
         try
         {
             progress?.Invoke("Revalidando instância PnP e pacote OEM no Windows...");
@@ -116,6 +120,11 @@ internal static class DriverSilentUninstall
             string backups = Path.Combine(Environment.GetFolderPath(
                 Environment.SpecialFolder.LocalApplicationData),
                 "GerenciadorFinal", "Drivers", "Backups");
+            string pendingPath = Path.Combine(backups,
+                "pendente-" + selected.InfName.ToLowerInvariant() + ".json");
+            if (!IsMissing(pendingPath))
+                return new(DriverSilentUninstallState.Blocked,
+                    "Existe operação pendente deste INF. Confira o estado antes de repetir.");
             backupPath = Path.Combine(backups,
                 DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(backupPath);
@@ -124,16 +133,15 @@ internal static class DriverSilentUninstall
                     "Diretório do backup contém redirecionamento ou não é confiável; remoção bloqueada.");
             progress?.Invoke("Exportando pacote original para recuperação...");
             var exported = await RunPnPUtil(["/export-driver", selected.InfName, backupPath], TimeSpan.FromMinutes(2));
-            string digest = "";
+            var package = rows[0].PackageEvidence!;
+            string digest;
             if (exported != 0 || !SafeBackupLocation(backups, backupPath) ||
-                !BackupHasInf(backupPath, out digest))
+                !VerifyBackup(backupPath, Path.GetFileName(package.StorePath), infTrust.Sha256, out digest))
                 return new(DriverSilentUninstallState.BackupFailed,
                     "Backup OEM não confirmado; remoção não iniciada.", backupPath);
-            // Uma última verificação rápida do vínculo, dentro da mesma execução.
-            if (!selectionStillCurrent() ||
-                DriverStoreAudit.Resolve(selected.InfName).State != DriverStoreState.Mapped)
+            if (!selectionStillCurrent())
                 return new(DriverSilentUninstallState.Blocked,
-                    "Seleção ou mapeamento alterados após o backup; nenhum driver removido.", backupPath);
+                    "Seleção alterada após o backup; nenhum driver removido.", backupPath);
 
             // Uma segunda fotografia verifica identidade, elegibilidade e
             // compartilhamento imediatamente antes da ação irreversível.
@@ -142,20 +150,23 @@ internal static class DriverSilentUninstall
             var lastRows = finalSnapshot.Items.Where(d => string.Equals(d.DeviceId,
                 selected.DeviceId, StringComparison.OrdinalIgnoreCase)).ToArray();
             if (lastRows.Length != 1 || !SameIdentity(selected, lastRows[0]) ||
-                !Evaluate(finalSnapshot, lastRows[0]).Allowed || !selectionStillCurrent())
+                !Evaluate(finalSnapshot, lastRows[0]).Allowed)
             {
                 return new(DriverSilentUninstallState.Blocked,
                     "Revalidação final mudou; pacote preservado. Nenhuma remoção iniciada.",
                     backupPath);
             }
+            var finalPackage = lastRows[0].PackageEvidence!;
+            var finalTrust = await Task.Run(() => DriverInfVerification.Verify(finalPackage, CancellationToken.None));
+            if (!MatchesBackupSource(package, infTrust, finalPackage, finalTrust) || !selectionStillCurrent())
+                return new(DriverSilentUninstallState.Blocked,
+                    "Pacote ou seleção mudou após o backup; nenhum driver removido.", backupPath);
 
             string record = Path.Combine(backupPath, "operacao-gf.json");
             await WriteRecord(record, selected, "INTENCAO_ANTES_DA_REMOCAO", digest);
             // Protege inclusive contra uma segunda instância do GF e contra
             // reexecução após queda do Windows. A presença deste marcador
             // bloqueia nova remoção do MESMO pacote até conciliação manual.
-            pendingPath = Path.Combine(backups,
-                "pendente-" + selected.InfName.ToLowerInvariant() + ".json");
             try
             {
                 using var pending = new FileStream(pendingPath, FileMode.CreateNew,
@@ -176,7 +187,15 @@ internal static class DriverSilentUninstall
             // Depois deste ponto, um timeout/erro não significa que não houve
             // efeito. Nunca repetir às cegas; conciliar manualmente pelo INF.
             progress?.Invoke("Removendo silenciosamente pacote OEM específico...");
+            if (!selectionStillCurrent())
+            {
+                await WriteRecord(record, selected, "SELECAO_REVOGADA", digest);
+                File.Delete(pendingPath);
+                return new(DriverSilentUninstallState.Blocked,
+                    "Seleção revogada; nenhum driver removido.", backupPath);
+            }
             int exit;
+            removalAttempted = true;
             try { exit = await RunPnPUtil(["/delete-driver", selected.InfName, "/uninstall"], TimeSpan.FromMinutes(3)); }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
@@ -186,17 +205,10 @@ internal static class DriverSilentUninstall
             }
             await WriteRecord(record, selected, "PNPUTIL_SAIU_" + exit, digest);
             progress?.Invoke("Conferindo pacote e vínculo após a desinstalação...");
-            // Saída zero não basta: verificar a associação PnP e o INF publicado.
             var after = await Task.Run(() => DriverInventory.Capture(CancellationToken.None));
-            bool oldBinding = after.Items.Any(d => string.Equals(d.DeviceId, selected.DeviceId,
-                StringComparison.OrdinalIgnoreCase) && string.Equals(d.InfName,
-                selected.InfName, StringComparison.OrdinalIgnoreCase));
-            string published = Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.Windows), "INF", selected.InfName);
-            bool verified = RemovalSafetyContract.Confirmed(exit == 0, !after.Partial,
-                !oldBinding && !File.Exists(published), true);
+            bool verified = RemovalConfirmed(exit, after, finalPackage);
             await WriteRecord(record, selected, verified ? "VERIFICADO" : "VERIFICACAO_PENDENTE", digest);
-            if (verified && pendingPath is not null)
+            if (verified)
             {
                 try { File.Delete(pendingPath); }
                 catch (IOException)
@@ -212,14 +224,17 @@ internal static class DriverSilentUninstall
             }
             return verified
                 ? new(DriverSilentUninstallState.Verified,
-                    "Pacote OEM removido; vínculo PnP e INF publicados não encontrados.", backupPath)
+                    "Pacote OEM removido. Nenhum vínculo PnP ou INF do pacote foi encontrado.", backupPath)
                 : new(DriverSilentUninstallState.VerificationUncertain,
                     "Remoção ainda não comprovada. Pode ser necessário reiniciar; não repetir.", backupPath);
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            return new(DriverSilentUninstallState.InstallationUncertain,
-                "Falha operacional: " + e.GetType().Name + ". Conferir backup e estado antes de repetir.", backupPath);
+            return removalAttempted
+                ? new(DriverSilentUninstallState.InstallationUncertain,
+                    "Falha após solicitar remoção: " + e.GetType().Name + ". Confira o estado antes de repetir.", backupPath)
+                : new(DriverSilentUninstallState.Blocked,
+                    "Falha de preparação: " + e.GetType().Name + ". Nenhuma remoção solicitada.", backupPath);
         }
         finally { Interlocked.Exchange(ref active, 0); }
     }
@@ -230,6 +245,32 @@ internal static class DriverSilentUninstall
         string.Equals(a.Provider, b.Provider, StringComparison.OrdinalIgnoreCase) &&
         string.Equals(a.Version, b.Version, StringComparison.Ordinal) &&
         string.Equals(a.ReportedDriverClass, b.ReportedDriverClass, StringComparison.OrdinalIgnoreCase);
+
+    internal static bool MatchesBackupSource(DriverStoreEvidence originalPackage,
+        DriverInfVerificationResult original, DriverStoreEvidence currentPackage,
+        DriverInfVerificationResult current) =>
+        original.Trust == DriverInfTrust.VerifiedInf && current.Trust == DriverInfTrust.VerifiedInf &&
+        original.Sha256.Length != 0 && original.Sha256 == current.Sha256 &&
+        string.Equals(original.Catalog, current.Catalog, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(original.Signer, current.Signer, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(originalPackage.StorePath, currentPackage.StorePath, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(originalPackage.PublishedPath, currentPackage.PublishedPath, StringComparison.OrdinalIgnoreCase);
+
+    internal static bool RemovalConfirmed(int exit, DriverInventoryResult after, DriverStoreEvidence package)
+    {
+        if (exit != 0 || after.Partial || after.Items.Count == 0) return false;
+        bool assigned = after.Items.Any(d =>
+            string.Equals(d.InfName, package.InfName, StringComparison.OrdinalIgnoreCase));
+        return RemovalSafetyContract.Confirmed(true, true,
+            !assigned && IsMissing(package.PublishedPath), IsMissing(package.StorePath));
+    }
+
+    private static bool IsMissing(string path)
+    {
+        try { _ = File.GetAttributes(path); return false; }
+        catch (FileNotFoundException) { return true; }
+        catch (DirectoryNotFoundException) { return true; }
+    }
 
     // Segurança do local persistente, inclusive quando o perfil contiver
     // junções/reparse points: não gravar backups privilegiados através de links.
@@ -253,7 +294,7 @@ internal static class DriverSilentUninstall
             ArgumentException or NotSupportedException) { return false; }
     }
 
-    private static bool BackupHasInf(string folder, out string digest)
+    internal static bool VerifyBackup(string folder, string infName, string infDigest, out string digest)
     {
         digest = "";
         try
@@ -279,8 +320,7 @@ internal static class DriverSilentUninstall
                     if (files.Count > 256 || directories.Count > 256) return false;
                 }
             }
-            if (!files.Any(f => f.EndsWith(".inf", StringComparison.OrdinalIgnoreCase)))
-                return false;
+            int matchingInfs = 0;
             long total = 0;
             using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             foreach (string file in files.Order(StringComparer.OrdinalIgnoreCase))
@@ -300,8 +340,14 @@ internal static class DriverSilentUninstall
                 byte[] name = System.Text.Encoding.UTF8.GetBytes(relative + "\n" + info.Length + "\n");
                 sha.AppendData(name);
                 using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
-                sha.AppendData(SHA256.HashData(stream));
+                byte[] fileDigest = SHA256.HashData(stream);
+                if (Path.GetFileName(file).Equals(infName, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (++matchingInfs != 1 || Convert.ToHexString(fileDigest) != infDigest) return false;
+                }
+                sha.AppendData(fileDigest);
             }
+            if (matchingInfs != 1) return false;
             digest = Convert.ToHexString(sha.GetHashAndReset());
             return true;
         }
