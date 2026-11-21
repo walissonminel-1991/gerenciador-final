@@ -90,6 +90,20 @@ internal static class V53VirtualCardTests
                 [appList, new DrawItemEventArgs(appGraphics, appList.Font,
                     new Rectangle(0, 0, 800, 67), 0, DrawItemState.Default)]);
         }
+        // Todo aplicativo mostra Desinstalar, inclusive entrada de inventário
+        // sem comando confiável. O clique retorna gerenciamento manual, não
+        // eleva nem executa um desinstalador inventado.
+        appList.ActionsEnabled = true;
+        var uninstallButton = AppRowGeometry.UninstallButton(
+            new Rectangle(0, 0, appList.ClientSize.Width, appList.ItemHeight));
+        var hit = ((ProgramEntry? Item, string Action))(
+            typeof(DarkProgramList).GetMethod("HitAction",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
+                [new Point(uninstallButton.Left + uninstallButton.Width / 2,
+                    uninstallButton.Top + uninstallButton.Height / 2)])!);
+        Require(hit.Action == "uninstall-manual" &&
+            ReferenceEquals(hit.Item, appList.Items[0]),
+            "aplicativo somente inventário deve oferecer Desinstalar manual sem execução direta");
         // O contrato do tooltip era existente e permanece no controle real.
         typeof(DarkProgramList).GetMethod("OnMouseMove",
             BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
