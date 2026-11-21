@@ -175,7 +175,7 @@ internal static class DriverReadOnlyDialogHistoryTests
             { starts++; return Task.FromResult(new DriverInfVerificationResult(DriverInfTrust.Rejected)); }),
             (TimeSpan?)TimeSpan.FromSeconds(3),
             (Action<Action, Action>)((official, inf) =>
-            { startOfficial = official; startInf = inf; })]);
+            { startOfficial = official; startInf = inf; }), false]);
         timer.Stop();
         if (failure is not null) throw failure;
         if (checks != 2 || observed is not null)

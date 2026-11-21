@@ -180,7 +180,7 @@ internal static class DriverReadOnlyDialogEvidenceTests
                 return Task.FromResult(new DriverInfVerificationResult(DriverInfTrust.Rejected));
             }),
             (TimeSpan?)TimeSpan.FromSeconds(3),
-            (Action<Action, Action>)((a, b) => { officialAction = a; infAction = b; })]);
+            (Action<Action, Action>)((a, b) => { officialAction = a; infAction = b; }), false]);
         timer.Stop();
         if (failure is not null) throw failure;
         if (observer is not null || measured != 2)

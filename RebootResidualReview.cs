@@ -21,7 +21,7 @@ internal static class RebootResidualReview
     internal static bool IsLaterBoot(long stored, long current) =>
         // Um retrocesso no relogio do mesmo boot nao autoriza consumir revisao.
         // Na duvida a revisao passiva permanece pendente, sem exclusao.
-        stored > 0 && current > stored && current - stored > TimeSpan.FromMinutes(2).Ticks;
+        RemovalSafetyContract.LaterBoot(stored, current);
     internal static bool IsRetryable(ResidualItemResult item) =>
         item.Error is 32 or 33 || item.Reason.Contains("sharing_violation", StringComparison.Ordinal);
     internal static bool ProviderRequiresRestart(UninstallOutcome outcome) =>

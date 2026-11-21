@@ -24,6 +24,8 @@ internal static class DriverUpdatePilotJournalTests
                     "lock interinstancia nao bloqueou intencao concorrente");
                 first.Mark(choice, DriverUpdatePilotState.InstallationUncertain);
             }
+            Ensure(DriverUpdatePilotFileJournal.ReadOnlyStatus(path).Contains("conciliação"),
+                "a UI precisa sinalizar estado incerto sem alterar o diário");
             var bytes = File.ReadAllBytes(path);
             using (var recovered = new DriverUpdatePilotFileJournal(path))
                 Ensure(!recovered.TryBegin(choice) &&
@@ -35,6 +37,8 @@ internal static class DriverUpdatePilotJournalTests
                 Ensure(verified.TryBegin(choice), "journal valido nao inicia");
                 verified.Mark(choice, DriverUpdatePilotState.Verified);
             }
+            Ensure(DriverUpdatePilotFileJournal.ReadOnlyStatus(successPath).Contains("verificada"),
+                "status somente leitura deve reconhecer conclusão válida");
             using (var next = new DriverUpdatePilotFileJournal(successPath))
             {
                 Ensure(next.TryBegin(choice),
@@ -47,6 +51,8 @@ internal static class DriverUpdatePilotJournalTests
             string corrupt = Path.Combine(folder, "corrupt.json");
             File.WriteAllText(corrupt, "{\"Phase\":\"Verified\",\"Sha256\":\"fake\"}");
             var untouched = File.ReadAllBytes(corrupt);
+            Ensure(DriverUpdatePilotFileJournal.ReadOnlyStatus(corrupt).Contains("inválido"),
+                "status de diário corrompido deve falhar fechado");
             using (var broken = new DriverUpdatePilotFileJournal(corrupt))
                 Ensure(!broken.TryBegin(choice) &&
                     File.ReadAllBytes(corrupt).SequenceEqual(untouched),

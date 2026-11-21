@@ -61,6 +61,9 @@ if (args.Contains("--work7-uninstall"))
     if (failures > 0) throw new Exception($"WORK7: {failures} defeitos de desinstalação reproduzidos");
     return;
 }
+var sumatra = new ProgramEntry { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" };
+var notepad = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" };
+if (args is ["--from-deep-residual-catalog"]) goto DeepResidualCatalog;
 {
     string win = @"C:\Windows";
     string app = @"C:\Program Files\Cliente\worker.exe";
@@ -106,6 +109,11 @@ if (args.Contains("--work6-uninstall-policy"))
     if(failures>0) throw new Exception($"WORK6 uninstall: {failures} falhas reproduzidas");
     return;
 }
+if (args is ["--from-notepad-history"])
+{
+    if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Registro Windows necessário.");
+    goto NotepadHistory;
+}
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
 Work14RegistryTests.Run(Check);
@@ -115,6 +123,7 @@ await Work12RegressionTests.RunAsync(Check);
 await Work10IntegratedCleanupTests.RunAsync(Check);
 Work6UninstallTests.Policy(Check);
 await Work6UninstallFlowTests.Run(Check);
+RemovalSafetyContractTests.Run(Check);
 await Work7UninstallTests.Run(Check);
 SimulatedUninstallScenarioTests.Run(Check);
 await Work6PreviewTests.Run(Check);
@@ -976,6 +985,7 @@ Check(!winMergeHistorical.UninstallConfirmed && winMergeHistorical.Historical &&
 
 // Notepad++ historico: nao basta encontrar AppData para autorizar
 // remocao. Protecao inclui outras arquiteturas e inventario parcial.
+NotepadHistory:
 var notepadActiveReport = ResidualAudit.InspectHistoricalNotepadPlusPlus(new[]
     { new ProgramEntry { Name = "Notepad++ (x64)", Publisher = "Don HO" } });
 Check(notepadActiveReport.Findings.Count == 0 &&
@@ -988,11 +998,26 @@ Check(notepadPartialReport.Findings.Count == 0 &&
     "Inventario parcial nao pode confirmar ausencia de Notepad++.");
 var notepadHistory = ResidualAudit.InspectHistoricalNotepadPlusPlus(
     Array.Empty<ProgramEntry>());
+var knownSharedHistoryKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Compatibility Assistant\Store",
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppSwitched",
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppLaunch",
+    @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\ShowJumpView"
+};
 Check(notepadHistory.Historical && !notepadHistory.UninstallConfirmed &&
-    notepadHistory.Findings.All(f => !f.CanRemove &&
-        f.Disposition == ResidualDisposition.PreserveData &&
-        f.Location.Contains("Notepad++", StringComparison.OrdinalIgnoreCase)),
-    "Vestigios Notepad++ exatos sao consultivos e preservam preferencias; nenhuma chave Windows compartilhada.");
+    notepadHistory.Findings.All(f => !f.CanRemove && (f.Disposition switch
+    {
+        ResidualDisposition.PreserveData =>
+            f.Location.Contains("Notepad++", StringComparison.OrdinalIgnoreCase),
+        ResidualDisposition.PreserveShared =>
+            f.Sources == (ResidualSource.Registry | ResidualSource.Integration) &&
+            knownSharedHistoryKeys.Contains(f.Location),
+        _ => false
+    })),
+    "Notepad++ historico preserva dados exatos e referencias nas chaves compartilhadas conhecidas.");
+Console.WriteLine($"Notepad++ historico: dados={notepadHistory.Findings.Count(f => f.Disposition == ResidualDisposition.PreserveData)}, " +
+    $"compartilhados={notepadHistory.Findings.Count(f => f.Disposition == ResidualDisposition.PreserveShared)}.");
 Check(ResidualAudit.TrackedApplicationStillPresent("foobar2000",
     new[] { "foobar2000 v2.26.1 (x64)" }) &&
     !ResidualAudit.TrackedApplicationStillPresent("foobar2000",
@@ -1122,8 +1147,6 @@ finally
 {
     Directory.Delete(auditFolder, true);
 }
-var sumatra = new ProgramEntry { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" };
-var notepad = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" };
 Check(UninstallResiduals.IsSupported(sumatra), "Sumatra conhecido");
 Check(UninstallResiduals.IsSupported(notepad), "Notepad conhecido");
 Check(!UninstallResiduals.IsSupported(new ProgramEntry
@@ -1267,8 +1290,18 @@ finally
     try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(testKey, false); }
     catch (ArgumentException) { }
 }
-Check(AdvancedUninstallCleaner.Inspect(new[] { sumatra, notepad }).Count == 0,
-    "Modo profundo não apresenta programa ainda instalado");
+DeepResidualCatalog:
+var rules = UninstallRuleCatalog.Rules;
+var installedForDeepAudit = rules.Select(rule => rule.Id switch
+{
+    "sumatrapdf" => sumatra,
+    "notepadpp" => notepad,
+    _ => new ProgramEntry { Name = rule.DisplayName }
+}).ToArray();
+Check(installedForDeepAudit.Length > 0 &&
+    installedForDeepAudit.All(app => AdvancedUninstallCleaner.StillInstalled(app, installedForDeepAudit)) &&
+    AdvancedUninstallCleaner.Inspect(installedForDeepAudit).Count == 0,
+    "Modo profundo exclui do resultado todos os programas do catalogo presentes no inventario de teste.");
 // Revalidar o disco nao amplia o consentimento dado no dialogo anterior.
 var originallyAccepted = new DeepCleanItem(sumatra,
     new[] { @"C:\Approved", @"C:\NoLongerPresent" },
@@ -1285,7 +1318,6 @@ var nothingApproved = AdvancedUninstallCleaner.RestrictToAccepted(emptyApproval,
 Check(nothingApproved.Folders.Count == 0 && nothingApproved.RegistryKeys.Count == 0,
     "Confirmacao sem alvos nao autoriza limpar novos residuos");
 Console.WriteLine("Testes do catálogo de desinstalação embarcado.");
-var rules = UninstallRuleCatalog.Rules;
 Check(rules.Count == 6, "Seis políticas específicas validadas e incorporadas ao executável");
 Check(rules.Any(x => x.Id == "sumatrapdf" && x.RegistryKeys.Single() == @"Software\SumatraPDF"),
     "Política SumatraPDF tem HKCU exclusivo");

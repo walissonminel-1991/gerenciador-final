@@ -3249,7 +3249,7 @@ internal sealed partial class MainForm : Form
                 RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
                     "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0, milliseconds: outcome.DurationMilliseconds,
                     reason: outcome.DiagnosticReason.Length > 0 ? outcome.DiagnosticReason :
-                        outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
+                        RemovalSafetyContract.AuditOutcome(outcome.State == UninstallState.RegistrationAbsent)));
             }
             foreach (var app in apps.Where(app => !outcomes.Any(o => o.Request.Original.InventoryId == app.InventoryId)))
                 SetUninstallProgress(app, "cancelled");

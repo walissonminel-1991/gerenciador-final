@@ -1,5 +1,11 @@
 using GerenciadorAplicativos;
 
+if (args is ["--silent-uninstall"])
+{
+    DriverSilentUninstallTests.Run();
+    return;
+}
+
 if (args is ["--f4-runner-probe"])
 {
     Environment.ExitCode = await DriverWuaF41RunnerProbe.Run();
@@ -29,6 +35,10 @@ DriverLabSimulationTests.Run();
 DriverCandidateTriageTests.Run();
 await DriverUpdatePilotTests.Run();
 DriverUpdatePilotJournalTests.Run();
+G31WiringTests.Run();
+RemovalSafetyContractTests.Run((ok, message) =>
+{ if (!ok) throw new InvalidOperationException("R7+G3: " + message); });
+DriverSilentUninstallTests.Run();
 
 if (args.Contains("--etapa2"))
 {

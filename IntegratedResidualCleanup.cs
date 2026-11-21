@@ -293,7 +293,9 @@ internal static class IntegratedResidualCleanup
             string stage = address is null ? kind : RegistryStage(address);
             audit?.Invoke(Audit(plan.Context.App, stage, state.ToString(), error: error, reason: reason));
         }
-        if (!consent || !ValidPlan(plan) || onlyIds?.Any(id => !targets.Any(t => t.Id == id)) == true)
+        if (!RemovalSafetyContract.MayDeleteResidues(consent, ValidPlan(plan),
+            plan.Complete, ValidContext(plan.Context)) ||
+            onlyIds?.Any(id => !targets.Any(t => t.Id == id)) == true)
         {
             foreach (var t in targets) Set(t.Id, t.Kind, ResidualItemState.Preserved, consent ? "invalid_plan" : "declined");
             return new(plan.Context.App.TechnicalId, results, plan.Preserved, false, false, []);
