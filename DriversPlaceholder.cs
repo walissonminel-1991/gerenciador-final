@@ -5,8 +5,6 @@ namespace GerenciadorAplicativos;
 
 internal sealed partial class MainForm
 {
-    private const string DriverReadFinishing =
-        "Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.";
     private Task<DriverInventoryResult>? _driverReadTask;
     // Cache WUA válido somente para a mesma fotografia que o usuário consultou.
     private DriverInventoryResult? _driverReusableInventory;
@@ -266,21 +264,54 @@ internal sealed partial class MainForm
         root.Controls.Add(footer, 0, 4);
         history.AccessibleDescription = history.Text;
         int refreshRevision = 0;
+        bool syncingStatusAccessibility = false;
+        bool statusSyncPending = false;
         void SyncStatusAccessibility()
         {
             if (state.IsDisposed) return;
-            // A fonte da descrição deve ser SEMPRE o texto atualmente exibido:
-            // eventos WinForms podem reentrar durante uma transição de estado.
-            string visible = state.Text;
-            var description = visible + Environment.NewLine + history.Text +
-                (history.AccessibleDescription == history.Text ? "" : Environment.NewLine + history.AccessibleDescription);
-            state.AccessibleDescription = description;
-            if (!state.IsDisposed) SuppressHoverHint(state, description);
+            // TextChanged e layout WinForms podem reentrar durante um timeout:
+            // uma sincronização externa não pode sobrescrever o texto mais
+            // recente com a descrição capturada antes da reentrada.
+            if (syncingStatusAccessibility)
+            {
+                statusSyncPending = true;
+                return;
+            }
+            syncingStatusAccessibility = true;
+            try
+            {
+                do
+                {
+                    statusSyncPending = false;
+                    string visible = state.Text;
+                    string historyText = history.Text;
+                    string? historyDescription = history.AccessibleDescription;
+                    string description = visible + Environment.NewLine + historyText +
+                        (historyDescription == historyText ? "" :
+                            Environment.NewLine + historyDescription);
+                    state.AccessibleDescription = description;
+                    if (!string.Equals(state.Text, visible, StringComparison.Ordinal) ||
+                        !string.Equals(history.Text, historyText, StringComparison.Ordinal))
+                        statusSyncPending = true;
+                }
+                while (statusSyncPending && !state.IsDisposed);
+            }
+            finally { syncingStatusAccessibility = false; }
         }
         state.TextChanged += (_, _) => SyncStatusAccessibility();
+        history.TextChanged += (_, _) => SyncStatusAccessibility();
         void SetDriverStatus(string message)
         {
             if (state.IsDisposed) return;
+            // Publicar primeiro a nova descrição acessível. TextChanged,
+            // Paint e DoEvents podem reentrar imediatamente ao atribuir Text:
+            // nesse intervalo o leitor de tela já deve enxergar o novo estado,
+            // não a descrição anterior de uma consulta em encerramento.
+            string historyText = history.Text;
+            string? historyDescription = history.AccessibleDescription;
+            state.AccessibleDescription = message + Environment.NewLine + historyText +
+                (historyDescription == historyText ? "" :
+                    Environment.NewLine + historyDescription);
             state.Text = message;
             SyncStatusAccessibility();
         }
@@ -642,14 +673,10 @@ internal sealed partial class MainForm
                 driverQuery.RequestCancel();
                 return;
             }
-            if (_driverReadTask is { IsCompleted: false })
+            if (_driverReadTask is { IsCompleted: false } ||
+                readForTest is null && _driverOfficialReadTask is { IsCompleted: false })
             {
-                SetDriverStatus(DriverReadFinishing);
-                return;
-            }
-            if (readForTest is null && _driverOfficialReadTask is { IsCompleted: false })
-            {
-                SetDriverStatus("A pesquisa WUA anterior ainda está encerrando. Tente novamente depois.");
+                SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 return;
             }
             var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
@@ -769,7 +796,7 @@ internal sealed partial class MainForm
                         history.Text = recorded.Message;
                         history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
                         SuppressHoverHint(history, history.AccessibleDescription);
-                        SyncStatusAccessibility();
+                        SetDriverStatus(state.Text);
                         FitVerticalSpace();
                     }
                     DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
@@ -840,13 +867,9 @@ internal sealed partial class MainForm
             }
             catch (OperationCanceledException)
             {
-                if (!root.IsDisposed)
-                {
-                    string currentStatus = refresh.Text == "Cancelando..."
-                        ? "Consulta cancelada. Lista anterior preservada; sem alterações."
-                        : "Tempo esgotado. Lista anterior preservada; sem alterações.";
-                    SetDriverStatus(_driverReadTask is { IsCompleted: false } ? DriverReadFinishing : currentStatus);
-                }
+                if (!root.IsDisposed) SetDriverStatus(refresh.Text == "Cancelando..."
+                    ? "Consulta cancelada. Lista anterior preservada; sem alterações."
+                    : "Tempo esgotado. Lista anterior preservada; sem alterações.");
                 DiagnosticTrace.Write("DRIVERS.CONSULTA_CANCELADA");
             }
             catch (Exception ex)
@@ -870,6 +893,8 @@ internal sealed partial class MainForm
                     copySummary.Enabled = investigate.Enabled;
                     SyncInvestigationDescription();
                     SyncDriverActions();
+                    if (_driverReadTask is { IsCompleted: false })
+                        SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 }
             }
         }
@@ -953,7 +978,7 @@ internal sealed partial class MainForm
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
             SuppressHoverHint(history, history.AccessibleDescription ?? history.Text);
-            SyncStatusAccessibility();
+            SetDriverStatus(state.Text);
         }
         root.SizeChanged += (_, _) => FitVerticalSpace();
         root.DpiChangedAfterParent += (_, _) => FitVerticalSpace();

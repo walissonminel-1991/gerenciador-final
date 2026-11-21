@@ -180,8 +180,9 @@ internal static class DriverG121PublicationFreezeTests
             // completar eventos WinForms reentrantes. Exigir convergencia
             // de TODOS os campos da mesma fotografia, com timeout curto.
             PumpUntil(() => state.AccessibleDescription?.Contains(label.Text, StringComparison.Ordinal) == true &&
-                tooltip.GetToolTip(state).Contains(label.Text, StringComparison.Ordinal) &&
-                tooltip.GetToolTip(label).Contains(label.Text, StringComparison.Ordinal));
+                label.AccessibleDescription?.Contains(label.Text, StringComparison.Ordinal) == true &&
+                string.IsNullOrEmpty(tooltip.GetToolTip(state)) &&
+                string.IsNullOrEmpty(tooltip.GetToolTip(label)));
             Console.WriteLine("OK G1.21: fotografia publicada imutavel, filtros e selecao, guard, modal, fontes Store/INF e historico v1 coerentes");
         }
         finally
