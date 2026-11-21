@@ -137,11 +137,10 @@ internal static class DriverMainPanelTemporalTests
                 int rowHeight = DriverRowGeometry.Height(dpi, width);
                 using var actionFont = new Font("Segoe UI", 9f, FontStyle.Bold);
                 var card = new Rectangle(0, 0, width, rowHeight);
-                var actions = DriverRowGeometry.Actions(card, dpi, actionFont);
-                if (!card.Contains(actions.Update) || !card.Contains(actions.Uninstall) ||
-                    actions.Update.IntersectsWith(actions.Uninstall) ||
-                    actions.Update.IntersectsWith(DriverRowGeometry.Status(card, dpi)))
-                    throw new Exception("Drivers: ações de cartão sobrepostas ou fora da viewport em " + size);
+                var uninstall = DriverRowGeometry.Uninstall(card, dpi, actionFont);
+                if (!card.Contains(uninstall) ||
+                    uninstall.IntersectsWith(DriverRowGeometry.Status(card, dpi)))
+                    throw new Exception("Drivers: desinstalação sobreposta ou fora da viewport em " + size);
                 // Evidência visual de cartão REAL WinForms com dados de teste.
                 // Nenhum leitor nativo, comando WUA ou manutenção é iniciado.
                 if ((size.Width == 940 && size.Height == 610) ||
