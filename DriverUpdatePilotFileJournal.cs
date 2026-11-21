@@ -42,6 +42,28 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
         }
     }
 
+    // Preflight sem escrita: a confirmação jamais substitui um diário pendente.
+    // TryBegin continua sendo a autoridade transacional após o download.
+    internal static bool MayBeginReadOnly(string journalPath)
+    {
+        try
+        {
+            if (!File.Exists(journalPath)) return true;
+            var info = new FileInfo(journalPath);
+            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+                info.Length is <= 0 or > 4096) return false;
+            using var stream = new FileStream(journalPath, FileMode.Open,
+                FileAccess.Read, FileShare.Read);
+            var bytes = new byte[(int)info.Length];
+            stream.ReadExactly(bytes);
+            if (stream.ReadByte() != -1) return false;
+            var last = JsonSerializer.Deserialize<Ledger>(bytes);
+            return last is not null && Valid(last) &&
+                last.Phase == nameof(DriverUpdatePilotState.Verified);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
     internal static string SuggestedPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "GerenciadorFinal", "drivers-update-pilot-v1.json");
