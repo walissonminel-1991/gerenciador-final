@@ -26,6 +26,28 @@ internal sealed class DriverG32RecoveryTicket
         this.digest = digest;
     }
 
+    // Recusar diretórios remotos/redirecionados ANTES de criar o backup.
+    // O caminho completo e os ancestrais são conferidos novamente depois.
+    private static bool OrdinaryLocalPath(string target)
+    {
+        try
+        {
+            string full = Path.GetFullPath(target);
+            if (!Path.IsPathFullyQualified(full) ||
+                full.StartsWith(@"\\", StringComparison.Ordinal) ||
+                full.StartsWith("//", StringComparison.Ordinal)) return false;
+            for (DirectoryInfo? directory = new DirectoryInfo(full);
+                directory is not null; directory = directory.Parent)
+                if (directory.Exists &&
+                    directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    return false;
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
+    internal string BackupFolder => folder;
+
     internal static bool HasActiveOperation => Volatile.Read(ref active) != 0;
     internal static bool TryBeginOperation() =>
         Interlocked.CompareExchange(ref active, 1, 0) == 0;
@@ -88,6 +110,8 @@ internal sealed class DriverG32RecoveryTicket
         string backups = Path.Combine(Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData),
             "GerenciadorFinal", "Drivers", "Backups");
+        if (!OrdinaryLocalPath(backups))
+            return (null, "Pasta de backup remota/redirecionada; operação bloqueada.");
         string pendingRemoval = Path.Combine(backups,
             "pendente-" + candidate.InfName.ToLowerInvariant() + ".json");
         if (File.Exists(pendingRemoval))
@@ -115,8 +139,11 @@ internal sealed class DriverG32RecoveryTicket
             destination = Path.Combine(backups, "wua-" +
                 DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" +
                 Guid.NewGuid().ToString("N"));
+            if (!OrdinaryLocalPath(destination))
+                return (null, "Destino de backup redirecionado; nenhuma pasta criada.");
             Directory.CreateDirectory(destination);
-            if (!DriverSilentUninstall.SafeBackupLocation(backups, destination))
+            if (!OrdinaryLocalPath(destination) ||
+                !DriverSilentUninstall.SafeBackupLocation(backups, destination))
                 return (null, "Local do backup não confiável; não baixar driver.");
             int exit = await DriverSilentUninstall.RunPnPUtil(
                 ["/export-driver", candidate.InfName, destination],
@@ -167,7 +194,8 @@ internal sealed class DriverG32RecoveryTicket
             string backups = Path.Combine(Environment.GetFolderPath(
                 Environment.SpecialFolder.LocalApplicationData),
                 "GerenciadorFinal", "Drivers", "Backups");
-            if (!DriverSilentUninstall.SafeBackupLocation(backups, folder) ||
+            if (!OrdinaryLocalPath(folder) ||
+                !DriverSilentUninstall.SafeBackupLocation(backups, folder) ||
                 !DriverSilentUninstall.VerifyBackup(folder,
                     Path.GetFileName(package.StorePath), trust.Sha256, out string currentDigest) ||
                 !string.Equals(currentDigest, digest, StringComparison.Ordinal))
