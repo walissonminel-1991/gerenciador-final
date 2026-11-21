@@ -274,7 +274,7 @@ internal static class DriverSilentUninstall
 
     // Segurança do local persistente, inclusive quando o perfil contiver
     // junções/reparse points: não gravar backups privilegiados através de links.
-    private static bool SafeBackupLocation(string backups, string destination)
+    internal static bool SafeBackupLocation(string backups, string destination)
     {
         try
         {
@@ -375,13 +375,13 @@ internal static class DriverSilentUninstall
         File.Move(temporary, path, overwrite: true);
     }
 
-    private static bool IsElevated()
+    internal static bool IsElevated()
     {
         using var identity = WindowsIdentity.GetCurrent();
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
-    private static async Task<int> RunPnPUtil(IReadOnlyList<string> arguments, TimeSpan timeout)
+    internal static async Task<int> RunPnPUtil(IReadOnlyList<string> arguments, TimeSpan timeout)
     {
         string exe = Path.Combine(Environment.GetFolderPath(
             Environment.SpecialFolder.Windows), "System32", "pnputil.exe");

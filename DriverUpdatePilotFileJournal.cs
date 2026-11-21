@@ -14,12 +14,36 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
     private FileStream? heldLock;
     private DriverUpdatePilotChoice? activeChoice;
 
+    // O GF elevado não pode escrever diário ou lock através de junções,
+    // symlinks e caminhos UNC. Verificar antes/depois de criar diretórios.
+    private static bool SafeStorage(string journalPath)
+    {
+        try
+        {
+            string full = Path.GetFullPath(journalPath);
+            if (!Path.IsPathFullyQualified(full) ||
+                full.StartsWith(@"\\", StringComparison.Ordinal) ||
+                full.StartsWith("//", StringComparison.Ordinal)) return false;
+            for (DirectoryInfo? dir = new FileInfo(full).Directory;
+                dir is not null; dir = dir.Parent)
+                if (dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    return false;
+            foreach (string file in new[] { full, full + ".lock" })
+                if (File.Exists(file) &&
+                    File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint))
+                    return false;
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
     // G3.1: inspeção passiva e limitada a 4 KiB. Nunca cria, limpa ou
     // sobrescreve diário existente (inclusive estado incerto ou corrupto).
     internal static string ReadOnlyStatus(string journalPath)
     {
         try
         {
+            if (!SafeStorage(journalPath)) return "Diário WUA em local inseguro: instalação bloqueada.";
             if (!File.Exists(journalPath)) return "Diário WUA: nenhuma instalação registrada.";
             using var file = new FileStream(journalPath, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite | FileShare.Delete);
@@ -40,6 +64,29 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
         {
             return "Diário WUA indisponível: instalação bloqueada.";
         }
+    }
+
+    // Preflight sem escrita: a confirmação jamais substitui um diário pendente.
+    // TryBegin continua sendo a autoridade transacional após o download.
+    internal static bool MayBeginReadOnly(string journalPath)
+    {
+        try
+        {
+            if (!SafeStorage(journalPath)) return false;
+            if (!File.Exists(journalPath)) return true;
+            var info = new FileInfo(journalPath);
+            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+                info.Length is <= 0 or > 4096) return false;
+            using var stream = new FileStream(journalPath, FileMode.Open,
+                FileAccess.Read, FileShare.Read);
+            var bytes = new byte[(int)info.Length];
+            stream.ReadExactly(bytes);
+            if (stream.ReadByte() != -1) return false;
+            var last = JsonSerializer.Deserialize<Ledger>(bytes);
+            return last is not null && Valid(last) &&
+                last.Phase == nameof(DriverUpdatePilotState.Verified);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
     }
 
     internal static string SuggestedPath => Path.Combine(
@@ -84,12 +131,13 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
 
     public bool TryBegin(DriverUpdatePilotChoice choice)
     {
-        if (heldLock is not null || choice is null) return false;
+        if (heldLock is not null || choice is null || !SafeStorage(path)) return false;
         try
         {
             string? directory = Path.GetDirectoryName(path);
             if (string.IsNullOrWhiteSpace(directory)) return false;
             Directory.CreateDirectory(directory);
+            if (!SafeStorage(path)) return false;
             heldLock = new FileStream(path + ".lock", FileMode.OpenOrCreate,
                 FileAccess.ReadWrite, FileShare.None);
             if (File.Exists(path))

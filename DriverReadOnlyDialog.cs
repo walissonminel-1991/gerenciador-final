@@ -81,7 +81,7 @@ internal sealed partial class MainForm
             Text = "Piloto WUA (revisar)", TextAlign = ContentAlignment.MiddleRight,
             LinkColor = Accent, Enabled = false,
             AccessibleName = "Revisar piloto WUA experimental",
-            AccessibleDescription = "Revalidação WUA real somente leitura; instalação bloqueada até G3.2."
+            AccessibleDescription = "Consulta WUA; opção de instalação G3.2 só com administrador, pacote OEM elegível, backup e consentimento."
         };
         statusRow.Controls.Add(status, 0, 0);
         statusRow.Controls.Add(pilotLink, 1, 0);
@@ -285,7 +285,7 @@ internal sealed partial class MainForm
             CheckCurrent();
             if (obsolete || closing || !pilotLink.Enabled ||
                 selected is null || official is not { Partial: false } offers || !isCurrent()) return;
-            // G3.1: backend WUA e fabrica do diario reais, sem liberar instalacao.
+            // G3.2: backend e diário reais; executar exige prova de recuperação e aceite explícito.
             using var preview = DriverUpdatePilotDialog.Create(inventory, offers, selected,
                 isCurrent, DriverG31Wiring.NewProductionBackend(),
                 DriverG31Wiring.NewProductionJournalFactory());

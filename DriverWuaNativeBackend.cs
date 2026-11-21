@@ -2,9 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace GerenciadorAplicativos;
 
-// Implementacao nativa experimental ainda DESLIGADA da interface normal.
-// Nunca chamada pelas fixtures: somente o operador de uma futura VM descartavel
-// podera encaminhar uma autorizacao especifica ao piloto.
+// Implementação nativa G3.2: o coordenador exige aprovação física,
+ // prova concreta de backup OEM, diário e dupla revalidação.
+ // Fixtures não invocam COM ou operação de hardware.
 internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
 {
     private static int activeSta;
@@ -31,7 +31,7 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
             // Só sinalizar o resultado APÓS liberar a exclusividade.
             if (failure is not null) done.TrySetException(failure);
             else done.TrySetResult(value!);
-        }) { IsBackground = true, Name = "GF WUA piloto descartavel" };
+        }) { IsBackground = true, Name = "GF WUA autorizado G3.2" };
         try
         {
             thread.SetApartmentState(ApartmentState.STA);
@@ -145,8 +145,15 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
         var inventory = DriverInventory.Capture(token);
         var items = inventory.Items.Where(d =>
             string.Equals(d.DeviceId, choice.DeviceId, StringComparison.OrdinalIgnoreCase)).ToArray();
-        bool sameDevice = !inventory.Partial && items.Length == 1 &&
+        // G3.2: a mesma oferta não pode corresponder a outra instância
+        // presente, nem a dispositivo com código PnP desconhecido/problemático.
+        bool uniqueHardware = inventory.Items.Count(d => d.Present == true &&
+            d.HardwareIds.Contains(choice.HardwareId, StringComparer.OrdinalIgnoreCase)) == 1;
+        bool sameDevice = !inventory.Partial && items.Length == 1 && uniqueHardware &&
             items[0].Present == true && items[0].Signed == true &&
+            items[0].PnpProblemCode == 0 &&
+            string.Equals(items[0].ReportedDriverClass, choice.DriverClass,
+                StringComparison.OrdinalIgnoreCase) &&
             !items[0].WithoutSignedDriverAssociation &&
             string.Equals(items[0].Provider, choice.Provider, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(items[0].InfName, choice.InfName, StringComparison.OrdinalIgnoreCase) &&

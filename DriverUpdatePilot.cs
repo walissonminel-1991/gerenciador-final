@@ -6,7 +6,11 @@ internal sealed record DriverUpdatePilotChoice(string UpdateId, int Revision,
     string DeviceId, string HardwareId, string Provider, string InfName,
     string InstalledVersion, string DriverClass, string Title);
 internal sealed record DriverUpdatePilotApproval(string UpdateId, int Revision,
-    string DeviceId, bool Confirmed, bool DisposableWindows, DateTimeOffset AcceptedAt);
+    string DeviceId, bool Confirmed, bool DisposableWindows, DateTimeOffset AcceptedAt)
+{
+    // G3.2: via física separada, condicionada também à prova de backup OEM.
+    internal bool PhysicalWindowsApproved { get; init; }
+}
 internal enum DriverUpdatePilotState
 {
     Blocked, DownloadFailed, DownloadedOnly, InstallationUncertain,
@@ -101,7 +105,7 @@ internal static class DriverUpdatePilot
 
     internal static bool ConsentValid(DriverUpdatePilotChoice choice,
         DriverUpdatePilotApproval approval, DateTimeOffset now) =>
-        approval.Confirmed && approval.DisposableWindows &&
+        approval.Confirmed && (approval.DisposableWindows != approval.PhysicalWindowsApproved) &&
         Guid.TryParseExact(choice.UpdateId, "D", out var a) &&
         Guid.TryParseExact(approval.UpdateId, "D", out var b) && a == b &&
         approval.Revision == choice.Revision &&
@@ -132,13 +136,27 @@ internal static class DriverUpdatePilot
         DriverUpdatePilotChoice choice, DriverUpdatePilotApproval approval,
         IDriverUpdatePilotBackend backend, IDriverUpdatePilotJournal journal,
         CancellationToken token, DateTimeOffset? nowForTest = null,
-        Func<bool>? stillCurrent = null, Action<string>? progress = null)
+        Func<bool>? stillCurrent = null, Action<string>? progress = null,
+        DriverG32RecoveryTicket? recovery = null)
     {
         if (choice is null || approval is null || backend is null || journal is null ||
             !AllowedClass(choice.DriverClass) ||
             !ConsentValid(choice, approval, nowForTest ?? DateTimeOffset.UtcNow) ||
             token.IsCancellationRequested || !Current(stillCurrent))
             return new(DriverUpdatePilotState.Blocked, "Autorizacao, consulta ou origem inválida.");
+        // Não há caminho nativo por mera mudança de checkbox, COM ou teste.
+        // Exigir prova G3.2 real antes mesmo da primeira consulta WUA.
+        if (backend is DriverWuaNativeBackend)
+        {
+            if (!approval.PhysicalWindowsApproved || approval.DisposableWindows ||
+                recovery is null || !recovery.Matches(choice) ||
+                journal is not DriverUpdatePilotFileJournal)
+                return new(DriverUpdatePilotState.Blocked,
+                    "G3.2: prova de backup, diário ou autorização física ausente.");
+        }
+        else if (approval.PhysicalWindowsApproved)
+            return new(DriverUpdatePilotState.Blocked,
+                "Autorização física não pode ser executada por backend simulado.");
         Notify(progress, "Revalidando oferta e dispositivo no Windows Update…");
         DriverUpdatePilotCheck first;
         try { first = await backend.Revalidate(choice, token); }
@@ -175,6 +193,12 @@ internal static class DriverUpdatePilot
         if (!second.BeforeInstall || token.IsCancellationRequested || !Current(stillCurrent))
             return new(DriverUpdatePilotState.DownloadedOnly,
                 "Oferta ou instância mudou; instalação bloqueada.");
+        if (backend is DriverWuaNativeBackend &&
+            (recovery is null || !await recovery.RevalidateBeforeInstallAsync(
+                choice, () => Current(stillCurrent), token) ||
+             token.IsCancellationRequested || !Current(stillCurrent)))
+            return new(DriverUpdatePilotState.DownloadedOnly,
+                "Backup, assinatura, pacote ou seleção não foram reconfirmados; instalação bloqueada.");
         Notify(progress, "Registrando intenção durável antes da instalação…");
         bool journalReady;
         try { journalReady = journal.TryBegin(choice); }

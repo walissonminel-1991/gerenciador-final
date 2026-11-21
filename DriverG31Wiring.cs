@@ -2,8 +2,8 @@ namespace GerenciadorAplicativos;
 
 // G3.1: conecta o produto aos componentes WUA e journal que ja existem na PR80.
 // Nenhuma permissao de instalar e concedida pela criacao destas dependencias.
-// G3.2 deve implementar e revisar as garantias para PC fisico ANTES de liberar
-// qualquer instalacao pela interface normal.
+// G3.2 tem rota independente com prova de backup. Esta função histórica
+// continua negando backend nativo mesmo que alguém marque checkboxes.
 internal static class DriverG31Wiring
 {
     internal static IDriverUpdatePilotBackend NewProductionBackend() =>
@@ -16,7 +16,7 @@ internal static class DriverG31Wiring
     internal static bool IsNativeBackend(IDriverUpdatePilotBackend? backend) =>
         backend is DriverWuaNativeBackend;
 
-    // Somente fixtures isoladas podem executar o piloto completo na G3.1.
+    // Somente fixtures isoladas são aceitas por este gate legado G3.1.
     // Esta barreira nao depende de checkbox, variavel de ambiente ou alegacao
     // de VM e impede que a UI normal instale drivers no PC fisico.
     internal static bool CanExecutePilot(IDriverUpdatePilotBackend? backend,
