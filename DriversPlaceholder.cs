@@ -65,18 +65,16 @@ internal sealed partial class MainForm
         searchBar.Controls.Add(clear, 2, 0);
         root.Controls.Add(searchBar, 0, 0);
 
+        // Barra de ações gerais: somente leitura e investigação.
+        // Manutenção é desenhada virtualmente por dispositivo em DarkDriverList.
         var actionPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 7, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
             Margin = new Padding(0, 2, 0, 2)
         };
         actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 105));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
         refresh.Name = "DriverInventoryRefresh";
@@ -99,14 +97,14 @@ internal sealed partial class MainForm
             BackColor = Color.FromArgb(37, 48, 61), ForeColor = Ink,
             DropDownStyle = ComboBoxStyle.DropDownList,
             FlatStyle = FlatStyle.Flat,
-            DropDownWidth = 145,
+            DropDownWidth = 180,
             Visible = false, Margin = Padding.Empty
         };
         compactFilter.Items.AddRange(new object[]
             { "Todos", "Presentes", "Problemas", "Sem driver", "Não confirmados" });
         compactFilter.SelectedIndex = 0;
         _toolTips.SetToolTip(compactFilter,
-            "Filtro apenas visual; sem atualização ou remoção de drivers.");
+            "Filtro somente visual: todos, presentes, problemas PnP, sem driver ou não confirmados.");
         actionInfo.Controls.Add(actionHint);
         actionInfo.Controls.Add(compactFilter);
         var investigate = CreateSecondaryButton("Investigar");
@@ -116,42 +114,34 @@ internal sealed partial class MainForm
         investigate.Margin = new Padding(0, 2, 6, 2);
         investigate.Enabled = false;
         actionPanel.Controls.Add(investigate, 1, 0);
-        _toolTips.SetToolTip(investigate, "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
-        var labOpen = CreateSecondaryButton("Simular");
-        labOpen.Name = "DriverSyntheticLabOpen";
-        labOpen.AccessibleName = "Abrir laboratório fictício multiclasses de drivers";
-        labOpen.AccessibleDescription =
-            "Disponível sem consulta; não usa dispositivos, Windows Update ou instalador.";
-        labOpen.Dock = DockStyle.Fill;
-        labOpen.Margin = new Padding(0, 2, 6, 2);
-        _toolTips.SetToolTip(labOpen,
-            "17 cenários sintéticos de impressoras, webcam, porta COM, áudio e controle. Não altera o Windows.");
-        actionPanel.Controls.Add(labOpen, 2, 0);
+        _toolTips.SetToolTip(investigate,
+            "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
+        actionPanel.Controls.Add(actionInfo, 2, 0);
+        // O laboratório de 17 casos permanece disponível às fixtures; não
+        // ocupa espaço nem aparece no produto real.
+        Button? labOpen = null;
+        if (readForTest is not null)
+        {
+            labOpen = CreateSecondaryButton("Simular");
+            labOpen.Name = "DriverSyntheticLabOpen";
+            labOpen.AccessibleName = "Abrir laboratório fictício multiclasses de drivers";
+            labOpen.AccessibleDescription = "Apenas fixture; sem acesso WMI, WUA ou manutenção.";
+            labOpen.Dock = DockStyle.Fill;
+            labOpen.Margin = new Padding(0, 2, 6, 2);
+            actionPanel.Controls.Remove(actionInfo);
+            actionPanel.Controls.Add(labOpen, 2, 0);
+        }
+        // Copiar resumo pertence ao rodapé de diagnóstico, nunca à barra
+        // de operações; permanece acessível somente após consulta válida.
         var copySummary = CreateSecondaryButton("Copiar resumo");
         copySummary.Name = "DriverCopySafetySummary";
         copySummary.AccessibleName = "Copiar resumo de drivers sem identificadores";
-        copySummary.AccessibleDescription = "Disponível depois de uma consulta válida. Copia somente contagens.";
+        copySummary.AccessibleDescription = "Copia somente contagens, sem IDs, INFs ou nomes.";
         copySummary.Dock = DockStyle.Fill;
-        copySummary.Margin = new Padding(0, 2, 6, 2);
+        copySummary.Margin = new Padding(2, 2, 2, 2);
         copySummary.Enabled = false;
-        _toolTips.SetToolTip(copySummary, "Copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
-        actionPanel.Controls.Add(copySummary, 3, 0);
-        var updateDriver = CreateSecondaryButton("Atualizar");
-        updateDriver.Name = "DriverUpdateAction";
-        updateDriver.Dock = DockStyle.Fill;
-        updateDriver.Margin = new Padding(0, 2, 6, 2);
-        updateDriver.AccessibleName = "Consultar atualização oficial do driver selecionado";
-        updateDriver.AccessibleDescription = "Consulta WUA real; instalar só com proteção e consentimento apropriados.";
-        updateDriver.Enabled = false;
-        actionPanel.Controls.Add(updateDriver, 4, 0);
-        var uninstallDriver = CreateSecondaryButton("Desinstalar");
-        uninstallDriver.Name = "DriverUninstallAction";
-        uninstallDriver.Dock = DockStyle.Fill;
-        uninstallDriver.Margin = new Padding(0, 2, 6, 2);
-        uninstallDriver.AccessibleName = "Desinstalar silenciosamente pacote de driver selecionado";
-        uninstallDriver.Enabled = false;
-        actionPanel.Controls.Add(uninstallDriver, 5, 0);
-        actionPanel.Controls.Add(actionInfo, 6, 0);
+        _toolTips.SetToolTip(copySummary,
+            "Diagnóstico local: copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
@@ -247,7 +237,17 @@ internal sealed partial class MainForm
             AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
             Text = "Histórico próprio: comparações locais a partir da primeira consulta."
         };
-        footer.Controls.Add(state, 0, 0);
+        var statusBar = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty
+        };
+        statusBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        statusBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+        statusBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        statusBar.Controls.Add(state, 0, 0);
+        statusBar.Controls.Add(copySummary, 1, 0);
+        footer.Controls.Add(statusBar, 0, 0);
         footer.Controls.Add(history, 0, 1);
         root.Controls.Add(footer, 0, 4);
         history.AccessibleDescription = history.Text;
@@ -314,17 +314,10 @@ internal sealed partial class MainForm
             bool current = !root.IsDisposed &&
                 publishedSnapshotGeneration == inventoryGeneration &&
                 lastResult is not null && list.SelectedItem is not null;
-            updateDriver.Enabled = current && !uninstallBusy && readForTest is null;
-            uninstallDriver.Enabled = current && !uninstallBusy && readForTest is null;
-            var choice = current ? DriverSilentUninstall.Evaluate(lastResult, list.SelectedItem) :
-                new DriverSilentUninstallDecision(false, "Selecione um driver em uma consulta válida.");
-            uninstallDriver.AccessibleDescription = choice.Allowed
-                ? "Pacote individual: confirmação e backup antes da remoção silenciosa. Requer administrador."
-                : choice.Reason;
-            _toolTips.SetToolTip(uninstallDriver, uninstallDriver.AccessibleDescription);
-            updateDriver.AccessibleDescription = !current
-                ? "Selecione um dispositivo em inventário válido."
-                : "Abre consulta WUA oficial. Instalação silenciosa depende de oferta e proteção G3.2.";
+            bool actionable = current && !uninstallBusy && readForTest is null;
+            list.SetActionPolicy(actionable, device => lastResult is not null
+                ? DriverSilentUninstall.Evaluate(lastResult, device)
+                : new DriverSilentUninstallDecision(false, "Inventário indisponível."));
         }
         list.SelectionChanged += (_, _) =>
         {
@@ -333,7 +326,7 @@ internal sealed partial class MainForm
             invalidateOpenReport?.Invoke();
         };
         Form? labWindow = null;
-        labOpen.Click += (_, _) =>
+        if (labOpen is not null) labOpen.Click += (_, _) =>
         {
             if (root.IsDisposed) return;
             if (labWindow is { IsDisposed: false })
@@ -390,16 +383,14 @@ internal sealed partial class MainForm
                 startOfficialOnShow: autoStartOfficial);
         }
         investigate.Click += (_, _) => OpenDriverInvestigation(false);
-        updateDriver.Click += (_, _) =>
+        // Um handler por operação. O clique virtual entrega o mesmo objeto que
+        // foi selecionado; nenhuma ação usa índice antigo nem nome do dispositivo.
+        async Task RunDriverUninstall(DriverInventoryEntry requested)
         {
-            if (updateDriver.Enabled && list.SelectedItem is not null)
-                OpenDriverInvestigation(true);
-        };
-        uninstallDriver.Click += async (_, _) =>
-        {
-            if (!uninstallDriver.Enabled || uninstallBusy ||
+            if (uninstallBusy || readForTest is not null ||
                 publishedSnapshotGeneration != inventoryGeneration ||
-                lastResult is not { } captured || list.SelectedItem is not { } selected)
+                lastResult is not { } captured || list.SelectedItem is not { } selected ||
+                !ReferenceEquals(selected, requested))
                 return;
             var assessment = DriverSilentUninstall.Evaluate(captured, selected);
             if (!assessment.Allowed)
@@ -463,6 +454,17 @@ internal sealed partial class MainForm
                 }
             }
             if (refreshAfter && !root.IsDisposed) await RunRefresh();
+        }
+        list.ActionRequested += (item, action) =>
+        {
+            if (!ReferenceEquals(list.SelectedItem, item) || uninstallBusy ||
+                readForTest is not null || publishedSnapshotGeneration != inventoryGeneration ||
+                lastResult is null)
+                return;
+            if (action == DriverCardAction.VerifyUpdate)
+                OpenDriverInvestigation(true);
+            else
+                _ = RunDriverUninstall(item);
         };
         void Render()
         {
@@ -725,30 +727,76 @@ internal sealed partial class MainForm
         void FitVerticalSpace()
         {
             if (root.IsDisposed) return;
-            bool tiny = root.ClientSize.Height < 230;
-            bool compact = root.ClientSize.Height < 360;
-            bool narrow = root.ClientSize.Width < 760;
-            bool compactFilters = tiny || narrow;
+            int dpi = root.DeviceDpi;
+            int Scale(int px) => DriverRowGeometry.Scale(px, dpi);
+            bool tiny = root.ClientSize.Height < Scale(230);
+            bool compact = root.ClientSize.Height < Scale(360);
+            // Comparar largura física com dimensões físicas da fonte, e não
+            // apenas com uma constante sem DPI.
+            int refreshWidth = Math.Max(Scale(156),
+                TextRenderer.MeasureText("Consultar drivers", refresh.Font).Width + Scale(20));
+            int investigationWidth = Math.Max(Scale(108),
+                TextRenderer.MeasureText("Investigar", investigate.Font).Width + Scale(20));
+            bool narrow = root.ClientSize.Width <
+                refreshWidth + investigationWidth + Scale(182);
+            bool compactFilters = tiny || root.ClientSize.Width < Scale(800);
             bool showCopy = !tiny && !narrow;
-            root.RowStyles[0].Height = tiny ? 28 : compact ? 30 : 35;
-            root.RowStyles[1].Height = tiny ? 31 : compact ? 36 : 44;
-            root.RowStyles[2].Height = compactFilters ? 0 : compact ? 29 : 33;
-            root.RowStyles[4].Height = tiny ? 22 : compact ? 31 : 67;
+            bool splitActions = root.ClientSize.Width <
+                refreshWidth + investigationWidth + Scale(92);
+            root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
+            root.RowStyles[1].Height = splitActions ? Scale(79) :
+                tiny ? Scale(35) : Scale(44);
+            root.RowStyles[2].Height = compactFilters ? 0 : Scale(36);
+            root.RowStyles[4].Height = tiny ? Scale(27) :
+                compact ? Scale(41) : Scale(78);
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
             heading.Visible = !compactFilters;
-            actionPanel.ColumnStyles[0].Width = narrow ? 119 : 160;
-            actionPanel.ColumnStyles[1].Width = narrow ? 82 : 100;
-            actionPanel.ColumnStyles[2].Width = narrow ? 82 : 110;
-            actionPanel.ColumnStyles[3].Width = showCopy ? 125 : 0;
-            actionPanel.ColumnStyles[4].Width = narrow ? 73 : 105;
-            actionPanel.ColumnStyles[5].Width = narrow ? 94 : 125;
+            actionPanel.ColumnStyles[0].Width = refreshWidth;
+            actionPanel.ColumnStyles[1].Width = investigationWidth;
+            if (splitActions)
+            {
+                if (actionPanel.RowCount != 2)
+                {
+                    actionPanel.RowCount = 2;
+                    actionPanel.RowStyles.Clear();
+                    actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+                    actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+                }
+                actionPanel.SetCellPosition(investigate, new TableLayoutPanelCellPosition(1, 0));
+                if (labOpen is null)
+                {
+                    actionPanel.SetColumnSpan(actionInfo, 3);
+                    actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(0, 1));
+                }
+            }
+            else
+            {
+                actionPanel.SetColumnSpan(actionInfo, 1);
+                actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(2, 0));
+                if (actionPanel.RowCount != 1)
+                {
+                    actionPanel.RowCount = 1;
+                    actionPanel.RowStyles.Clear();
+                    actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                }
+            }
+            // Medir os filtros na fonte real; em espaço insuficiente,
+            // usar o ComboBox existente, com os cinco rótulos completos.
+            foreach (var (button, column) in new[]
+                { (all, 1), (present, 2), (problems, 3), (unbound, 4), (other, 5) })
+                heading.ColumnStyles[column].Width = Math.Max(Scale(56),
+                    TextRenderer.MeasureText(button.Text, button.Font).Width + Scale(16));
             copySummary.Visible = showCopy;
+            statusBar.ColumnStyles[1].Width = showCopy
+                ? Math.Max(Scale(132), TextRenderer.MeasureText(copySummary.Text, copySummary.Font).Width + Scale(16))
+                : 0;
             actionHint.Visible = !compactFilters;
-            compactFilter.Visible = compactFilters;
+            compactFilter.Visible = compactFilters && labOpen is null;
             if (compactFilter.SelectedItem is string current && current != activeFilter)
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
+            _toolTips.SetToolTip(history, history.AccessibleDescription ?? history.Text);
             SetDriverStatus(state.Text);
         }
         root.SizeChanged += (_, _) => FitVerticalSpace();
