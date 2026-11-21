@@ -55,7 +55,9 @@ internal static class WheelScrollTests
         for (int i = 0; i < 2; i++) Wheel(drivers, -40);
         Check(driverBar.Value == 0, "drivers nao devem amplificar deltas parciais");
         Wheel(drivers, -40);
-        Check(driverBar.Value == 3 * 73, "drivers devem acumular -120 e rolar tres linhas");
+        // O limite da barra exclui a altura visível da lista.
+        int rowHeight = (driverBar.MaximumValue + drivers.ClientSize.Height) / drivers.Items.Count;
+        Check(driverBar.Value == 3 * rowHeight, "drivers devem acumular -120 e rolar tres linhas");
         for (int i = 0; i < 3; i++) Wheel(drivers, 40);
         Check(driverBar.Value == 0, "drivers devem retornar sem salto na inversao");
 
