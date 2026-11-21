@@ -545,11 +545,14 @@ internal static class DriverListFilters
                 string.Join(" ", item.DeviceName, item.DeviceId, item.Provider, item.Version,
                     item.InfName, item.PresenceLabel, item.SignatureLabel, item.PnpStatusLabel)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
-        return prioritized is null ? filtered.ToArray() :
-            filtered.OrderByDescending(item => prioritized.Contains(item.DeviceId))
-                .ThenBy(item => item.DeviceName, StringComparer.CurrentCultureIgnoreCase)
-                .ThenBy(item => item.DeviceId, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+        // Sem candidatos elegíveis, não alterar a ordem do inventário:
+        // seleção por teclado e identidade do cartão dependem dessa estabilidade.
+        // Com ofertas elegíveis, promover apenas essas linhas; OrderBy é estável
+        // e conserva a ordem relativa dentro de cada grupo.
+        var view = filtered.ToArray();
+        if (prioritized is null || !view.Any(item => prioritized.Contains(item.DeviceId)))
+            return view;
+        return view.OrderByDescending(item => prioritized.Contains(item.DeviceId)).ToArray();
     }
 }
 
