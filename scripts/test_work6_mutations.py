@@ -151,7 +151,10 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     for name in files:
         path=pathlib.Path(name)
         if not name or path.suffix not in ('.cs','.csproj','.props','.json'): continue
-        if len(path.parts)>1 and path.parts[0] not in ('TestesAtualizador','TestesMultifontes','TestesResiduos'): continue
+        # R7+G3 passou a vincular este único teste externo em TestesResiduos.csproj.
+        # Copiar a dependência explícita, sem trazer a suíte inteira de Drivers.
+        linked_contract_test = name == 'TestesDrivers/RemovalSafetyContractTests.cs'
+        if len(path.parts)>1 and path.parts[0] not in ('TestesAtualizador','TestesMultifontes','TestesResiduos') and not linked_contract_test: continue
         (target/path).parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(root/path,target/path)
     def run(project, argument):
