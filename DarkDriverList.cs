@@ -36,10 +36,10 @@ internal static class DriverRowGeometry
     }
 
     internal static Rectangle Status(Rectangle row, int dpi) =>
-        new(row.Left + Scale(58, dpi), row.Top + Scale(60, dpi),
+        new(row.Left + Scale(58, dpi), row.Top + Scale(61, dpi),
             Math.Max(1, Math.Min(Scale(140, dpi),
                 row.Width - Scale(80, dpi) - (Wide(row.Width, dpi) ? Scale(140, dpi) : 0))),
-            Scale(17, dpi));
+            Scale(14, dpi));
 
     internal static Rectangle Uninstall(Rectangle row, int dpi, Font font)
     {
@@ -63,6 +63,7 @@ internal sealed class DarkDriverList : Control
         Math.Max(1, ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0));
     private int RowHeight => DriverRowGeometry.Height(DeviceDpi, ContentWidth);
     private readonly List<DriverInventoryEntry> _items = new();
+    private HashSet<string> _offeredDevices = new(StringComparer.OrdinalIgnoreCase);
     private readonly DarkVScrollBar _scrollbar = new();
     private readonly WheelDeltaAccumulator _wheel = new();
     private readonly Font _titleFont = new("Segoe UI", 10f, FontStyle.Bold);
@@ -138,6 +139,7 @@ internal sealed class DarkDriverList : Control
                 StringComparison.OrdinalIgnoreCase)) == 1;
         _items.Clear();
         _items.AddRange(items);
+        _offeredDevices.Clear();
         _selectedIndex = -1;
         if (unambiguousBefore)
         {
@@ -156,6 +158,14 @@ internal sealed class DarkDriverList : Control
         UpdateAccessibleSelection();
         if (!ReferenceEquals(selected, SelectedItem))
             SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void SetOfferDevices(IEnumerable<string> deviceIds)
+    {
+        _offeredDevices = deviceIds.Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        UpdateAccessibleSelection();
+        Invalidate();
     }
 
     internal void ScrollToTop() => _scrollbar.Value = 0;
@@ -179,6 +189,8 @@ internal sealed class DarkDriverList : Control
             "; INF relatado: " + selected.InfName +
             "; classe WMI: " + selected.ReportedDriverClass +
             "; " + selected.PnpStatusLabel + ambiguity +
+            (_offeredDevices.Contains(selected.DeviceId)
+                ? "; oferta oficial WUA consultiva identificada, sem prova de versão superior" : "") +
             ". " + DriverPnpGuidance.Describe(selected.PnpProblemCode) +
             (_actionsCurrent
                 ? "; Detalhes: consulta oficial e evidências; Desinstalar: " +
@@ -276,7 +288,9 @@ internal sealed class DarkDriverList : Control
             "  ·  Assinatura (Windows): " + item.SignatureLabel,
             _detailsFont, DriverRowGeometry.Text(bounds, dpi, 43, 17), muted, textFlags);
         Rectangle pill = DriverRowGeometry.Status(bounds, dpi);
-        Color fill = item.HasPnpProblem ? Color.FromArgb(121, 80, 43) : item.Present switch
+        bool offered = _offeredDevices.Contains(item.DeviceId);
+        Color fill = item.HasPnpProblem ? Color.FromArgb(121, 80, 43)
+            : offered ? Color.FromArgb(27, 87, 119) : item.Present switch
         {
             true => Color.FromArgb(44, 95, 82),
             false => Color.FromArgb(103, 69, 52),
@@ -287,7 +301,8 @@ internal sealed class DarkDriverList : Control
         {
             canvas.FillPath(brush, shape);
             TextRenderer.DrawText(canvas, item.HasPnpProblem
-                ? $"Problema PnP {item.PnpProblemCode}" : item.PresenceLabel,
+                ? $"Problema PnP {item.PnpProblemCode}"
+                : offered ? "Oferta WUA" : item.PresenceLabel,
                 _detailsFont, pill, ForeColor, TextFormatFlags.NoPrefix |
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.EndEllipsis);
