@@ -52,7 +52,25 @@ internal static class DriverReadOnlyReport
         else
         {
             text.AppendLine("DISPOSITIVO SELECIONADO");
-            text.AppendLine(selected.DeviceName);
+            text.AppendLine("Nome no Windows: " + (string.IsNullOrWhiteSpace(selected.DeviceName)
+                ? "não informado" : selected.DeviceName));
+            if (selected.DeviceMetadata is { BusDescription: { Length: > 0 } description })
+                text.AppendLine("Descrição informada pelo dispositivo: " + description);
+            var identity = DriverHardwareCatalog.Identify(selected);
+            if (identity.Vendor.Length > 0)
+                text.AppendLine("Fabricante do hardware (catálogo): " + identity.Vendor);
+            if (identity.Model.Length > 0)
+            {
+                string label = identity switch
+                {
+                    { FromUsbParent: true } => "Modelo do dispositivo USB vinculado (catálogo): ",
+                    { UsbInterface: true } => "Produto USB da interface (catálogo): ",
+                    _ => "Modelo do hardware (catálogo): "
+                };
+                text.AppendLine(label + identity.Model);
+            }
+            if (identity.Subsystem.Length > 0)
+                text.AppendLine("Variante PCI (catálogo): " + identity.Subsystem);
             text.AppendLine("ID da instância: " + selected.DeviceId);
             text.AppendLine("IDs de hardware: " + (selected.HardwareIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.HardwareIds)));
             text.AppendLine($"Versão instalada (WMI): {selected.Version}; INF: {selected.InfName}; {selected.PresenceLabel}.");

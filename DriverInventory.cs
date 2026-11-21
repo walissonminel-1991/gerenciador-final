@@ -6,6 +6,7 @@ namespace GerenciadorAplicativos;
 internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, string Provider,
     string Version, string InfName, bool? Signed, bool? Present)
 {
+    internal DriverDeviceMetadata? DeviceMetadata { get; init; }
     internal DriverStoreEvidence? PackageEvidence { get; init; }
     internal IReadOnlyList<string> HardwareIds { get; init; } = [];
     internal IReadOnlyList<DriverWindowsEvent> WindowsEvents { get; init; } = [];
