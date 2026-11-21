@@ -428,8 +428,7 @@ internal sealed partial class MainForm
                 bool started = false;
                 try
                 {
-                    var elevation = await DriverElevatedUninstall.RequestAsync(
-                        selected.DeviceId, selected.InfName);
+                    var elevation = await DriverElevatedUninstall.RequestAsync(selected);
                     started = elevation.Started;
                     if (!root.IsDisposed) SetDriverStatus(elevation.Message);
                 }
