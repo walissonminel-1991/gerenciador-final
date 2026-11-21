@@ -941,6 +941,13 @@ var installedHistorical = new[] {
 };
 Check(HistoricalResidualAudit.Inspect(installedHistorical).Count == 0,
     "Não listar sobras de produtos que ainda constem instalados");
+var historicalPartial = HistoricalResidualAudit.Inspect(
+    Array.Empty<ProgramEntry>(), inventoryIncomplete: true);
+Check(historicalPartial.Count == 0 && historicalPartial.Incomplete &&
+    (historicalPartial.Coverage.Issues & ResidualScanIssue.InventoryPartial) != 0 &&
+    historicalPartial.Coverage.CandidatesNotEvaluated is null &&
+    historicalPartial.Coverage.EntriesExamined == 0,
+    "R6 inventário parcial não pesquisa nem sinaliza órfãos históricos e conserva cobertura inconclusiva");
 try
 {
     HistoricalResidualAudit.Parse("""{"schema":1,"rules":[{"id":"insecure","name":"Global","installedNames":["Global"],"folders":["Local\\Microsoft"],"registry":["HKLM32\\SOFTWARE\\Microsoft"]}]}""");
