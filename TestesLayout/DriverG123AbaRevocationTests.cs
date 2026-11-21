@@ -239,8 +239,8 @@ internal static class DriverG123AbaRevocationTests
                         File.ReadAllBytes(path).SequenceEqual(approvedHistory),
                         "filtros reabilitaram consulta revogada " + sizes[i]);
                     Ensure(status.AccessibleDescription?.Contains(status.Text, StringComparison.Ordinal) == true &&
-                        tooltip.GetToolTip(status).Contains(status.Text, StringComparison.Ordinal),
-                        "descricao acessivel/tooltip sem estado consistente");
+                        string.IsNullOrEmpty(tooltip.GetToolTip(status)),
+                        "estado inacessível ou tooltip invasivo após revogação");
                 }
 
                 // Nova consulta VALIDA deve reabilitar o dialogo novamente.
