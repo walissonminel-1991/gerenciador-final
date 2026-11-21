@@ -35,7 +35,8 @@ internal static class IntegratedResidualBatch
             {
                 var original = outcome.Request.Original;
                 if (!contexts.TryGetValue(original.InventoryId, out var context)) continue;
-                if (outcome.State != UninstallState.RegistrationAbsent)
+                if (!RemovalSafetyContract.MayInspectResidues(
+                    outcome.State == UninstallState.RegistrationAbsent))
                 {
                     audit(IntegratedResidualCleanup.Audit(context.App, "capture", "skipped",
                         error: outcome.Code ?? 0, reason: "uninstall_" + outcome.State));
@@ -51,7 +52,8 @@ internal static class IntegratedResidualBatch
                     audit(IntegratedResidualCleanup.Audit(context.App, problem.Stage, "preserved", error: problem.Error, reason: problem.Reason, detail: problem.Detail.Length == 0 ? "none" : problem.Detail, depth: problem.Depth));
                 if (!plan.Conclusive) unavailable++;
                 if (!plan.Complete) continue;
-                if (plan.Eligible > 0) plans.Add(plan);
+                if (RemovalSafetyContract.MayOfferCleanup(true, plan.Complete,
+                    true, plan.Eligible > 0)) plans.Add(plan);
                 else audit(IntegratedResidualCleanup.Audit(context.App, "decision", plan.Assessment.ToString(),
                     kept: plan.Preserved, reason: plan.Assessment switch
                     {

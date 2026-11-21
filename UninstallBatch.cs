@@ -70,11 +70,12 @@ internal sealed class UninstallBatch
                 var before=await scan();
                 token.ThrowIfCancellationRequested();
                 var matching=before.Items.Where(x=>x.InventoryId.Equals(request.Original.InventoryId,StringComparison.OrdinalIgnoreCase)).ToArray();
-                if(!before.Complete || matching.Length!=1 || !SameRegistration(request.Original,matching[0]) ||
-                    !BoundToProduct(request.Command,matching[0]) ||
-                    !MatchesRegisteredCommand(request) ||
-                    (request.Command.ProductCode is not null && before.Items.Count(x =>
-                        x.MsiProductCode.Equals(request.Command.ProductCode,StringComparison.OrdinalIgnoreCase)) != 1))
+                if (!RemovalSafetyContract.CanStart(consent, before.Complete,
+                    matching.Length == 1 && SameRegistration(request.Original, matching[0]),
+                    request.Command.ProductCode is null || before.Items.Count(x =>
+                        x.MsiProductCode.Equals(request.Command.ProductCode, StringComparison.OrdinalIgnoreCase)) == 1,
+                    matching.Length == 1 && BoundToProduct(request.Command, matching[0]) &&
+                        MatchesRegisteredCommand(request)))
                 { results.Add(new(request,UninstallState.Blocked, DiagnosticReason:
                     !before.Complete ? "inventory_incomplete" : matching.Length != 1 || !SameRegistration(request.Original, matching[0])
                     ? "registration_changed" : "command_or_product_mismatch")); continue; }
@@ -150,7 +151,8 @@ internal sealed class UninstallBatch
                 // instante podem reaparecer durante a manutencao do fornecedor.
                 // Saida nao zero exige verificar o estado, mas nunca autoriza
                 // limpeza; 3010 exige reinicio e tambem permanece pendente.
-                var state = complete && exit==0 && absent>=3 ? UninstallState.RegistrationAbsent :
+                var state = RemovalSafetyContract.Confirmed(exit == 0, complete, absent >= 3, true)
+                    ? UninstallState.RegistrationAbsent :
                     complete && request.Command.ProductCode is not null && exit is not (0 or 3010) && !sawAbsence ? UninstallState.ProcessFailed :
                     UninstallState.Pending;
                 results.Add(new(request,state,exit,request.Command.ProductCode is null && exit!=0 ?

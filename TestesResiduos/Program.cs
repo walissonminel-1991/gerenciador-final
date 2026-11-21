@@ -115,6 +115,7 @@ await Work12RegressionTests.RunAsync(Check);
 await Work10IntegratedCleanupTests.RunAsync(Check);
 Work6UninstallTests.Policy(Check);
 await Work6UninstallFlowTests.Run(Check);
+RemovalSafetyContractTests.Run(Check);
 await Work7UninstallTests.Run(Check);
 SimulatedUninstallScenarioTests.Run(Check);
 await Work6PreviewTests.Run(Check);

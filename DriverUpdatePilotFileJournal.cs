@@ -14,6 +14,34 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
     private FileStream? heldLock;
     private DriverUpdatePilotChoice? activeChoice;
 
+    // G3.1: inspeção passiva e limitada a 4 KiB. Nunca cria, limpa ou
+    // sobrescreve diário existente (inclusive estado incerto ou corrupto).
+    internal static string ReadOnlyStatus(string journalPath)
+    {
+        try
+        {
+            if (!File.Exists(journalPath)) return "Diário WUA: nenhuma instalação registrada.";
+            using var file = new FileStream(journalPath, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            if (file.Length is <= 0 or > 4096)
+                return "Diário WUA inválido: instalação bloqueada.";
+            var bytes = new byte[(int)file.Length];
+            file.ReadExactly(bytes);
+            if (file.ReadByte() != -1)
+                return "Diário WUA inválido: instalação bloqueada.";
+            var last = JsonSerializer.Deserialize<Ledger>(bytes);
+            if (last is null || !Valid(last))
+                return "Diário WUA inválido: instalação bloqueada.";
+            return last.Phase == nameof(DriverUpdatePilotState.Verified)
+                ? "Diário WUA: última operação verificada."
+                : "Diário WUA: resultado pendente de conciliação; não repetir instalação.";
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return "Diário WUA indisponível: instalação bloqueada.";
+        }
+    }
+
     internal static string SuggestedPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "GerenciadorFinal", "drivers-update-pilot-v1.json");

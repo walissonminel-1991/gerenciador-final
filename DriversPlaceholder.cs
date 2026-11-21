@@ -18,8 +18,9 @@ internal sealed partial class MainForm
         Action<Action>? onTestReadActionReady = null,
         Action<Action<string>>? onTestFilterReady = null)
     {
-        // Mesma hierarquia visual de Aplicativos: pesquisa, acoes, filtros,
-        // cartoes e estado. Nada nesta tela instala, remove ou edita drivers.
+        // Ações gerais para todo o inventário. A política de segurança decide
+        // individualmente quais pacotes OEM podem ser removidos sem /force.
+        // A atualização WUA permanece sujeita aos gates de G3.1/G3.2.
         var root = new TableLayoutPanel
         {
             Name = "DriversPlaceholder", Dock = DockStyle.Fill,
@@ -66,14 +67,16 @@ internal sealed partial class MainForm
 
         var actionPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 7, RowCount = 1,
             Margin = new Padding(0, 2, 0, 2)
         };
         actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 142));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 105));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
         refresh.Name = "DriverInventoryRefresh";
@@ -132,7 +135,22 @@ internal sealed partial class MainForm
         copySummary.Enabled = false;
         _toolTips.SetToolTip(copySummary, "Copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
         actionPanel.Controls.Add(copySummary, 3, 0);
-        actionPanel.Controls.Add(actionInfo, 4, 0);
+        var updateDriver = CreateSecondaryButton("Atualizar");
+        updateDriver.Name = "DriverUpdateAction";
+        updateDriver.Dock = DockStyle.Fill;
+        updateDriver.Margin = new Padding(0, 2, 6, 2);
+        updateDriver.AccessibleName = "Consultar atualização oficial do driver selecionado";
+        updateDriver.AccessibleDescription = "Consulta WUA real; instalar só com proteção e consentimento apropriados.";
+        updateDriver.Enabled = false;
+        actionPanel.Controls.Add(updateDriver, 4, 0);
+        var uninstallDriver = CreateSecondaryButton("Desinstalar");
+        uninstallDriver.Name = "DriverUninstallAction";
+        uninstallDriver.Dock = DockStyle.Fill;
+        uninstallDriver.Margin = new Padding(0, 2, 6, 2);
+        uninstallDriver.AccessibleName = "Desinstalar silenciosamente pacote de driver selecionado";
+        uninstallDriver.Enabled = false;
+        actionPanel.Controls.Add(uninstallDriver, 5, 0);
+        actionPanel.Controls.Add(actionInfo, 6, 0);
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
@@ -187,7 +205,7 @@ internal sealed partial class MainForm
         root.Controls.Add(heading, 0, 2);
 
         var list = new DarkDriverList { Dock = DockStyle.Fill, Margin = Padding.Empty };
-        list.AccessibleName = "Drivers associados a dispositivos, somente leitura";
+        list.AccessibleName = "Drivers associados a dispositivos; ações sujeitas à elegibilidade";
         var empty = new Label
         {
             Name = "DriverInventoryEmpty", Dock = DockStyle.Fill,
@@ -289,9 +307,28 @@ internal sealed partial class MainForm
                     ? "Abre relatório geral de drivers, sem dispositivo selecionado e sem verificação INF."
                     : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
         }
+        bool uninstallBusy = false;
+        void SyncDriverActions()
+        {
+            bool current = !root.IsDisposed &&
+                publishedSnapshotGeneration == inventoryGeneration &&
+                lastResult is not null && list.SelectedItem is not null;
+            updateDriver.Enabled = current && !uninstallBusy && readForTest is null;
+            uninstallDriver.Enabled = current && !uninstallBusy && readForTest is null;
+            var choice = current ? DriverSilentUninstall.Evaluate(lastResult, list.SelectedItem) :
+                new DriverSilentUninstallDecision(false, "Selecione um driver em uma consulta válida.");
+            uninstallDriver.AccessibleDescription = choice.Allowed
+                ? "Pacote individual: confirmação e backup antes da remoção silenciosa. Requer administrador."
+                : choice.Reason;
+            _toolTips.SetToolTip(uninstallDriver, uninstallDriver.AccessibleDescription);
+            updateDriver.AccessibleDescription = !current
+                ? "Selecione um dispositivo em inventário válido."
+                : "Abre consulta WUA oficial. Instalação silenciosa depende de oferta e proteção G3.2.";
+        }
         list.SelectionChanged += (_, _) =>
         {
             SyncInvestigationDescription();
+            SyncDriverActions();
             invalidateOpenReport?.Invoke();
         };
         Form? labWindow = null;
@@ -328,12 +365,18 @@ internal sealed partial class MainForm
             actionHint.AccessibleDescription = actionHint.Text;
             _toolTips.SetToolTip(actionHint, actionHint.Text);
         };
-        investigate.Click += (_, _) =>
+        // Inicializar antes de registrar o evento de desinstalacao:
+        // RunRefresh captura os tres locais; o compilador exige atribuicao
+        // definitiva antes do callback que pode invoca-la.
+        string activeFilter = "Todos";
+        var driverQuery = new DriverQueryCoordinator();
+        bool resultPublished = false;
+
+        void OpenDriverInvestigation(bool autoStartOfficial)
         {
-            // Não aceitar Click sintético/reentrante sobre geração revogada,
-            // mesmo que um controle desabilitado seja invocado diretamente.
+            // Proteção de geração aplicada tanto a Investigar quanto a Atualizar.
             if (publishedSnapshotGeneration != inventoryGeneration ||
-                lastResult is not { } captured) return;
+                lastResult is not { } captured || uninstallBusy) return;
             var selection = list.SelectedItem;
             var guard = new DriverReportPublicationGuard(captured, selection, inventoryGeneration);
             ShowDriverReadOnlyReport(captured, selection,
@@ -342,9 +385,84 @@ internal sealed partial class MainForm
                     inventoryGeneration, token, result),
                 (token, result) => guard.CanPublishInf(lastResult, list.SelectedItem,
                     inventoryGeneration, token, result),
-                callback => invalidateOpenReport = callback);
+                callback => invalidateOpenReport = callback,
+                startOfficialOnShow: autoStartOfficial);
+        }
+        investigate.Click += (_, _) => OpenDriverInvestigation(false);
+        updateDriver.Click += (_, _) =>
+        {
+            if (updateDriver.Enabled && list.SelectedItem is not null)
+                OpenDriverInvestigation(true);
         };
-        string activeFilter = "Todos";
+        uninstallDriver.Click += async (_, _) =>
+        {
+            if (!uninstallDriver.Enabled || uninstallBusy ||
+                publishedSnapshotGeneration != inventoryGeneration ||
+                lastResult is not { } captured || list.SelectedItem is not { } selected)
+                return;
+            var assessment = DriverSilentUninstall.Evaluate(captured, selected);
+            if (!assessment.Allowed)
+            {
+                MessageBox.Show(this, assessment.Reason, "GF — driver protegido",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string question = "Remover silenciosamente o pacote OEM deste dispositivo?" +
+                Environment.NewLine + Environment.NewLine +
+                "Dispositivo: " + selected.DeviceName + Environment.NewLine +
+                "Instância: " + selected.DeviceId + Environment.NewLine +
+                "Pacote: " + selected.InfName + Environment.NewLine +
+                "Fornecedor: " + selected.Provider + Environment.NewLine + Environment.NewLine +
+                "O GF exportará um backup antes de remover. O Windows poderá exigir reinício." +
+                Environment.NewLine + "Nenhum outro pacote será removido deliberadamente.";
+            if (MessageBox.Show(this, question, "GF — confirmar desinstalação",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2)
+                != DialogResult.Yes) return;
+            uninstallBusy = true;
+            bool refreshAfter = false;
+            refresh.Enabled = false;
+            SyncDriverActions();
+            SetDriverStatus("Preparando backup e revalidação do driver...");
+            try
+            {
+                var outcome = await DriverSilentUninstall.Execute(captured, selected, true,
+                    () => !root.IsDisposed && publishedSnapshotGeneration == inventoryGeneration &&
+                        ReferenceEquals(list.SelectedItem, selected),
+                    progress =>
+                    {
+                        if (root.IsDisposed || !root.IsHandleCreated) return;
+                        try { root.BeginInvoke((Action)(() => SetDriverStatus(progress))); }
+                        catch (InvalidOperationException) { }
+                    });
+                if (root.IsDisposed) return;
+                SetDriverStatus(outcome.Message);
+                MessageBox.Show(this, outcome.Message + (outcome.BackupPath is null ? "" :
+                    Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath),
+                    "GF — desinstalação " + outcome.State, MessageBoxButtons.OK,
+                    outcome.State == DriverSilentUninstallState.Verified ?
+                        MessageBoxIcon.Information : MessageBoxIcon.Warning);
+                if (DriverResidualReviewPolicy.MayInspect(outcome.State))
+                {
+                    // Diferente de residuos de aplicativos, nenhum alvo de
+                    // DriverStore/Registro ganha autoridade de exclusao aqui.
+                    SetDriverStatus("INF removido; resíduos protegidos, sem limpeza genérica.");
+                    // Um resultado real revoga a fotografia; uma nova consulta
+                    // é necessária antes de qualquer outra operação.
+                    inventoryGeneration++;
+                    invalidateOpenReport?.Invoke();
+                    investigate.Enabled = false;
+                    copySummary.Enabled = false;
+                    refreshAfter = true;
+                }
+            }
+            finally
+            {
+                uninstallBusy = false;
+                if (!refresh.IsDisposed) refresh.Enabled = true;
+                SyncDriverActions();
+            }
+            if (refreshAfter && !root.IsDisposed) await RunRefresh();
+        };
         void Render()
         {
             if (root.IsDisposed) return;
@@ -367,6 +485,7 @@ internal sealed partial class MainForm
             empty.Visible = visible.Length == 0;
             empty.AccessibleDescription = empty.Text;
             SyncInvestigationDescription();
+            SyncDriverActions();
             if (empty.Visible) empty.BringToFront();
             foreach (var (button, name) in new[]
                 { (all, "Todos"), (present, "Presentes"), (problems, "Problemas"),
@@ -412,8 +531,6 @@ internal sealed partial class MainForm
                 ApplyFilter(selected);
             }
         };
-        var driverQuery = new DriverQueryCoordinator();
-        bool resultPublished = false;
         root.Disposed += (_, _) =>
         {
             // Uma página descartada invalida a fotografia mesmo que seleção e listas não tenham mudado.
@@ -423,6 +540,11 @@ internal sealed partial class MainForm
         };
         async Task RunRefresh()
         {
+            if (uninstallBusy)
+            {
+                SetDriverStatus("Desinstalação em andamento: consulta bloqueada até a verificação.");
+                return;
+            }
             if (driverQuery.InProgress)
             {
                 if (resultPublished)
@@ -461,6 +583,7 @@ internal sealed partial class MainForm
             SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
             copySummary.Enabled = false;
+            SyncDriverActions();
             actionHint.Text = "Consulta em andamento. Resumo anterior revogado.";
             actionHint.AccessibleDescription = actionHint.Text;
             SyncInvestigationDescription();
@@ -587,6 +710,7 @@ internal sealed partial class MainForm
                         publishedSnapshotGeneration == inventoryGeneration;
                     copySummary.Enabled = investigate.Enabled;
                     SyncInvestigationDescription();
+                    SyncDriverActions();
                     if (_driverReadTask is { IsCompleted: false })
                         SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 }
@@ -612,7 +736,9 @@ internal sealed partial class MainForm
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
             heading.Visible = !compactFilters;
-            actionPanel.ColumnStyles[3].Width = showCopy ? 142 : 0;
+            actionPanel.ColumnStyles[3].Width = showCopy ? 125 : 0;
+            actionPanel.ColumnStyles[2].Width = narrow ? 0 : 110;
+            labOpen.Visible = !narrow;
             copySummary.Visible = showCopy;
             actionHint.Visible = !compactFilters;
             compactFilter.Visible = compactFilters;

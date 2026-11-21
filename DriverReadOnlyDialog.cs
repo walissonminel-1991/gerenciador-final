@@ -15,7 +15,8 @@ internal sealed partial class MainForm
         Func<CancellationToken, Task<DriverOfficialResult>>? officialReadForTest = null,
         Func<CancellationToken, Task<DriverInfVerificationResult>>? infReadForTest = null,
         TimeSpan? timeoutForTest = null,
-        Action<Action, Action>? onTestActionsReady = null)
+        Action<Action, Action>? onTestActionsReady = null,
+        bool startOfficialOnShow = false)
     {
         using var dialog = new Form
         {
@@ -80,7 +81,7 @@ internal sealed partial class MainForm
             Text = "Piloto WUA (revisar)", TextAlign = ContentAlignment.MiddleRight,
             LinkColor = Accent, Enabled = false,
             AccessibleName = "Revisar piloto WUA experimental",
-            AccessibleDescription = "Revisão somente leitura; instalação desativada nesta versão."
+            AccessibleDescription = "Revalidação WUA real somente leitura; instalação bloqueada até G3.2."
         };
         statusRow.Controls.Add(status, 0, 0);
         statusRow.Controls.Add(pilotLink, 1, 0);
@@ -284,7 +285,10 @@ internal sealed partial class MainForm
             CheckCurrent();
             if (obsolete || closing || !pilotLink.Enabled ||
                 selected is null || official is not { Partial: false } offers || !isCurrent()) return;
-            using var preview = DriverUpdatePilotDialog.Create(inventory, offers, selected, isCurrent);
+            // G3.1: backend WUA e fabrica do diario reais, sem liberar instalacao.
+            using var preview = DriverUpdatePilotDialog.Create(inventory, offers, selected,
+                isCurrent, DriverG31Wiring.NewProductionBackend(),
+                DriverG31Wiring.NewProductionJournalFactory());
             preview.ShowDialog(dialog);
             CheckCurrent();
         };
@@ -307,6 +311,7 @@ internal sealed partial class MainForm
         {
             // Não enviar o foco inicial para uma ação indisponível.
             (officialButton.Enabled ? officialButton : verifyButton.Enabled ? verifyButton : close).Focus();
+            if (startOfficialOnShow && officialButton.Enabled) _ = RunOfficial();
         };
         onInvalidationChanged(CheckCurrent);
         try { dialog.ShowDialog(this); }
