@@ -312,9 +312,12 @@ internal sealed partial class MainForm
         bool uninstallBusy = false;
         void SyncDriverActions()
         {
+            // A autoridade é a fotografia publicada. O clique seleciona a
+            // identidade do cartão antes do handler; não desenhar ações como
+            // desabilitadas para depois executá-las no primeiro clique.
             bool current = !root.IsDisposed &&
                 publishedSnapshotGeneration == inventoryGeneration &&
-                lastResult is not null && list.SelectedItem is not null;
+                lastResult is not null;
             bool actionable = current && !uninstallBusy && readForTest is null;
             list.SetActionPolicy(actionable, device => lastResult is not null
                 ? DriverSilentUninstall.Evaluate(lastResult, device)

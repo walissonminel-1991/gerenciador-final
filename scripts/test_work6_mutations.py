@@ -55,7 +55,8 @@ if os.name == 'nt':
     ])
     mutants.extend([
         ('residual-consent-bypassed','IntegratedResidualCleanup.cs',
-         'if (!consent || !ValidPlan(plan)', 'if (!ValidPlan(plan)',
+         'MayDeleteResidues(consent, ValidPlan(plan),',
+         'MayDeleteResidues(true, ValidPlan(plan),',
          'TestesResiduos','--work10-core','W10 NO preserves file'),
         ('residual-content-hash-bypassed','IntegratedResidualCleanup.cs',
          'Convert.ToHexString(SHA256.HashData(handle)) != file.Digest', 'false',
