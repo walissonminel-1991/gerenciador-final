@@ -412,8 +412,27 @@ internal sealed partial class MainForm
             var assessment = DriverSilentUninstall.Evaluate(captured, selected);
             if (!assessment.Allowed)
             {
-                MessageBox.Show(this, assessment.Reason, "GF — driver protegido",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string explanation = "Este driver não pode ser removido automaticamente pelo GF." +
+                    Environment.NewLine + assessment.Reason + Environment.NewLine +
+                    Environment.NewLine + "Abrir o Gerenciador de Dispositivos do Windows para " +
+                    "você decidir se deseja desinstalá-lo? Nenhum driver será removido pelo GF.";
+                if (MessageBox.Show(this, explanation, "GF — desinstalação manual de driver",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "devmgmt.msc", UseShellExecute = true
+                        });
+                        SetDriverStatus("Gerenciador de Dispositivos aberto. Decisão e remoção somente pelo Windows.");
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        SetDriverStatus("Não foi possível abrir o Gerenciador de Dispositivos.");
+                    }
+                }
                 return;
             }
             if (!DriverSilentUninstall.IsElevated())
