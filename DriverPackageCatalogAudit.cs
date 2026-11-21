@@ -101,6 +101,8 @@ internal static class DriverPackageCatalogAudit
             try
             {
                 int covered = 0;
+                int localCatalogs = 0;
+                var actualTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (string file in files)
                 {
                     token.ThrowIfCancellationRequested();
@@ -111,11 +113,24 @@ internal static class DriverPackageCatalogAudit
                         using var localCat = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
                         if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(localCat), trustedCatHash))
                             return new(DriverPackageCatalogState.Rejected, files.Count, covered);
+                        localCatalogs++;
                     }
-                    else if (!CatalogContainsFile(admin, file, inf.Catalog, token))
-                        return new(DriverPackageCatalogState.Rejected, files.Count, covered);
+                    else
+                    {
+                        if (!CatalogContainsFile(admin, file, inf.Catalog, token, out string tag))
+                            return new(DriverPackageCatalogState.Rejected, files.Count, covered);
+                        // Duplicados iguais impedem provar multiplicidade de nomes
+                        // apenas pelos hashes presentes no catalogo.
+                        if (!actualTags.Add(tag))
+                            return new(DriverPackageCatalogState.Incomplete, files.Count, covered);
+                    }
                     covered++;
                 }
+                if (localCatalogs != 1 || actualTags.Count == 0)
+                    return new(DriverPackageCatalogState.Incomplete, files.Count, covered);
+                var declared = ReadCatalogMemberTags(inf.Catalog, token);
+                if (declared is null || !declared.SetEquals(actualTags))
+                    return new(DriverPackageCatalogState.Incomplete, files.Count, covered);
                 return new(DriverPackageCatalogState.Verified, files.Count, covered);
             }
             finally { CryptCATAdminReleaseContext(admin, 0); }
@@ -140,7 +155,7 @@ internal static class DriverPackageCatalogAudit
             Guid policy = new("F750E6C3-38EE-11D1-85E5-00C04FC295EE");
             if (!CryptCATAdminAcquireContext2(out IntPtr admin, ref policy, "SHA256", IntPtr.Zero, 0))
                 return false;
-            try { return CatalogContainsFile(admin, file, trustedCatalog, token); }
+            try { return CatalogContainsFile(admin, file, trustedCatalog, token, out _); }
             finally { CryptCATAdminReleaseContext(admin, 0); }
         }
         catch (OperationCanceledException) { throw; }
@@ -150,8 +165,10 @@ internal static class DriverPackageCatalogAudit
         { return false; }
     }
 
-    private static bool CatalogContainsFile(IntPtr admin, string file, string catalog, CancellationToken token)
+    private static bool CatalogContainsFile(IntPtr admin, string file, string catalog, CancellationToken token,
+        out string memberHash)
     {
+        memberHash = "";
         token.ThrowIfCancellationRequested();
         using var input = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (input.Length > MaxFileBytes) return false;
@@ -176,7 +193,10 @@ internal static class DriverPackageCatalogAudit
                 if (CryptCATCatalogInfoFromContext(current, ref info, 0) &&
                     Path.GetFullPath(info.CatalogFile).Equals(Path.GetFullPath(catalog),
                         StringComparison.OrdinalIgnoreCase))
+                {
+                    memberHash = Convert.ToHexString(digest);
                     return true;
+                }
                 // A API recebe o handle anterior e avança a enumeração.
                 IntPtr previous = current;
                 current = CryptCATAdminEnumCatalogFromHashNext(admin, digest, size, 0, ref previous);
@@ -188,6 +208,57 @@ internal static class DriverPackageCatalogAudit
             if (current != IntPtr.Zero) CryptCATAdminReleaseCatalogContext(admin, current, 0);
         }
     }
+
+    // Sem lista assinada COMPLETA nao ha sucesso: um arquivo ausente nao
+    // aparece na enumeracao do diretorio e seria invisivel a uma simples
+    // validacao dos arquivos presentes. Requer conjunto exato de tags SHA256.
+    private static HashSet<string>? ReadCatalogMemberTags(string catalog, CancellationToken token)
+    {
+        IntPtr handle = CryptCATOpen(catalog, 0, IntPtr.Zero, 0x200, 0);
+        if (handle == new IntPtr(-1))
+            handle = CryptCATOpen(catalog, 0, IntPtr.Zero, 0x100, 0);
+        if (handle == new IntPtr(-1) || handle == IntPtr.Zero) return null;
+        try
+        {
+            var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            IntPtr member = IntPtr.Zero;
+            for (int i = 0; i < MaxFiles; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                member = CryptCATEnumerateMember(handle, member);
+                if (member == IntPtr.Zero) return tags.Count > 0 ? tags : null;
+                var header = Marshal.PtrToStructure<CatalogMemberHeader>(member);
+                string? tag = Marshal.PtrToStringUni(header.ReferenceTag);
+                // A estrutura e os algoritmos nao sao interpretados por
+                // semelhanca: catalogo sem tags SHA256 exatas e INCONCLUSIVO.
+                if (tag is null || tag.Length != 64 || !tag.All(Uri.IsHexDigit) ||
+                    !tags.Add(tag)) return null;
+            }
+            return null; // catalogo truncado pela cota nunca e "completo"
+        }
+        finally { CryptCATClose(handle); }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CatalogMemberHeader
+    {
+        internal uint Size;
+        internal IntPtr ReferenceTag;
+    }
+
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("wintrust.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CryptCATOpen(string file, uint flags, IntPtr provider,
+        uint catalogVersion, uint encodingType);
+
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    private static extern IntPtr CryptCATEnumerateMember(IntPtr catalog, IntPtr previous);
+
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CryptCATClose(IntPtr catalog);
 
     private static bool Ordinary(string path)
     {
