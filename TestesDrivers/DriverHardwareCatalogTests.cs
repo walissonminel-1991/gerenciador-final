@@ -78,5 +78,67 @@ internal static class DriverHardwareCatalogTests
             report.Contains("Produto USB da interface (catálogo): Webcam C270", StringComparison.Ordinal) &&
             report.Contains(camera.HardwareIds[0], StringComparison.Ordinal),
             "Detalhes mantém a origem dos nomes e os IDs de hardware");
+
+        var audio = new DriverInventoryEntry(@"HDAUDIO\FUNC_01&VEN_10EC&DEV_0892&SUBSYS_10438436\5&01",
+            "Dispositivo de áudio de alta definição", "Microsoft", "", "hdaudio.inf", true, true)
+        { HardwareIds = [@"HDAUDIO\FUNC_01&VEN_10EC&DEV_0892&REV_1003"] };
+        Check(DriverHardwareCatalog.Identify(audio) is { Vendor: "Realtek", Model: "Realtek ALC892", Subsystem: "" } &&
+            DriverHardwareCatalog.DisplayName(audio) == "Realtek ALC892" &&
+            DriverListFilters.Apply([audio], "Todos", "alc892 realtek").Single() == audio,
+            "reconhece um codec HDA pelo ID exato em um catálogo próprio");
+        var otherFunction = audio with
+        {
+            DeviceId = @"HDAUDIO\FUNC_02&VEN_10EC&DEV_0892\5&01",
+            HardwareIds = []
+        };
+        Check(DriverHardwareCatalog.Identify(otherFunction) == DriverHardwareIdentity.Unknown,
+            "o ID de outra função HDA não é identificado como codec de áudio");
+
+        var printer = new DriverInventoryEntry(@"USBPRINT\HPHP_LASERJET_P1102ABCD\1&01",
+            "Suporte de impressão USB", "Microsoft", "", "usbprint.inf", true, true)
+        { HardwareIds = [@"USBPRINT\HPHP_LASERJET_P1102ABCD"] };
+        var forgotten = audio with { Present = false };
+        var duplicate = camera with { DeviceId = camera.DeviceId.ToUpperInvariant() };
+        var generic = new DriverInventoryEntry(@"ACPI\TEST0001\0",
+            "Dispositivo desconhecido", "", "", "", null, true);
+        var seen = new List<string>();
+        var enriched = DriverDeviceMetadata.Enrich(new([printer, forgotten, camera, duplicate, generic], false, ""),
+            CancellationToken.None, id =>
+            {
+                seen.Add(id);
+                return id == printer.DeviceId
+                    ? new("", @"USB\VID_03F0&PID_002A")
+                    : new("Nome informado pelo dispositivo", "");
+            });
+        var linkedPrinter = enriched.Items[0];
+        var namedByBus = enriched.Items[4];
+        Check(seen.SequenceEqual([printer.DeviceId, generic.DeviceId]) &&
+            linkedPrinter.DeviceId == printer.DeviceId && linkedPrinter.HardwareIds.SequenceEqual(printer.HardwareIds),
+            "lê apenas instâncias presentes e únicas sem substituir a evidência de compatibilidade");
+        Check(DriverHardwareCatalog.Identify(printer) == DriverHardwareIdentity.Unknown &&
+            DriverHardwareCatalog.Identify(linkedPrinter) is { Model: "LaserJet P1102", FromUsbParent: true } &&
+            DriverHardwareCatalog.DisplayName(linkedPrinter) == "LaserJet P1102" &&
+            DriverListFilters.Apply([linkedPrinter], "Todos", "laserjet 002a").Single() == linkedPrinter &&
+            DriverReadOnlyReport.Format(enriched, linkedPrinter)
+                .Contains("Modelo do dispositivo USB vinculado (catálogo): LaserJet P1102", StringComparison.Ordinal),
+            "reconhece USBPRINT pelo pai confirmado e informa a origem do modelo");
+        Check(DriverHardwareCatalog.DisplayName(namedByBus) == "Nome informado pelo dispositivo" &&
+            DriverHardwareCatalog.DisplayName(namedByBus with { DeviceName = "Nome específico do Windows" }) ==
+                "Nome específico do Windows" &&
+            DriverReadOnlyReport.Format(enriched, namedByBus)
+                .Contains("Descrição informada pelo dispositivo: Nome informado pelo dispositivo", StringComparison.Ordinal),
+            "o nome do barramento recupera rótulos genéricos e aparece em Detalhes");
+
+        var broad = named with { Provider = "Realtek ALC892" };
+        var contains = named with { DeviceName = "Dispositivo de teste Realtek ALC892" };
+        Check(DriverListFilters.Apply([broad, contains, audio], "Todos", "Realtek ALC892")
+                .SequenceEqual([audio, contains, broad]) &&
+            DriverListFilters.Apply([broad, contains, audio], "Todos", "")
+                .SequenceEqual([broad, contains, audio]),
+            "ordena por modelo exato, nome parcial e fabricante, preservando a ordem sem busca");
+        var containsId = named with { DeviceName = audio.HardwareIds[0] };
+        Check(DriverListFilters.Apply([containsId, audio], "Presentes", audio.HardwareIds[0])
+                .SequenceEqual([audio, containsId]),
+            "ID de hardware exato vem antes do mesmo texto em outros campos");
     }
 }

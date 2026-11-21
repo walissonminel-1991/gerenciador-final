@@ -43,6 +43,7 @@
     <EmbeddedResource Include="CatalogoAuditoriaHistorica.json" LogicalName="GerenciadorFinal.HistoricalOrphanCatalog" />
     <EmbeddedResource Include="Assets/DriverCatalog/pci.ids.gz" LogicalName="GerenciadorFinal.DriverIds.pci" />
     <EmbeddedResource Include="Assets/DriverCatalog/usb.ids.gz" LogicalName="GerenciadorFinal.DriverIds.usb" />
+    <EmbeddedResource Include="Assets/DriverCatalog/hda.ids" LogicalName="GerenciadorFinal.DriverIds.hda" />
   </ItemGroup>
   <!-- Publicar avisos a partir dos mesmos packs resolvidos, sem copiar SDKs. -->
   <ItemGroup>

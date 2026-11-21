@@ -19,21 +19,36 @@ internal static class DriverListFilters
             _ => items
         };
         var terms = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (terms.Length > 0)
-        {
-            var comparison = CultureInfo.CurrentCulture.CompareInfo;
-            filtered = filtered.Where(item =>
-            {
-                var identity = DriverHardwareCatalog.Identify(item);
-                string searchable = string.Join(" ", item.DeviceName, item.DeviceId, item.Provider,
-                    item.Version, item.InfName, item.ReportedDriverClass, item.PresenceLabel,
-                    item.SignatureLabel, item.PnpStatusLabel, identity.Vendor, identity.Model,
-                    identity.Subsystem, string.Join(" ", item.HardwareIds));
-                return terms.All(term => ContainsTerm(comparison, searchable, term,
-                    wholeCharacter: terms.Length > 1 && term.Length == 1 && char.IsLetterOrDigit(term[0])));
-            });
-        }
-        return filtered.ToArray();
+        if (terms.Length == 0) return filtered.ToArray();
+
+        string phrase = string.Join(" ", terms);
+        var comparison = CultureInfo.CurrentCulture.CompareInfo;
+        return filtered.Select(item => (Item: item, Rank: SearchRank(item, phrase, terms, comparison)))
+            .Where(match => match.Rank > 0)
+            .OrderByDescending(match => match.Rank)
+            .Select(match => match.Item).ToArray();
+    }
+
+    private static int SearchRank(DriverInventoryEntry item, string phrase, string[] terms, CompareInfo comparison)
+    {
+        if (item.DeviceId.Equals(phrase, StringComparison.OrdinalIgnoreCase) ||
+            item.HardwareIds.Contains(phrase, StringComparer.OrdinalIgnoreCase))
+            return 4;
+
+        var identity = DriverHardwareCatalog.Identify(item);
+        var names = new[] { item.DeviceName, item.DeviceMetadata?.BusDescription ?? "",
+            identity.Model, identity.Subsystem, DriverHardwareCatalog.DisplayName(item) };
+        if (names.Any(name => comparison.Compare(name, phrase, SearchOptions) == 0))
+            return 3;
+        if (names.Any(name => comparison.IndexOf(name, phrase, SearchOptions) >= 0))
+            return 2;
+
+        string searchable = string.Join(" ", string.Join(" ", names), item.DeviceId, item.Provider,
+            item.Version, item.InfName, item.ReportedDriverClass, item.PresenceLabel, item.SignatureLabel,
+            item.PnpStatusLabel, identity.Vendor, item.DeviceMetadata?.UsbParentHardwareId,
+            string.Join(" ", item.HardwareIds));
+        return terms.All(term => ContainsTerm(comparison, searchable, term,
+            wholeCharacter: terms.Length > 1 && term.Length == 1 && char.IsLetterOrDigit(term[0]))) ? 1 : 0;
     }
 
     private static bool ContainsTerm(CompareInfo comparison, string searchable, string term, bool wholeCharacter)

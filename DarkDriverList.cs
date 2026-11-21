@@ -487,11 +487,16 @@ internal static class DriverTriageSummary
     {
         ArgumentNullException.ThrowIfNull(inventory);
         var items = inventory.Items;
+        var present = items.Where(x => x.Present == true).ToArray();
+        int genericWindows = present.Count(x => DriverHardwareCatalog.IsGenericName(x.DeviceName));
+        int genericGf = present.Count(x =>
+            DriverHardwareCatalog.IsGenericName(DriverHardwareCatalog.DisplayName(x)));
         return string.Join(Environment.NewLine,
             "GERENCIADOR FINAL — DRIVERS — RESUMO SEM IDENTIFICADORES",
             "Somente consulta local; não comprova atualização disponível.",
             "Inventário parcial: " + (inventory.Partial ? "sim" : "não"),
             "Dispositivos/associações observados: " + items.Count,
+            $"Associações presentes: {present.Length}; nomes genéricos no Windows: {genericWindows}; no GF: {genericGf}.",
             "Falhas PnP relatadas pelo Windows: " + items.Count(x => x.HasPnpProblem),
             "Sem linha de driver assinado associada no WMI: " +
                 items.Count(x => x.WithoutSignedDriverAssociation),

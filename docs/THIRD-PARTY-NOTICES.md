@@ -14,6 +14,7 @@ gratuito e aberto, sem serviço comercial obrigatório.
 | Microsoft.WindowsPackageManager.ComInterop 1.29.380 | Projeção tipada e fábrica nativa x64 oficiais, código MIT: https://github.com/microsoft/winget-cli. Avisos originais do pacote copiados integralmente em Licencas/WinGet/NOTICE.txt. O serviço WinGet/App Installer não é instalado nem redistribuído pelo GF. |
 | RuckZuck, GitHub Releases e sites oficiais | Fontes consultadas via HTTPS. Seus catálogos/instaladores não integram este ZIP; cada aplicativo mantém os termos de seu fornecedor. |
 | PCI ID Project e USB ID Repository | Catálogos de identificação de hardware incorporados, sob BSD de 3 cláusulas. Revisões e termos abaixo. |
+| FreeBSD src, tabela de codecs HDA | Dados de identificação de áudio incorporados sob BSD de 2 cláusulas. Revisão e termos abaixo. |
 | Inno Setup | Ferramenta opcional para gerar o instalador, ausente do portátil. [Licença do fornecedor](https://jrsoftware.org/files/is/license.txt). |
 
 O publish inclui os ativos de runtime selecionados pelo SDK e os catálogos
@@ -61,6 +62,44 @@ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
+
+## Catálogo de codecs HDA
+
+`Assets/DriverCatalog/hda.ids` contém pares de fabricante/modelo da tabela
+`hdacc_codecs` e das constantes de `hdac.h` do
+[FreeBSD src, commit 55b89b7b529f1c37a749adadb11aba4f8e9e51ca](https://github.com/freebsd/freebsd-src/tree/55b89b7b529f1c37a749adadb11aba4f8e9e51ca/sys/dev/sound/pci/hda).
+O GF inclui 320 modelos com IDs exatos e sem requisito de revisão. Os IDs
+curinga da fonte servem apenas para descrever o fabricante, sem atribuir um
+modelo. Duplicatas idênticas foram consolidadas. SHA-256 do recurso em LF
+`83ccc7f4f011270189d7fa04bd33718b26d441cc3432323a0be8a29fa6b2d4c1`.
+
+BSD 2-Clause License
+
+Copyright (c) 2006 Stephane E. Potvin <sepotvin@videotron.ca>
+Copyright (c) 2006 Ariff Abdullah <ariff@FreeBSD.org>
+Copyright (c) 2008-2012 Alexander Motin <mav@FreeBSD.org>
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.
 
 ## Licença C#/WinRT
 

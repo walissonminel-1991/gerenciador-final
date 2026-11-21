@@ -5,6 +5,8 @@ namespace GerenciadorAplicativos;
 
 internal sealed partial class MainForm
 {
+    private const string DriverReadFinishing =
+        "Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.";
     private Task<DriverInventoryResult>? _driverReadTask;
     // Cache WUA válido somente para a mesma fotografia que o usuário consultou.
     private DriverInventoryResult? _driverReusableInventory;
@@ -640,10 +642,14 @@ internal sealed partial class MainForm
                 driverQuery.RequestCancel();
                 return;
             }
-            if (_driverReadTask is { IsCompleted: false } ||
-                readForTest is null && _driverOfficialReadTask is { IsCompleted: false })
+            if (_driverReadTask is { IsCompleted: false })
             {
-                SetDriverStatus("A consulta nativa anterior ainda está encerrando.");
+                SetDriverStatus(DriverReadFinishing);
+                return;
+            }
+            if (readForTest is null && _driverOfficialReadTask is { IsCompleted: false })
+            {
+                SetDriverStatus("A pesquisa WUA anterior ainda está encerrando. Tente novamente depois.");
                 return;
             }
             var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
@@ -674,7 +680,8 @@ internal sealed partial class MainForm
             SyncInvestigationDescription();
             SetDriverStatus("Consultando drivers em segundo plano…");
             _driverReadTask = readForTest is null
-                ? Task.Run(() => DriverStoreAudit.CaptureWithPackages(token)) : readForTest(token);
+                ? Task.Run(() => DriverDeviceMetadata.Enrich(DriverStoreAudit.CaptureWithPackages(token), token))
+                : readForTest(token);
             try
             {
                 var captured = await _driverReadTask.WaitAsync(token);
@@ -762,7 +769,7 @@ internal sealed partial class MainForm
                         history.Text = recorded.Message;
                         history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
                         SuppressHoverHint(history, history.AccessibleDescription);
-                        SetDriverStatus(state.Text);
+                        SyncStatusAccessibility();
                         FitVerticalSpace();
                     }
                     DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
@@ -833,9 +840,13 @@ internal sealed partial class MainForm
             }
             catch (OperationCanceledException)
             {
-                if (!root.IsDisposed) SetDriverStatus(refresh.Text == "Cancelando..."
-                    ? "Consulta cancelada. Lista anterior preservada; sem alterações."
-                    : "Tempo esgotado. Lista anterior preservada; sem alterações.");
+                if (!root.IsDisposed)
+                {
+                    string currentStatus = refresh.Text == "Cancelando..."
+                        ? "Consulta cancelada. Lista anterior preservada; sem alterações."
+                        : "Tempo esgotado. Lista anterior preservada; sem alterações.";
+                    SetDriverStatus(_driverReadTask is { IsCompleted: false } ? DriverReadFinishing : currentStatus);
+                }
                 DiagnosticTrace.Write("DRIVERS.CONSULTA_CANCELADA");
             }
             catch (Exception ex)
@@ -859,8 +870,6 @@ internal sealed partial class MainForm
                     copySummary.Enabled = investigate.Enabled;
                     SyncInvestigationDescription();
                     SyncDriverActions();
-                    if (_driverReadTask is { IsCompleted: false })
-                        SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 }
             }
         }
@@ -944,7 +953,7 @@ internal sealed partial class MainForm
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
             SuppressHoverHint(history, history.AccessibleDescription ?? history.Text);
-            SetDriverStatus(state.Text);
+            SyncStatusAccessibility();
         }
         root.SizeChanged += (_, _) => FitVerticalSpace();
         root.DpiChangedAfterParent += (_, _) => FitVerticalSpace();
