@@ -244,7 +244,7 @@ internal static class WindowsUpdateClient
     internal static string? CanonicalSelectedIdentity(string? value) =>
         WindowsUpdateSearchPolicy.CanonicalSelectedIdentity(value);
 
-    public static Task<IReadOnlyList<WinUpdateChoice>> ScanAsync() => StaWorker.Run<IReadOnlyList<WinUpdateChoice>>(() =>
+    public static Task<WindowsUpdateScan> ScanAsync() => StaWorker.Run(() =>
     {
         dynamic session = CreateSession();
         dynamic updates = SearchPendingSoftware((object)session);
@@ -259,57 +259,159 @@ internal static class WindowsUpdateClient
             choices.Add(new WinUpdateChoice(id,
                 (string)entry.Title, kb.Trim(), (bool)entry.IsDownloaded, (bool)entry.EulaAccepted));
         }
-        return WindowsUpdateSearchPolicy.ValidateOffers(choices);
+        return new WindowsUpdateScan(WindowsUpdateSearchPolicy.ValidateOffers(choices), ReadPendingRestart());
     });
 
-    public static Task<int> InstallAsync(IReadOnlySet<string> ids, Action<string> log) => StaWorker.Run(() =>
+    public static Task<WindowsUpdateOperation> InstallAsync(IReadOnlySet<string> ids,
+        Action<WindowsUpdatePhase> reportPhase) => StaWorker.Run(() =>
     {
-        if (ids.Count == 0) return 2;
-        dynamic session = CreateSession();
-        log("Verificando novamente as atualizações selecionadas antes de instalar...");
-        dynamic updates = SearchPendingSoftware((object)session);
+        reportPhase(WindowsUpdatePhase.Revalidate);
+        try
+        {
+            using var gate = new Mutex(false, @"Global\GerenciadorFinal.WindowsUpdate.Software");
+            bool entered;
+            try { entered = gate.WaitOne(0); }
+            catch (AbandonedMutexException) { entered = true; }
+            if (!entered) return WindowsUpdateOperation.Blocked(WindowsUpdateOutcome.Busy);
+
+            try { return InstallSelected(ids, reportPhase, () => (object)CreateSession(), CreateCollection); }
+            finally { gate.ReleaseMutex(); }
+        }
+        catch (Exception ex)
+        {
+            return WindowsUpdateOperation.Blocked(WindowsUpdateOutcome.PreflightInconclusive, ex.HResult);
+        }
+    });
+
+    internal static WindowsUpdateOperation InstallSelected(IReadOnlySet<string> ids,
+        Action<WindowsUpdatePhase> reportPhase, Func<object> createSession, Func<object> createCollection)
+    {
+        WindowsUpdateOutcome failure = WindowsUpdateOutcome.PreflightInconclusive;
+        try
+        {
+            dynamic session = createSession();
+            dynamic updates = SearchPendingSoftware((object)session);
+            var matched = new List<string>();
+            var entries = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            var selectedUpdates = ids.Select(id => id[..36]).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < (int)updates.Count; i++)
+            {
+                object entry = updates.Item(i);
+                string id = ReadUpdateIdentity(entry);
+                if (!selectedUpdates.Contains(id[..36])) continue;
+                matched.Add(id);
+                entries.TryAdd(id, entry);
+            }
+            if (!WindowsUpdateSearchPolicy.MatchesSelection(ids, matched))
+                return WindowsUpdateOperation.Blocked(WindowsUpdateOutcome.SelectionChanged);
+
+            dynamic selected = createCollection();
+            var orderedEntries = ids.Order(StringComparer.Ordinal).Select(id => entries[id]).ToArray();
+            foreach (dynamic entry in orderedEntries)
+            {
+                // Só o Windows Update pode obter o aceite de uma licença pendente.
+                if (!(bool)entry.EulaAccepted)
+                    return WindowsUpdateOperation.Blocked(WindowsUpdateOutcome.LicensePending);
+                if (ids.Count > 1 && (int)entry.InstallationBehavior.Impact == 2) // iiRequiresExclusiveHandling
+                    return WindowsUpdateOperation.Blocked(WindowsUpdateOutcome.ExclusiveUpdate);
+                selected.Add(entry);
+            }
+            dynamic installer = session.CreateUpdateInstaller();
+            if (CheckInstaller((object)installer) is { } beforeDownload) return beforeDownload;
+
+            dynamic downloader = session.CreateUpdateDownloader();
+            downloader.Updates = selected;
+            reportPhase(WindowsUpdatePhase.Download);
+            failure = WindowsUpdateOutcome.Download;
+            var download = ReadOperationResult((object)downloader.Download(), ids.Count, isInstallation: false);
+            var items = download.Items.ToArray();
+            for (int i = 0; i < items.Length; i++)
+            {
+                if (!items[i].Succeeded) continue;
+                try
+                {
+                    if (!(bool)((dynamic)orderedEntries[i]).IsDownloaded) items[i] = new(0, 0, null);
+                }
+                catch (Exception ex) { items[i] = new(-1, ex.HResult, null); }
+            }
+            download = download with { Items = items };
+            if (!download.FullySucceeded) return download;
+
+            failure = WindowsUpdateOutcome.PreflightInconclusive;
+            installer.Updates = selected;
+            if (CheckInstaller((object)installer) is { } beforeInstall) return beforeInstall;
+
+            reportPhase(WindowsUpdatePhase.Install);
+            failure = WindowsUpdateOutcome.Installation;
+            return ReadOperationResult((object)installer.Install(), ids.Count, isInstallation: true);
+        }
+        catch (Exception ex)
+        {
+            return WindowsUpdateOperation.Blocked(failure, ex.HResult);
+        }
+    }
+
+    private static object CreateCollection()
+    {
         Type collectionType = Type.GetTypeFromProgID("Microsoft.Update.UpdateColl")
             ?? throw new NotSupportedException("A coleção do Windows Update não está disponível.");
-        dynamic selected = Activator.CreateInstance(collectionType)!;
-        var matchedIds = new List<string>(ids.Count);
-        var selectedUpdates = ids.Select(id => id[..36]).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < (int)updates.Count; i++)
+        return Activator.CreateInstance(collectionType)!;
+    }
+
+    private static WindowsUpdateOperation? CheckInstaller(object value)
+    {
+        dynamic installer = value;
+        if ((bool)installer.RebootRequiredBeforeInstallation)
+            return WindowsUpdateOperation.Blocked(WindowsUpdateOutcome.RestartPending);
+        if ((bool)installer.IsBusy)
+            return WindowsUpdateOperation.Blocked(WindowsUpdateOutcome.Busy);
+        return null;
+    }
+
+    private static WindowsUpdateOperation ReadOperationResult(object value, int count, bool isInstallation)
+    {
+        dynamic result = value;
+        var overall = ReadNativeResult(value, isInstallation);
+        var items = new WindowsUpdateNativeResult[count];
+        for (int i = 0; i < count; i++)
         {
-            dynamic entry = updates.Item(i);
-            string id = ReadUpdateIdentity((object)entry);
-            if (!selectedUpdates.Contains(id[..36])) continue;
-            matchedIds.Add(id);
-            if (!ids.Contains(id)) continue;
-            if (!(bool)entry.EulaAccepted)
-            {
-                // O programa não aceita contratos adicionais silenciosamente.
-                log("A licença de uma das atualizações selecionadas precisa ser aceita. Nenhum download ou instalação foi iniciado.");
-                return 2;
-            }
-            selected.Add(entry);
-            log("Selecionada: " + (string)entry.Title);
+            try { items[i] = ReadNativeResult((object)result.GetUpdateResult(i), isInstallation); }
+            catch (Exception ex) { items[i] = new(-1, ex.HResult, null); }
         }
-        if (!WindowsUpdateSearchPolicy.MatchesSelection(ids, matchedIds))
+        return new(isInstallation ? WindowsUpdateOutcome.Installation : WindowsUpdateOutcome.Download, overall, items);
+    }
+
+    private static WindowsUpdateNativeResult ReadNativeResult(object value, bool isInstallation)
+    {
+        dynamic result = value;
+        bool? reboot = null;
+        if (isInstallation)
         {
-            log("A seleção mudou, foi repetida ou exige licença. Consulte novamente; nenhum download ou instalação foi iniciado.");
-            return 2;
+            try { reboot = (bool)result.RebootRequired; }
+            catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
         }
-        log("Baixando " + (int)selected.Count + " atualizações pelo serviço oficial do Windows...");
-        dynamic downloader = session.CreateUpdateDownloader();
-        downloader.Updates = selected;
-        dynamic downloadResult = downloader.Download();
-        int downloadStatus = (int)downloadResult.ResultCode;
-        log("Resultado do download: " + downloadStatus);
-        if (downloadStatus != 2) { log("Download incompleto; instalação não iniciada."); return 1; }
-        log("Instalando atualizações baixadas. O Windows poderá solicitar etapas adicionais...");
-        dynamic installer = session.CreateUpdateInstaller();
-        installer.Updates = selected;
-        dynamic result = installer.Install();
-        int status = (int)result.ResultCode;
-        log("Resultado da instalação: " + status + " (2=sucesso, 3=parcial, 4=falha, 5=cancelado)");
-        if ((bool)result.RebootRequired) log("REINICIALIZAÇÃO NECESSÁRIA: salve o trabalho e reinicie quando puder. Nenhum reinício foi solicitado pelo aplicativo.");
-        return status == 2 ? 0 : 1;
-    });
+        try
+        {
+            int code = (int)result.ResultCode;
+            return new(code is >= 0 and <= 5 ? code : -1, (int)result.HResult, reboot);
+        }
+        catch (Exception ex) { return new(-1, ex.HResult, reboot); }
+    }
+
+    private static bool? ReadPendingRestart()
+    {
+        try
+        {
+            Type? type = Type.GetTypeFromProgID("Microsoft.Update.SystemInfo");
+            if (type is null) return null;
+            dynamic info = Activator.CreateInstance(type)!;
+            return (bool)info.RebootRequired;
+        }
+        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            return null;
+        }
+    }
 
     private static object SearchPendingSoftware(object session)
     {

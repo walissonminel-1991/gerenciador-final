@@ -2203,8 +2203,7 @@ internal sealed partial class MainForm : Form
                 if (_repairNetworkButton is not null)
                     _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
                 RefreshWindowsRepairButton();
-                if (_installSelectedUpdates is not null)
-                    _installSelectedUpdates.Enabled = _activeSystemView == "update" && _updateSelection.Count > 0;
+                RefreshWindowsUpdateInstallButton();
                 if (_nav.SelectedIndex == 2)
                     _ = RefreshDiskUsageAsync();
                 if (_nav.SelectedIndex == 4)
@@ -3564,7 +3563,7 @@ internal sealed partial class MainForm : Form
 
     private async Task<ResidualElevationResponse?> RunElevatedAsync(string task,
         IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default,
-        Action<string>? residualAudit = null)
+        Action<string>? residualAudit = null, Action<string>? windowsUpdateMessage = null)
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
@@ -3606,6 +3605,7 @@ internal sealed partial class MainForm : Form
             }
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
                 DiagnosticTrace.Write(audit);
+            windowsUpdateMessage?.Invoke(WindowsUpdateOperation.AuthorizationDeclined);
             Status("Autorização administrativa cancelada");
             Log("Operação cancelada na confirmação do UAC.");
             return null;
@@ -3701,6 +3701,10 @@ internal sealed partial class MainForm : Form
                 {
                     cleanupSummary = line[cleanupResultPrefix.Length..];
                 }
+                else if (windowsUpdateMessage is not null && line.StartsWith("RESULT|WU", StringComparison.Ordinal))
+                {
+                    windowsUpdateMessage(line["RESULT|".Length..]);
+                }
                 else if (line.StartsWith("LOG|", StringComparison.Ordinal))
                 {
                     string logLine = line[4..];
@@ -3722,7 +3726,9 @@ internal sealed partial class MainForm : Form
                     if (task == "windows-check" && code != "0") _windowsRepairable = false;
                     if (SafeMaintenanceAudit.ElevatedExit(task, code) is { } audit)
                         DiagnosticTrace.Write(audit);
-                    if (cleanupSummary is not null)
+                    if (windowsUpdateMessage is not null)
+                        windowsUpdateMessage(line);
+                    else if (cleanupSummary is not null)
                         ShowCleanupResult(code == "0" ? cleanupSummary : cleanupSummary + " · Operação com avisos");
                     else Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
                     gotResult = true;
@@ -3769,7 +3775,7 @@ internal static class WorkerHost
 
     public static async Task<int> RunAsync(string task, string pipeName, string token)
     {
-        bool updateTask = TryParseUpdateTask(task, out _);
+        bool updateTask = TryParseUpdateTask(task, out var updateIds);
         bool restorePower = TryParseRestorePowerTask(task, out _);
         bool optimizeVolume = SingleVolumeOptimization.TryParseTask(task, out _);
         bool residualTask = task == ResidualElevatedProtocol.TaskName;
@@ -3796,12 +3802,22 @@ internal static class WorkerHost
             int exit;
             try
             {
-                exit = await ExecuteAsync(task, line =>
+                if (updateTask)
                 {
-                    if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal))
-                        Send("RESULT", line);
-                    else Send("LOG", line);
-                }, result => Send("RESULT", "CLEANUP:" + result.Summary));
+                    var result = await WindowsUpdateClient.InstallAsync(updateIds,
+                        phase => Send("RESULT", WindowsUpdateOperation.PhasePrefix + phase));
+                    Send("RESULT", result.ToWire());
+                    exit = result.ExitCode;
+                }
+                else
+                {
+                    exit = await ExecuteAsync(task, line =>
+                    {
+                        if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal))
+                            Send("RESULT", line);
+                        else Send("LOG", line);
+                    }, result => Send("RESULT", "CLEANUP:" + result.Summary));
+                }
             }
             catch (Exception ex) { Send("LOG", "ERRO: " + ex.Message); exit = 1; }
             Send("DONE", exit.ToString());
@@ -3823,20 +3839,18 @@ internal static class WorkerHost
         ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!task.StartsWith("wu-install:", StringComparison.Ordinal)) return false;
         string[] parts = task["wu-install:".Length..].Split(',');
-        if (parts.Length is 0 or > 30) return false;
+        if (parts.Length is 0 or > WindowsUpdateOperation.MaxSelection) return false;
         foreach (string part in parts)
         {
             string? id = WindowsUpdateClient.CanonicalSelectedIdentity(part);
             if (id is null) return false;
             ids.Add(id);
         }
-        return ids.Count == parts.Length;
+        return ids.Count == parts.Length && ids.Select(id => id[..36]).Distinct(StringComparer.Ordinal).Count() == parts.Length;
     }
 
     private static async Task<int> ExecuteAsync(string task, Action<string> log, Action<TemporaryCleanupResult> cleanupResult)
     {
-        if (TryParseUpdateTask(task, out var updateIds))
-            return await WindowsUpdateClient.InstallAsync(updateIds, log);
         if (TryParseRestorePowerTask(task, out var powerId))
             return await PowerPlanService.RestorePreviousAsync(powerId, log);
 
