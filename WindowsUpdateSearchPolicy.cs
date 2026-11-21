@@ -27,6 +27,10 @@ internal static class WindowsUpdateSearchPolicy
         return canonical is not null && value.AsSpan(37).SequenceEqual(canonical.AsSpan(37)) ? canonical : null;
     }
 
+    internal static bool MatchesSelection(IReadOnlySet<string> selected, IReadOnlyCollection<string> matched) =>
+        selected.Count > 0 && matched.Count == selected.Count &&
+        new HashSet<string>(matched, StringComparer.OrdinalIgnoreCase).SetEquals(selected);
+
     internal static IReadOnlyList<WinUpdateChoice> ValidateOffers(IEnumerable<WinUpdateChoice> offers)
     {
         var found = new Dictionary<string, WinUpdateChoice>(StringComparer.OrdinalIgnoreCase);
