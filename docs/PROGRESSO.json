@@ -2408,5 +2408,239 @@
         "next_stage_started": false
       }
     }
+  },
+  "expansao_funcional": {
+    "registered_at": "2026-11-21",
+    "scope": "VF01-VF16",
+    "baseline": {
+      "pull_request": 88,
+      "commit": "729d9c8912d7f97c677c9af7f0341f2dd4766716",
+      "comparison_basis": "Escopo das 16 famílias solicitadas",
+      "counts": {
+        "implementado_no_escopo_atual": 2,
+        "parcial": 10,
+        "nao_identificado": 4
+      }
+    },
+    "delivery_checkpoint": {
+      "date": "2026-11-23",
+      "candidate_pr": 88,
+      "driver_install_pr": 89
+    },
+    "planned_start": "pos_2026-11-23_apos_checkpoint_da_portatil",
+    "accepted_count": 0,
+    "roadmap": "docs/ROADMAP.md#roadmap-de-entregas",
+    "acceptance_criteria": "docs/BACKLOG-VERSOES-FUTURAS.md",
+    "goals": [
+      {
+        "id": "VF01",
+        "title": "Atualização de drivers",
+        "wave": 1,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "D2",
+          "D4",
+          "G1",
+          "G2",
+          "G3",
+          "G4"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF02",
+        "title": "Drivers para jogos",
+        "wave": 2,
+        "baseline_status": "nao_identificado",
+        "related_checkpoints": [
+          "G1",
+          "G2",
+          "G3"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF03",
+        "title": "Correção guiada de erros do sistema",
+        "wave": 1,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "D2",
+          "D4"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF04",
+        "title": "Backup e restauração",
+        "wave": 1,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "G2",
+          "G4"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF05",
+        "title": "Informações do sistema e dispositivos",
+        "wave": 2,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "D1",
+          "D2",
+          "D3",
+          "D4"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF06",
+        "title": "Desinstalação Win32, Store e aplicativos indesejados",
+        "wave": 1,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "I1",
+          "I7",
+          "R1",
+          "R4",
+          "R7"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF07",
+        "title": "Remoção assistida de programas difíceis e maliciosos",
+        "wave": 2,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "R4",
+          "R6",
+          "R7"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF08",
+        "title": "Limpeza de sobras pós-desinstalação",
+        "wave": 1,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "R2",
+          "R3",
+          "R4",
+          "R6",
+          "R7"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF09",
+        "title": "Desinstalação em lote",
+        "wave": 1,
+        "baseline_status": "implementado_no_escopo_atual",
+        "related_checkpoints": [
+          "R4",
+          "R5",
+          "R7"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF10",
+        "title": "Gerenciador de extensões de navegadores",
+        "wave": 2,
+        "baseline_status": "nao_identificado",
+        "related_checkpoints": [],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF11",
+        "title": "Monitor de instalações, realocação e descarte seguro",
+        "wave": 3,
+        "baseline_status": "nao_identificado",
+        "related_checkpoints": [
+          "R3",
+          "R4"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF12",
+        "title": "Limpeza do sistema",
+        "wave": 1,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "R4",
+          "P5"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF13",
+        "title": "Otimização e desempenho",
+        "wave": 1,
+        "baseline_status": "implementado_no_escopo_atual",
+        "related_checkpoints": [
+          "P1",
+          "P2",
+          "P3",
+          "P4",
+          "P5",
+          "V5"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF14",
+        "title": "Privacidade, rastros online e impressão digital",
+        "wave": 3,
+        "baseline_status": "nao_identificado",
+        "related_checkpoints": [],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF15",
+        "title": "Segurança, atualizações e proteção contra ameaças",
+        "wave": 2,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "U1",
+          "U2",
+          "U3",
+          "U4",
+          "U8"
+        ],
+        "accepted": false,
+        "evidence": null
+      },
+      {
+        "id": "VF16",
+        "title": "Modos manual, automático e assistência por IA",
+        "wave": 3,
+        "baseline_status": "parcial",
+        "related_checkpoints": [
+          "U3",
+          "U4",
+          "V3"
+        ],
+        "accepted": false,
+        "evidence": null
+      }
+    ]
   }
 }
