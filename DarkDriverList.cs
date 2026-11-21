@@ -51,7 +51,7 @@ internal static class DriverRowGeometry
             ? new Rectangle(row.Right - width - Scale(16, dpi),
                 row.Top + Scale(24, dpi), width, height)
             : new Rectangle(row.Left + Scale(58, dpi),
-                row.Bottom - Scale(39, dpi), width, height);
+                row.Bottom - Scale(37, dpi), width, height);
     }
 }
 
