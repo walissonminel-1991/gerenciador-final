@@ -519,6 +519,9 @@ internal sealed partial class MainForm
             var visible = DriverListFilters.Apply(
                 snapshot ?? Array.Empty<DriverInventoryEntry>(), activeFilter, query);
             list.SetItems(visible);
+            if (officialGeneration == inventoryGeneration &&
+                latestOfficial is { Partial: false } cached)
+                list.SetOfferDevices(cached.Matches.Select(match => match.DeviceId));
             list.ScrollToTop();
             invalidateOpenReport?.Invoke();
             int count = snapshot?.Count ?? 0;
