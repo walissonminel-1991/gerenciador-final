@@ -86,6 +86,7 @@ internal static class Work11ProgressLayoutTests
         Require(disposable.IsDisposed,"controle descartado suporta conclusao tardia");
         operation.Fail(new IOException("fixture"),false);
         Require(operation.Snapshot.Progress.Stage==UpdateStage.Confirmed,"erro tardio de recarga nao apaga sucesso");
+        CleanupP0LayoutTests.Run(form, nav);
         form.Close();
         Console.WriteLine($"W11 UI: {combinations} combinacoes, oito estados, reconstrucao, filtro, navegacao e descarte aprovados");
     }

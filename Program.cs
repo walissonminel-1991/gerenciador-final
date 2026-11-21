@@ -380,9 +380,6 @@ internal static class AppServices
             inspected, hidden, updates, failures, entries.Count - distinct.Count);
     }
 
-    public static TemporaryCleanupResult CleanDirectorySafely(string root, Action<string>? log = null) =>
-        SafeTemporaryCleanup.Clean(root, log);
-
     public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
     {
         fileName = ""; arguments = "";
@@ -845,6 +842,7 @@ internal sealed partial class MainForm : Form
                 _deploymentWaitCts?.Cancel();
                 _uninstallCts?.Cancel();
                 _installerDownloadCts?.Cancel();
+                _cleanupCancellation?.Cancel();
                 _memoryTimer.Stop();
                 return; // nao cancelar o desligamento nem abrir dialogo
             }
@@ -874,6 +872,12 @@ internal sealed partial class MainForm : Form
                 e.Cancel = true;
                 _uninstallCts.Cancel();
                 Status("Cancelando espera e demais itens. O desinstalador do fabricante pode continuar; não repetir.");
+                return;
+            }
+            if (_cleanupCancellation is not null)
+            {
+                e.Cancel = true;
+                RequestCleanupCancellation();
                 return;
             }
             if (_installerDownloadCts is not null)
@@ -1479,17 +1483,17 @@ internal sealed partial class MainForm : Form
                 AppServices.Orange,
                 () => ConfirmThenRun("clean-windows-temp", "Limpar arquivos temporários antigos do Windows? O UAC solicitará autorização.")),
             Tool("Cache do Windows Update",
-                "Remove downloads antigos de atualizações; interrompe serviços temporariamente.",
+                "Remove downloads antigos quando os serviços de atualização estão parados.",
                 AppServices.Red,
-                () => ConfirmThenRun("clear-update-cache", "Essa operação interrompe temporariamente serviços de atualização e remove downloads antigos. Continuar?")),
+                () => ConfirmThenRun("clear-update-cache", "Limpar arquivos antigos do cache do Windows Update?")),
             Tool("Esvaziar Lixeira",
                 "Apaga permanentemente os itens da Lixeira. Não é possível desfazer.",
                 AppServices.Red,
-                () => ExecuteAsync("Esvaziando Lixeira...", EmptyRecycleBinAsync)),
-            Tool("Limpeza avançada",
-                "Executa a limpeza nativa do Windows, sem abrir outra janela.",
+                EmptyRecycleBinAsync),
+            Tool("Limpeza de Disco",
+                "Abre a ferramenta do Windows para revisar e escolher o que será removido.",
                 AppServices.Blue,
-                () => ConfirmThenRun("cleanmgr-auto", "Executar a Limpeza de Disco automaticamente? O Windows pode solicitar autorização.")),
+                () => ConfirmThenRun("cleanmgr-auto", "Abrir a Limpeza de Disco do Windows?")),
             Tool("Cache de shaders DirectX",
                 "Remove cache gráfico antigo. Jogos podem precisar recompilar shaders.",
                 AppServices.Gray,
@@ -1746,7 +1750,7 @@ internal sealed partial class MainForm : Form
     {
         var root = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1,
+            Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1,
             Margin = new Padding(7, 0, 7, 2), Padding = new Padding(9, 4, 9, 4),
             BackColor = PanelBackground
         };
@@ -1755,6 +1759,8 @@ internal sealed partial class MainForm : Form
         float dpiFactor = Math.Max(1f, DeviceDpi / 96f);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(34 * dpiFactor)));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(38 * dpiFactor)));
+        var reportRow = new RowStyle(SizeType.Absolute, 110);
+        root.RowStyles.Add(reportRow);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(20 * dpiFactor)));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
@@ -1780,7 +1786,7 @@ internal sealed partial class MainForm : Form
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 159));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 204));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var previewButton = CreateSecondaryButton("Analisar limpeza");
+        var previewButton = _cleanupPreviewButton = CreateSecondaryButton("Analisar limpeza");
         previewButton.Dock = DockStyle.Fill;
         previewButton.Margin = new Padding(0, 3, 8, 3);
         previewButton.Click += async (_, _) => await ShowCleanupPreviewAsync();
@@ -1800,7 +1806,7 @@ internal sealed partial class MainForm : Form
         modePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
-        _cleanupPreview.Text = "Ative antes das consultas; repita as etapas.";
+        _cleanupPreview.Text = "Estimativa por categoria";
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
@@ -1836,12 +1842,13 @@ internal sealed partial class MainForm : Form
 #endif
         previewRow.Controls.Add(modePanel, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
+        root.Controls.Add(BuildCleanupReport(reportRow), 0, 2);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
         _diskSummary.Dock = DockStyle.Fill;
         _diskSummary.ForeColor = Muted;
         _diskSummary.Font = new Font("Segoe UI", 8.6F);
         _diskSummary.TextAlign = ContentAlignment.MiddleLeft;
-        root.Controls.Add(_diskSummary, 0, 2);
+        root.Controls.Add(_diskSummary, 0, 3);
         _diskCards.EmbeddedInPage = true;
         _diskCards.Dock = DockStyle.Fill;
         _diskCards.Content.Padding = new Padding(1, 4, 1, 2);
@@ -1849,7 +1856,7 @@ internal sealed partial class MainForm : Form
         _diskCards.BackColor = PanelBackground;
         _diskCards.Content.BackColor = PanelBackground;
         _diskCards.Resize += (_, _) => ResizeDiskCards();
-        root.Controls.Add(_diskCards, 0, 3);
+        root.Controls.Add(_diskCards, 0, 4);
         return root;
     }
 
@@ -3509,9 +3516,9 @@ internal sealed partial class MainForm : Form
         return task switch
         {
         "clean-user-temp" => "Deseja limpar os arquivos temporários antigos do usuário?",
-        "clean-windows-temp" => "Deseja limpar os arquivos temporários antigos do Windows?",
-        "clear-update-cache" => "Deseja limpar o cache do Windows Update? A consulta de atualizações ficará temporariamente indisponível.",
-        "cleanmgr-auto" => "Deseja executar a Limpeza de Disco do Windows?",
+        "clean-windows-temp" => "Limpar arquivos temporários antigos do Windows? A autorização administrativa pode dar acesso a itens que a prévia não conseguiu consultar.",
+        "clear-update-cache" => "Limpar downloads antigos do Windows Update? O acesso é reavaliado após a autorização. A limpeza só ocorre enquanto os serviços de atualização estiverem parados.",
+        "cleanmgr-auto" => "Abrir a Limpeza de Disco do Windows para escolher as categorias na ferramenta do sistema?",
         "clean-directx-cache" => "Deseja limpar o cache antigo de shaders DirectX? Alguns jogos podem recompilar os arquivos.",
         "windows-repair" => "Deseja verificar e reparar os arquivos do Windows? Esta operação pode demorar.",
         "network-reset" => "Deseja redefinir a rede? A conexão pode ser interrompida.",
@@ -3533,29 +3540,9 @@ internal sealed partial class MainForm : Form
         }
         if (SafeMaintenanceAudit.Begin(task) is { } started)
             DiagnosticTrace.Write(started);
-        if (task is "clean-user-temp" or "clean-directx-cache")
+        if (CleanupTarget.FromTask(task) is { } target && target != CleanupTarget.RecycleBin)
         {
-            string path = task == "clean-user-temp"
-                ? Path.GetTempPath()
-                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "D3DSCache");
-            await ExecuteAsync(task == "clean-user-temp" ? "Limpando temporários do usuário..." : "Limpando cache antigo de shaders...", async () =>
-            {
-                if (!Directory.Exists(path))
-                {
-                    Log("A pasta da limpeza não existe neste perfil. Nenhuma alteração realizada.");
-                    if (SafeMaintenanceAudit.MissingSource(task) is { } missingSourceAudit)
-                        DiagnosticTrace.Write(missingSourceAudit);
-                    ShowCleanupResult("Nenhum cache encontrado.");
-                    return;
-                }
-                Log("Pasta consultada: " + path);
-                var result = await Task.Run(() => AppServices.CleanDirectorySafely(path, Log));
-                if (SafeMaintenanceAudit.LocalResult(task, result.FilesRemoved,
-                    result.DirectoriesRemoved, result.Skipped, result.ReparseSkipped,
-                    result.Failed) is { } localResultAudit)
-                    DiagnosticTrace.Write(localResultAudit);
-                ShowCleanupResult(result.Summary);
-            });
+            await CleanTemporaryCategoryAsync(target);
             return;
         }
         await ExecuteAsync("Executando manutenção do Windows...", () => RunElevatedAsync(task));
@@ -3563,7 +3550,8 @@ internal sealed partial class MainForm : Form
 
     private async Task<ResidualElevationResponse?> RunElevatedAsync(string task,
         IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default,
-        Action<string>? residualAudit = null, Action<string>? windowsUpdateMessage = null)
+        Action<string>? residualAudit = null, Action<string>? windowsUpdateMessage = null,
+        ElevatedCleanupProtocol? cleanup = null)
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
@@ -3605,6 +3593,7 @@ internal sealed partial class MainForm : Form
             }
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
                 DiagnosticTrace.Write(audit);
+            cleanup?.Declined();
             windowsUpdateMessage?.Invoke(WindowsUpdateOperation.AuthorizationDeclined);
             Status("Autorização administrativa cancelada");
             Log("Operação cancelada na confirmação do UAC.");
@@ -3674,9 +3663,12 @@ internal sealed partial class MainForm : Form
                     return new("uac_communication_failed", IntegratedResidualCleanup.Error(ex), []);
                 }
             }
+            if (cleanup is not null)
+            {
+                await cleanup.ReadAsync(server, reader);
+                return null;
+            }
             bool gotResult = false;
-            string? cleanupSummary = null;
-            const string cleanupResultPrefix = "RESULT|CLEANUP:";
             while (await reader.ReadLineAsync() is { } line)
             {
                 if (task == "windows-check" &&
@@ -3695,11 +3687,6 @@ internal sealed partial class MainForm : Form
                 {
                     _windowsRepairable = false;
                     Log("Verificação inconclusiva. Reparo não liberado automaticamente.");
-                }
-                else if (task is ("clean-windows-temp" or "clear-update-cache") &&
-                    line.StartsWith(cleanupResultPrefix, StringComparison.Ordinal))
-                {
-                    cleanupSummary = line[cleanupResultPrefix.Length..];
                 }
                 else if (windowsUpdateMessage is not null && line.StartsWith("RESULT|WU", StringComparison.Ordinal))
                 {
@@ -3728,8 +3715,8 @@ internal sealed partial class MainForm : Form
                         DiagnosticTrace.Write(audit);
                     if (windowsUpdateMessage is not null)
                         windowsUpdateMessage(line);
-                    else if (cleanupSummary is not null)
-                        ShowCleanupResult(code == "0" ? cleanupSummary : cleanupSummary + " · Operação com avisos");
+                    else if (task == "cleanmgr-auto" && code == "0")
+                        Status("Limpeza de Disco encerrada · consulte o espaço livre e a prévia.");
                     else Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
                     gotResult = true;
                 }
@@ -3745,18 +3732,6 @@ internal sealed partial class MainForm : Form
         }
         return null;
     }
-
-    private Task EmptyRecycleBinAsync()
-    {
-        if (DarkConfirmDialog.Confirm(this, "Deseja esvaziar a Lixeira? Os arquivos serão excluídos permanentemente.",
-            "Esvaziar Lixeira") != DialogResult.Yes)
-        { Status("Operação cancelada"); return Task.CompletedTask; }
-        int result = NativeMethods.SHEmptyRecycleBin(Handle, null, 0x1 | 0x2 | 0x4);
-        Log(result == 0 ? "Lixeira esvaziada." : "O Windows retornou código " + result + ".");
-        Status(result == 0 ? "Lixeira esvaziada" : "Limpeza da Lixeira com avisos");
-        return Task.CompletedTask;
-    }
-
 }
 
 internal static class TextExtensions
@@ -3799,6 +3774,8 @@ internal static class WorkerHost
                     var inventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                     return new UninstallSnapshot(inventory.Items, !inventory.Incomplete);
                 });
+            if (CleanupTarget.FromTask(task) is { Elevated: true } target)
+                return await ElevatedCleanupProtocol.RunWorkerAsync(pipe, target.Clean, Send);
             int exit;
             try
             {
@@ -3816,7 +3793,7 @@ internal static class WorkerHost
                         if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal))
                             Send("RESULT", line);
                         else Send("LOG", line);
-                    }, result => Send("RESULT", "CLEANUP:" + result.Summary));
+                    });
                 }
             }
             catch (Exception ex) { Send("LOG", "ERRO: " + ex.Message); exit = 1; }
@@ -3849,7 +3826,7 @@ internal static class WorkerHost
         return ids.Count == parts.Length && ids.Select(id => id[..36]).Distinct(StringComparer.Ordinal).Count() == parts.Length;
     }
 
-    private static async Task<int> ExecuteAsync(string task, Action<string> log, Action<TemporaryCleanupResult> cleanupResult)
+    private static async Task<int> ExecuteAsync(string task, Action<string> log)
     {
         if (TryParseRestorePowerTask(task, out var powerId))
             return await PowerPlanService.RestorePreviousAsync(powerId, log);
@@ -3895,30 +3872,9 @@ internal static class WorkerHost
         }
         switch (task)
         {
-            case "clean-windows-temp":
-                return await Clean(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp"));
-            case "clear-update-cache":
-            {
-                log("Interrompendo os serviços relacionados ao Windows Update...");
-                await Run("net.exe", "stop", "bits");
-                await Run("net.exe", "stop", "wuauserv");
-                try
-                {
-                    return await Clean(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                        "SoftwareDistribution", "Download"));
-                }
-                finally
-                {
-                    // Mesmo se houver exceção na limpeza, tenta recuperar os serviços.
-                    log("Restabelecendo os serviços de atualização...");
-                    await Run("net.exe", "start", "wuauserv");
-                    await Run("net.exe", "start", "bits");
-                }
-            }
             case "cleanmgr-auto":
-                log("Executando a Limpeza de Disco automática do Windows...");
-                log("A limpeza de arquivos do sistema será tentada no mesmo processo elevado, sem abrir a janela do utilitário.");
-                return await Run("cleanmgr.exe", "/VERYLOWDISK");
+                log("Escolha as categorias diretamente na janela da Limpeza de Disco do Windows.");
+                return await Run("cleanmgr.exe");
             case "windows-check":
             {
                 log("Etapa 1/2: DISM /ScanHealth (sem reparo).");
@@ -3975,21 +3931,11 @@ internal static class WorkerHost
             case "hibernate-off": return await Run("powercfg.exe", "-h", "off");
             default: return 2;
         }
-
-        async Task<int> Clean(string path)
-        {
-            var result = await Task.Run(() => AppServices.CleanDirectorySafely(path, log));
-            cleanupResult(result);
-            return result.Failed == 0 ? 0 : 1;
-        }
     }
 }
 
 internal static class NativeMethods
 {
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    public static extern int SHEmptyRecycleBin(IntPtr hwnd, string? rootPath, uint flags);
-
     [DllImport("dwmapi.dll", PreserveSig = true)]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
 }
