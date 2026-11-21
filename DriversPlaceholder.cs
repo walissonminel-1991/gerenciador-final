@@ -172,6 +172,9 @@ internal sealed partial class MainForm
             button.Dock = DockStyle.Fill;
             button.Margin = new Padding(4, 3, 0, 3);
             button.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            // Filtros em faixa curta: proibir quebra de linha que cortava
+            // "Falhas PnP" e "Sem driver" na captura normal de 940 px.
+            if (button is ModernButton modern) modern.AllowMultilineText = false;
             heading.Controls.Add(button, col, 0);
             return button;
         }
@@ -787,7 +790,10 @@ internal sealed partial class MainForm
             foreach (var (button, column) in new[]
                 { (all, 1), (present, 2), (problems, 3), (unbound, 4), (other, 5) })
                 heading.ColumnStyles[column].Width = Math.Max(Scale(56),
-                    TextRenderer.MeasureText(button.Text, button.Font).Width + Scale(16));
+                    TextRenderer.MeasureText(button.Text, button.Font,
+                        new Size(int.MaxValue, Scale(36)),
+                        TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width +
+                    Scale(36));
             copySummary.Visible = showCopy;
             statusBar.ColumnStyles[1].Width = showCopy
                 ? Math.Max(Scale(132), TextRenderer.MeasureText(copySummary.Text, copySummary.Font).Width + Scale(16))
