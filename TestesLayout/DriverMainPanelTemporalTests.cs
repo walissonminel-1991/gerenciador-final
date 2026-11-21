@@ -103,7 +103,8 @@ internal static class DriverMainPanelTemporalTests
             Pump(20);
             if (list.Items.Count != 3) throw new Exception("G1.12: filtro Todos não restaurou as linhas.");
             foreach (var size in new[] { new Size(540, 320), new Size(500, 210),
-                new Size(940, 610), new Size(1200, 720), new Size(1450, 820) })
+                new Size(500, 460), new Size(940, 610), new Size(1200, 720),
+                new Size(1450, 820) })
             {
                 page.ClientSize = size;
                 Pump();
@@ -141,6 +142,17 @@ internal static class DriverMainPanelTemporalTests
                     actions.Update.IntersectsWith(actions.Uninstall) ||
                     actions.Update.IntersectsWith(DriverRowGeometry.Status(card, dpi)))
                     throw new Exception("Drivers: ações de cartão sobrepostas ou fora da viewport em " + size);
+                // Evidência visual de cartão REAL WinForms com dados de teste.
+                // Nenhum leitor nativo, comando WUA ou manutenção é iniciado.
+                if ((size.Width == 940 && size.Height == 610) ||
+                    (size.Width == 500 && size.Height == 460))
+                {
+                    Directory.CreateDirectory("LayoutCaptures");
+                    using var screenshot = new Bitmap(page.Width, page.Height);
+                    page.DrawToBitmap(screenshot, new Rectangle(Point.Empty, page.Size));
+                    screenshot.Save(Path.Combine("LayoutCaptures",
+                        $"Drivers-Cartoes-{size.Width}x{size.Height}.png"));
+                }
             }
             read();
             Pump();
