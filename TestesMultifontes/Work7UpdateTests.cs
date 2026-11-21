@@ -46,6 +46,16 @@ internal static class Work7UpdateTests
             "W7-WU consulta completa vazia continua válida");
         const string update = "00000000-0000-0000-0000-000000000771";
         var offer = new WinUpdateChoice(update + "@12", "Fixture", "KB-Fixture", false, true);
+        const string secondUpdate = "00000000-0000-0000-0000-000000000772@4";
+        var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { offer.Id, secondUpdate };
+        check(WindowsUpdateSearchPolicy.MatchesSelection(selected, [secondUpdate, offer.Id]),
+            "W7-WU duas atualizações aprovadas permanecem elegíveis em qualquer ordem");
+        check(!WindowsUpdateSearchPolicy.MatchesSelection(selected, [offer.Id, offer.Id]),
+            "W7-WU oferta repetida não substitui uma atualização selecionada e ausente");
+        check(!WindowsUpdateSearchPolicy.MatchesSelection(selected, [offer.Id, secondUpdate[..^1] + "5"]),
+            "W7-WU revisão nova da mesma atualização exige nova seleção");
+        check(!WindowsUpdateSearchPolicy.MatchesSelection(selected, [offer.Id]),
+            "W7-WU seleção incompleta bloqueia o download do lote inteiro");
         check(WindowsUpdateSearchPolicy.ValidateOffers([offer, offer]).Count == 1,
             "W7-WU mesma oferta duplicada não vira duas instalações");
         foreach (var other in new[] { offer with { Id = update + "@13" }, offer with { Id = "invalid" },
