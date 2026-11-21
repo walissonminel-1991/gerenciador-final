@@ -36,6 +36,7 @@ DriverCandidateTriageTests.Run();
 await DriverUpdatePilotTests.Run();
 DriverUpdatePilotJournalTests.Run();
 G31WiringTests.Run();
+await G32PhysicalGateTests.Run();
 RemovalSafetyContractTests.Run((ok, message) =>
 { if (!ok) throw new InvalidOperationException("R7+G3: " + message); });
 DriverSilentUninstallTests.Run();
