@@ -103,7 +103,7 @@ internal static class DriverMainPanelTemporalTests
             Pump(20);
             if (list.Items.Count != 3) throw new Exception("G1.12: filtro Todos não restaurou as linhas.");
             foreach (var size in new[] { new Size(540, 320), new Size(500, 210),
-                new Size(1200, 720), new Size(1450, 820) })
+                new Size(940, 610), new Size(1200, 720), new Size(1450, 820) })
             {
                 page.ClientSize = size;
                 Pump();
@@ -116,6 +116,19 @@ internal static class DriverMainPanelTemporalTests
                     throw new Exception("DRIVERS: botão de resumo não liberou espaço em janela estreita.");
                 if (!sim.Visible || !sim.Enabled || sim.Width < 75)
                     throw new Exception("UX3: botão Simular inacessível em " + size);
+                // Regressão visual observada na captura normal: os rótulos
+                // não podem quebrar ou perder espaço para o texto completo.
+                if (size.Width == 940)
+                {
+                    var filterButtons = Descendants(page).OfType<ModernButton>()
+                        .Where(b => b.Text is "Falhas PnP" or "Sem driver").ToArray();
+                    if (filterButtons.Length != 2 || filterButtons.Any(b =>
+                        b.AllowMultilineText ||
+                        b.Width < TextRenderer.MeasureText(b.Text, b.Font,
+                            new Size(int.MaxValue, b.Height),
+                            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 24))
+                        throw new Exception("Drivers: rótulos Falhas PnP/Sem driver cortados em 940 px.");
+                }
                 if (list.ActionsCurrent || compact.Visible && compact.Width <= 24)
                     throw new Exception("Drivers: manutenção sintética ativa ou filtro cortado em " + size);
                 int dpi = list.DeviceDpi;
