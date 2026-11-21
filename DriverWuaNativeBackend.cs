@@ -2,9 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace GerenciadorAplicativos;
 
-// Implementacao nativa experimental ainda DESLIGADA da interface normal.
-// Nunca chamada pelas fixtures: somente o operador de uma futura VM descartavel
-// podera encaminhar uma autorizacao especifica ao piloto.
+// Implementação nativa G3.2: o coordenador exige aprovação física,
+ // prova concreta de backup OEM, diário e dupla revalidação.
+ // Fixtures não invocam COM ou operação de hardware.
 internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
 {
     private static int activeSta;
