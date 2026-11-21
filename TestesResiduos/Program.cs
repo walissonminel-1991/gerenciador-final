@@ -61,6 +61,9 @@ if (args.Contains("--work7-uninstall"))
     if (failures > 0) throw new Exception($"WORK7: {failures} defeitos de desinstalação reproduzidos");
     return;
 }
+var sumatra = new ProgramEntry { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" };
+var notepad = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" };
+if (args is ["--from-deep-residual-catalog"]) goto DeepResidualCatalog;
 {
     string win = @"C:\Windows";
     string app = @"C:\Program Files\Cliente\worker.exe";
@@ -1144,8 +1147,6 @@ finally
 {
     Directory.Delete(auditFolder, true);
 }
-var sumatra = new ProgramEntry { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" };
-var notepad = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" };
 Check(UninstallResiduals.IsSupported(sumatra), "Sumatra conhecido");
 Check(UninstallResiduals.IsSupported(notepad), "Notepad conhecido");
 Check(!UninstallResiduals.IsSupported(new ProgramEntry
@@ -1289,8 +1290,18 @@ finally
     try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(testKey, false); }
     catch (ArgumentException) { }
 }
-Check(AdvancedUninstallCleaner.Inspect(new[] { sumatra, notepad }).Count == 0,
-    "Modo profundo não apresenta programa ainda instalado");
+DeepResidualCatalog:
+var rules = UninstallRuleCatalog.Rules;
+var installedForDeepAudit = rules.Select(rule => rule.Id switch
+{
+    "sumatrapdf" => sumatra,
+    "notepadpp" => notepad,
+    _ => new ProgramEntry { Name = rule.DisplayName }
+}).ToArray();
+Check(installedForDeepAudit.Length > 0 &&
+    installedForDeepAudit.All(app => AdvancedUninstallCleaner.StillInstalled(app, installedForDeepAudit)) &&
+    AdvancedUninstallCleaner.Inspect(installedForDeepAudit).Count == 0,
+    "Modo profundo exclui do resultado todos os programas do catalogo presentes no inventario de teste.");
 // Revalidar o disco nao amplia o consentimento dado no dialogo anterior.
 var originallyAccepted = new DeepCleanItem(sumatra,
     new[] { @"C:\Approved", @"C:\NoLongerPresent" },
@@ -1307,7 +1318,6 @@ var nothingApproved = AdvancedUninstallCleaner.RestrictToAccepted(emptyApproval,
 Check(nothingApproved.Folders.Count == 0 && nothingApproved.RegistryKeys.Count == 0,
     "Confirmacao sem alvos nao autoriza limpar novos residuos");
 Console.WriteLine("Testes do catálogo de desinstalação embarcado.");
-var rules = UninstallRuleCatalog.Rules;
 Check(rules.Count == 6, "Seis políticas específicas validadas e incorporadas ao executável");
 Check(rules.Any(x => x.Id == "sumatrapdf" && x.RegistryKeys.Single() == @"Software\SumatraPDF"),
     "Política SumatraPDF tem HKCU exclusivo");
