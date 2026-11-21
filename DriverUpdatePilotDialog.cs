@@ -439,6 +439,11 @@ internal static class DriverUpdatePilotDialog
                         return;
                     }
                     recovery = prepared.Ticket;
+                    if (!form.IsDisposed)
+                        detail.Text += Environment.NewLine + Environment.NewLine +
+                            "BACKUP OEM (recuperação supervisionada): " +
+                            recovery.BackupFolder +
+                            Environment.NewLine + "Preserve os arquivos; nenhum rollback é automático.";
                     SetStatus(prepared.Reason + " Revalidando a oferta oficial...");
                 }
                 try { journal = journalForTest(); }
@@ -470,7 +475,9 @@ internal static class DriverUpdatePilotDialog
                     recovery: recovery);
                 if (!form.IsDisposed)
                     SetStatus("Resultado " + result.State + ": " + result.Reason +
-                        (recovery is null ? "" : " Backup OEM preservado para recuperação manual."));
+                        (recovery is null ? "" :
+                            " Backup OEM: " + recovery.BackupFolder +
+                            ". Recuperação exclusivamente supervisionada."));
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
