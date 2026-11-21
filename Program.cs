@@ -2418,14 +2418,11 @@ internal sealed partial class MainForm : Form
             Log("Catálogo Microsoft: "+automatic.Plans.Count(p => !p.Installer.Interactive)+" contrato(s) silencioso(s), "+
                 automatic.Plans.Count(p => p.Installer.Interactive)+" supervisionado(s); "+
                 (automatic.Findings.Count - automatic.Plans.Count)+" versão(ões) adicionais somente consultivas; catálogo "+automatic.Diagnostic.Status+".");
-            foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
-                ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
-                ("proton-pass-desktop", 7), ("proton-pass-winget", 8), ("proton-pass-windows", 9) })
+            foreach (var (sourceId, sourceCode, identityId) in U6CoverageSourceMap.Sources)
             {
                 // IDs internos fixos e contagens; nenhum nome/editor do inventário no diagnóstico.
-                var ruleId = sourceId is "proton-pass-winget" or "proton-pass-windows" ? "proton-pass-desktop" : sourceId;
                 var indices = Enumerable.Range(0, installed.Length).Where(i =>
-                    ApplicationIdentityCatalog.Resolve(installed[i].Name, installed[i].Publisher)?.Id == ruleId).ToArray();
+                    ApplicationIdentityCatalog.Resolve(installed[i].Name, installed[i].Publisher)?.Id == identityId).ToArray();
                 if (indices.Length == 0)
                     TestDiagnosticDetail.Record("COBERTURA_ATUALIZACAO", ("fonte", sourceCode), ("etapa", 0), ("quantidade", 0));
                 foreach (var stages in indices.GroupBy(i => OfficialReleaseSources.CoverageStage(installed[i], sourceId, others, merged[i])))

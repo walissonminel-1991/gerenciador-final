@@ -18,6 +18,26 @@ internal sealed record ProviderDiagnostic(string Provider, string Status, long M
 internal sealed record ProviderScan(IReadOnlyList<OfficialRelease> Findings,
     IReadOnlyList<ProviderDiagnostic> Diagnostics);
 
+// Códigos estáveis e não identificáveis de fontes usados no diagnóstico U6.
+// Uma fonte neste mapa habilita APENAS contagem consultiva; nunca instalação.
+internal static class U6CoverageSourceMap
+{
+    internal static readonly (string SourceId, int SourceCode, string IdentityId)[] Sources =
+    [
+        ("ea-desktop", 1, "ea-desktop"),
+        ("fancontrol", 2, "fancontrol"),
+        ("jellyfin-server", 3, "jellyfin-server"),
+        ("klite-mega", 4, "klite-mega"),
+        ("gameinput-winget", 5, "gameinput-winget"),
+        ("plex", 6, "plex"),
+        ("proton-pass-desktop", 7, "proton-pass-desktop"),
+        ("proton-pass-winget", 8, "proton-pass-desktop"),
+        ("proton-pass-windows", 9, "proton-pass-desktop"),
+        ("outlook-winget", 10, "outlook-winget"),
+        ("sevenzip", 11, "sevenzip")
+    ];
+}
+
 internal sealed class OfficialReleaseSources : IDisposable
 {
     private sealed record Recipe(string Id, string Provider, string Name, string Endpoint,

@@ -75,6 +75,35 @@ Assert(ApplicationIdentityCatalog.MatchesOfficialSource(obs.Name, obs.Publisher,
     !ApplicationIdentityCatalog.MatchesOfficialSource(obs.Name, obs.Publisher, "sumatrapdf"),
     "Fonte oficial não pode atualizar produto de outra família");
 
+// U6: o diagnóstico consultivo deve cobrir também as duas fontes que já
+// coincidiam com WinGet na evidência histórica: Outlook e 7-Zip.
+var u6Sources = U6CoverageSourceMap.Sources;
+Assert(u6Sources.Length == 11 &&
+    u6Sources.Select(x => x.SourceCode).Distinct().Count() == u6Sources.Length &&
+    u6Sources.Any(x => x is ("outlook-winget", 10, "outlook-winget")) &&
+    u6Sources.Any(x => x is ("sevenzip", 11, "sevenzip")) &&
+    u6Sources.Where(x => x.SourceCode <= 9).Select(x => x.SourceCode)
+        .SequenceEqual(Enumerable.Range(1, 9)),
+    "U6 preserva códigos 1-9 e acrescenta Outlook/7-Zip apenas como fontes consultivas");
+var outlookU6 = App("Outlook for Windows", "1.2025.416.400", "Microsoft Corporation");
+var outlookMatchU6 = new UpdateMatch(outlookU6, null, MatchState.Unmatched);
+Assert(OfficialReleaseSources.CoverageStage(outlookU6, "outlook-winget",
+        new ProviderScan([], []), outlookMatchU6) == 4 &&
+    OfficialReleaseSources.CoverageStage(outlookU6, "outlook-winget",
+        new ProviderScan([], [new("outlook-winget", "HttpRequestException", 0)]), outlookMatchU6) == 5 &&
+    OfficialReleaseSources.CoverageStage(outlookU6, "outlook-winget",
+        new ProviderScan([], [new("outlook-winget", "ok", 0)]), outlookMatchU6) == 6,
+    "U6 distingue Outlook não consultado, fonte falha e fonte sem oferta");
+var zipU6 = App("7-Zip 25.00 (x64)", "25.00", "Igor Pavlov");
+Assert(OfficialReleaseSources.CoverageStage(zipU6, "sevenzip",
+        new ProviderScan([], [new("sevenzip", "ok", 0)]),
+        new UpdateMatch(zipU6, null, MatchState.Unmatched)) == 6 &&
+    OfficialReleaseSources.CoverageStage(
+        App("7-Zip 25.00 (x64)", "25.00", "Editor Incorreto"), "sevenzip",
+        new ProviderScan([], [new("sevenzip", "ok", 0)]),
+        new UpdateMatch(App("7-Zip 25.00 (x64)", "25.00", "Editor Incorreto"), null, MatchState.Unmatched)) == 3,
+    "U6 7-Zip distingue fonte sem oferta e identidade de editor incompatível");
+
 var list = new[] {obs, firefox, notepad, powertoys, shell, sevenzip, desktop,
     sumatra, thunderbird, fakeObs, fakeSeven, esr, thunderbirdEsr, unknownThunderbird};
 
