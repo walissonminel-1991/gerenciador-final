@@ -487,7 +487,14 @@ internal static class VerifiedUpdaters
             return GetMicrosoftStoreUri(entry) is not null ? "store" : GetOfficialPage(entry) is not null ? "site" : "guide";
         if (WindowsTerminalUpdater.Resolve(entry) is not null) return "terminal";
         if (GetMicrosoftStoreUri(entry) is not null) return "store";
-        if (Resolve(entry) is { } recipe && IsApprovedRecipe(recipe)) return "update";
+        if (Resolve(entry) is { } recipe && IsApprovedRecipe(recipe))
+        {
+            // Quando o instalador exige interação, a página oficial conhecida
+            // é o caminho principal solicitado; evita duplicar Acompanhar/Site.
+            if (recipe.Interactive && GetOfficialPage(entry) is not null)
+                return "site";
+            return "update";
+        }
         if (GetOfficialPage(entry) is not null) return "site";
         return "guide";
     }

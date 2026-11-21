@@ -6,7 +6,7 @@ using GerenciadorAplicativos;
 // Janela WinForms REAL; dados e retornos inteiramente sintéticos, sem WUA/INF nativo.
 internal static class DriverReadOnlyDialogAccessibilityTests
 {
-    private const string Title = "Drivers — investigar sem alterações";
+    private const string Title = "Drivers — detalhes e evidências";
 
     internal static void Run(MainForm owner)
     {

@@ -7,7 +7,7 @@ using GerenciadorAplicativos;
 // Nenhuma leitura WUA, WMI, SetupAPI, INF real, arquivos ou histórico do usuário.
 internal static class DriverReadOnlyDialogEvidenceTests
 {
-    private const string ModalTitle = "Drivers — investigar sem alterações";
+    private const string ModalTitle = "Drivers — detalhes e evidências";
 
     internal static void Run(MainForm owner)
     {

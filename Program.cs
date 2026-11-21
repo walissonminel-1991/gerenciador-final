@@ -22,6 +22,8 @@ internal static class Program
         // O trabalhador elevado executa comandos sem criar janelas auxiliares.
         if (args.Length == 4 && args[0] == "--worker")
             return WorkerHost.RunAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
+        if (args.Length > 0 && args[0] == DriverElevatedUninstall.Command)
+            return DriverElevatedUninstall.RunAsync(args).GetAwaiter().GetResult();
 
         if (!DiagnosticTrace.Start() || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
         {
@@ -1141,6 +1143,8 @@ internal sealed partial class MainForm : Form
             if (_busy || _betaClose.IsClosing) return;
             if (action == "uninstall" && item.CanUninstall)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
+            else if (action == "uninstall-manual" && !item.CanUninstall)
+                OpenManualAppUninstall(item);
             else if (action == "update")
                 _ = UpdateThirdPartyAsync(item);
             else if (action == "terminal")
@@ -1348,22 +1352,17 @@ internal sealed partial class MainForm : Form
                     DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
                         _programList.ActionVisual(item, "site"));
             }
-            if (item.CanUninstall)
-                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
-                    uninstall?.PreventRetry == true ? uninstall.Active ? "Em andamento" : "Pendente" : "Desinstalar",
-                    uninstall?.PreventRetry == true ? AppServices.Gray : AppServices.Red,
-                    _programList.ActionVisual(item, "uninstall"));
-            else if (ActionableInventory.CanManageExternally(item) && updateAction!="external-manage")
-                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
-                    "Gerenciar", AppServices.Gray, _programList.ActionVisual(item, "external-manage"));
-            else if (ActionableInventory.CanManageWithWindows(item) && !item.IsUpdate)
-                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
-                    "No Windows", AppServices.Gray, _programList.ActionVisual(item, "windows-manage"));
-            else if (!item.IsUpdate)
-                TextRenderer.DrawText(e.Graphics, "Somente leitura", _rowInfo,
-                    AppRowGeometry.UninstallButton(e.Bounds), Muted,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                    TextFormatFlags.NoPrefix);
+            // A opção existe em TODOS os cartões, como solicitado. O motor
+            // interno só executa quando o desinstalador é confiável e vinculado.
+            // Nos demais casos, abre o gerenciador manual, sem burlar proteções.
+            DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
+                uninstall?.PreventRetry == true
+                    ? uninstall.Active ? "Em andamento" : "Pendente"
+                    : "Desinstalar",
+                uninstall?.PreventRetry == true ? AppServices.Gray :
+                    item.CanUninstall ? AppServices.Red : AppServices.Gray,
+                _programList.ActionVisual(item,
+                    item.CanUninstall ? "uninstall" : "uninstall-manual"));
         }
     }
 
@@ -2723,6 +2722,55 @@ internal sealed partial class MainForm : Form
         try { Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         { Log("Orientações do gerenciador indisponíveis: " + ex.GetType().Name); }
+    }
+
+    // Ação universal: não inventar UninstallString nem forçar remoção de
+    // componentes protegidos. O Windows/gerenciador original decide a operação.
+    private void OpenManualAppUninstall(ProgramEntry entry)
+    {
+        if (_busy || _betaClose.IsClosing || entry.CanUninstall) return;
+        string explanation = ActionableInventory.CanManageExternally(entry)
+            ? "Este pacote é administrado por outro gerenciador."
+            : entry.InventorySource.StartsWith("Biblioteca de jogos:",
+                StringComparison.OrdinalIgnoreCase)
+            ? "Este jogo pertence a uma biblioteca externa. Remova-o pela biblioteca do launcher."
+            : "O GF não possui um desinstalador validado para esta entrada.";
+        string message = "Desinstalar " + entry.Name + "?" +
+            Environment.NewLine + Environment.NewLine + explanation +
+            Environment.NewLine + "O GF não executará uma remoção automática." +
+            Environment.NewLine + "Deseja abrir o gerenciamento adequado e decidir manualmente?";
+        if (MessageBox.Show(this, message, "GF — confirmar gerenciamento",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+            return;
+        if (ActionableInventory.CanManageExternally(entry))
+        {
+            OpenOriginalPackageManager(entry);
+            return;
+        }
+        if (entry.InventorySource.StartsWith("Biblioteca de jogos:",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            Log("Desinstalação do jogo " + entry.Name +
+                ": abra a biblioteca do launcher correspondente. Nenhum pacote removido.");
+            Status("Desinstale este jogo pela biblioteca do launcher original.");
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "ms-settings:appsfeatures", UseShellExecute = true
+            });
+            Status("Configurações abertas. Selecione o aplicativo; o Windows decidirá se pode removê-lo.");
+            Log("Gerenciamento manual solicitado para " + entry.Name +
+                ". O GF não executou desinstalador.");
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            Log("Gerenciamento do Windows indisponível: " + ex.GetType().Name);
+            Status("Abra Configurações > Aplicativos instalados manualmente.");
+        }
     }
 
     private void OpenWindowsInstalledApps(ProgramEntry entry)

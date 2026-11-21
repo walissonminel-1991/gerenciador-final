@@ -7,7 +7,7 @@ using GerenciadorAplicativos;
 // são sintéticos. Não lê setupapi.dev.log, WUA, WMI nem arquivos pessoais.
 internal static class DriverReadOnlyDialogHistoryTests
 {
-    private const string Title = "Drivers — investigar sem alterações";
+    private const string Title = "Drivers — detalhes e evidências";
 
     internal static void Run(MainForm owner)
     {

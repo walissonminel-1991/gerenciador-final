@@ -20,7 +20,7 @@ internal sealed partial class MainForm
     {
         using var dialog = new Form
         {
-            Text = "Drivers — investigar sem alterações", Width = 800, Height = 530,
+            Text = "Drivers — detalhes e evidências", Width = 800, Height = 530,
             MinimumSize = new Size(500, 340), StartPosition = FormStartPosition.CenterParent,
             BackColor = PanelBackground, ForeColor = Ink, Font = Font,
             ShowInTaskbar = false, MinimizeBox = false
@@ -42,14 +42,13 @@ internal sealed partial class MainForm
         var status = new Label { Dock = DockStyle.Fill, ForeColor = Muted,
             Name = "DriverReadOnlyStatus", AccessibleName = "Estado da investigação de drivers",
             AutoEllipsis = true };
-        using var statusTip = new ToolTip();
-        void SetStatus(string message)
+         void SetStatus(string message)
         {
             if (status.IsDisposed) return;
             status.Text = message;
             // Mensagens extensas podem ser elididas visualmente em 500×340.
             status.AccessibleDescription = message;
-            statusTip.SetToolTip(status, message);
+            // A descrição completa está acessível, sem pop-up ao passar o mouse.
         }
         var bar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
@@ -93,7 +92,11 @@ internal sealed partial class MainForm
                     _ = NativeMethods.DwmSetWindowAttribute(dialog.Handle, 19, ref dark, 4); }
             catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
         };
-        DriverOfficialResult? official = null;
+        // Reaproveita somente o WUA da fotografia exata consultada na aba.
+        // A assinatura histórica do método é preservada para os testes WinForms.
+        DriverOfficialResult? official = officialReadForTest is null &&
+            ReferenceEquals(inventory, _driverReusableInventory) &&
+            _driverReusableOfficial is { Partial: false } known ? known : null;
         DriverInfVerificationResult? verification = null;
         CancellationTokenSource? current = null;
         // A identidade é julgada sobre o INVENTÁRIO COMPLETO, nunca apenas
@@ -115,6 +118,14 @@ internal sealed partial class MainForm
         // ambígua/incoerente; o guard G1.9 continua sendo a autoridade final.
         officialButton.Enabled = canOfficial;
         verifyButton.Enabled = canVerify;
+        // Consultar drivers já procurou ofertas WUA. Não pedir o mesmo clique.
+        if (official is not null && officialReadForTest is null)
+        {
+            officialButton.Visible = false;
+            bar.ColumnStyles[0].Width = 0;
+            bar.ColumnStyles[1].Width = 60;
+            bar.ColumnStyles[2].Width = 40;
+        }
         verifyButton.AccessibleDescription = canVerify
             ? "Verifica somente o INF local associado à seleção, sem modificar drivers."
             : !validAtOpening

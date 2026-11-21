@@ -6,6 +6,9 @@ namespace GerenciadorAplicativos;
 internal sealed partial class MainForm
 {
     private Task<DriverInventoryResult>? _driverReadTask;
+    // Cache WUA válido somente para a mesma fotografia que o usuário consultou.
+    private DriverInventoryResult? _driverReusableInventory;
+    private DriverOfficialResult? _driverReusableOfficial;
     // Exclusivo das fixtures com readForTest: jamais acessar DefaultPath
     // do usuario nos testes temporais ou iniciar captura nativa.
     private string? _driverHistoryPathForTest;
@@ -18,6 +21,10 @@ internal sealed partial class MainForm
         Action<Action>? onTestReadActionReady = null,
         Action<Action<string>>? onTestFilterReady = null)
     {
+        // Descrições extensas ficam disponíveis na acessibilidade, não no mouse.
+        void SuppressHoverHint(Control target, string explanation) =>
+            _toolTips.SetToolTip(target, string.Empty);
+
         // Ações gerais para todo o inventário. A política de segurança decide
         // individualmente quais pacotes OEM podem ser removidos sem /force.
         // A atualização WUA permanece sujeita aos gates de G3.1/G3.2.
@@ -61,7 +68,7 @@ internal sealed partial class MainForm
         clear.Margin = new Padding(0, 3, 8, 3);
         clear.Dock = DockStyle.Fill;
         clear.Click += (_, _) => search.Clear();
-        _toolTips.SetToolTip(clear, "Limpa apenas o campo de pesquisa, sem alterar drivers.");
+        SuppressHoverHint(clear, "Limpa apenas o campo de pesquisa, sem alterar drivers.");
         searchBar.Controls.Add(clear, 2, 0);
         root.Controls.Add(searchBar, 0, 0);
 
@@ -82,8 +89,8 @@ internal sealed partial class MainForm
         refresh.Dock = DockStyle.Fill;
         refresh.Margin = new Padding(0, 2, 6, 2);
         actionPanel.Controls.Add(refresh, 0, 0);
-        _toolTips.SetToolTip(refresh,
-            "Consulta os drivers associados aos dispositivos por WMI. Não instala, atualiza nem remove.");
+        SuppressHoverHint(refresh,
+            "Consulta dispositivos e ofertas WUA, sem instalar ou remover.");
         var actionInfo = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         var actionHint = new Label
         {
@@ -103,18 +110,18 @@ internal sealed partial class MainForm
         compactFilter.Items.AddRange(new object[]
             { "Todos", "Presentes", "Problemas", "Sem driver", "Não confirmados" });
         compactFilter.SelectedIndex = 0;
-        _toolTips.SetToolTip(compactFilter,
+        SuppressHoverHint(compactFilter,
             "Filtro somente visual: todos, presentes, problemas PnP, sem driver ou não confirmados.");
         actionInfo.Controls.Add(actionHint);
         actionInfo.Controls.Add(compactFilter);
-        var investigate = CreateSecondaryButton("Investigar");
+        var investigate = CreateSecondaryButton("Detalhes");
         investigate.Name = "DriverReadOnlyInvestigation";
-        investigate.AccessibleName = "Investigar drivers e histórico, somente leitura";
+        investigate.AccessibleName = "Detalhes e evidências de drivers";
         investigate.Dock = DockStyle.Fill;
         investigate.Margin = new Padding(0, 2, 6, 2);
         investigate.Enabled = false;
         actionPanel.Controls.Add(investigate, 1, 0);
-        _toolTips.SetToolTip(investigate,
+        SuppressHoverHint(investigate,
             "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
         actionPanel.Controls.Add(actionInfo, 2, 0);
         // O laboratório de 17 casos permanece disponível às fixtures; não
@@ -141,7 +148,7 @@ internal sealed partial class MainForm
         copySummary.Dock = DockStyle.Fill;
         copySummary.Margin = new Padding(2, 2, 2, 2);
         copySummary.Enabled = false;
-        _toolTips.SetToolTip(copySummary,
+        SuppressHoverHint(copySummary,
             "Diagnóstico local: copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
         root.Controls.Add(actionPanel, 0, 1);
 
@@ -184,19 +191,19 @@ internal sealed partial class MainForm
         // resolucoes intermediarias. O significado permanece explicito.
         var problems = Filter("Falhas PnP", 3);
         problems.AccessibleName = "Problemas PnP relatados pelo Windows";
-        _toolTips.SetToolTip(problems, "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.");
+        SuppressHoverHint(problems, "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.");
         var unbound = Filter("Sem driver", 4);
         unbound.AccessibleName = "Dispositivos sem associação WMI de driver assinado";
         const string unboundExplanation =
             "Sem linha de driver assinado associada no WMI. Não prova ausência de driver nem atualização disponível.";
         unbound.AccessibleDescription = unboundExplanation;
-        _toolTips.SetToolTip(unbound, unboundExplanation);
+        SuppressHoverHint(unbound, unboundExplanation);
         var other = Filter("Outros", 5);
         other.AccessibleName = "Não confirmados";
         const string uncertainFilterExplanation =
             "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
         other.AccessibleDescription = uncertainFilterExplanation;
-        _toolTips.SetToolTip(other, uncertainFilterExplanation);
+        SuppressHoverHint(other, uncertainFilterExplanation);
         root.Controls.Add(heading, 0, 2);
 
         var list = new DarkDriverList { Dock = DockStyle.Fill, Margin = Padding.Empty };
@@ -256,21 +263,54 @@ internal sealed partial class MainForm
         root.Controls.Add(footer, 0, 4);
         history.AccessibleDescription = history.Text;
         int refreshRevision = 0;
+        bool syncingStatusAccessibility = false;
+        bool statusSyncPending = false;
         void SyncStatusAccessibility()
         {
             if (state.IsDisposed) return;
-            // A fonte da descrição deve ser SEMPRE o texto atualmente exibido:
-            // eventos WinForms podem reentrar durante uma transição de estado.
-            string visible = state.Text;
-            var description = visible + Environment.NewLine + history.Text +
-                (history.AccessibleDescription == history.Text ? "" : Environment.NewLine + history.AccessibleDescription);
-            state.AccessibleDescription = description;
-            if (!state.IsDisposed) _toolTips.SetToolTip(state, description);
+            // TextChanged e layout WinForms podem reentrar durante um timeout:
+            // uma sincronização externa não pode sobrescrever o texto mais
+            // recente com a descrição capturada antes da reentrada.
+            if (syncingStatusAccessibility)
+            {
+                statusSyncPending = true;
+                return;
+            }
+            syncingStatusAccessibility = true;
+            try
+            {
+                do
+                {
+                    statusSyncPending = false;
+                    string visible = state.Text;
+                    string historyText = history.Text;
+                    string? historyDescription = history.AccessibleDescription;
+                    string description = visible + Environment.NewLine + historyText +
+                        (historyDescription == historyText ? "" :
+                            Environment.NewLine + historyDescription);
+                    state.AccessibleDescription = description;
+                    if (!string.Equals(state.Text, visible, StringComparison.Ordinal) ||
+                        !string.Equals(history.Text, historyText, StringComparison.Ordinal))
+                        statusSyncPending = true;
+                }
+                while (statusSyncPending && !state.IsDisposed);
+            }
+            finally { syncingStatusAccessibility = false; }
         }
         state.TextChanged += (_, _) => SyncStatusAccessibility();
+        history.TextChanged += (_, _) => SyncStatusAccessibility();
         void SetDriverStatus(string message)
         {
             if (state.IsDisposed) return;
+            // Publicar primeiro a nova descrição acessível. TextChanged,
+            // Paint e DoEvents podem reentrar imediatamente ao atribuir Text:
+            // nesse intervalo o leitor de tela já deve enxergar o novo estado,
+            // não a descrição anterior de uma consulta em encerramento.
+            string historyText = history.Text;
+            string? historyDescription = history.AccessibleDescription;
+            state.AccessibleDescription = message + Environment.NewLine + historyText +
+                (historyDescription == historyText ? "" :
+                    Environment.NewLine + historyDescription);
             state.Text = message;
             SyncStatusAccessibility();
         }
@@ -284,10 +324,10 @@ internal sealed partial class MainForm
             if (refresh.IsDisposed || revision != refreshRevision) return;
             refresh.AccessibleDescription = description;
             if (refresh.IsDisposed || revision != refreshRevision) return;
-            _toolTips.SetToolTip(refresh, description);
+            SuppressHoverHint(refresh, description);
         }
         SetDriverStatus(state.Text);
-        SetRefreshCaption("Consultar drivers", "Consulta apenas dispositivos e vínculos locais. Não modifica drivers.");
+        SetRefreshCaption("Consultar drivers", "Consulta dispositivos e ofertas WUA. Não modifica drivers.");
 
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
         DriverInventoryResult? lastResult = null;
@@ -364,7 +404,7 @@ internal sealed partial class MainForm
                 actionHint.Text = "Área de transferência indisponível; nenhum dado enviado.";
             }
             actionHint.AccessibleDescription = actionHint.Text;
-            _toolTips.SetToolTip(actionHint, actionHint.Text);
+            SuppressHoverHint(actionHint, actionHint.Text);
         };
         // Inicializar antes de registrar o evento de desinstalacao:
         // RunRefresh captura os tres locais; o compilador exige atribuicao
@@ -372,6 +412,9 @@ internal sealed partial class MainForm
         string activeFilter = "Todos";
         var driverQuery = new DriverQueryCoordinator();
         bool resultPublished = false;
+        DriverOfficialResult? latestOfficial = null;
+        long officialGeneration = -1;
+        CancellationTokenSource? wuaWait = null;
 
         void OpenDriverInvestigation(bool autoStartOfficial)
         {
@@ -387,7 +430,7 @@ internal sealed partial class MainForm
                 (token, result) => guard.CanPublishInf(lastResult, list.SelectedItem,
                     inventoryGeneration, token, result),
                 callback => invalidateOpenReport = callback,
-                startOfficialOnShow: autoStartOfficial);
+                startOfficialOnShow: autoStartOfficial && latestOfficial is null);
         }
         investigate.Click += (_, _) => OpenDriverInvestigation(false);
         // Um handler por operação. O clique virtual entrega o mesmo objeto que
@@ -402,8 +445,57 @@ internal sealed partial class MainForm
             var assessment = DriverSilentUninstall.Evaluate(captured, selected);
             if (!assessment.Allowed)
             {
-                MessageBox.Show(this, assessment.Reason, "GF — driver protegido",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string explanation = "Este driver não pode ser removido automaticamente pelo GF." +
+                    Environment.NewLine + assessment.Reason + Environment.NewLine +
+                    Environment.NewLine + "Abrir o Gerenciador de Dispositivos do Windows para " +
+                    "você decidir se deseja desinstalá-lo? Nenhum driver será removido pelo GF.";
+                if (MessageBox.Show(this, explanation, "GF — desinstalação manual de driver",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2) == DialogResult.Yes)
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "devmgmt.msc", UseShellExecute = true
+                        });
+                        SetDriverStatus("Gerenciador de Dispositivos aberto. Decisão e remoção somente pelo Windows.");
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        SetDriverStatus("Não foi possível abrir o Gerenciador de Dispositivos.");
+                    }
+                }
+                return;
+            }
+            if (!DriverSilentUninstall.IsElevated())
+            {
+                // Solicitar UAC somente para esta remoção. O trabalhador
+                // recaptura todo o inventário e pede confirmação explícita;
+                // nenhum snapshot da interface vira autoridade administrativa.
+                uninstallBusy = true;
+                refresh.Enabled = false;
+                SyncDriverActions();
+                SetDriverStatus("Solicitando ao Windows autorização para remover o pacote OEM...");
+                bool started = false;
+                try
+                {
+                    var elevation = await DriverElevatedUninstall.RequestAsync(selected);
+                    started = elevation.Started;
+                    if (!root.IsDisposed) SetDriverStatus(elevation.Message);
+                }
+                finally
+                {
+                    uninstallBusy = false;
+                    if (!root.IsDisposed)
+                    {
+                        refresh.Enabled = true;
+                        SyncDriverActions();
+                    }
+                }
+                // Mesmo com saída zero, o resultado do trabalhador não é
+                // aceito sem uma NOVA leitura do estado PnP local.
+                if (started && !root.IsDisposed) await RunRefresh();
                 return;
             }
             string question = "Remover silenciosamente o pacote OEM deste dispositivo?" +
@@ -468,9 +560,9 @@ internal sealed partial class MainForm
                 readForTest is not null || publishedSnapshotGeneration != inventoryGeneration ||
                 lastResult is null)
                 return;
-            if (action == DriverCardAction.VerifyUpdate)
-                OpenDriverInvestigation(true);
-            else
+            if (action == DriverCardAction.Details)
+                OpenDriverInvestigation(false);
+            else if (action == DriverCardAction.Uninstall)
                 _ = RunDriverUninstall(item);
         };
         void Render()
@@ -480,13 +572,16 @@ internal sealed partial class MainForm
             var visible = DriverListFilters.Apply(
                 snapshot ?? Array.Empty<DriverInventoryEntry>(), activeFilter, query);
             list.SetItems(visible);
+            if (officialGeneration == inventoryGeneration &&
+                latestOfficial is { Partial: false } cached)
+                list.SetOfferDevices(cached.Matches.Select(match => match.DeviceId));
             list.ScrollToTop();
             invalidateOpenReport?.Invoke();
             int count = snapshot?.Count ?? 0;
             title.Text = snapshot is null ? "Drivers · consulta não iniciada"
                 : $"Drivers: {count} · Exibidos: {visible.Length}";
             title.AccessibleDescription = title.Text;
-            _toolTips.SetToolTip(title,
+            SuppressHoverHint(title,
                 "Associações de drivers a dispositivos, não pacotes exclusivos do Driver Store.");
             empty.Text = snapshot is null ? "Clique em Consultar drivers para iniciar a leitura."
                 : query.Length > 0 ? "Nenhum driver corresponde à pesquisa."
@@ -514,7 +609,7 @@ internal sealed partial class MainForm
                 button.AccessibleDescription = (selected
                     ? "Filtro ativo: " + name : "Ativar filtro: " + name) +
                     $". {inCategory} associações nesta categoria. " + caution;
-                _toolTips.SetToolTip(button, button.AccessibleDescription);
+                SuppressHoverHint(button, button.AccessibleDescription);
             }
             compactFilter.AccessibleDescription = "Filtro atual: " + activeFilter;
         }
@@ -550,6 +645,12 @@ internal sealed partial class MainForm
         };
         async Task RunRefresh()
         {
+            if (wuaWait is { IsCancellationRequested: false })
+            {
+                wuaWait.Cancel();
+                SetDriverStatus("Cancelamento solicitado; pesquisa WUA pode continuar encerrando.");
+                return;
+            }
             if (uninstallBusy)
             {
                 SetDriverStatus("Desinstalação em andamento: consulta bloqueada até a verificação.");
@@ -571,9 +672,10 @@ internal sealed partial class MainForm
                 driverQuery.RequestCancel();
                 return;
             }
-            if (_driverReadTask is { IsCompleted: false })
+            if (_driverReadTask is { IsCompleted: false } ||
+                readForTest is null && _driverOfficialReadTask is { IsCompleted: false })
             {
-                SetDriverStatus("A leitura nativa anterior ainda está encerrando.");
+                SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 return;
             }
             var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
@@ -590,6 +692,11 @@ internal sealed partial class MainForm
             inventoryGeneration++;
             invalidateOpenReport?.Invoke();
             resultPublished = false;
+            latestOfficial = null;
+            officialGeneration = -1;
+            _driverReusableInventory = null;
+            _driverReusableOfficial = null;
+            list.SetOfferDevices(Array.Empty<string>());
             SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
             copySummary.Enabled = false;
@@ -623,7 +730,7 @@ internal sealed partial class MainForm
                     $"Sem vínculo WMI: {result.Items.Count(x => x.WithoutSignedDriverAssociation)} · " +
                     $"Não confirmados: {result.Items.Count(x => x.Present != true)}. Só consulta.";
                 actionHint.AccessibleDescription = actionHint.Text;
-                _toolTips.SetToolTip(actionHint, actionHint.Text);
+                SuppressHoverHint(actionHint, actionHint.Text);
                 // A lista agora representa OUTRA fotografia. O rodapé não deve
                 // anunciar a comparação da fotografia anterior enquanto a
                 // gravação desta ainda ocorre. Fixtures não gravam histórico.
@@ -631,7 +738,7 @@ internal sealed partial class MainForm
                     ? "Histórico local: comparação desta consulta em andamento; resultado ainda não confirmado."
                     : "Histórico sintético desta consulta: não gravado nem comparado com o histórico local.";
                 history.AccessibleDescription = history.Text;
-                _toolTips.SetToolTip(history, history.Text);
+                SuppressHoverHint(history, history.Text);
                 // Depois da publicação, só resta concluir o histórico; não existe
                 // mais consulta WMI aguardando cancelamento por este botão.
                 refresh.Enabled = false;
@@ -644,7 +751,7 @@ internal sealed partial class MainForm
                     $"{links.Packages.Count} INFs. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem alterações.");
                 // A dica deve incluir o MESMO historico anunciado ao leitor de
                 // tela, e nao apenas o inventario recem-publicado.
-                _toolTips.SetToolTip(state,
+                SuppressHoverHint(state,
                     state.AccessibleDescription + Environment.NewLine +
                     result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
@@ -686,11 +793,74 @@ internal sealed partial class MainForm
                     {
                         history.Text = recorded.Message;
                         history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
-                        _toolTips.SetToolTip(history, history.AccessibleDescription);
+                        SuppressHoverHint(history, history.AccessibleDescription);
                         SetDriverStatus(state.Text);
                         FitVerticalSpace();
                     }
                     DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
+                }
+                // O único botão Consultar inclui agora uma pesquisa WUA
+                // SOMENTE LEITURA. Não consulta o mesmo catálogo em cada cartão.
+                // Fixtures seguem sem COM, sem rede e sem alteração de drivers.
+                if (readForTest is null && !result.Partial && result.Items.Count > 0 &&
+                    !root.IsDisposed && publishedGeneration == inventoryGeneration)
+                {
+                    using var officialTimeout = new CancellationTokenSource(
+                        TimeSpan.FromSeconds(90));
+                    wuaWait = officialTimeout;
+                    SetRefreshCaption("Cancelar WUA",
+                        "Cancela a espera; a pesquisa COM pode continuar terminando.");
+                    refresh.Enabled = true;
+                    SetDriverStatus("Inventário concluído. Consultando ofertas oficiais WUA...");
+                    try
+                    {
+                        _driverOfficialReadTask = DriverOfficialLookup.Start(
+                            result, officialTimeout.Token);
+                        var officialResult = await _driverOfficialReadTask.WaitAsync(
+                            officialTimeout.Token);
+                        if (!root.IsDisposed && publishedGeneration == inventoryGeneration)
+                        {
+                            if (officialResult.Partial)
+                                SetDriverStatus(
+                                    "Inventário concluído; consulta WUA parcial ou indisponível. " +
+                                    "Isso não comprova ausência de atualização.");
+                            else
+                            {
+                                latestOfficial = officialResult;
+                                officialGeneration = publishedGeneration;
+                                _driverReusableInventory = result;
+                                _driverReusableOfficial = officialResult;
+                                var deviceIds = officialResult.Matches
+                                    .Select(match => match.DeviceId)
+                                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                                list.SetOfferDevices(deviceIds);
+                                SetDriverStatus(
+                                    $"Consulta concluída: {result.Items.Count} dispositivos · " +
+                                    $"{deviceIds.Length} com oferta WUA consultiva. " +
+                                    "A oferta não comprova versão numericamente superior.");
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (!root.IsDisposed && publishedGeneration == inventoryGeneration)
+                            SetDriverStatus(
+                                "Inventário preservado. Pesquisa WUA interrompida ou esgotada; " +
+                                "nenhuma atualização foi instalada.");
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        DiagnosticTrace.Failure("DRIVERS.WUA_CONSULTA_FALHA", ex);
+                        if (!root.IsDisposed && publishedGeneration == inventoryGeneration)
+                            SetDriverStatus(
+                                "Inventário concluído. Consulta de atualizações indisponível.");
+                    }
+                    finally
+                    {
+                        wuaWait = null;
+                        if (!refresh.IsDisposed) refresh.Enabled = false;
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -711,7 +881,7 @@ internal sealed partial class MainForm
                 driverQuery.End(token);
                 if (!refresh.IsDisposed)
                 {
-                    SetRefreshCaption("Consultar drivers", "Consulta apenas dispositivos e vínculos locais. Não modifica drivers.");
+                    SetRefreshCaption("Consultar drivers", "Consulta dispositivos e ofertas WUA. Não modifica drivers.");
                     // WMI pode ignorar o cancelamento nativo por algum tempo.
                     // Nunca bloquear a interface: o teste de _driverReadTask
                     // no inicio do clique continua impedindo consultas simultaneas.
@@ -743,7 +913,7 @@ internal sealed partial class MainForm
             int refreshWidth = Math.Max(Scale(156),
                 TextRenderer.MeasureText("Consultar drivers", refresh.Font).Width + Scale(20));
             int investigationWidth = Math.Max(Scale(108),
-                TextRenderer.MeasureText("Investigar", investigate.Font).Width + Scale(20));
+                TextRenderer.MeasureText("Detalhes", investigate.Font).Width + Scale(20));
             bool narrow = root.ClientSize.Width < Math.Max(Scale(760),
                 refreshWidth + investigationWidth + Scale(182));
             bool compactFilters = tiny || root.ClientSize.Width < Scale(800);
@@ -805,7 +975,7 @@ internal sealed partial class MainForm
             if (compactFilter.SelectedItem is string current && current != activeFilter)
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
-            _toolTips.SetToolTip(history, history.AccessibleDescription ?? history.Text);
+            SuppressHoverHint(history, history.AccessibleDescription ?? history.Text);
             SetDriverStatus(state.Text);
         }
         root.SizeChanged += (_, _) => FitVerticalSpace();

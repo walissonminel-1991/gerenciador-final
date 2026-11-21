@@ -31,9 +31,9 @@ internal static class V53VirtualCardTests
             var row = new Rectangle(0, 0, width, DriverRowGeometry.Height(dpi, width));
             Rectangle card = DriverRowGeometry.Card(row, dpi);
             Rectangle emblem = DriverRowGeometry.Emblem(row, dpi);
-            Rectangle title = DriverRowGeometry.Text(row, dpi, 5, 22);
-            Rectangle version = DriverRowGeometry.Text(row, dpi, 28, 19);
-            Rectangle inf = DriverRowGeometry.Text(row, dpi, 48, 19);
+            Rectangle title = DriverRowGeometry.Text(row, dpi, 4, 19);
+            Rectangle version = DriverRowGeometry.Text(row, dpi, 25, 16);
+            Rectangle inf = DriverRowGeometry.Text(row, dpi, 43, 16);
             Require(row.Contains(card) && card.Contains(emblem) &&
                 row.Contains(title) && row.Contains(version) && row.Contains(inf),
                 $"driver sai da faixa {screen} DPI={dpi}");
@@ -42,13 +42,10 @@ internal static class V53VirtualCardTests
                 $"driver sobrepoe titulo/versao/INF/emblema {screen} DPI={dpi}");
             Rectangle pill = DriverRowGeometry.Status(row, dpi);
             using var actionFont = new Font("Segoe UI", 9f, FontStyle.Bold);
-            var actions = DriverRowGeometry.Actions(row, dpi, actionFont);
+            var uninstall = DriverRowGeometry.Uninstall(row, dpi, actionFont);
             Require(row.Contains(pill) && !title.IntersectsWith(pill) &&
                 !version.IntersectsWith(pill) && !inf.IntersectsWith(pill) &&
-                row.Contains(actions.Update) && row.Contains(actions.Uninstall) &&
-                !actions.Update.IntersectsWith(actions.Uninstall) &&
-                !actions.Update.IntersectsWith(pill) &&
-                !actions.Uninstall.IntersectsWith(pill),
+                row.Contains(uninstall) && !uninstall.IntersectsWith(pill),
                 $"status e ações sobrepostos ou fora da viewport {screen} DPI={dpi}");
             // Texto longo exige reticencias; nao basta a fixture ter nome curto.
             using var scaledFont = new Font(appFont.FontFamily,
@@ -59,7 +56,7 @@ internal static class V53VirtualCardTests
             // truncamento e exigido quando ha restricao real de largura,
             // nao artificialmente em todo viewport.
             var constrainedRow = new Rectangle(0, 0, 800, DriverRowGeometry.Height(dpi, 800));
-            var constrainedTitle = DriverRowGeometry.Text(constrainedRow, dpi, 5, 22);
+            var constrainedTitle = DriverRowGeometry.Text(constrainedRow, dpi, 4, 19);
             Require(natural.Width > constrainedTitle.Width,
                 $"nome extenso nao exercita truncamento em largura limitada {screen} DPI={dpi}");
             // Hit-test, desenho e scroll compartilham altura responsiva e escala DPI.
@@ -93,6 +90,20 @@ internal static class V53VirtualCardTests
                 [appList, new DrawItemEventArgs(appGraphics, appList.Font,
                     new Rectangle(0, 0, 800, 67), 0, DrawItemState.Default)]);
         }
+        // Todo aplicativo mostra Desinstalar, inclusive entrada de inventário
+        // sem comando confiável. O clique retorna gerenciamento manual, não
+        // eleva nem executa um desinstalador inventado.
+        appList.ActionsEnabled = true;
+        var uninstallButton = AppRowGeometry.UninstallButton(
+            new Rectangle(0, 0, appList.ClientSize.Width, appList.ItemHeight));
+        var hit = ((ProgramEntry? Item, string Action))(
+            typeof(DarkProgramList).GetMethod("HitAction",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
+                [new Point(uninstallButton.Left + uninstallButton.Width / 2,
+                    uninstallButton.Top + uninstallButton.Height / 2)])!);
+        Require(hit.Action == "uninstall-manual" &&
+            ReferenceEquals(hit.Item, appList.Items[0]),
+            "aplicativo somente inventário deve oferecer Desinstalar manual sem execução direta");
         // O contrato do tooltip era existente e permanece no controle real.
         typeof(DarkProgramList).GetMethod("OnMouseMove",
             BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,

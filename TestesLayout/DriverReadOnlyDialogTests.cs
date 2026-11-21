@@ -23,7 +23,7 @@ internal static class DriverReadOnlyDialogTests
         timer.Tick += (_, _) =>
         {
             timer.Stop();
-            var dialog = Application.OpenForms.Cast<Form>().Single(f => f.Text == "Drivers — investigar sem alterações");
+            var dialog = Application.OpenForms.Cast<Form>().Single(f => f.Text == "Drivers — detalhes e evidências");
             try
             {
                 foreach (Size size in new[] { new Size(500, 340), new Size(790, 510) })
