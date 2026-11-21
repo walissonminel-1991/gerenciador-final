@@ -263,18 +263,42 @@ internal sealed partial class MainForm
         root.Controls.Add(footer, 0, 4);
         history.AccessibleDescription = history.Text;
         int refreshRevision = 0;
+        bool syncingStatusAccessibility = false;
+        bool statusSyncPending = false;
         void SyncStatusAccessibility()
         {
             if (state.IsDisposed) return;
-            // A fonte da descrição deve ser SEMPRE o texto atualmente exibido:
-            // eventos WinForms podem reentrar durante uma transição de estado.
-            string visible = state.Text;
-            var description = visible + Environment.NewLine + history.Text +
-                (history.AccessibleDescription == history.Text ? "" : Environment.NewLine + history.AccessibleDescription);
-            state.AccessibleDescription = description;
-            if (!state.IsDisposed) SuppressHoverHint(state, description);
+            // TextChanged e layout WinForms podem reentrar durante um timeout:
+            // uma sincronização externa não pode sobrescrever o texto mais
+            // recente com a descrição capturada antes da reentrada.
+            if (syncingStatusAccessibility)
+            {
+                statusSyncPending = true;
+                return;
+            }
+            syncingStatusAccessibility = true;
+            try
+            {
+                do
+                {
+                    statusSyncPending = false;
+                    string visible = state.Text;
+                    string historyText = history.Text;
+                    string? historyDescription = history.AccessibleDescription;
+                    string description = visible + Environment.NewLine + historyText +
+                        (historyDescription == historyText ? "" :
+                            Environment.NewLine + historyDescription);
+                    state.AccessibleDescription = description;
+                    if (!string.Equals(state.Text, visible, StringComparison.Ordinal) ||
+                        !string.Equals(history.Text, historyText, StringComparison.Ordinal))
+                        statusSyncPending = true;
+                }
+                while (statusSyncPending && !state.IsDisposed);
+            }
+            finally { syncingStatusAccessibility = false; }
         }
         state.TextChanged += (_, _) => SyncStatusAccessibility();
+        history.TextChanged += (_, _) => SyncStatusAccessibility();
         void SetDriverStatus(string message)
         {
             if (state.IsDisposed) return;
