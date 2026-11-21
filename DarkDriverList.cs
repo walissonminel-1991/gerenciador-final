@@ -30,7 +30,7 @@ internal static class DriverRowGeometry
     internal static Rectangle Text(Rectangle row, int dpi, int top, int height)
     {
         int left = row.Left + Scale(58, dpi);
-        int reserved = Wide(row.Width, dpi) ? Scale(148, dpi) : Scale(13, dpi);
+        int reserved = Wide(row.Width, dpi) ? Scale(row.Width >= Scale(700, dpi) ? 280 : 148, dpi) : Scale(13, dpi);
         return new Rectangle(left, row.Top + Scale(top, dpi),
             Math.Max(1, row.Right - left - reserved), Scale(height, dpi));
     }
@@ -49,13 +49,29 @@ internal static class DriverRowGeometry
         int height = Scale(31, dpi);
         return Wide(row.Width, dpi)
             ? new Rectangle(row.Right - width - Scale(16, dpi),
-                row.Top + Scale(24, dpi), width, height)
-            : new Rectangle(row.Left + Scale(58, dpi),
+                row.Top + Scale(row.Width >= Scale(700, dpi) ? 24 : 43, dpi), width, height)
+            : new Rectangle(row.Right - width - Scale(16, dpi),
                 row.Bottom - Scale(37, dpi), width, height);
+    }
+
+    internal static Rectangle Update(Rectangle row, int dpi, Font font)
+    {
+        int width = Math.Max(Scale(112, dpi),
+            TextRenderer.MeasureText("Atualizar", font,
+                Size.Empty, TextFormatFlags.NoPadding).Width + Scale(24, dpi));
+        if (!Wide(row.Width, dpi))
+            return new Rectangle(row.Left + Scale(58, dpi),
+                row.Bottom - Scale(37, dpi), width, Scale(31, dpi));
+        if (row.Width < Scale(700, dpi))
+            return new Rectangle(row.Right - width - Scale(16, dpi),
+                row.Top + Scale(6, dpi), width, Scale(31, dpi));
+        int uninstallLeft = Uninstall(row, dpi, font).Left;
+        return new Rectangle(uninstallLeft - width - Scale(10, dpi),
+            row.Top + Scale(24, dpi), width, Scale(31, dpi));
     }
 }
 
-internal enum DriverCardAction { Details, Uninstall }
+internal enum DriverCardAction { Details, Update, Uninstall }
 
 internal sealed class DarkDriverList : Control
 {
@@ -64,6 +80,7 @@ internal sealed class DarkDriverList : Control
     private int RowHeight => DriverRowGeometry.Height(DeviceDpi, ContentWidth);
     private readonly List<DriverInventoryEntry> _items = new();
     private HashSet<string> _offeredDevices = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _eligibleUpdateDevices = new(StringComparer.OrdinalIgnoreCase);
     private readonly DarkVScrollBar _scrollbar = new();
     private readonly WheelDeltaAccumulator _wheel = new();
     private readonly Font _titleFont = new("Segoe UI", 10f, FontStyle.Bold);
@@ -72,6 +89,7 @@ internal sealed class DarkDriverList : Control
     private readonly Font _actionFont = new("Segoe UI", 9f, FontStyle.Bold);
     private readonly ContextMenuStrip _actionsMenu = new();
     private readonly ToolStripMenuItem _detailsMenu = new("Detalhes");
+    private readonly ToolStripMenuItem _updateMenu = new("Atualizar");
     private readonly ToolStripMenuItem _uninstallMenu = new("Desinstalar");
     private int _selectedIndex = -1;
     private int _scrollOffset;
@@ -88,6 +106,8 @@ internal sealed class DarkDriverList : Control
     internal DriverInventoryEntry? SelectedItem =>
         _selectedIndex >= 0 && _selectedIndex < _items.Count ? _items[_selectedIndex] : null;
     internal bool ActionsCurrent => _actionsCurrent;
+    internal bool CanUpdate(DriverInventoryEntry item) =>
+        _actionsCurrent && _eligibleUpdateDevices.Contains(item.DeviceId);
     internal bool CanUninstall(DriverInventoryEntry item) =>
         _actionsCurrent && _evaluateRemoval?.Invoke(item).Allowed == true;
     internal string UninstallReason(DriverInventoryEntry item) =>
@@ -113,9 +133,10 @@ internal sealed class DarkDriverList : Control
         };
         Controls.Add(_scrollbar);
         _detailsMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Details);
+        _updateMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Update);
         _uninstallMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Uninstall);
         _actionsMenu.Closed += (_, _) => _menuDevice = null;
-        _actionsMenu.Items.AddRange([_detailsMenu, _uninstallMenu]);
+        _actionsMenu.Items.AddRange([_detailsMenu, _updateMenu, _uninstallMenu]);
         Resize += (_, _) => UpdateMetrics();
         DpiChangedAfterParent += (_, _) => UpdateMetrics();
     }
@@ -140,6 +161,7 @@ internal sealed class DarkDriverList : Control
         _items.Clear();
         _items.AddRange(items);
         _offeredDevices.Clear();
+        _eligibleUpdateDevices.Clear();
         _selectedIndex = -1;
         if (unambiguousBefore)
         {
@@ -168,6 +190,15 @@ internal sealed class DarkDriverList : Control
         Invalidate();
     }
 
+    internal void SetEligibleUpdateDevices(IEnumerable<string> deviceIds)
+    {
+        _eligibleUpdateDevices = deviceIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        UpdateAccessibleSelection();
+        Invalidate();
+    }
+
     internal void ScrollToTop() => _scrollbar.Value = 0;
 
     private void UpdateAccessibleSelection()
@@ -188,9 +219,11 @@ internal sealed class DarkDriverList : Control
             "; ID da instância: " + selected.DeviceId +
             "; INF relatado: " + selected.InfName +
             "; classe WMI: " + selected.ReportedDriverClass +
-            "; " + selected.PnpStatusLabel + ambiguity +
-            (_offeredDevices.Contains(selected.DeviceId)
-                ? "; oferta oficial WUA consultiva identificada, sem prova de versão superior" : "") +
+            "; " + selected.PresenceLabel + "; " + selected.PnpStatusLabel + ambiguity +
+            (_eligibleUpdateDevices.Contains(selected.DeviceId)
+                ? "; ação Atualizar habilitada para revisão de uma oferta WUA exata; instalação exige revalidação, backup e consentimento"
+                : _offeredDevices.Contains(selected.DeviceId)
+                    ? "; oferta WUA apenas consultiva, sem ação de atualização elegível" : "") +
             ". " + DriverPnpGuidance.Describe(selected.PnpProblemCode) +
             (_actionsCurrent
                 ? "; Detalhes: consulta oficial e evidências; Desinstalar: " +
@@ -289,27 +322,32 @@ internal sealed class DarkDriverList : Control
             "INF: " + (string.IsNullOrWhiteSpace(item.InfName) ? "não informado" : item.InfName) +
             "  ·  Assinatura (Windows): " + item.SignatureLabel,
             _detailsFont, DriverRowGeometry.Text(bounds, dpi, 43, 16), muted, textFlags);
-        Rectangle pill = DriverRowGeometry.Status(bounds, dpi);
+        // Estado não é um botão: ponto discreto, sem pílula ou área de clique.
+        // Presente/Indeterminado ficam na acessibilidade; só alertas ganham texto.
+        Rectangle status = DriverRowGeometry.Status(bounds, dpi);
         bool offered = _offeredDevices.Contains(item.DeviceId);
-        Color fill = item.HasPnpProblem ? Color.FromArgb(121, 80, 43)
-            : offered ? Color.FromArgb(27, 87, 119) : item.Present switch
-        {
-            true => Color.FromArgb(44, 95, 82),
-            false => Color.FromArgb(103, 69, 52),
-            _ => Color.FromArgb(59, 72, 88)
-        };
-        using (var shape = ModernButton.RoundRect(pill, 7))
-        using (var brush = new SolidBrush(fill))
-        {
-            canvas.FillPath(brush, shape);
-            TextRenderer.DrawText(canvas, item.HasPnpProblem
-                ? $"Problema PnP {item.PnpProblemCode}"
-                : offered ? "Oferta WUA" : item.PresenceLabel,
-                _detailsFont, pill, ForeColor, TextFormatFlags.NoPrefix |
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                TextFormatFlags.EndEllipsis);
-        }
+        bool eligible = CanUpdate(item);
+        Color dot = item.HasPnpProblem ? Color.FromArgb(231, 173, 103)
+            : eligible ? Color.FromArgb(133, 221, 176)
+            : offered ? Color.FromArgb(114, 196, 255)
+            : item.Present == true ? Color.FromArgb(111, 166, 148)
+            : Color.FromArgb(123, 135, 149);
+        using (var brush = new SolidBrush(dot))
+            canvas.FillEllipse(brush, status.Left + Scale(1), status.Top + Scale(4),
+                Scale(6), Scale(6));
+        string statusText = item.HasPnpProblem ? $"Atenção PnP {item.PnpProblemCode}"
+            : eligible ? "Oferta WUA para revisão"
+            : offered ? "Oferta WUA consultiva" : "";
+        if (statusText.Length > 0)
+            TextRenderer.DrawText(canvas, statusText, _detailsFont,
+                new Rectangle(status.Left + Scale(12), status.Top,
+                    Math.Max(1, status.Width - Scale(12)), status.Height),
+                dot, TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
 
+        if (eligible)
+            DrawAction(canvas, DriverRowGeometry.Update(bounds, dpi, _actionFont),
+                "Atualizar", true, hover == DriverCardAction.Update, false, true);
         Rectangle uninstall = DriverRowGeometry.Uninstall(bounds, dpi, _actionFont);
         // A ação aparece para todos. O backend OEM continua protegido:
         // casos não elegíveis seguem ao gerenciamento manual do Windows.
@@ -318,7 +356,7 @@ internal sealed class DarkDriverList : Control
     }
 
     private void DrawAction(Graphics canvas, Rectangle bounds, string text,
-        bool enabled, bool hovered, bool destructive)
+        bool enabled, bool hovered, bool destructive, bool update = false)
     {
         if (!enabled)
         {
@@ -328,6 +366,7 @@ internal sealed class DarkDriverList : Control
             return;
         }
         Color bg = destructive ? hovered ? Color.FromArgb(192, 72, 83) : AppServices.Red
+            : update ? hovered ? Color.FromArgb(41, 142, 101) : AppServices.Green
             : Color.FromArgb(47, 65, 84);
         Color fg = Color.White;
         using var shape = ModernButton.RoundRect(bounds, DriverRowGeometry.Scale(6, DeviceDpi));
@@ -349,6 +388,9 @@ internal sealed class DarkDriverList : Control
         var row = new Rectangle(0, index * RowHeight - _scrollOffset, ContentWidth, RowHeight);
         var uninstall = DriverRowGeometry.Uninstall(row, DeviceDpi, _actionFont);
         if (uninstall.Contains(position)) return (index, DriverCardAction.Uninstall);
+        var update = DriverRowGeometry.Update(row, DeviceDpi, _actionFont);
+        if (CanUpdate(_items[index]) && update.Contains(position))
+            return (index, DriverCardAction.Update);
         return (index, null);
     }
 
@@ -416,8 +458,10 @@ internal sealed class DarkDriverList : Control
         if (item is null) return;
         _menuDevice = item;
         _detailsMenu.Enabled = _actionsCurrent;
+        _updateMenu.Enabled = CanUpdate(item);
         _uninstallMenu.Enabled = _actionsCurrent;
         _detailsMenu.ToolTipText = "";
+        _updateMenu.ToolTipText = "";
         _uninstallMenu.ToolTipText = "";
         _actionsMenu.Show(this, location);
     }
@@ -484,7 +528,8 @@ internal static class DriverListFilters
     // Apenas uma visao dos dados WMI. Nunca decide ausencia, obsolescencia ou
     // autorizacao de limpeza/atualizacao com base nesses filtros.
     internal static DriverInventoryEntry[] Apply(
-        IEnumerable<DriverInventoryEntry> items, string filter, string query)
+        IEnumerable<DriverInventoryEntry> items, string filter, string query,
+        IReadOnlySet<string>? prioritized = null)
     {
         IEnumerable<DriverInventoryEntry> filtered = filter switch
         {
@@ -500,7 +545,11 @@ internal static class DriverListFilters
                 string.Join(" ", item.DeviceName, item.DeviceId, item.Provider, item.Version,
                     item.InfName, item.PresenceLabel, item.SignatureLabel, item.PnpStatusLabel)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
-        return filtered.ToArray();
+        return prioritized is null ? filtered.ToArray() :
+            filtered.OrderByDescending(item => prioritized.Contains(item.DeviceId))
+                .ThenBy(item => item.DeviceName, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(item => item.DeviceId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
     }
 }
 
@@ -525,5 +574,36 @@ internal static class DriverTriageSummary
             "As categorias podem se sobrepor. Ausência no WMI não comprova ausência de driver.",
             "Sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.",
             "Nenhum driver foi instalado, baixado ou removido por este resumo.");
+    }
+}
+
+// Uma oferta consultiva não basta para mostrar Atualizar. A ação só abre
+// o fluxo G3.2 existente, que revalida e exige backup/consentimento no clique.
+// A versão superior não é inferida de título ou data da oferta.
+internal static class DriverUpdateEligibility
+{
+    internal static IReadOnlySet<string> Find(
+        DriverInventoryResult inventory, DriverOfficialResult official)
+    {
+        var eligible = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (inventory.Partial || official.Partial ||
+            official.SearchContext is not { Source: "Windows Update", Online: true })
+            return eligible;
+        foreach (var group in official.Matches.GroupBy(
+            match => match.DeviceId, StringComparer.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(group.Key) || group.Count() != 1) continue;
+            var match = group.Single();
+            if (!DriverUpdatePilot.TryPrepare(inventory, official, match,
+                out var choice) || choice is null)
+                continue;
+            var device = inventory.Items.SingleOrDefault(item =>
+                string.Equals(item.DeviceId, group.Key,
+                    StringComparison.OrdinalIgnoreCase));
+            if (device is not null && DriverG32RecoveryTicket.CanOffer(
+                inventory, device, choice))
+                eligible.Add(group.Key);
+        }
+        return eligible;
     }
 }
