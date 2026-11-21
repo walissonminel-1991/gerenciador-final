@@ -340,9 +340,9 @@ internal static class LayoutTests
         if (!Descendants(placeholder).OfType<Button>().Any(b =>
                 b.Text == "Falhas PnP" && b.AccessibleName.Contains("Problemas PnP")))
             throw new Exception("Filtro de falhas PnP ausente.");
-        if (Descendants(placeholder).OfType<Button>().SingleOrDefault(b =>
-            b.Name == "DriverSyntheticLabOpen") is not { Enabled: true })
-            throw new Exception("UX3: laboratório deve estar acessível sem consulta.");
+        if (Descendants(placeholder).OfType<Button>().Any(b =>
+            b.Name is "DriverSyntheticLabOpen" or "DriverUpdateAction" or "DriverUninstallAction"))
+            throw new Exception("Drivers: laboratório e ações globais não pertencem à interface normal.");
         // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
         if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
             throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
@@ -642,14 +642,11 @@ internal static class LayoutTests
                         mobileFilter.Items.Count != 5)
                         throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
                     var driverButtons = Descendants(placeholder).OfType<Button>().ToArray();
-                    var uninstall = driverButtons.Single(b => b.Name == "DriverUninstallAction");
-                    var update = driverButtons.Single(b => b.Name == "DriverUpdateAction");
                     if (Descendants(placeholder).OfType<DataGridView>().Any() ||
-                        uninstall.Enabled || update.Enabled ||
-                        driverButtons.Any(b => b != uninstall &&
-                            (b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase) ||
-                             b.Text.Contains("Remover driver", StringComparison.OrdinalIgnoreCase))))
-                        throw new Exception("Drivers: ações individuais devem aguardar consulta e seleção.");
+                        driverCards.ActionsCurrent ||
+                        driverButtons.Any(b => b.Name is "DriverUpdateAction" or "DriverUninstallAction" ||
+                            b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase)))
+                        throw new Exception("Drivers: cartões virtuais devem bloquear manutenção sem consulta.");
                 }
                 else if (allButtons.Length == 0)
                     throw new Exception($"Nenhum botao apresentado: {name} {resolution} aba={tab}");
