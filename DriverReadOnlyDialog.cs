@@ -16,8 +16,7 @@ internal sealed partial class MainForm
         Func<CancellationToken, Task<DriverInfVerificationResult>>? infReadForTest = null,
         TimeSpan? timeoutForTest = null,
         Action<Action, Action>? onTestActionsReady = null,
-        bool startOfficialOnShow = false,
-        DriverOfficialResult? preloadedOfficial = null)
+        bool startOfficialOnShow = false)
     {
         using var dialog = new Form
         {
@@ -93,8 +92,11 @@ internal sealed partial class MainForm
                     _ = NativeMethods.DwmSetWindowAttribute(dialog.Handle, 19, ref dark, 4); }
             catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
         };
-        DriverOfficialResult? official = preloadedOfficial is { Partial: false }
-            ? preloadedOfficial : null;
+        // Reaproveita somente o WUA da fotografia exata consultada na aba.
+        // A assinatura histórica do método é preservada para os testes WinForms.
+        DriverOfficialResult? official = officialReadForTest is null &&
+            ReferenceEquals(inventory, _driverReusableInventory) &&
+            _driverReusableOfficial is { Partial: false } known ? known : null;
         DriverInfVerificationResult? verification = null;
         CancellationTokenSource? current = null;
         // A identidade é julgada sobre o INVENTÁRIO COMPLETO, nunca apenas
