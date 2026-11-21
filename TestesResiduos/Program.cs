@@ -924,6 +924,13 @@ var foobarRule = HistoricalResidualAudit.Rules.Single(r => r.Id == "foobar2000")
 Check(HistoricalResidualAudit.IsRuleInstalled(foobarRule,
           new[] { new ProgramEntry { Name = "foobar2000 2.24 (x64)" } }),
     "R6 programa com versao e arquitetura continua protegido pela auditoria historica");
+Check(HistoricalResidualAudit.IsRuleInstalled(foobarRule,
+          new[] { new ProgramEntry { Name = "foobar2000 2.24 x64" } }) &&
+      HistoricalResidualAudit.IsRuleInstalled(vivaldi,
+          new[] { new ProgramEntry { Name = "Vivaldi 7.6.3797.67 64-bit" } }) &&
+      !HistoricalResidualAudit.IsRuleInstalled(foobarRule,
+          new[] { new ProgramEntry { Name = "foobar2000 2.24 Addon" } }),
+    "R6 etiqueta arquitetural sem parenteses protege app ativo sem aceitar sufixo arbitrario");
 Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "utorrent-web" &&
     r.Folders.Contains(@"StartMenu\uTorrent Web")),
     "Atalhos uTorrent Web reconhecidos no menu Iniciar");
