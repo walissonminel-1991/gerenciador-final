@@ -128,8 +128,9 @@ internal sealed partial class MainForm
             labOpen.AccessibleDescription = "Apenas fixture; sem acesso WMI, WUA ou manutenção.";
             labOpen.Dock = DockStyle.Fill;
             labOpen.Margin = new Padding(0, 2, 6, 2);
-            actionPanel.Controls.Remove(actionInfo);
-            actionPanel.Controls.Add(labOpen, 2, 0);
+            actionPanel.ColumnCount = 4;
+            actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            actionPanel.Controls.Add(labOpen, 3, 0);
         }
         // Copiar resumo pertence ao rodapé de diagnóstico, nunca à barra
         // de operações; permanece acessível somente após consulta válida.
@@ -741,7 +742,7 @@ internal sealed partial class MainForm
                 refreshWidth + investigationWidth + Scale(182);
             bool compactFilters = tiny || root.ClientSize.Width < Scale(800);
             bool showCopy = !tiny && !narrow;
-            bool splitActions = root.ClientSize.Width <
+            bool splitActions = labOpen is null && root.ClientSize.Width <
                 refreshWidth + investigationWidth + Scale(92);
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
             root.RowStyles[1].Height = splitActions ? Scale(79) :
@@ -764,11 +765,8 @@ internal sealed partial class MainForm
                     actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
                 }
                 actionPanel.SetCellPosition(investigate, new TableLayoutPanelCellPosition(1, 0));
-                if (labOpen is null)
-                {
-                    actionPanel.SetColumnSpan(actionInfo, 3);
-                    actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(0, 1));
-                }
+                actionPanel.SetColumnSpan(actionInfo, 3);
+                actionPanel.SetCellPosition(actionInfo, new TableLayoutPanelCellPosition(0, 1));
             }
             else
             {
@@ -792,7 +790,7 @@ internal sealed partial class MainForm
                 ? Math.Max(Scale(132), TextRenderer.MeasureText(copySummary.Text, copySummary.Font).Width + Scale(16))
                 : 0;
             actionHint.Visible = !compactFilters;
-            compactFilter.Visible = compactFilters && labOpen is null;
+            compactFilter.Visible = compactFilters;
             if (compactFilter.SelectedItem is string current && current != activeFilter)
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
