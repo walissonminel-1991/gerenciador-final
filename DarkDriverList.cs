@@ -314,7 +314,7 @@ internal sealed class DarkDriverList : Control
         // A ação aparece para todos. O backend OEM continua protegido:
         // casos não elegíveis seguem ao gerenciamento manual do Windows.
         DrawAction(canvas, uninstall, "Desinstalar", _actionsCurrent,
-            hover == DriverCardAction.Uninstall, true);
+            hover == DriverCardAction.Uninstall, CanUninstall(item));
     }
 
     private void DrawAction(Graphics canvas, Rectangle bounds, string text,
