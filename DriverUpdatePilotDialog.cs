@@ -3,9 +3,9 @@ using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
 
-// G3.1: a interface normal recebe WUA e diario reais. Nesta fase,
-// somente a REVALIDACAO WUA e acionavel; download/instalacao continuam
-// bloqueados na interface nativa ate a seguranca de PC fisico da G3.2.
+// G3.2: WUA nativo só após consentimento físico explícito, OEM seguro,
+// backup exportado e conferido, diário válido e revalidação transacional.
+// A consulta G3.1 continua somente leitura; fixtures não usam WUA real.
 // Fixtures sinteticas mantem o contrato historico do piloto completo.
 internal static class DriverUpdatePilotDialog
 {
@@ -40,7 +40,7 @@ internal static class DriverUpdatePilotDialog
         var form = new Form
         {
             Name = "DriverPilotReviewForm",
-            Text = nativeWua ? "Drivers — revalidação WUA real (G3.1)" :
+            Text = nativeWua ? "Drivers — atualização WUA controlada (G3.2)" :
                 "Drivers — piloto WUA experimental (revisão)",
             Width = 760, Height = 550, MinimumSize = new Size(500, 340),
             StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
@@ -63,7 +63,7 @@ internal static class DriverUpdatePilotDialog
         var headline = new Label
         {
             Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
-            Text = nativeWua ? "G3.1 — consulta WUA real, sem baixar ou instalar drivers" :
+            Text = nativeWua ? "G3.2 — somente pacote OEM elegível com backup comprovado" :
                 "PILOTO EXPERIMENTAL — seleção por dispositivo e UpdateID",
             AccessibleName = "Identificação do piloto experimental"
         };
@@ -89,18 +89,21 @@ internal static class DriverUpdatePilotDialog
         var confirm = new CheckBox
         {
             Name = "DriverPilotConfirm", Dock = DockStyle.Fill,
-            Text = nativeWua ? "Instalação não habilitada nesta fase (G3.1)" :
-                "Confirmo a oferta selecionada (sem atualização automática)",
-            Enabled = !nativeWua,
+            Text = nativeWua
+                ? "Autorizo instalar exatamente a oferta e o dispositivo selecionados"
+                : "Confirmo a oferta selecionada (sem atualização automática)",
+            Enabled = true,
             AccessibleName = "Confirmar explicitamente UpdateID, revisão e dispositivo"
         };
         var isolated = new CheckBox
         {
             Name = "DriverPilotDisposable", Dock = DockStyle.Fill,
-            Text = nativeWua ? "Segurança do PC físico pendente de implementação (G3.2)" :
-                "Confirmo que este é um Windows descartável de laboratório",
-            Enabled = !nativeWua,
-            AccessibleName = "Confirmar computador Windows descartável"
+            Text = nativeWua
+                ? "Aceito o risco no PC físico e exijo backup OEM verificado antes do download"
+                : "Confirmo que este é um Windows descartável de laboratório",
+            Enabled = true,
+            AccessibleName = nativeWua ? "Autorizar operação física com recuperação OEM"
+                : "Confirmar computador Windows descartável"
         };
         var status = new Label
         {
@@ -117,12 +120,13 @@ internal static class DriverUpdatePilotDialog
         var start = new Button
         {
             Name = "DriverPilotStart", Dock = DockStyle.Fill, Enabled = false,
-            Text = nativeWua ? "Instalação bloqueada (G3.2)" :
+            Text = nativeWua ? "Instalar com backup OEM" :
                 backendForTest is not null && journalForTest is not null
                     ? "Executar atualização simulada" : "Instalação bloqueada",
-            AccessibleName = "Iniciar piloto em ambiente descartável",
+            AccessibleName = nativeWua ? "Iniciar instalação WUA controlada"
+                : "Iniciar piloto em ambiente descartável",
             AccessibleDescription = nativeWua
-                ? "G3.1: não executa download ou instalação; a segurança do PC físico será tratada em G3.2."
+                ? "Exige administrador, OEM único não crítico, consentimento, backup e diário. Sem reinício automático."
                 : "Execução nativa indisponível nesta compilação normal."
         };
         var simulate = new Button
@@ -189,13 +193,23 @@ internal static class DriverUpdatePilotDialog
                             ? "Consulta WUA anterior ainda ativa; aguarde o fim da operação nativa."
                             : "Selecione uma oferta válida para consultar o WUA."
                         : "Selecione uma oferta para visualizar um plano textual sem executar.";
+            bool physicalEligible = nativeWua && choices.SelectedItem is ChoiceRow selectedRow &&
+                DriverG32RecoveryTicket.CanOffer(inventory, selected, selectedRow.Choice) &&
+                OperatingSystem.IsWindows() && DriverSilentUninstall.IsElevated() &&
+                !DriverG32RecoveryTicket.HasActiveOperation &&
+                !nativeReadGate.HasPendingWork &&
+                DriverUpdatePilotFileJournal.MayBeginReadOnly(
+                    DriverUpdatePilotFileJournal.SuggestedPath);
             start.Enabled = !invalidated && !busy && validChoice &&
                 confirm.Checked && isolated.Checked &&
-                DriverG31Wiring.CanExecutePilot(backendForTest, journalForTest);
+                (nativeWua ? physicalEligible :
+                    DriverG31Wiring.CanExecutePilot(backendForTest, journalForTest));
             start.AccessibleDescription = invalidated
                 ? "Fotografia revogada; reabra a investigação."
                 : nativeWua
-                    ? "G3.1: instalação nativa bloqueada até G3.2; apenas revalidação WUA real."
+                    ? "G3.2: administrador, OEM individual não crítico, assinatura, backup e diário obrigatórios. " +
+                      DriverUpdatePilotFileJournal.ReadOnlyStatus(
+                          DriverUpdatePilotFileJournal.SuggestedPath)
                     : backendForTest is null || journalForTest is null
                         ? "Nenhuma instalação habilitada na versão pessoal."
                         : "Ação sintética de laboratório. Não chama o Windows Update real.";
@@ -243,7 +257,7 @@ internal static class DriverUpdatePilotDialog
                     Environment.NewLine + "VERSÃO OFERTADA: NÃO COMPROVADA. " +
                     "Esta oferta consultiva não prova atualização numericamente superior." +
                     Environment.NewLine + (nativeWua ?
-                        "G3.1: revalidação WUA disponível; instalação bloqueada até G3.2." :
+                        "G3.2: revalidação consultiva disponível. Instalação somente com backup e consentimento." :
                         "Nenhuma instalação nesta compilação normal.");
             UpdateEligibility();
         };
@@ -313,7 +327,7 @@ internal static class DriverUpdatePilotDialog
                     if (!form.IsDisposed && !invalidated && CanReview() &&
                         Equals(choices.SelectedItem, row))
                     {
-                        detail.Text = "G3.1 — RESULTADO DA CONSULTA WUA REAL" + Environment.NewLine +
+                        detail.Text = "G3.2 — RESULTADO DA CONSULTA WUA REAL" + Environment.NewLine +
                             "Esta ação não baixou nem instalou drivers." + Environment.NewLine +
                             "Oferta: " + row.Choice.UpdateId + " / revisão " + row.Choice.Revision +
                             Environment.NewLine + "Origem oficial: " + check.OfficialSource +
@@ -325,9 +339,9 @@ internal static class DriverUpdatePilotDialog
                             Environment.NewLine + "Não interativo: " + check.NonInteractive +
                             Environment.NewLine + "Sem reinício pendente: " + check.RebootNotPending +
                             Environment.NewLine + "Já baixado: " + check.Downloaded +
-                            Environment.NewLine + "Instalação: BLOQUEADA até G3.2.";
+                            Environment.NewLine + "Instalação: condicionada a autorização, backup OEM e diário G3.2.";
                         SetStatus(check.BeforeDownload
-                            ? "Oferta revalidada pelo WUA; G3.1 não libera download ou instalação."
+                            ? "Oferta revalidada; nenhuma instalação iniciada nesta consulta."
                             : "Oferta não passou pelos guardas consultivos; GF não solicitou alterações.");
                     }
                 }
@@ -428,7 +442,7 @@ internal static class DriverUpdatePilotDialog
             {
                 active?.Cancel();
                 SetStatus(nativeWua
-                    ? "Cancelamento solicitado. A pesquisa WUA pode ainda continuar; nenhuma instalação iniciada."
+                    ? "Cancelamento solicitado. WUA/backup podem continuar; confira o diário antes de repetir."
                     : "Cancelamento solicitado. Search/Download/Install COM pode continuar; não repetir.");
             }
             else form.Close();
@@ -438,7 +452,7 @@ internal static class DriverUpdatePilotDialog
         SetStatus(available.Length == 0
             ? "Não há oferta WUA com identidade única e classe permitida nesta fotografia."
             : nativeWua
-                ? "G3.1: revalidação WUA real disponível, sem instalação. " +
+                ? "G3.2: instalação apenas com elegibilidade, administrador, backup e consentimento. " +
                     DriverUpdatePilotFileJournal.ReadOnlyStatus(
                         DriverUpdatePilotFileJournal.SuggestedPath)
                 : "Selecione uma oferta e revise sua identidade. Execução nativa bloqueada na versão pessoal.");
