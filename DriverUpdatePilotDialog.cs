@@ -384,52 +384,105 @@ internal static class DriverUpdatePilotDialog
             UpdateEligibility();
             if (!start.Enabled || busy || choices.SelectedItem is not ChoiceRow row ||
                 backendForTest is null || journalForTest is null ||
-                !DriverG31Wiring.CanExecutePilot(backendForTest, journalForTest)) return;
-            if (!CanReview() || !available.Contains(row)) return;
-            var consent = new DriverUpdatePilotApproval(row.Choice.UpdateId, row.Choice.Revision,
-                row.Choice.DeviceId, confirm.Checked, isolated.Checked, DateTimeOffset.UtcNow);
-            IDriverUpdatePilotJournal journal;
-            try { journal = journalForTest(); }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                SetStatus("Journal indisponível; execução bloqueada.");
+                !(nativeWua
+                    ? DriverG32RecoveryTicket.CanOffer(inventory, selected, row.Choice)
+                    : DriverG31Wiring.CanExecutePilot(backendForTest, journalForTest)) ||
+                !CanReview() || !available.Contains(row)) return;
+            if (nativeWua && MessageBox.Show(form,
+                "Autoriza instalar UM driver pelo Windows Update neste computador?" +
+                Environment.NewLine + "UpdateID: " + row.Choice.UpdateId +
+                " / revisão: " + row.Choice.Revision +
+                Environment.NewLine + "Dispositivo: " + row.Choice.DeviceId +
+                Environment.NewLine + "Classe: " + row.Choice.DriverClass +
+                Environment.NewLine + "Um backup OEM verificado será obrigatório antes do download." +
+                Environment.NewLine + "Não há rollback automático; o Windows pode exigir reinício.",
+                "Confirmar instalação física de driver", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
                 return;
-            }
+
+            bool gateHeld = false;
+            IDriverUpdatePilotJournal? journal = null;
+            DriverG32RecoveryTicket? recovery = null;
             busy = true;
             active = new CancellationTokenSource();
+            var operation = active;
+            bool CurrentChoice() => !form.IsDisposed && !invalidated &&
+                CanReview() && Equals(choices.SelectedItem, row) &&
+                available.Contains(row);
             UpdateEligibility();
             cancel.Text = "Cancelar espera";
-            SetStatus("Validação inicial do dispositivo e da oferta…");
+            SetStatus(nativeWua
+                ? "G3.2: verificando OEM e preparando backup de recuperação..."
+                : "Validação inicial do dispositivo e da oferta…");
             try
             {
+                if (nativeWua)
+                {
+                    // Não há segundo piloto nativo concorrente neste processo.
+                    if (!DriverG32RecoveryTicket.TryBeginOperation())
+                    {
+                        SetStatus("Outra atualização G3.2 ainda está ativa. Não repetir.");
+                        return;
+                    }
+                    gateHeld = true;
+                    var prepared = await DriverG32RecoveryTicket.PrepareAsync(
+                        inventory, selected, row.Choice, CurrentChoice, operation.Token);
+                    if (prepared.Ticket is null)
+                    {
+                        SetStatus(prepared.Reason);
+                        return;
+                    }
+                    recovery = prepared.Ticket;
+                    SetStatus(prepared.Reason + " Revalidando a oferta oficial...");
+                }
+                try { journal = journalForTest(); }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    SetStatus("Diário indisponível; nenhuma instalação autorizada.");
+                    return;
+                }
+                var consent = new DriverUpdatePilotApproval(
+                    row.Choice.UpdateId, row.Choice.Revision, row.Choice.DeviceId,
+                    confirm.Checked, !nativeWua && isolated.Checked, DateTimeOffset.UtcNow)
+                {
+                    PhysicalWindowsApproved = nativeWua && isolated.Checked
+                };
                 var result = await DriverUpdatePilot.Execute(
-                    row.Choice, consent, backendForTest, journal, active.Token,
-                    stillCurrent: () => !form.IsDisposed && !invalidated && CanReview(),
+                    row.Choice, consent, backendForTest, journal, operation.Token,
+                    stillCurrent: CurrentChoice,
                     progress: message =>
                     {
                         if (form.IsDisposed) return;
-                        if (form.InvokeRequired)
-                            form.BeginInvoke((Action)(() => SetStatus(message)));
-                        else SetStatus(message);
-                    });
+                        try
+                        {
+                            if (form.InvokeRequired)
+                                form.BeginInvoke((Action)(() => SetStatus(message)));
+                            else SetStatus(message);
+                        }
+                        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException) { }
+                    },
+                    recovery: recovery);
                 if (!form.IsDisposed)
-                    SetStatus("Resultado " + result.State + ": " + result.Reason);
+                    SetStatus("Resultado " + result.State + ": " + result.Reason +
+                        (recovery is null ? "" : " Backup OEM preservado para recuperação manual."));
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 if (!form.IsDisposed)
-                    SetStatus("Falha do piloto: estado não confirmado. " + ex.GetType().Name);
+                    SetStatus("Resultado não confirmado: " + ex.GetType().Name +
+                        ". Consulte diário e backup antes de repetir.");
             }
             finally
             {
                 if (journal is IDisposable resource) resource.Dispose();
-                active.Dispose();
+                if (gateHeld) DriverG32RecoveryTicket.EndOperation();
+                operation.Dispose();
                 active = null;
                 busy = false;
                 if (!form.IsDisposed)
                 {
                     cancel.Text = "Fechar";
-                    // Proíbe nova tentativa automática, mesmo após resultado positivo.
+                    // Mesmo com sucesso, cada atualização requer nova autorização.
                     confirm.Checked = false;
                     isolated.Checked = false;
                     UpdateEligibility();
