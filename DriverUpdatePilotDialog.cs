@@ -177,6 +177,11 @@ internal static class DriverUpdatePilotDialog
         {
             if (form.IsDisposed) return;
             if (!CanReview()) invalidated = true;
+            // Uma seleção não pode mudar durante exportação, download ou Install.
+            search.Enabled = !busy && !invalidated;
+            choices.Enabled = !busy && !invalidated;
+            confirm.Enabled = !busy && !invalidated;
+            isolated.Enabled = !busy && !invalidated;
             bool validChoice = choices.SelectedItem is ChoiceRow;
             simulate.Enabled = !invalidated && !busy && validChoice;
             if (nativeWua && nativeReadGate.HasPendingWork)
