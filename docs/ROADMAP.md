@@ -1,5 +1,18 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+## Situação vigente — P0 da PR #97 (21/11/2026)
+
+Fonte d0a5156ab548cf4365ca9d1babe44deaca0da6bf, [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279577) e [integridade](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279588) aprovadas. Código integrado de Drivers (#95), Windows Update (#94), Limpeza e Desempenho (#96); EXE compilado no runner, **ZIP pessoal não entregue** e **homologação física pendente**. Distribuição pública bloqueada. Roadmap original **27/42**; expansão VF **0/16 aceitas**. [Critérios VF01–VF16](BACKLOG-VERSOES-FUTURAS.md) e [matriz P0/P1/P2](P0-ESTADO-CANDIDATA-PR97.md).
+
+| Ordem | Frente | Saída comprovável |
+|---|---|---|
+| P0, 23/11/2026 | Entrega pessoal da #97 | Host Windows autorizado, ZIP do SHA exato, conteúdo e SHA-256 verificados; testes físicos por etapas e permissões separadas |
+| Onda 1 | VF01, VF03, VF04, VF06, VF08, VF09, VF12, VF13 | Aceites individuais; não duplicar motores nem ampliar classes sem recuperação comprovada |
+| Onda 2 | VF02, VF05, VF07, VF10, VF15 | Suporte verificado por fabricante, Windows e cenário |
+| Onda 3 | VF11, VF14, VF16 | Opt-in, privacidade, reversibilidade e autorizações por operação |
+
+A classificação **2 implementadas / 10 parciais / 4 não localizadas** foi feita contra a PR #88; é histórico e não foi recalculada contra a #97. As seções seguintes são o histórico preservado.
+
 **Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
 [Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
 [guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
