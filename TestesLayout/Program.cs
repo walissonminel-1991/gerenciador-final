@@ -33,7 +33,7 @@ internal static class LayoutTests
             MsixPublisherId = "contosopub"
         };
         if (!msixButton.CanUninstallMsix ||
-            DarkProgramList.UninstallAction(msixButton) != "msix-uninstall")
+            msixButton.UninstallAction != "msix-uninstall")
             throw new Exception("VF06: botao MSIX elegivel nao aponta para o novo executor.");
         var msixWithoutFullName = new ProgramEntry
         {
@@ -43,8 +43,8 @@ internal static class LayoutTests
             MsixPackageFamilyName = "Contoso.Reader_pub",
             MsixPublisherId = "pub", MsixPackageName = "Contoso.Reader"
         };
-        if (DarkProgramList.UninstallAction(msixWithoutFullName) != "uninstall-manual" ||
-            DarkProgramList.UninstallAction(new ProgramEntry { Name = "Win32", CanUninstall = true }) != "uninstall")
+        if (msixWithoutFullName.UninstallAction != "uninstall-manual" ||
+            new ProgramEntry { Name = "Win32", CanUninstall = true }.UninstallAction != "uninstall")
             throw new Exception("VF06: roteamento de MSIX incompleto ou Win32 foi alterado.");
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
