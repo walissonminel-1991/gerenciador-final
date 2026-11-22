@@ -150,7 +150,9 @@ internal static class DriverListIdentityTests
                 Size.Empty, TextFormatFlags.NoPadding).Width;
             if (!row.Contains(uninstall) ||
                 uninstall.IntersectsWith(DriverRowGeometry.Status(row, dpi)) ||
-                uninstall.Width < minText)
+                uninstall.Width < minText ||
+                !row.Contains(DriverRowGeometry.Update(row, dpi, font)) ||
+                DriverRowGeometry.Update(row, dpi, font).IntersectsWith(uninstall))
                 throw new Exception($"UX Drivers: desinstalação lateral cortada/sobreposta em {logicalWidth}, DPI {dpi}");
         }
         using var actionHost = new Form
@@ -181,6 +183,26 @@ internal static class DriverListIdentityTests
             mouse.Invoke(actionsList, [new MouseEventArgs(MouseButtons.Left, 1,
                 target.Left + target.Width / 2, target.Top + target.Height / 2, 0)]);
         }
+        // Ação de atualizar só existe para DeviceId explicitamente habilitado.
+        // Um badge WUA consultivo, isoladamente, nunca dispara atualização.
+        var updateRow = new Rectangle(0, 0,
+            Math.Max(1, actionsList.ClientSize.Width - 20),
+            DriverRowGeometry.Height(actionsList.DeviceDpi,
+                Math.Max(1, actionsList.ClientSize.Width - 20)));
+        var updateTarget = DriverRowGeometry.Update(updateRow, actionsList.DeviceDpi, font);
+        void ClickUpdate() => mouse.Invoke(actionsList,
+            [new MouseEventArgs(MouseButtons.Left, 1,
+                updateTarget.Left + updateTarget.Width / 2,
+                updateTarget.Top + updateTarget.Height / 2, 0)]);
+        ClickUpdate();
+        if (requested != 0) throw new Exception("UX Drivers: oferta consultiva habilitou atualizar.");
+        actionsList.SetEligibleUpdateDevices([a.DeviceId]);
+        ClickUpdate();
+        if (requested != 1 || !ReferenceEquals(lastRequested, a) ||
+            lastAction != DriverCardAction.Update)
+            throw new Exception("UX Drivers: atualizar não preservou a identidade elegível.");
+        actionsList.SetEligibleUpdateDevices(Array.Empty<string>());
+        requested = 0;
         ClickUninstall(0);
         if (requested != 1 || !ReferenceEquals(lastRequested, a) ||
             lastAction != DriverCardAction.Uninstall)
@@ -204,6 +226,10 @@ internal static class DriverListIdentityTests
         if (requested != 3)
             throw new Exception("UX Drivers: ação foi emitida após revogar autoridade.");
         actionHost.Close();
-        Console.WriteLine("OK UX Drivers: geometria DPI, seleção por referência e revogação do clique");
+        var priority = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { b.DeviceId };
+        var ordered = DriverListFilters.Apply([a, b], "Todos", "", priority);
+        if (!ReferenceEquals(ordered[0], b) || !ReferenceEquals(ordered[1], a))
+            throw new Exception("UX Drivers: oferta elegível não ficou no topo.");
+        Console.WriteLine("OK UX Drivers: geometria DPI, atualização elegível, ordenação e revogação do clique");
     }
 }

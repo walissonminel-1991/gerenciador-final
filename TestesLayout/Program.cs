@@ -388,13 +388,20 @@ internal static class LayoutTests
             PnpProblemCode = 28,
             WithoutSignedDriverAssociation = true
         };
+        var enrichedRecord = privateRecord with
+        {
+            Present = true, PnpProblemCode = 0, WithoutSignedDriverAssociation = false,
+            DeviceId = @"ACPI\TEST\1", DeviceName = "Dispositivo desconhecido",
+            DeviceMetadata = new("MODELO-SIGILOSO", "")
+        };
         var anonymous = DriverTriageSummary.Format(new DriverInventoryResult(
-            [privateRecord], true, "ERRO-SIGILOSO"));
+            [privateRecord, enrichedRecord], true, "ERRO-SIGILOSO"));
         if (!anonymous.Contains("Inventário parcial: sim") ||
+            !anonymous.Contains("Associações presentes: 1; nomes genéricos no Windows: 1; no GF: 0.") ||
             !anonymous.Contains("Falhas PnP relatadas pelo Windows: 1") ||
             !anonymous.Contains("Sem linha de driver assinado associada no WMI: 1") ||
             new[] { privateRecord.DeviceId, privateRecord.DeviceName, privateRecord.Provider,
-                privateRecord.InfName, privateRecord.HardwareIds[0], "ERRO-SIGILOSO" }
+                privateRecord.InfName, privateRecord.HardwareIds[0], "ERRO-SIGILOSO", "MODELO-SIGILOSO" }
                 .Any(value => anonymous.Contains(value, StringComparison.OrdinalIgnoreCase)))
             throw new Exception("Resumo anônimo vazou dado sensível ou perdeu contagem.");
         Console.WriteLine("OK DRIVERS UX: filtro ausência WMI e resumo de contagens sem identificadores.");
