@@ -94,6 +94,48 @@ internal static class DriverHardwareCatalogTests
                 [nvidiaSigned with { ReportedDriverClass = "" }], false, "")).Single()) is null,
             "VF02 recusa conversão NVIDIA para outros fornecedores, provedor errado, formato inválido, duplicidade e lacunas");
 
+        // VF02 fase 5: API NVAPI oficial informa o canal INSTALADO, não uma oferta.
+        // Valores de fixtures não são chamadas nativas nem provas da RTX 5060 Ti física.
+        Check(NvidiaDriverChannel.NativeStructureSize == 76 &&
+            NvidiaDriverChannel.Classify(61742, 0x02, "617.42") == "Studio" &&
+            NvidiaDriverChannel.Classify(61742, 0x04, "617.42") == "Game Ready" &&
+            NvidiaDriverChannel.Classify(61742, 0x05, "617.42") == "Game Ready" &&
+            NvidiaDriverChannel.Classify(61742, 0x08, "617.42") == "RTX Production Branch" &&
+            NvidiaDriverChannel.Classify(61742, 0x10, "617.42") == "RTX New Feature Branch" &&
+            NvidiaDriverChannel.CanRead(nvidiaInventory, nvidiaSnapshot) &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned,
+                nvidiaInstalledChannel: "Game Ready")
+                .Contains("Canal instalado (Game Ready/Studio/Adrenalin/Game On): Game Ready",
+                    StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned,
+                nvidiaInstalledChannel: "Game Ready")
+                .Contains("Origem do canal: NVAPI local oficial", StringComparison.Ordinal),
+            "VF02 fase 5 reconhece flags exclusivas NVIDIA, versão exata e relatório com proveniência");
+        var secondNvidia = nvidiaSigned with { DeviceId = @"PCI\VEN_10DE&DEV_2D04\SECOND" };
+        Check(NvidiaDriverChannel.Classify(61742, 0, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x01, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x06, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x20, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x04, "618.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x04, null) is null &&
+            NvidiaDriverChannel.Classify(61742, 0x04, "617.42.0") is null &&
+            NvidiaDriverChannel.Classify(0, 0x04, "617.42") is null &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned, secondNvidia], false, ""),
+                nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned, nvidiaSigned], false, ""),
+                nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned], true, ""),
+                nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned with { Provider = "Microsoft" }],
+                false, ""), nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([intelDisplay], false, ""), 
+                graphics.Single(x => x.Manufacturer == "Intel")) &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned)
+                .Contains("Canal instalado (Game Ready/Studio/Adrenalin/Game On): não identificado",
+                    StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 fase 5 falha fechada para flags, versões ou GPU ambiguas, sem abrir Display");
+
         // VF02 fase 2: nenhum endpoint de scraping nem versão remota presumida.
         var nvidiaSite = GraphicsDriverOfficialSources.For(found[0]);
         var amdSite = GraphicsDriverOfficialSources.For(graphics.Single(x => x.Manufacturer == "AMD"));
