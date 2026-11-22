@@ -9,6 +9,8 @@ internal static class DriverReadOnlyReport
     internal static string InfAvailability(DriverInventoryEntry? selected) =>
         selected is null
             ? "Indisponível: selecione um dispositivo com INF mapeado."
+            : selected.BindingStatus == DriverBindingStatus.Conflicting
+                ? "Indisponível: associação WMI diverge do vínculo PnP atual."
             : selected.WithoutSignedDriverAssociation
                 ? "Indisponível: nenhuma associação de driver assinado observada nesta leitura; preservar."
                 : selected.PackageEvidence is null
@@ -109,6 +111,8 @@ internal static class DriverReadOnlyReport
             text.AppendLine("DISPOSITIVO SELECIONADO");
             text.AppendLine("Nome no Windows: " + (string.IsNullOrWhiteSpace(selected.DeviceName)
                 ? "não informado" : selected.DeviceName));
+            var support = DriverHardwareSupport.Get(inventory, selected);
+            text.AppendLine("Categoria: " + DriverHardwareSupport.Label(support.Category));
             if (selected.DeviceMetadata is { } metadata)
             {
                 if (metadata.FriendlyName.Length > 0)
@@ -135,7 +139,21 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("Variante PCI (catálogo): " + identity.Subsystem);
             text.AppendLine("ID da instância: " + selected.DeviceId);
             text.AppendLine("IDs de hardware: " + (selected.HardwareIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.HardwareIds)));
+            text.AppendLine("IDs compatíveis informados pelo PnP: " + (selected.CompatibleIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.CompatibleIds)));
             text.AppendLine($"Versão instalada (WMI): {selected.Version}; INF: {selected.InfName}; {selected.PresenceLabel}.");
+            if (selected.DeviceBinding is { } binding)
+            {
+                string status = selected.BindingStatus switch
+                {
+                    DriverBindingStatus.Confirmed => "INF e versão coincidem com WMI",
+                    DriverBindingStatus.Conflicting => "divergência com WMI. Atualização experimental e verificação do INF bloqueadas",
+                    _ => "comparação parcial com WMI"
+                };
+                text.AppendLine($"A associação PnP informa INF {(binding.InfName.Length > 0 ? binding.InfName : "não informado")} " +
+                    $"e versão {(binding.Version.Length > 0 ? binding.Version : "não informada")} ({status}).");
+                if (binding.MatchingId.Length > 0)
+                    text.AppendLine("ID usado pelo Windows na associação do driver: " + binding.MatchingId);
+            }
             text.AppendLine("Diagnóstico PnP do Windows: " + selected.PnpStatusLabel + ".");
             text.AppendLine("Orientação consultiva PnP: " +
                 DriverPnpGuidance.Describe(selected.PnpProblemCode));
@@ -143,6 +161,14 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("Sem linha de driver assinado associada nesta leitura. Não significa pacote removível nem prova de versão disponível.");
             text.AppendLine(selected.PackageEvidence?.Label ?? "Vínculo de pacote indisponível.");
             text.AppendLine("Relato de assinatura WMI: " + selected.SignatureLabel + " (não é a verificação abaixo).");
+            if (DriverGamingCatalog.Find(inventory, selected, DriverGamingCatalog.Windows11X64) is { } gaming)
+            {
+                text.AppendLine();
+                DriverGamingCatalog.AppendReport(text, gaming);
+                text.AppendLine();
+            }
+            else
+                text.AppendLine(support.Status);
             // A apresentação nunca deve alegar "trecho lido" se a fonte
             // histórica nem foi consultada ou informou indisponibilidade.
             var visibleEvents = windowsHistory?.Unavailable == true
@@ -162,6 +188,7 @@ internal static class DriverReadOnlyReport
         }
         text.AppendLine("VERIFICAÇÃO DO INF INSTALADO");
         bool evidenceAllowsVerification = selected is not null &&
+            selected.BindingStatus != DriverBindingStatus.Conflicting &&
             !selected.WithoutSignedDriverAssociation &&
             selected.PackageEvidence?.State == DriverStoreState.Mapped;
         text.AppendLine(evidenceAllowsVerification
@@ -205,7 +232,7 @@ internal static class DriverReadOnlyReport
             {
                 text.AppendLine($"{match.DeviceName}: {match.Offer.Title}");
                 text.AppendLine($"  Fornecedor: {match.Offer.Provider}; modelo: {match.Offer.Model}; data informada: {match.Offer.VersionDate:yyyy-MM-dd}.");
-                text.AppendLine($"  Instância PnP: {match.DeviceId}; HardwareID exato: {match.Offer.HardwareId}.");
+                text.AppendLine($"  Instância PnP: {match.DeviceId}; {match.MatchDescription}: {match.MatchedId}.");
                 text.AppendLine($"  Identidade da oferta WUA: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
                 if (match.Relations is { } relations)
                 {
