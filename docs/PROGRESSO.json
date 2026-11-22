@@ -5,6 +5,19 @@
   "ci_status": "success",
   "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
+  "current_candidate": {
+    "status_as_of": "2026-11-21",
+    "pull_request": 97,
+    "source_commit": "d0a5156ab548cf4365ca9d1babe44deaca0da6bf",
+    "windows_ci": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279577",
+    "integrity_ci": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279588",
+    "code_integrated": true,
+    "personal_zip_delivered": false,
+    "physical_homologation_completed": false,
+    "remaining_original_checkpoints": 15,
+    "expansion_vf01_vf16_accepted": 0,
+    "note": "Os campos version, date, code_commit e ci_* no topo preservam o checkpoint historico .65, nao o HEAD da candidata P0."
+  },
   "sections": [
     {
       "name": "Inventário",
