@@ -57,6 +57,12 @@ internal static class DriverReadOnlyReport
             text.AppendLine($"GPU: {gpu.Manufacturer} — {gpu.Model}");
             text.AppendLine($"Origem do modelo: {gpu.ModelSource}.");
             text.AppendLine($"Versão do driver Windows: {gpu.InstalledWindowsVersion}; origem: {gpu.VersionSource}.");
+            if (GraphicsDriverInventory.NvidiaPublicVersion(gpu) is { } nvidiaVersion)
+            {
+                text.AppendLine($"Versão NVIDIA equivalente (derivada da WMI): {nvidiaVersion}.");
+                text.AppendLine("Conversão pela regra oficial dos últimos cinco dígitos; não identifica Game Ready/Studio, " +
+                    "não comprova versão mais recente ou pacote compatível. Confirme no NVIDIA App.");
+            }
             text.AppendLine($"Canal instalado (Game Ready/Studio/Adrenalin/Game On): {gpu.InstalledChannel}.");
             text.AppendLine("Observação: " + gpu.Observation + ".");
             if (GraphicsDriverOfficialSources.For(gpu) is { } site)
