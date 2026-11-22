@@ -27,7 +27,7 @@ internal static class DriverReadOnlyReport
     // necessários à conferência humana. Não contém linhas brutas de setupapi.dev.log.
     internal static string Format(DriverInventoryResult inventory, DriverInventoryEntry? selected,
         DriverOfficialResult? official = null, DriverInfVerificationResult? verification = null,
-        string? nvidiaInstalledChannel = null)
+        string? nvidiaInstalledChannel = null, string? amdInstalledEdition = null)
     {
         var text = new StringBuilder("DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n");
         text.AppendLine("Dados locais de hardware nesta janela; nenhum pacote é instalado, removido ou baixado.");
@@ -75,6 +75,18 @@ internal static class DriverReadOnlyReport
             if (selectedNvidia && displayedChannel != gpu.InstalledChannel)
                 text.AppendLine("Origem do canal: NVAPI local oficial + versão concordante com WMI. " +
                     "Não comprova oferta, compatibilidade ou permissão de atualização.");
+            bool selectedAmd = selected is not null && gpu.Manufacturer == "AMD" &&
+                !inventory.Partial && string.Equals(selected.DeviceId, gpu.DeviceId,
+                    StringComparison.OrdinalIgnoreCase) && gpu.InstalledWindowsVersion != "não confirmada";
+            if (selectedAmd && amdInstalledEdition is "AMD Software: Adrenalin Edition" or
+                    "AMD Software: PRO Edition")
+            {
+                text.AppendLine("Edição AMD instalada (ADLX local): " + amdInstalledEdition + ".");
+                text.AppendLine("Origem: ADLX AMDSoftwareEdition + AMDWindowsDriverVersion " +
+                    "concordante com WMI e identidade OEM. Não comprova oferta, elegibilidade ou atualização.");
+            }
+            else if (selectedAmd)
+                text.AppendLine("Edição AMD instalada: não identificada (ADLX ausente ou evidência insuficiente).");
             text.AppendLine("Observação: " + gpu.Observation + ".");
             if (GraphicsDriverOfficialSources.For(gpu) is { } site)
             {
