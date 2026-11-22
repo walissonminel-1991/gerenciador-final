@@ -11,7 +11,7 @@ internal readonly record struct AppActionLayout(int Dpi, bool Compact, int RowHe
         double scale = effectiveDpi / 96d;
         bool compact = availableWidth < (int)Math.Ceiling(860 * scale);
         return new AppActionLayout(effectiveDpi, compact,
-            (int)Math.Ceiling((compact ? 114 : 44) * scale));
+            (int)Math.Ceiling((compact ? 90 : 44) * scale));
     }
 
     internal bool NeedsReflow(AppActionLayout? previous) =>

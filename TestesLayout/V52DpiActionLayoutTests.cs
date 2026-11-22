@@ -16,7 +16,7 @@ internal static class V52DpiActionLayoutTests
             {
                 var current = AppActionLayout.Measure(width, dpi);
                 var next = AppActionLayout.Measure(width, dpi);
-                int expectedHeight = (int)Math.Ceiling((current.Compact ? 114 : 44) * dpi / 96d);
+                int expectedHeight = (int)Math.Ceiling((current.Compact ? 90 : 44) * dpi / 96d);
                 if (current.Dpi != dpi || current.RowHeight != expectedHeight ||
                     !current.NeedsReflow(prior) || next.NeedsReflow(current))
                     throw new Exception($"V5.2: estado/recálculo incorreto {screen}, DPI {dpi}.");
@@ -36,6 +36,12 @@ internal static class V52DpiActionLayoutTests
                 checkedCases++;
             }
         }
+        // Viewport mínimo observado no runner (800×600, área de cartões de
+        // Aplicativos 514×167): 3 linhas compactas devem caber com busca,
+        // filtro e padding, sem empurrar o botão Todos para fora.
+        var tiny = AppActionLayout.Measure(514, 96);
+        if (!tiny.Compact || tiny.RowHeight > 90 || 35 + tiny.RowHeight + 33 + 8 > 167)
+            throw new Exception("V5.2: três linhas excedem o viewport mínimo 800×600.");
         var weak150 = AppActionLayout.Measure(1440 * 70 / 100 - 24, 144);
         var weak200 = AppActionLayout.Measure(1440 * 70 / 100 - 24, 192);
         var strong150 = AppActionLayout.Measure(2560 * 70 / 100 - 24, 144);
