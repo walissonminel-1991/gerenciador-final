@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -27,7 +29,9 @@ internal sealed partial class MainForm
         };
         var working = Screen.FromControl(this).WorkingArea;
         dialog.Size = new Size(Math.Min(dialog.Width, working.Width - 24), Math.Min(dialog.Height, working.Height - 36));
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+        var gaming = DriverGamingCatalog.Find(inventory, selected, DriverGamingCatalog.Windows11X64);
+        using var gamingMenu = gaming is null ? null : new ContextMenuStrip();
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = gaming is null ? 3 : 4,
             Padding = new Padding(10), BackColor = PanelBackground };
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
@@ -85,6 +89,45 @@ internal sealed partial class MainForm
         statusRow.Controls.Add(status, 0, 0);
         statusRow.Controls.Add(pilotLink, 1, 0);
         root.Controls.Add(body, 0, 0); root.Controls.Add(statusRow, 0, 1); root.Controls.Add(bar, 0, 2);
+        if (gaming is not null && gamingMenu is not null)
+        {
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+            var gamingLink = new LinkLabel
+            {
+                Name = "DriverGamingSourcesLink", Dock = DockStyle.Fill, LinkColor = Accent,
+                Text = "Driver gráfico — abrir fonte oficial",
+                TextAlign = ContentAlignment.MiddleLeft,
+                AccessibleName = "Abrir páginas oficiais do driver gráfico",
+                AccessibleDescription = "Escolha a consulta do fabricante ou as notas de uma versão no navegador."
+            };
+            void AddPage(string label, Uri page)
+            {
+                gamingMenu.Items.Add(label, null, (_, _) =>
+                {
+                    if (!isCurrent())
+                    {
+                        SetStatus("O inventário mudou. Reabra a investigação para consultar o fabricante.");
+                        return;
+                    }
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(page.AbsoluteUri) { UseShellExecute = true });
+                    }
+                    catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+                    {
+                        SetStatus("O navegador não pôde abrir a página oficial.");
+                    }
+                });
+            }
+            AddPage("Consultar o fabricante", gaming.Support);
+            foreach (var reference in gaming.References)
+                AddPage($"{reference.Channel} {reference.Version}", reference.Page);
+            gamingLink.LinkClicked += (_, _) =>
+            {
+                if (isCurrent()) gamingMenu.Show(gamingLink, new Point(0, gamingLink.Height));
+            };
+            root.Controls.Add(gamingLink, 0, 3);
+        }
         dialog.Controls.Add(root);
         dialog.HandleCreated += (_, _) =>
         {

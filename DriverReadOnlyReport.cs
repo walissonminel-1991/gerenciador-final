@@ -97,6 +97,12 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("Sem linha de driver assinado associada nesta leitura. Não significa pacote removível nem prova de versão disponível.");
             text.AppendLine(selected.PackageEvidence?.Label ?? "Vínculo de pacote indisponível.");
             text.AppendLine("Relato de assinatura WMI: " + selected.SignatureLabel + " (não é a verificação abaixo).");
+            if (DriverGamingCatalog.Find(inventory, selected, DriverGamingCatalog.Windows11X64) is { } gaming)
+            {
+                text.AppendLine();
+                DriverGamingCatalog.AppendReport(text, gaming);
+                text.AppendLine();
+            }
             // A apresentação nunca deve alegar "trecho lido" se a fonte
             // histórica nem foi consultada ou informou indisponibilidade.
             var visibleEvents = windowsHistory?.Unavailable == true

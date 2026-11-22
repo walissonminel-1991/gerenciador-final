@@ -49,6 +49,23 @@ internal static partial class DriverHardwareCatalog
     internal static DriverHardwareIdentity Identify(DriverInventoryEntry item) =>
         Identities.GetValue(item, Resolve);
 
+    internal static uint? ReportedPciProduct(DriverInventoryEntry item)
+    {
+        static uint? Product(string id)
+        {
+            if (id.Length > 256) return null;
+            var match = PciId().Match(id);
+            return match.Success && Hex(match.Groups[1].ValueSpan, 4, out uint vendor) &&
+                vendor is not (0 or 0xffff) && Hex(match.Groups[2].ValueSpan, 4, out uint device)
+                    ? (vendor << 16) | device : null;
+        }
+        uint? instance = Product(DriverDeviceMetadata.HardwarePart(item.DeviceId));
+        var reported = item.HardwareIds
+            .Where(id => id.StartsWith(@"PCI\VEN_", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return instance.HasValue && reported.Length > 0 && reported.All(id => Product(id) == instance)
+            ? instance : null;
+    }
+
     internal static string DisplayName(DriverInventoryEntry item)
     {
         string name = item.DeviceName.Trim();

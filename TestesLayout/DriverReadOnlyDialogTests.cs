@@ -7,13 +7,23 @@ internal static class DriverReadOnlyDialogTests
 {
     internal static void Run(MainForm owner)
     {
-        var device = new DriverInventoryEntry(@"PCI\TEST\FIXTURE", "Dispositivo sintético", "Fornecedor de teste",
-            "1.0", "oem17.inf", true, true)
+        RunCase(owner, gaming: false);
+        RunCase(owner, gaming: true);
+        Console.WriteLine("OK Drivers: diálogo real de investigação em 500x340 e 790x510, sem executar consultas de rede ou manutenção");
+    }
+
+    private static void RunCase(MainForm owner, bool gaming)
+    {
+        const string gpuId = @"PCI\VEN_10DE&DEV_2D04";
+        string deviceId = gaming ? gpuId + @"\FIXTURE" : @"PCI\TEST\FIXTURE";
+        string driverClass = gaming ? "Display" : "Printer";
+        var device = new DriverInventoryEntry(deviceId, "Dispositivo sintético", gaming ? "NVIDIA" : "Fornecedor de teste",
+            gaming ? "32.0.16.2124" : "1.0", "oem17.inf", true, true)
         {
-            HardwareIds = [@"PCI\VEN_1234&DEV_5678"],
+            HardwareIds = [gaming ? gpuId : @"PCI\VEN_1234&DEV_5678"],
             PackageEvidence = new("oem17.inf", DriverStoreState.Mapped),
-            ReportedDriverClass = "Printer",
-            WindowsEvents = [new(@"PCI\TEST\FIXTURE", "oem17.inf", new DateTime(2026, 10, 25, 12, 34, 56), DriverInstallOutcome.Failed)]
+            ReportedDriverClass = driverClass,
+            WindowsEvents = [new(deviceId, "oem17.inf", new DateTime(2026, 10, 25, 12, 34, 56), DriverInstallOutcome.Failed)]
         };
         var inventory = new DriverInventoryResult([device], false, "fixture");
         var method = typeof(MainForm).GetMethod("ShowDriverReadOnlyReport", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -36,12 +46,20 @@ internal static class DriverReadOnlyDialogTests
                     var buttons = controls.OfType<Button>().ToArray();
                     if (!Descendants(body).OfType<TextBox>().Single().ReadOnly ||
                         !body.RenderedText.Contains("falha registrada") ||
-                        !body.RenderedText.Contains("Classe do driver (WMI SignedDriver): Printer") ||
+                        !body.RenderedText.Contains("Classe do driver (WMI SignedDriver): " + driverClass) ||
                         !body.RenderedText.Contains("TRIAGEM DO PC FRACO") ||
                         !body.RenderedText.Contains("WUA: consulta ainda não solicitada") ||
                         body.RenderedText.Contains("C:\\Users\\") ||
                         !body.RenderedText.Contains("nenhuma exclusão é autorizada") || buttons.Length != 3)
                         throw new Exception("Relatório de drivers deve distinguir falha histórica e manter consulta sem escrita.");
+                    var graphicsLink = controls.OfType<LinkLabel>().SingleOrDefault(c => c.Name == "DriverGamingSourcesLink");
+                    if (gaming && (graphicsLink is null || !graphicsLink.CanSelect ||
+                        !body.RenderedText.Contains("NVIDIA GeForce RTX 5060 Ti") ||
+                        !dialog.RectangleToScreen(dialog.ClientRectangle).Contains(
+                            graphicsLink.RectangleToScreen(graphicsLink.ClientRectangle))))
+                        throw new Exception("Fonte gráfica oficial inacessível no viewport do diálogo.");
+                    if (!gaming && graphicsLink is not null)
+                        throw new Exception("Fonte gráfica exibida para dispositivo de outra classe.");
                     foreach (var button in buttons)
                         if (!dialog.RectangleToScreen(dialog.ClientRectangle).Contains(button.RectangleToScreen(button.ClientRectangle)) ||
                             button.Height < 26 || button.Width < 75)
@@ -64,10 +82,13 @@ internal static class DriverReadOnlyDialogTests
                     if (!buttons.Single(b => b.Name == "DriverVerifyInfReadOnly").Enabled ||
                         !buttons.Single(b => b.Name == "DriverOfficialReadOnly").Enabled)
                         throw new Exception("Consulta oficial e verificação do INF inacessíveis para seleção válida.");
-                    Directory.CreateDirectory("LayoutCaptures");
-                    using var bitmap = new Bitmap(dialog.Width, dialog.Height);
-                    dialog.DrawToBitmap(bitmap, new Rectangle(Point.Empty, dialog.Size));
-                    bitmap.Save($"LayoutCaptures/drivers-leitura-{size.Width}x{size.Height}.png");
+                    if (!gaming)
+                    {
+                        Directory.CreateDirectory("LayoutCaptures");
+                        using var bitmap = new Bitmap(dialog.Width, dialog.Height);
+                        dialog.DrawToBitmap(bitmap, new Rectangle(Point.Empty, dialog.Size));
+                        bitmap.Save($"LayoutCaptures/drivers-leitura-{size.Width}x{size.Height}.png");
+                    }
                     inspected++;
                 }
             }
@@ -87,7 +108,6 @@ internal static class DriverReadOnlyDialogTests
             (Action<Action?>)(_ => { }), null, null, null, null, false]);
         if (failure is not null) throw failure;
         if (inspected != 2) throw new Exception("Diálogo de drivers não inspecionado nas duas dimensões.");
-        Console.WriteLine("OK Drivers: diálogo real de investigação em 500x340 e 790x510, sem executar consultas de rede ou manutenção");
     }
 
     private static IEnumerable<Control> Descendants(Control root)
