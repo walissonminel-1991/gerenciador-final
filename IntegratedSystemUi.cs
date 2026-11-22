@@ -55,7 +55,7 @@ internal sealed partial class MainForm
             async () => { await RefreshMemoryRamAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
             async () => { await RefreshStartupEntriesAsync(); });
-        AddIntegratedAction(actions, 2, "Windows Update", "Mostra a última consulta. Use Buscar atualizações para iniciar nova busca.", AppServices.Green,
+        AddIntegratedAction(actions, 2, "Windows Update", "Procure, selecione e instale atualizações oficiais.", AppServices.Green,
             () => { DrawWindowsUpdates(); return Task.CompletedTask; });
         AddIntegratedAction(actions, 3, "Este computador", "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos.", AppServices.Blue,
             async () =>
