@@ -6,7 +6,8 @@ namespace GerenciadorAplicativos;
 // receitas. Ter um pacote instalado NÃO concede permissão de atualizar ou
 // remover. Para todas as identidades não auditadas: somente inventário.
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
-    string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "");
+    string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "",
+    string PackageFullName = "", string PublisherId = "");
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
     bool Retried = false, string FailureStage = "", string Apartment = "");
@@ -72,6 +73,11 @@ internal static class LocalMsixInventory
     internal static LocalMsixResult ReadCurrentUser() =>
         Snapshot.Read(() => ReadWithRetry(ReadOnce, () => Thread.Sleep(250)));
 
+    // Apenas para autorizacao e confirmacao de remocao: nenhuma retencao de
+    // leituras anteriores. A fonte deve responder integralmente nesta chamada.
+    internal static LocalMsixResult ReadCurrentUserFresh() =>
+        ReadWithRetry(ReadOnce, () => Thread.Sleep(250));
+
     internal static LocalMsixResult ReadWithRetry(Func<LocalMsixResult> read,
         Action? beforeRetry = null)
     {
@@ -134,7 +140,8 @@ internal static class LocalMsixInventory
             var v = id.Version;
             var candidate = Recognize(id.Name, id.PublisherId,
                 v.Major, v.Minor, v.Build, v.Revision);
-            if (candidate is not null) return new(candidate with { PackageFamilyName = id.FamilyName });
+            if (candidate is not null) return new(candidate with
+            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId });
             if (package.IsFramework || package.IsResourcePackage) return new(null);
             // Apenas apps efetivamente listados pelo Windows para o usuário.
             var app = package.GetAppListEntries().FirstOrDefault();
@@ -143,7 +150,9 @@ internal static class LocalMsixInventory
                 app.DisplayInfo.DisplayName, package.PublisherDisplayName,
                 package.IsFramework, package.IsResourcePackage, true,
                 v.Major, v.Minor, v.Build, v.Revision);
-            return new(described is null ? null : described with { PackageFamilyName = id.FamilyName }, Launchable: true);
+            return new(described is null ? null : described with
+            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId },
+                Launchable: true);
         });
     }
 
