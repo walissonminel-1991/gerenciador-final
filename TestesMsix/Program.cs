@@ -261,3 +261,63 @@ var live = LocalMsixInventory.ReadCurrentUser();
 Console.WriteLine($"MSIX_CI status={live.Status} fase={live.FailureStage} apartment={live.Apartment} enumerados={live.Seen} reconhecidos={live.Items.Count}");
 Check(live.Status.Length > 0, "Inventário real tratado sem falhar aplicação");
 Console.WriteLine($"{count}/{count} testes de inventário MSIX aprovados");
+
+
+// VF06/C1 — testes dirigidos em memoria. Nunca removem aplicativos reais.
+var msixTarget = generic! with
+{
+    PackageFamilyName = "Contoso.Reader_contosopub",
+    PackageFullName = "Contoso.Reader_3.2.1.0_x64__contosopub",
+    PublisherId = "contosopub"
+};
+var msixRequest = new MsixRemovalRequest(msixTarget.PackageFullName,
+    msixTarget.PackageFamilyName, msixTarget.PackageName, msixTarget.PublisherId,
+    msixTarget.Version, msixTarget.Name, LocalMsixInventory.InventoryId(msixTarget));
+var msixPresent = new LocalMsixResult([msixTarget], 1, "ok");
+var msixEmpty = new LocalMsixResult([], 0, "ok");
+Check(MsixUninstall.CanStart(msixRequest, msixPresent),
+    "C1: identidade completa de MSIX de terceiro habilita preflight");
+Check(!MsixUninstall.CanOffer(msixRequest with { PublisherId = "8wekyb3d8bbwe" }) &&
+      !MsixUninstall.CanOffer(msixRequest with { PackageName = "Microsoft.WindowsTerminal" }),
+    "C1: pacotes Microsoft e componentes nativos não ganham ação integrada");
+Check(!MsixUninstall.CanStart(msixRequest, msixPresent with { Failures = 1 }) &&
+      !MsixUninstall.CanStart(msixRequest, msixPresent with { Status = "COMException(0x80040154)" }) &&
+      !MsixUninstall.CanStart(msixRequest, msixPresent with
+        { Items = [msixTarget with { Stale = true }] }),
+    "C1: inventário parcial, indisponível e retido bloqueiam remoção");
+Check(!MsixUninstall.CanStart(msixRequest, msixPresent with
+        { Items = [msixTarget with { PackageFullName = "outro_pacote" }] }) &&
+      !MsixUninstall.CanStart(msixRequest, msixPresent with
+        { Items = [msixTarget, msixTarget] }),
+    "C1: pacote alterado e duplicação de família bloqueiam remoção");
+int msixReads = 0;
+int msixCalls = 0;
+var msixSuccess = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => ++msixReads == 1 ? msixPresent : msixEmpty,
+    _ => { msixCalls++; return Task.FromResult(new MsixNativeRemoval(true, true)); });
+Check(msixSuccess.State == MsixRemovalState.Confirmed && msixCalls == 1 && msixReads == 2,
+    "C1: só confirma após retorno nativo positivo e ausência por consulta completa");
+msixCalls = 0;
+var msixRevoked = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => msixPresent with { Failures = 1 },
+    _ => { msixCalls++; return Task.FromResult(new MsixNativeRemoval(true, true)); });
+Check(msixRevoked.State == MsixRemovalState.Blocked && msixCalls == 0,
+    "C1: revalidação imediatamente anterior revoga execução sem chamar Windows");
+var msixStillPresent = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => msixPresent,
+    _ => Task.FromResult(new MsixNativeRemoval(true, true)));
+Check(msixStillPresent.State == MsixRemovalState.Pending,
+    "C1: retorno do Windows sem ausência confirmada permanece pendente");
+msixReads = 0;
+var msixPartialPost = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => ++msixReads == 1 ? msixPresent : msixEmpty with { Failures = 1 },
+    _ => Task.FromResult(new MsixNativeRemoval(true, true)));
+Check(msixPartialPost.State == MsixRemovalState.Pending,
+    "C1: leitura pós-operação parcial não é sucesso");
+msixReads = 0;
+var msixNativeFailure = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => ++msixReads == 1 ? msixPresent : msixEmpty,
+    _ => Task.FromResult(new MsixNativeRemoval(false, true, unchecked((int)0x80070005))));
+Check(msixNativeFailure.State == MsixRemovalState.Pending &&
+      msixNativeFailure.ErrorCode == unchecked((int)0x80070005),
+    "C1: retorno nativo de erro com ausência posterior mantém estado inconclusivo");
