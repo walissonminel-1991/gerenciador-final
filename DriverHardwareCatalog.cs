@@ -11,6 +11,15 @@ internal sealed record DriverHardwareIdentity(string Vendor, string Model, strin
     internal bool FromUsbParent { get; init; }
 }
 
+internal readonly record struct DriverPciIdentity(uint Product, uint? Subsystem)
+{
+    internal uint Vendor => Product >> 16;
+    // Windows representa SUBSYS como dispositivo nos 16 bits altos e fabricante nos baixos.
+    internal uint? SubsystemVendor => Subsystem & 0xffff;
+}
+
+internal readonly record struct DriverUsbIdentity(uint Product, uint? Interface);
+
 // Metadados consultivos para a tela. Os IDs, nomes WMI e vínculos de INF
 // do inventário continuam sendo a evidência usada pelo Windows e pelo WUA.
 internal static partial class DriverHardwareCatalog
@@ -53,6 +62,84 @@ internal static partial class DriverHardwareCatalog
     internal static DriverHardwareIdentity Identify(DriverInventoryEntry item) =>
         Identities.GetValue(item, Resolve);
 
+    internal static DriverPciIdentity? ReportedPciIdentity(DriverInventoryEntry item)
+    {
+        const string prefix = @"PCI\VEN_";
+        if (ReportedProduct(item, prefix, PciId()) is not uint product)
+            return null;
+
+        uint? subsystem = null;
+        var identifiers = item.HardwareIds.Prepend(DriverDeviceMetadata.HardwarePart(item.DeviceId))
+            .Where(id => id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        foreach (string qualifier in identifiers.SelectMany(id => id.Split('&').Skip(2))
+                     .Where(part => part.StartsWith("SUBSYS", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!qualifier.StartsWith("SUBSYS_", StringComparison.OrdinalIgnoreCase) ||
+                !Hex(qualifier.AsSpan(7), 8, out uint value))
+                return null;
+            if (value == 0) continue; // SUBSYS_00000000 significa subsistema não informado.
+            if ((value & 0xffff) is 0 or 0xffff || (subsystem.HasValue && subsystem != value))
+                return null;
+            subsystem = value;
+        }
+        return new(product, subsystem);
+    }
+
+    private static string UsbPrefix(DriverInventoryEntry item) =>
+        item.DeviceId.StartsWith(@"HID\", StringComparison.OrdinalIgnoreCase)
+            ? @"HID\VID_" : @"USB\VID_";
+
+    internal static uint? InstanceUsbProduct(DriverInventoryEntry item) =>
+        ReadProduct(DriverDeviceMetadata.HardwarePart(item.DeviceId), UsbPrefix(item), UsbId());
+
+    internal static uint? ReportedUsbProduct(DriverInventoryEntry item) =>
+        ReportedProduct(item, UsbPrefix(item), UsbId());
+
+    internal static DriverUsbIdentity? ReportedUsbIdentity(DriverInventoryEntry item)
+    {
+        if (ReportedUsbProduct(item) is not uint product ||
+            !TryUsbInterface(DriverDeviceMetadata.HardwarePart(item.DeviceId), out uint? expected))
+            return null;
+
+        string prefix = UsbPrefix(item);
+        return item.HardwareIds.Where(id => id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .All(id => TryUsbInterface(id, out uint? number) && number == expected)
+            ? new(product, expected) : null;
+    }
+
+    private static bool TryUsbInterface(string id, out uint? number)
+    {
+        number = null;
+        foreach (string part in id.Split('&').Skip(2).Where(part =>
+                     part.StartsWith("MI", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (number.HasValue || !part.StartsWith("MI_", StringComparison.OrdinalIgnoreCase) ||
+                !Hex(part.AsSpan(3), 2, out uint parsed))
+                return false;
+            number = parsed;
+        }
+        return true;
+    }
+
+    private static uint? ReportedProduct(DriverInventoryEntry item, string prefix, Regex pattern)
+    {
+        uint? instance = ReadProduct(DriverDeviceMetadata.HardwarePart(item.DeviceId), prefix, pattern);
+        var reported = item.HardwareIds
+            .Where(id => id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray();
+        return instance.HasValue && reported.Length > 0 && reported.All(id => ReadProduct(id, prefix, pattern) == instance)
+            ? instance : null;
+    }
+
+    private static uint? ReadProduct(string id, string prefix, Regex pattern)
+    {
+        if (id.Length > 256 || !id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return null;
+        var match = pattern.Match(id);
+        return match.Success && Hex(match.Groups[1].ValueSpan, 4, out uint vendor) &&
+            vendor is not (0 or 0xffff) && Hex(match.Groups[2].ValueSpan, 4, out uint device)
+                ? (vendor << 16) | device : null;
+    }
+
     internal static string DisplayName(DriverInventoryEntry item)
     {
         string name = item.DeviceName.Trim();
@@ -79,13 +166,17 @@ internal static partial class DriverHardwareCatalog
         if (DriverDeviceMetadata.IsUsbPrinter(item.DeviceId))
         {
             if (item.DeviceMetadata is not { UsbParentHardwareId: { Length: > 0 } parent } ||
-                !UsbId().IsMatch(parent))
+                !parent.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase) || !UsbId().IsMatch(parent))
                 return DriverHardwareIdentity.Unknown;
             return ResolveIds([parent]) with { FromUsbParent = true };
         }
         // O segmento anterior ao identificador de instância também serve
         // quando o Windows não informou uma lista HardwareID.
-        return ResolveIds(item.HardwareIds.Prepend(DriverDeviceMetadata.HardwarePart(item.DeviceId)));
+        var identity = ResolveIds(item.HardwareIds.Prepend(DriverDeviceMetadata.HardwarePart(item.DeviceId)));
+        // Na linha e no relatório, vale a mesma evidência exigida pela fonte oficial.
+        return DriverGamingUsbCatalog.Find(item) is { } gaming
+            ? identity with { Model = gaming.Model ?? "" }
+            : identity;
     }
 
     private static DriverHardwareIdentity ResolveIds(IEnumerable<string> ids)
@@ -101,7 +192,7 @@ internal static partial class DriverHardwareCatalog
             var (candidateBus, match) = id[..separator].ToUpperInvariant() switch
             {
                 "PCI" => (HardwareBus.Pci, PciId().Match(id)),
-                "USB" => (HardwareBus.Usb, UsbId().Match(id)),
+                "USB" or "HID" => (HardwareBus.Usb, UsbId().Match(id)),
                 "HDAUDIO" => (HardwareBus.HdAudio, HdAudioId().Match(id)),
                 _ => (default, Match.Empty)
             };
@@ -145,7 +236,7 @@ internal static partial class DriverHardwareCatalog
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PciId();
 
-    [GeneratedRegex(@"\AUSB\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})(?:&[0-9A-Z_]+)*\z",
+    [GeneratedRegex(@"\A(?:USB|HID)\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})(?:&[0-9A-Z_]+)*\z",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex UsbId();
 
