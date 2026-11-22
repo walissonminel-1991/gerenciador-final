@@ -105,6 +105,15 @@ internal sealed class ProgramEntry
     public string MsixPackageFullName { get; init; } = "";
     public string MsixPublisherId { get; init; } = "";
     public string MsixPackageName { get; init; } = "";
+    // A mesma elegibilidade rege aparencia e clique: nunca exibir acao
+    // executavel que o hit-test encaminhe para o gerenciador manual.
+    internal MsixRemovalRequest MsixRemovalIdentity =>
+        new(MsixPackageFullName, MsixPackageFamilyName, MsixPackageName,
+            MsixPublisherId, Version, Name, InventoryId);
+    internal bool CanUninstallMsix =>
+        InventoryOnly && !CanUninstall &&
+        InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase) &&
+        MsixUninstall.CanOffer(MsixRemovalIdentity);
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     private bool _inventoryOnly;
@@ -3021,14 +3030,10 @@ internal sealed partial class MainForm : Form
     }
 
     private static MsixRemovalRequest MsixRequest(ProgramEntry entry) =>
-        new(entry.MsixPackageFullName, entry.MsixPackageFamilyName,
-            entry.MsixPackageName, entry.MsixPublisherId, entry.Version,
-            entry.Name, entry.InventoryId);
+        entry.MsixRemovalIdentity;
 
     private static bool CanRemoveMsix(ProgramEntry entry) =>
-        entry.InventoryOnly && !entry.CanUninstall &&
-        entry.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase) &&
-        MsixUninstall.CanOffer(MsixRequest(entry));
+        entry.CanUninstallMsix;
 
     // C1: somente aplicativos MSIX do usuario atual, nunca Microsoft/frameworks
     // ou entradas com identidade parcial. Executar no mesmo fluxo serial do GF.
