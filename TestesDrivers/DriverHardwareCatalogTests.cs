@@ -120,6 +120,35 @@ internal static class DriverHardwareCatalogTests
                 .Contains("nenhuma versão remota foi consultada ou comparada pelo GF", StringComparison.Ordinal),
             "VF02 rejeita URLs não aprovadas, não infere ofertas e exibe estado inconclusivo");
 
+        // VF02 fase 4: registro oficial Intel #785597 publica versão, lista de
+        // produtos e OS; o link é somente consulta MANUAL (sem oferta inferida).
+        var intelB580 = intelDisplay with { DeviceName = "Intel(R) Arc(TM) B580 Graphics" };
+        var intelA770 = intelDisplay with { DeviceName = "Intel® Arc™ A770 Graphics" };
+        var intelA350M = intelDisplay with { DeviceName = "Intel Arc A350M Graphics" };
+        var intelPro = intelDisplay with { DeviceName = "Intel Arc Pro B60 Graphics" };
+        var intelUnknown = intelDisplay with { DeviceName = "Intel Arc A999 Graphics" };
+        var intelFalseSku = intelDisplay with { DeviceName = "Intel Arc B5800 Graphics" };
+        var officialIntelRecord =
+            "https://www.intel.com/content/www/us/en/download/785597/intel-arc-graphics-windows.html";
+        GraphicsDriverOfficialSource? IntelSite(DriverInventoryEntry entry) =>
+            GraphicsDriverOfficialSources.For(
+                GraphicsDriverInventory.Find(new([entry], false, "consulta completa")).Single());
+        Check(IntelSite(intelB580) is { PageUrl: var b580Url, OfferedVersion: "não verificada",
+                OfferedChannel: "não verificada" } && b580Url == officialIntelRecord &&
+            IntelSite(intelA770)?.PageUrl == officialIntelRecord &&
+            IntelSite(intelA350M)?.PageUrl == officialIntelRecord &&
+            GraphicsDriverOfficialSources.IsApprovedOfficialPage(officialIntelRecord) &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage(officialIntelRecord + "?driver=999") &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage(
+                "https://www.intel.com.evil.test/en/download/785597/intel-arc-graphics-windows.html"),
+            "VF02 fase 4 encaminha SKUs Intel Arc reconhecidos ao registro oficial sem oferta automática");
+        Check(IntelSite(intelPro)?.PageUrl != officialIntelRecord &&
+            IntelSite(intelUnknown)?.PageUrl != officialIntelRecord &&
+            IntelSite(intelFalseSku)?.PageUrl != officialIntelRecord &&
+            IntelSite(intelDisplay)?.ReviewState == GraphicsDriverOfficialSources.ManualReview &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 fase 4 recusa associação do registro específico a Pro, SKU desconhecido ou parecido");
+
         var named = gpu with { DeviceName = "Nome específico informado pelo fabricante" };
         Check(DriverHardwareCatalog.DisplayName(named) == named.DeviceName,
             "preserva o nome específico informado pelo Windows");
