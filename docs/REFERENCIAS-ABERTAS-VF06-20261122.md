@@ -24,12 +24,23 @@ Estudar **funcionalidades descritas publicamente** por projetos abertos. Escreve
 - Não altera a lista principal, candidatos de atualização, autorização de desinstalação, fluxo de lote, Windows Update, Drivers ou infraestrutura.
 - Nenhum aplicativo/driver é instalado, desinstalado, baixado ou removido pela consulta.
 
-## Próximas entregas funcionais VF06 (não implementadas nesta PR)
+## VF06/C1 — desinstalação controlada MSIX do usuário atual (implementação candidata)
 
-1. Avaliar elegibilidade de desinstalação de aplicativos MSIX do usuário por **identidade exata**, preservando frameworks, dependências, aplicativos protegidos e estados parciais; usar apenas API do Windows documentada.
-2. Aplicar prévia, confirmação específica, execução, cancelamento quando suportado e pós-verificação à identidade autorizada.
-3. Identificar entradas ocultas **elegíveis**, sem concluir que `SystemComponent=1` por si só permite desinstalar.
-4. Publicar matriz por versão/edição Windows para Edge, OneDrive e Copilot. Não presumir remoção suportada.
+- Caminho integrado de **Desinstalar** apenas para aplicativo MSIX de terceiro com `PackageFullName`, `PackageFamilyName`, `PublisherId`, nome e versão provenientes do inventário WinRT atual. Sem identidade completa: encaminhamento manual existente.
+- Preserva a exclusão explícita de produtos protegidos, de identidades Microsoft e de listas incompletas/retidas. Frameworks, recursos e entradas não iniciáveis já são excluídos pelo inventário.
+- Lê inventário novo antes da confirmação; pede consentimento por aplicativo; grava evento de consentimento; lê novamente imediatamente antes da operação. Divergência ou falha bloqueia `RemovePackageAsync`.
+- Invoca somente `Windows.Management.Deployment.PackageManager.RemovePackageAsync` para **usuário atual**, sem `RemoveForAllUsers`, shell, elevação ou integração de bibliotecas de terceiros.
+- Reconsulta a família após resposta nativa. Só afirma **confirmado** quando chamada concluída e a família está ausente de leitura completa. Todas as demais situações são **pendentes/inconclusivas** ou **bloqueadas**.
+- Reutiliza progressos e resumo de desinstalação do GF. Não tenta limpeza residual ou remoção em lote MSIX. Não há cancelamento seguro após início da chamada nativa; o aviso é explícito.
+- Testes dirigidos com executor injetado em memória cobrem sucesso, revogação pré-execução, família presente, leitura pós-operação parcial, erro nativo, nomes alterados e aplicativos protegidos. **Nenhum MSIX real removido pela CI.**
+
+**Situação:** código e fixtures publicados para validação Windows; aceitação funcional em PC de teste ainda não comprovada. Não fechar VF06 ou alterar 27/42 e 0/16 por esta implementação.
+
+## Próximas entregas funcionais VF06 (fora do escopo C1)
+
+1. Avaliar entradas ocultas **elegíveis**, sem concluir que `SystemComponent=1` por si só permite desinstalar.
+2. Identificar bundleware/bloatware por evidência verificável, sem ações perigosas por padrão.
+3. Publicar matriz por versão/edição Windows para Edge, OneDrive e Copilot, sem presumir remoção suportada.
 
 ## Critérios de verificação desta entrega
 
