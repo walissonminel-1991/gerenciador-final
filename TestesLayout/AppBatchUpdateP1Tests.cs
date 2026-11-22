@@ -69,16 +69,24 @@ internal static class AppBatchUpdateP1Tests
             exception.Inconclusive == 1 && exception.NotStarted == 2,
             "exceção não inicia a próxima atualização");
 
+        // Executa a fixture assíncrona fora do dispatcher WinForms: o teste
+        // não deve bloquear o mesmo contexto que o await do coordenador usa.
         using var stop = new CancellationTokenSource();
+        using var firstEntered = new ManualResetEventSlim(false);
         var barrier = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         started = 0;
-        var pending = AppBatchUpdateRun.RunAsync(three, async _ =>
+        var pending = Task.Run(() => AppBatchUpdateRun.RunAsync(three, async _ =>
         {
             started++;
-            if (started == 1) await barrier.Task.ConfigureAwait(false);
+            if (started == 1)
+            {
+                firstEntered.Set();
+                await barrier.Task.ConfigureAwait(false);
+            }
             return AppBatchUpdateStepResult.Confirmed;
-        }, () => stop.IsCancellationRequested);
-        Require(started == 1 && !pending.IsCompleted, "primeira operação deve permanecer em curso");
+        }, () => stop.IsCancellationRequested));
+        Require(firstEntered.Wait(TimeSpan.FromSeconds(5)) && !pending.IsCompleted,
+            "primeira operação deve permanecer em curso");
         stop.Cancel();
         barrier.SetResult(true);
         var halted = pending.GetAwaiter().GetResult();
