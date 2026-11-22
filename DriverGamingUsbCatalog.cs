@@ -14,6 +14,8 @@ internal static class DriverGamingUsbCatalog
     private static readonly Uri LegacyLogitechFlight = new("https://support.logi.com/hc/en-us/articles/360023375193");
     private static readonly Uri FlightYoke = LogitechArticle("360023462873");
     private static readonly Uri FlightThrottle = LogitechArticle("360023462893");
+    private static readonly Uri SaitekRudder = LogitechArticle("360024851754");
+    private static readonly Uri ThrustmasterTfrp = new("https://support.thrustmaster.com/en/kb/1776-en/");
     private static readonly Uri G430 = LogitechArticle("360023466633");
     private static readonly Uri G533 = LogitechArticle("360023303074");
     private static readonly Uri G930 = LogitechArticle("360023466133");
@@ -21,6 +23,8 @@ internal static class DriverGamingUsbCatalog
     private static readonly Uri G733 = LogitechArticle("17207077246871");
     private static readonly Uri ProXWireless = LogitechArticle("360052715513");
     private static readonly Uri G635 = LogitechArticle("360023303694");
+    private static readonly Uri ArctisProWireless = new("https://support.steelseries.com/hc/en-us/articles/360019500231-Setup-PC-Mac-Arctis-Pro-Wireless");
+    private static readonly Uri HecateSupport = new("https://hecategaming.com/pt-br/pages/product-support");
     private static readonly Uri VkbSupport = new("https://vkbsimcontrollers.com/pages/downloads");
     private static readonly Uri EposCommand260 = new("https://www.eposaudio.com/en-br/products/audio/series/epos-command-260-usb-ptt/");
     private static readonly Uri VoxiconAudioRecord = new("https://catalog.update.microsoft.com/ScopedViewInline.aspx?updateid=08f12451-f2bc-475a-bc4b-795e75af3860");
@@ -63,6 +67,10 @@ internal static class DriverGamingUsbCatalog
         0x06a30bac => new(FlightYoke, "Manche USB Logitech Flight Yoke System", IsAudio: false,
             Status: "A ficha Logitech associa este VID/PID ao manche. A presença do acelerador ligado ao manche é inconclusiva."),
         0x06a30c2d => new(FlightThrottle, "Acelerador USB Logitech Flight Throttle Quadrant", IsAudio: false),
+        0x06a30763 or 0x06a30764 => new(SaitekRudder, "Família Saitek Pro Flight Rudder Pedals", IsAudio: false,
+            Status: "A documentação do SDL associa este VID/PID aos pedais USB Saitek Pro Flight Rudder Pedals. A variante física é inconclusiva."),
+        0x044fb679 => new(ThrustmasterTfrp, "Interface USB Thrustmaster TFRP Rudder", IsAudio: false,
+            Status: "O Steam Input registra este VID/PID como TFRP Rudder. A presença e o modelo dos pedais ligados via RJ12 são inconclusivos."),
         0x046d0a4d => new(G430, "Adaptador USB Logitech G430", IsAudio: true),
         0x046d0a66 => new(G533, "Adaptador USB Logitech G533", IsAudio: true,
             Status: "A ficha do Logitech G533 atribui este VID/PID ao adaptador. A presença e o modelo do headset conectado são inconclusivos."),
@@ -76,6 +84,10 @@ internal static class DriverGamingUsbCatalog
             Status: "O VID/PID da função USB de áudio consta na ficha do Logitech G635. O modelo físico do headset é inconclusivo."),
         0x046d0a87 => new(DriverHardwareSupport.Logitech, null, IsAudio: true,
             Status: "Receptor USB Logitech com VID/PID compartilhado por G935 e G933s. O modelo do headset é inconclusivo."),
+        0x10381294 => new(ArctisProWireless, null, IsAudio: true,
+            Status: "A tabela de áudio USB do Linux associa este VID/PID a Arctis Pro Wireless. A presença e o modelo do fone conectado são inconclusivos."),
+        0x2d990026 => new(HecateSupport, null, IsAudio: true,
+            Status: "A tabela de áudio USB do Linux associa este VID/PID a HECATE G2 Gaming Headset. A variante física é inconclusiva."),
         // O manual VKB mostra perfis do controlador. O VID/PID sozinho não determina a montagem física.
         0x231d011d => new(VkbSupport, "Controlador USB VKB TinyBox", IsAudio: false,
             Status: "O manual VKB T-Link documenta o controlador USB TinyBox para pedais T-Rudder. A presença e a versão dos pedais são inconclusivas."),

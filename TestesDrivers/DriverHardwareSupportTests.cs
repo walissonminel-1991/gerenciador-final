@@ -80,6 +80,7 @@ internal static class DriverHardwareSupportTests
         CheckOtherUsbManufacturers(check);
         CheckAdditionalLogitechFlightAndAudio(check);
         CheckPedalControllerAndHeadsetAdapter(check);
+        CheckDedicatedPedalsAndAdditionalUsbHeadsets(check);
     }
 
     private static void CheckSources(Action<bool, string> check)
@@ -594,6 +595,59 @@ internal static class DriverHardwareSupportTests
         };
         check(invalid.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
             "TinyBox e G533 exigem classe, função e identidade USB coerentes");
+    }
+
+    private static void CheckDedicatedPedalsAndAdditionalUsbHeadsets(Action<bool, string> check)
+    {
+        const string saitekId = @"HID\VID_06A3&PID_0763&MI_00";
+        var saitek = Device(saitekId, "HIDClass") with { HasGameInputUsage = true };
+        var saitekVariant = Device(@"HID\VID_06A3&PID_0764", "HIDClass") with { HasGameInputUsage = true };
+        check(new[] { saitek, saitekVariant }.All(item =>
+            Find(item) is { Category: DriverHardwareCategory.GameInput, Page: { Host: "support.logi.com" } page } &&
+            page.AbsolutePath.Contains("360024851754", StringComparison.Ordinal) &&
+            DriverHardwareCatalog.Identify(item).Model == "Família Saitek Pro Flight Rudder Pedals" &&
+            Find(item).Status.Contains("A variante física é inconclusiva", StringComparison.Ordinal)),
+            "Saitek 0763 e 0764 reconhecem a família de pedais, preservando a variante inconclusiva");
+
+        const string tfrpId = @"HID\VID_044F&PID_B679&MI_01&COL01";
+        var tfrp = Device(tfrpId, "HIDClass") with
+        {
+            HasGameInputUsage = true,
+            HardwareIds = [tfrpId, @"hid\vid_044f&pid_b679&rev_0100&mi_01&col01"]
+        };
+        var tfrpReport = DriverReadOnlyReport.Format(new([tfrp], false, ""), tfrp);
+        check(Find(tfrp) is { Category: DriverHardwareCategory.GameInput, Page.Host: "support.thrustmaster.com" } &&
+              DriverHardwareCatalog.Identify(tfrp).Model == "Interface USB Thrustmaster TFRP Rudder" &&
+              tfrpReport.Contains("Steam Input", StringComparison.Ordinal) &&
+              tfrpReport.Contains("pedais ligados via RJ12 são inconclusivos", StringComparison.Ordinal),
+            "TFRP distingue a interface USB da montagem física de pedais RJ12");
+
+        const string arctisId = @"USB\VID_1038&PID_1294&MI_00";
+        const string hecateId = @"USB\VID_2D99&PID_0026&MI_01";
+        var arctis = Device(arctisId, "Media");
+        var hecate = Device(hecateId, "Media");
+        check(Find(arctis) is { Category: DriverHardwareCategory.Audio, Page.Host: "support.steelseries.com" } &&
+              Find(arctis).Status.Contains("Arctis Pro Wireless", StringComparison.Ordinal) &&
+              Find(arctis).Status.Contains("modelo do fone conectado são inconclusivos", StringComparison.Ordinal) &&
+              Find(hecate) is { Category: DriverHardwareCategory.Audio, Page.Host: "hecategaming.com" } &&
+              Find(hecate).Status.Contains("HECATE G2 Gaming Headset", StringComparison.Ordinal) &&
+              Find(hecate).Status.Contains("A variante física é inconclusiva", StringComparison.Ordinal) &&
+              new[] { arctis, hecate }.All(item => DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "Arctis Pro Wireless e HECATE G2 consultam fontes por VID/PID com o headset físico inconclusivo");
+
+        var invalid = new[]
+        {
+            saitek with { HardwareIds = [saitekId.Replace("PID_0763", "PID_0764")] },
+            saitekVariant with { HasGameInputUsage = false },
+            tfrp with { HardwareIds = [tfrpId.Replace("MI_01", "MI_00")] },
+            tfrp with { Present = null },
+            arctis with { ReportedPnpClass = "AudioEndpoint" },
+            Device(@"HID\VID_1038&PID_1294&MI_00", "Media"),
+            hecate with { HardwareIds = [hecateId.Replace("MI_01", "MI_00")] },
+            hecate with { HardwareIds = [], CompatibleIds = [hecateId] }
+        };
+        check(invalid.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "Pedais e headsets com classe, função ou identidade USB divergentes permanecem inconclusivos");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>
