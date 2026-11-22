@@ -310,6 +310,12 @@ internal sealed class DarkProgramList : Control
         return (hover, down || (pulse && _pulseProgress < 0.75F), pulse ? _pulseProgress : 0F);
     }
 
+    // Contrato unico usado por desenho e hit-test; impede botao MSIX
+    // aparentemente ativo que abre incorretamente o caminho manual.
+    internal static string UninstallAction(ProgramEntry item) =>
+        item.CanUninstall ? "uninstall" :
+        item.CanUninstallMsix ? "msix-uninstall" : "uninstall-manual";
+
     private (ProgramEntry? Item, string Action) HitAction(Point point)
     {
         int contentWidth = ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0);
@@ -325,8 +331,7 @@ internal sealed class DarkProgramList : Control
         if (AppRowGeometry.UninstallButton(bounds).Contains(point) &&
             UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
             OperationFor?.Invoke(item)?.Active != true)
-            return (item, item.CanUninstall ? "uninstall" :
-                item.CanUninstallMsix ? "msix-uninstall" : "uninstall-manual");
+            return (item, UninstallAction(item));
         if (item.IsUpdate && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.PreventRetry != true &&
             AppRowGeometry.UpdateButton(bounds).Contains(point))
         {
