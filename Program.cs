@@ -114,6 +114,10 @@ internal sealed class ProgramEntry
         InventoryOnly && !CanUninstall &&
         InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase) &&
         MsixUninstall.CanOffer(MsixRemovalIdentity);
+    // Contrato unico entre hit-test e desenho sem depender do controle visual.
+    internal string UninstallAction =>
+        CanUninstall ? "uninstall" :
+        CanUninstallMsix ? "msix-uninstall" : "uninstall-manual";
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     private bool _inventoryOnly;
@@ -1499,7 +1503,7 @@ internal sealed partial class MainForm : Form
                     : "Desinstalar",
                 uninstall?.PreventRetry == true ? AppServices.Gray :
                     item.CanUninstall || msixAllowed ? AppServices.Red : AppServices.Gray,
-                _programList.ActionVisual(item, DarkProgramList.UninstallAction(item)));
+                _programList.ActionVisual(item, item.UninstallAction));
         }
     }
 
