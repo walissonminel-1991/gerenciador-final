@@ -7,6 +7,9 @@
     <Compile Include="../NvidiaDriverChannel.cs" Link="NvidiaDriverChannel.cs" />
     <Compile Include="../AmdDriverChannel.cs" Link="AmdDriverChannel.cs" />
     <Compile Include="../GraphicsDriverOfficialSources.cs" Link="GraphicsDriverOfficialSources.cs" />
+    <Compile Include="../DriverHardwareSupport.cs" Link="DriverHardwareSupport.cs" />
+    <Compile Include="../DriverGamingUsbCatalog.cs" Link="DriverGamingUsbCatalog.cs" />
+    <Compile Include="../DriverGamingCatalog.cs" Link="DriverGamingCatalog.cs" />
     <Compile Include="../DriverDeviceMetadata.cs" Link="DriverDeviceMetadata.cs" />
     <Compile Include="../DriverListFilters.cs" Link="DriverListFilters.cs" />
     <EmbeddedResource Include="../Assets/DriverCatalog/pci.ids.gz" LogicalName="GerenciadorFinal.DriverIds.pci" />
