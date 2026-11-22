@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.66 BETA LOCAL TESTE — NÃO HOMOLOGADA",
-  "date": "2026-11-21",
-  "code_commit": "d0a5156ab548cf4365ca9d1babe44deaca0da6bf",
-  "ci_status": "success_technical_no_physical_validation",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279577",
+  "version": "5.13.11.65 TESTE",
+  "date": "2026-10-25",
+  "code_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+  "ci_status": "success",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -2409,13 +2409,6 @@
       }
     }
   },
-  "historical_top_level_status_before_p0": {
-    "version": "5.13.11.65 TESTE",
-    "date": "2026-10-25",
-    "code_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
-    "ci_status": "success",
-    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887"
-  },
   "current_p0_candidate": {
     "pr": 97,
     "branch": "p0/consolidacao-portatil-20261123",
@@ -2440,7 +2433,8 @@
     "driver_g2_full_integrity": "NO_GO_not_complete",
     "roadmap_original": "27/42",
     "expansion": "0/16",
-    "source_of_truth": "docs/P0-ESTADO-CANDIDATA-PR97.md"
+    "source_of_truth": "docs/P0-ESTADO-CANDIDATA-PR97.md",
+    "metadata_contract": "Os campos raiz version/ci_status/code_commit/ci_url descrevem a última distribuição TESTE com ZIP aprovado (.65). A candidata .66 vigente está exclusivamente em current_p0_candidate; não promover CI BETA sem ZIP."
   },
   "expansao_funcional": {
     "registered_at": "2026-11-21",
