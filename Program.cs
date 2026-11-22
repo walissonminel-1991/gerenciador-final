@@ -619,6 +619,9 @@ internal sealed partial class MainForm : Form
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
     private Button? _checkUpdatesButton;
+    private Button? _updateAllButton;
+    private bool _batchUpdatesActive;
+    private bool _batchStopRequested;
     private Button? _bulkUninstallButton;
     private Button? _selectManyButton;
     private Button? _clearSelectionButton;
@@ -1014,7 +1017,7 @@ internal sealed partial class MainForm : Form
             Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
             BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 2)
         };
-        foreach (int width in new[] { 222, 161, 196, 132 })
+        foreach (int width in new[] { 208, 150, 155, 190 })
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, width));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Button MakeAction(string title, Color color, int column, Action onClick)
@@ -1036,13 +1039,21 @@ internal sealed partial class MainForm : Form
         _toolTips.SetToolTip(_checkUpdatesButton,
             "Renova o inventário e consulta versões por HTTPS. Não instala nada; " +
             "durante a consulta online, clique novamente para cancelar.");
-        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 1, ToggleMultiSelection);
-        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
+        _updateAllButton = MakeAction("Atualizar todos", AppServices.Green, 1,
+            () => _ = UpdateAllApprovedAsync());
+        // Deve permanecer clicável durante o lote só para interromper a fila
+        // após a operação em curso, sem cancelar um instalador já iniciado.
+        _actionControls.Remove(_updateAllButton);
+        _toolTips.SetToolTip(_updateAllButton,
+            "Atualiza em sequência apenas programas com instalador oficial verificado e ação direta aprovada. " +
+            "Exige inventário completo, confirmação e revalidação por aplicativo. Durante o lote, interrompe próximas etapas.");
+        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 2, ToggleMultiSelection);
+        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 3,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 3, ClearMultiSelection);
+        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
-        // Distribuir os quatro comandos em duas linhas somente quando
+        // Distribuir as cinco ações em três linhas no compacto, sem cortar botões,
         // necessário; a busca permanece numa faixa separada, sem botões
         // deslocados para o canto direito.
         AppActionLayout? lastActionLayout = null;
@@ -1055,7 +1066,7 @@ internal sealed partial class MainForm : Form
             bool compact = metrics.Compact;
             var buttons = new Button[]
             {
-                _checkUpdatesButton, _selectManyButton,
+                _checkUpdatesButton, _updateAllButton, _selectManyButton,
                 _bulkUninstallButton, _clearSelectionButton
             };
             root.SuspendLayout();
@@ -1066,9 +1077,9 @@ internal sealed partial class MainForm : Form
                 if (compact)
                 {
                     root.RowStyles[1].Height = metrics.RowHeight;
-                    actions.RowCount = 2;
-                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+                    actions.RowCount = 3;
+                    for (int row = 0; row < 3; row++)
+                        actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / 3F));
                     for (int i = 0; i < 5; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Percent;
@@ -1079,7 +1090,7 @@ internal sealed partial class MainForm : Form
                         actions.SetColumnSpan(buttons[i], 1);
                         actions.SetCellPosition(buttons[i],
                             new TableLayoutPanelCellPosition((i % 2) * 2, i / 2));
-                        actions.SetColumnSpan(buttons[i], 2);
+                        actions.SetColumnSpan(buttons[i], i == buttons.Length - 1 ? 4 : 2);
                     }
                 }
                 else
@@ -1087,7 +1098,7 @@ internal sealed partial class MainForm : Form
                     root.RowStyles[1].Height = metrics.RowHeight;
                     actions.RowCount = 1;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    int[] widths = { 222, 161, 196, 132 };
+                    int[] widths = { 208, 150, 155, 190 };
                     for (int i = 0; i < 4; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Absolute;
@@ -2698,10 +2709,127 @@ internal sealed partial class MainForm : Form
             _selectManyButton.Text = _multiSelectMode ? "Sair da seleção" : "Selecionar vários";
             _selectManyButton.Enabled = !_busy;
         }
+        if (_updateAllButton is not null)
+        {
+            _updateAllButton.Text = _batchUpdatesActive
+                ? (_batchStopRequested ? "Parando lote" : "Parar lote") : "Atualizar todos";
+            _updateAllButton.Enabled = _batchUpdatesActive ? !_batchStopRequested :
+                !_busy && !_betaClose.IsClosing && _consultaCatalogoCts is null &&
+                AppBatchUpdatePolicy.Select(_installed, !_inventoryIncomplete, _catalogoVerificado).Length > 0;
+        }
         if (_bulkUninstallButton is not null)
             _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
             _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
+    }
+
+    // Uma única autorização para a fila; cada atualização reusa seu próprio
+    // contrato de download, assinatura, identidade, UAC e pós-verificação.
+    // Nunca faz download/instalação de candidatos consultivos, Store, Terminal
+    // ou gerenciadores externos por inferência.
+    private async Task UpdateAllApprovedAsync()
+    {
+        if (_batchUpdatesActive)
+        {
+            _batchStopRequested = true;
+            UpdateBulkButtons();
+            Status("Lote será interrompido depois da atualização atual; nenhum novo instalador será iniciado.");
+            return;
+        }
+        if (_busy || _betaClose.IsClosing || _consultaCatalogoCts is not null ||
+            _inventoryIncomplete || !_catalogoVerificado)
+        {
+            Status("Atualizar todos exige inventário completo e catálogo já consultado. Use Atualizar e verificar.");
+            return;
+        }
+        var candidates = AppBatchUpdatePolicy.Select(_installed, true, true);
+        if (candidates.Length == 0)
+        {
+            Status("Nenhuma atualização direta elegível. Store, ofertas consultivas e pacotes ambíguos ficam fora do lote.");
+            return;
+        }
+        if (candidates.Length > 20)
+        {
+            Status("Mais de 20 candidatos diretos: lote não iniciado. Confira as atualizações individualmente.");
+            return;
+        }
+        string preview = string.Join(Environment.NewLine,
+            candidates.Take(12).Select(c => "• " + c.Name + " → " + c.TargetVersion));
+        if (candidates.Length > 12) preview += Environment.NewLine +
+            $"…e mais {candidates.Length - 12} candidato(s) identificados.";
+        if (DarkConfirmDialog.Confirm(this,
+            $"Atualizar em sequência {candidates.Length} aplicativo(s) elegível(is)?\n\n" +
+            preview +
+            "\n\nCada aplicativo será revalidado antes do download. " +
+            "Uma atualização pendente, recusada ou não confirmada interromperá a fila. " +
+            "Instaladores podem exigir UAC e fechar aplicativos. Os demais programas não serão alterados.",
+            "Confirmar Atualizar todos") != DialogResult.Yes)
+        {
+            Log("Atualização em lote cancelada antes de qualquer download.");
+            return;
+        }
+
+        _batchUpdatesActive = true;
+        _batchStopRequested = false;
+        UpdateBulkButtons();
+        int confirmed = 0;
+        int unconfirmed = 0;
+        int attempted = 0;
+        try
+        {
+            foreach (var candidate in candidates)
+            {
+                if (_batchStopRequested || IsDisposed || Disposing || _betaClose.IsClosing ||
+                    _busy || _consultaCatalogoCts is not null)
+                    break;
+                ProgramEntry? current = AppBatchUpdatePolicy.Revalidate(
+                    candidate, _installed, !_inventoryIncomplete, _catalogoVerificado);
+                if (current is null)
+                {
+                    Log("Lote interrompido: cadastro, versão, catálogo ou elegibilidade mudou. Nenhuma tentativa adicional.");
+                    unconfirmed++;
+                    break;
+                }
+                attempted++;
+                Status($"Atualizar todos: {attempted}/{candidates.Length} — {candidate.Name}");
+                await UpdateThirdPartyAsync(current);
+                UpdateOperationSnapshot? result = _updateOperations.Find(current)?.Snapshot;
+                if (result?.Progress.Stage == UpdateStage.Confirmed)
+                {
+                    confirmed++;
+                    Log($"Lote {attempted}/{candidates.Length}: versão confirmada para {candidate.Name}.");
+                }
+                else
+                {
+                    unconfirmed++;
+                    Log("Lote interrompido após resultado não confirmado: " +
+                        (result?.Details ?? "a ação não produziu recibo confirmável.") +
+                        " Não haverá nova tentativa automática.");
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            unconfirmed++;
+            DiagnosticTrace.Failure("ATUALIZACAO_LOTE.FALHA", ex);
+            Log("Lote interrompido por falha inesperada: " + ex.GetType().Name);
+        }
+        finally
+        {
+            bool stopped = _batchStopRequested;
+            _batchUpdatesActive = false;
+            _batchStopRequested = false;
+            if (!IsDisposed && !Disposing)
+            {
+                UpdateBulkButtons();
+                string summary = $"Atualizar todos: {confirmed} confirmado(s), " +
+                    $"{unconfirmed} inconclusivo(s), {candidates.Length - attempted} não iniciado(s)." +
+                    (stopped ? " Interrompido por escolha do usuário." : "");
+                Status(summary);
+                Log(summary);
+            }
+        }
     }
 
     private void ShowUpdateGuidance(ProgramEntry entry)

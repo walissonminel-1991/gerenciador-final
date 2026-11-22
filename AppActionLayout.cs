@@ -1,6 +1,6 @@
 namespace GerenciadorAplicativos;
 
-// Modelo de layout deterministico dos quatro botoes de Aplicativos.
+// Modelo de layout deterministico das cinco acoes de Aplicativos.
 // A transicao de DPI pode manter Compact inalterado e, ainda assim,
 // exigir alturas/larguras novas (por exemplo 150% -> 200%).
 internal readonly record struct AppActionLayout(int Dpi, bool Compact, int RowHeight)
@@ -9,9 +9,9 @@ internal readonly record struct AppActionLayout(int Dpi, bool Compact, int RowHe
     {
         int effectiveDpi = Math.Max(96, dpi);
         double scale = effectiveDpi / 96d;
-        bool compact = availableWidth < (int)Math.Ceiling(745 * scale);
+        bool compact = availableWidth < (int)Math.Ceiling(895 * scale);
         return new AppActionLayout(effectiveDpi, compact,
-            (int)Math.Ceiling((compact ? 76 : 44) * scale));
+            (int)Math.Ceiling((compact ? 114 : 44) * scale));
     }
 
     internal bool NeedsReflow(AppActionLayout? previous) =>

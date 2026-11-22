@@ -303,6 +303,29 @@ internal static class LayoutTests
         fixture.Clear();
         renderFixture.Invoke(form, null);
         Console.WriteLine("OK: Todos preserva todas as entradas e ordena atualizacoes primeiro.");
+        // Somente política sintética: nenhuma receita é baixada ou instalada.
+        (string Id, string Target)? SyntheticRecipe(ProgramEntry e) =>
+            e.IsUpdate ? ("receita-" + e.InventoryId, "2.0") : null;
+        var batchA = new ProgramEntry { Name = "App A", InventoryId = "REG|APP_A",
+            Version = "1.0", AvailableVersion = "2.0", Publisher = "Teste", IsUpdate = true };
+        var batchB = new ProgramEntry { Name = "App B", InventoryId = "REG|APP_B",
+            Version = "1.0", AvailableVersion = "2.0", Publisher = "Teste", IsUpdate = true };
+        var batchProtected = new ProgramEntry { Name = "App protegido", InventoryId = "REG|PROTECTED",
+            Version = "1.0", AvailableVersion = "2.0", IsUpdate = true, InventoryOnly = true };
+        var planned = AppBatchUpdatePolicy.Select([batchB, batchA, batchProtected], true, true, SyntheticRecipe);
+        if (planned.Length != 2 || planned[0].InventoryId != batchA.InventoryId ||
+            planned[1].InventoryId != batchB.InventoryId ||
+            AppBatchUpdatePolicy.Select([batchA], false, true, SyntheticRecipe).Length != 0 ||
+            AppBatchUpdatePolicy.Select([batchA], true, false, SyntheticRecipe).Length != 0 ||
+            AppBatchUpdatePolicy.Revalidate(planned[0], [batchA, batchB], true, true, SyntheticRecipe) != batchA ||
+            AppBatchUpdatePolicy.Revalidate(planned[0], [batchA, batchA], true, true, SyntheticRecipe) is not null)
+            throw new Exception("Lote de atualizações aceitou inventário parcial, duplicata ou perdeu identidade.");
+        batchA.AvailableVersion = "2.1";
+        if (AppBatchUpdatePolicy.Revalidate(planned[0], [batchA], true, true, SyntheticRecipe) is not null)
+            throw new Exception("Lote de atualizações aceitou versão alterada entre consulta e execução.");
+        Console.WriteLine("OK P1 Atualizar todos: seleção conservadora, ordem, identidade e revogação.");
+
+
         var repairCards = Descendants(form).OfType<Button>().ToArray();
         if (!repairCards.Any(b => b.Text == "Verificar Windows") ||
             !repairCards.Any(b => b.Text == "Escolher ponto de restauração") ||
@@ -504,11 +527,11 @@ internal static class LayoutTests
                         .FirstOrDefault(panel => panel.Controls.OfType<Button>()
                             .Any(button => button.Text == "Atualizar e verificar"));
                     string[] expectedCommands = { "Atualizar e verificar",
-                        "Selecionar vários", "Desinstalar selecionados", "Limpar seleção" };
+                        "Atualizar todos", "Selecionar vários", "Desinstalar selecionados", "Limpar seleção" };
                     if (commands is null ||
                         !commands.Controls.OfType<Button>()
                             .Select(button => button.Text).SequenceEqual(expectedCommands))
-                        throw new Exception("Os quatro comandos de Aplicativos nao estao juntos.");
+                        throw new Exception("Os cinco comandos de Aplicativos nao estao juntos.");
                     var search = Descendants(form).OfType<TableLayoutPanel>()
                         .FirstOrDefault(panel => panel.Controls.OfType<TextBox>()
                             .Any(t => t.PlaceholderText.Contains("Nome, versão")));
@@ -535,9 +558,11 @@ internal static class LayoutTests
                                 name + " / " + filterButton.Text);
                     }
                     bool expectCompact = commands.ClientSize.Width <
-                        (int)Math.Ceiling(745d * Math.Max(1, commands.DeviceDpi) / 96d);
-                    if (commands.RowCount != (expectCompact ? 2 : 1))
+                        (int)Math.Ceiling(895d * Math.Max(1, commands.DeviceDpi) / 96d);
+                    if (commands.RowCount != (expectCompact ? 3 : 1))
                         throw new Exception("Acoes com numero incorreto de linhas: " + resolution);
+                    if (commands.Controls.OfType<Button>().Single(b => b.Text == "Atualizar todos").Enabled)
+                        throw new Exception("Atualizar todos não pode iniciar sem catálogo de aplicativos elegíveis.");
                     foreach (Button button in commands.Controls.OfType<Button>())
                     {
                         if (commands.GetRow(button) < 0 ||
