@@ -619,6 +619,10 @@ internal sealed partial class MainForm : Form
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
     private Button? _checkUpdatesButton;
+    private Button? _updateAllButton;
+    private bool _batchUpdatesActive;
+    private bool _batchStopRequested;
+    private UpdateOperationSnapshot? _batchLastAttempt;
     private Button? _bulkUninstallButton;
     private Button? _selectManyButton;
     private Button? _clearSelectionButton;
@@ -1014,7 +1018,7 @@ internal sealed partial class MainForm : Form
             Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
             BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 2)
         };
-        foreach (int width in new[] { 222, 161, 196, 132 })
+        foreach (int width in new[] { 208, 150, 155, 190 })
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, width));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Button MakeAction(string title, Color color, int column, Action onClick)
@@ -1036,13 +1040,22 @@ internal sealed partial class MainForm : Form
         _toolTips.SetToolTip(_checkUpdatesButton,
             "Renova o inventário e consulta versões por HTTPS. Não instala nada; " +
             "durante a consulta online, clique novamente para cancelar.");
-        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 1, ToggleMultiSelection);
-        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
+        _updateAllButton = MakeAction("Atualizar todos", AppServices.Green, 1,
+            () => _ = UpdateAllApprovedAsync());
+        // Deve permanecer clicável durante o lote só para interromper a fila
+        // após a operação em curso, sem cancelar um instalador já iniciado.
+        _actionControls.Remove(_updateAllButton);
+        _toolTips.SetToolTip(_updateAllButton,
+            "Atualizar todos os elegíveis: não inclui Store, ofertas consultivas, itens protegidos ou " +
+            "pacotes sem receita direta aprovada. A confirmação apresenta todos os alvos. " +
+            "Durante o lote, Parar lote impede apenas as próximas tentativas.");
+        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 2, ToggleMultiSelection);
+        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 3,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 3, ClearMultiSelection);
+        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
-        // Distribuir os quatro comandos em duas linhas somente quando
+        // Distribuir as cinco ações em três linhas no compacto, sem cortar botões,
         // necessário; a busca permanece numa faixa separada, sem botões
         // deslocados para o canto direito.
         AppActionLayout? lastActionLayout = null;
@@ -1055,7 +1068,7 @@ internal sealed partial class MainForm : Form
             bool compact = metrics.Compact;
             var buttons = new Button[]
             {
-                _checkUpdatesButton, _selectManyButton,
+                _checkUpdatesButton, _updateAllButton, _selectManyButton,
                 _bulkUninstallButton, _clearSelectionButton
             };
             root.SuspendLayout();
@@ -1066,9 +1079,9 @@ internal sealed partial class MainForm : Form
                 if (compact)
                 {
                     root.RowStyles[1].Height = metrics.RowHeight;
-                    actions.RowCount = 2;
-                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+                    actions.RowCount = 3;
+                    for (int row = 0; row < 3; row++)
+                        actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / 3F));
                     for (int i = 0; i < 5; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Percent;
@@ -1079,7 +1092,7 @@ internal sealed partial class MainForm : Form
                         actions.SetColumnSpan(buttons[i], 1);
                         actions.SetCellPosition(buttons[i],
                             new TableLayoutPanelCellPosition((i % 2) * 2, i / 2));
-                        actions.SetColumnSpan(buttons[i], 2);
+                        actions.SetColumnSpan(buttons[i], i == buttons.Length - 1 ? 4 : 2);
                     }
                 }
                 else
@@ -1087,7 +1100,7 @@ internal sealed partial class MainForm : Form
                     root.RowStyles[1].Height = metrics.RowHeight;
                     actions.RowCount = 1;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    int[] widths = { 222, 161, 196, 132 };
+                    int[] widths = { 208, 150, 155, 190 };
                     for (int i = 0; i < 4; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Absolute;
@@ -1144,7 +1157,7 @@ internal sealed partial class MainForm : Form
             "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
-            if (_busy || _betaClose.IsClosing) return;
+            if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
             if (action == "uninstall" && item.CanUninstall)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "uninstall-manual" && !item.CanUninstall)
@@ -2173,9 +2186,10 @@ internal sealed partial class MainForm : Form
     }
 
     private async Task ExecuteAsync(string description, Func<Task> work,
-        bool quietStartup = false)
+        bool quietStartup = false, bool allowDuringBatch = false)
     {
-        if (_busy || _betaClose.IsClosing) return;
+        if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
+            allowDuringBatch) || _betaClose.IsClosing) return;
         _busy = true;
         if (!quietStartup)
         {
@@ -2201,12 +2215,12 @@ internal sealed partial class MainForm : Form
                     _progress.Style = ProgressBarStyle.Blocks;
                     _progress.Value = 0;
                     _progress.Visible = false;
-                    _programList.ActionsEnabled = true;
+                    _programList.ActionsEnabled = !_batchUpdatesActive;
                 }
                 _status.Text = _operationResult;
                 UpdateBulkButtons();
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
-                    _checkUpdatesButton.Enabled = true;
+                    _checkUpdatesButton.Enabled = !_batchUpdatesActive;
                 if (_repairNetworkButton is not null)
                     _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
                 RefreshWindowsRepairButton();
@@ -2215,7 +2229,7 @@ internal sealed partial class MainForm : Form
                     _ = RefreshDiskUsageAsync();
                 if (_nav.SelectedIndex == 4)
                     _ = RefreshEnergyInfoAsync();
-                ExitAfterCurrentOperation();
+                if (!_batchUpdatesActive) ExitAfterCurrentOperation();
             }
         }
     }
@@ -2672,7 +2686,7 @@ internal sealed partial class MainForm : Form
 
     private void ToggleMultiSelection()
     {
-        if (_busy || _betaClose.IsClosing) return;
+        if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
         _multiSelectMode = !_multiSelectMode;
         _programList.MultiSelectMode = _multiSelectMode;
         if (!_multiSelectMode)
@@ -2685,7 +2699,7 @@ internal sealed partial class MainForm : Form
 
     private void ClearMultiSelection()
     {
-        if (_busy || _betaClose.IsClosing) return;
+        if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
         _checkedApps.Clear();
         if (_appFilter == "Selecionados") _appFilter = "Todos";
         RenderPrograms();
@@ -2696,12 +2710,124 @@ internal sealed partial class MainForm : Form
         if (_selectManyButton is not null)
         {
             _selectManyButton.Text = _multiSelectMode ? "Sair da seleção" : "Selecionar vários";
-            _selectManyButton.Enabled = !_busy;
+            _selectManyButton.Enabled = !_busy && !_batchUpdatesActive;
+        }
+        if (_updateAllButton is not null)
+        {
+            _updateAllButton.Text = _batchUpdatesActive
+                ? (_batchStopRequested ? "Parando lote" : "Parar lote") : "Atualizar todos";
+            var eligible = _batchUpdatesActive || _busy || !_catalogoVerificado || _inventoryIncomplete
+                ? 0 : AppBatchUpdatePolicy.Select(_installed, true, true).Length;
+            _updateAllButton.Enabled = _batchUpdatesActive ? !_batchStopRequested :
+                !_busy && !_betaClose.IsClosing && _consultaCatalogoCts is null &&
+                eligible > 0;
+            _updateAllButton.AccessibleDescription = _batchUpdatesActive
+                ? "Interromper próximas atualizações depois da operação atual."
+                : $"Atualizar todos os elegíveis: {eligible} aplicativo(s) com receita direta verificada.";
         }
         if (_bulkUninstallButton is not null)
-            _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
+            _bulkUninstallButton.Enabled = !_busy && !_batchUpdatesActive &&
+                _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
-            _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
+            _clearSelectionButton.Enabled = !_busy && !_batchUpdatesActive && _checkedApps.Count > 0;
+    }
+
+    // A fila reutiliza o instalador individual; não autoriza Store, Terminal,
+    // catálogos consultivos, novos alvos ou tentativas automáticas de recuperação.
+    private async Task UpdateAllApprovedAsync()
+    {
+        if (_batchUpdatesActive)
+        {
+            _batchStopRequested = true;
+            UpdateBulkButtons();
+            Status("A fila será interrompida após a atualização atual; nenhum novo instalador será iniciado.");
+            return;
+        }
+        if (_busy || _betaClose.IsClosing || _consultaCatalogoCts is not null ||
+            _inventoryIncomplete || !_catalogoVerificado)
+        {
+            Status("Atualizar todos exige inventário completo e catálogo já consultado. Use Atualizar e verificar.");
+            return;
+        }
+        var candidates = AppBatchUpdatePolicy.Select(_installed, true, true);
+        if (candidates.Length == 0)
+        {
+            Status("Nenhuma atualização direta elegível; outras ofertas exigem revisão individual.");
+            return;
+        }
+        if (candidates.Length > AppBatchUpdateRun.MaxCandidates)
+        {
+            Status("Muitos candidatos diretos para a confirmação individualizada do lote; revise as atualizações.");
+            return;
+        }
+        int suggested = _installed.Count(item => item.IsUpdate);
+        string preview = AppBatchUpdateRun.Preview(candidates, suggested);
+        if (DarkConfirmDialog.Confirm(this, preview, "Confirmar Atualizar todos") != DialogResult.Yes)
+        {
+            Log("Atualização em lote cancelada antes de qualquer download.");
+            return;
+        }
+
+        _batchUpdatesActive = true;
+        _batchStopRequested = false;
+        _programList.ActionsEnabled = false;
+        if (_checkUpdatesButton is not null) _checkUpdatesButton.Enabled = false;
+        UpdateBulkButtons();
+        AppBatchUpdateSummary? summary = null;
+        try
+        {
+            summary = await AppBatchUpdateRun.RunAsync(candidates,
+                async candidate =>
+                {
+                    ProgramEntry? current = AppBatchUpdatePolicy.Revalidate(
+                        candidate, _installed, !_inventoryIncomplete, _catalogoVerificado);
+                    if (current is null)
+                    {
+                        Log("Lote interrompido: identidade, versão ou elegibilidade alterada antes da tentativa.");
+                        return AppBatchUpdateStepResult.BlockedBeforeStart;
+                    }
+                    Status("Atualizar todos: " + candidate.Name + " → " + candidate.TargetVersion);
+                    _batchLastAttempt = null;
+                    await UpdateThirdPartyAsync(current, fromApprovedBatch: true);
+                    UpdateOperationSnapshot? receipt = _batchLastAttempt;
+                    if (receipt?.Progress.Stage == UpdateStage.Confirmed)
+                    {
+                        Log("Lote: versão confirmada para " + candidate.Name + ".");
+                        return AppBatchUpdateStepResult.Confirmed;
+                    }
+                    Log("Lote interrompido após resultado não confirmado: " +
+                        (receipt?.Details ?? "nenhum recibo confirmável") +
+                        ". Nenhuma nova tentativa automática.");
+                    return AppBatchUpdateStepResult.Inconclusive;
+                },
+                () => _batchStopRequested || IsDisposed || Disposing ||
+                    _betaClose.IsClosing || _busy || _consultaCatalogoCts is not null,
+                ex =>
+                {
+                    DiagnosticTrace.Failure("ATUALIZACAO_LOTE.FALHA", ex);
+                    Log("Lote interrompido após exceção: " + ex.GetType().Name);
+                });
+        }
+        finally
+        {
+            bool requestedStop = _batchStopRequested;
+            _batchUpdatesActive = false;
+            _batchStopRequested = false;
+            _batchLastAttempt = null;
+            if (!IsDisposed && !Disposing)
+            {
+                _programList.ActionsEnabled = !_busy;
+                if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
+                    _checkUpdatesButton.Enabled = !_busy;
+                UpdateBulkButtons();
+                string result = summary is null
+                    ? "Atualizar todos: interrupção sem resumo conclusivo; nenhuma repetição automática."
+                    : summary.Describe(requestedStop);
+                Status(result);
+                Log(result);
+                ExitAfterCurrentOperation();
+            }
+        }
     }
 
     private void ShowUpdateGuidance(ProgramEntry entry)
@@ -3027,9 +3153,10 @@ internal sealed partial class MainForm : Form
         });
     }
 
-    private async Task UpdateThirdPartyAsync(ProgramEntry entry)
+    private async Task UpdateThirdPartyAsync(ProgramEntry entry, bool fromApprovedBatch = false)
     {
-        if (_busy || _betaClose.IsClosing || !_installed.Contains(entry)) return;
+        if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive, fromApprovedBatch) ||
+            _betaClose.IsClosing || !_installed.Contains(entry)) return;
         VerifiedUpdateRecipe? recipe = VerifiedUpdaters.Resolve(entry);
         if (recipe is null)
         {
@@ -3198,6 +3325,7 @@ internal sealed partial class MainForm : Form
                 _deploymentWaitCts = null;
                 if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                if (_batchUpdatesActive) _batchLastAttempt = operation.Snapshot;
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 if (VerifiedUpdaters.IsFolderProtected(folder))
                     Log("Pacote temporario protegido nesta sessao. Mantenha o GF aberto ate todos os instaladores terminarem.");
@@ -3207,7 +3335,7 @@ internal sealed partial class MainForm : Form
                     catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
                 }
             }
-        });
+        }, allowDuringBatch: fromApprovedBatch);
     }
 
     private async Task UninstallCheckedAsync() => await UninstallEntriesAsync(_checkedApps.ToArray());

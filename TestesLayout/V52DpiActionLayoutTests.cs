@@ -16,7 +16,7 @@ internal static class V52DpiActionLayoutTests
             {
                 var current = AppActionLayout.Measure(width, dpi);
                 var next = AppActionLayout.Measure(width, dpi);
-                int expectedHeight = (int)Math.Ceiling((current.Compact ? 76 : 44) * dpi / 96d);
+                int expectedHeight = (int)Math.Ceiling((current.Compact ? 114 : 44) * dpi / 96d);
                 if (current.Dpi != dpi || current.RowHeight != expectedHeight ||
                     !current.NeedsReflow(prior) || next.NeedsReflow(current))
                     throw new Exception($"V5.2: estado/recálculo incorreto {screen}, DPI {dpi}.");
@@ -25,7 +25,7 @@ internal static class V52DpiActionLayoutTests
                 int textHeight = TextRenderer.MeasureText("Desinstalar selecionados",
                     font, new Size(int.MaxValue, 600),
                     TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Height;
-                int buttonRow = current.Compact ? current.RowHeight / 2 : current.RowHeight;
+                int buttonRow = current.Compact ? current.RowHeight / 3 : current.RowHeight;
                 if (buttonRow < textHeight + 6)
                     throw new Exception($"V5.2: altura insuficiente {screen}, DPI {dpi}, botoes {buttonRow}, texto {textHeight}.");
 
