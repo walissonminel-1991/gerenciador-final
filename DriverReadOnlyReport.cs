@@ -73,6 +73,7 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("Variante PCI (catálogo): " + identity.Subsystem);
             text.AppendLine("ID da instância: " + selected.DeviceId);
             text.AppendLine("IDs de hardware: " + (selected.HardwareIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.HardwareIds)));
+            text.AppendLine("IDs compatíveis informados pelo PnP: " + (selected.CompatibleIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.CompatibleIds)));
             text.AppendLine($"Versão instalada (WMI): {selected.Version}; INF: {selected.InfName}; {selected.PresenceLabel}.");
             text.AppendLine("Diagnóstico PnP do Windows: " + selected.PnpStatusLabel + ".");
             text.AppendLine("Orientação consultiva PnP: " +
@@ -143,7 +144,7 @@ internal static class DriverReadOnlyReport
             {
                 text.AppendLine($"{match.DeviceName}: {match.Offer.Title}");
                 text.AppendLine($"  Fornecedor: {match.Offer.Provider}; modelo: {match.Offer.Model}; data informada: {match.Offer.VersionDate:yyyy-MM-dd}.");
-                text.AppendLine($"  Instância PnP: {match.DeviceId}; HardwareID exato: {match.Offer.HardwareId}.");
+                text.AppendLine($"  Instância PnP: {match.DeviceId}; {match.MatchDescription}: {match.MatchedId}.");
                 text.AppendLine($"  Identidade da oferta WUA: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
                 if (match.Relations is { } relations)
                 {

@@ -35,6 +35,7 @@ internal sealed class DriverReportPublicationGuard
     private readonly DriverInventoryResult inventory;
     private readonly DriverInventoryEntry? selected;
     private readonly DriverInventoryEntry[] frozenItems;
+    private readonly string[] frozenOtherPnpTargetIds;
     private readonly DriverStoreEvidence[]? frozenStore;
     private readonly DriverPublishedPackage[]? frozenPublished;
     private readonly bool? frozenStorePartial;
@@ -50,6 +51,7 @@ internal sealed class DriverReportPublicationGuard
         this.selected = selected is null ? null : Freeze(selected);
         this.generation = generation;
         frozenItems = inventory.Items.Select(Freeze).ToArray();
+        frozenOtherPnpTargetIds = inventory.OtherPnpTargetIds.ToArray();
         frozenStore = inventory.Store?.Packages.ToArray();
         frozenPublished = inventory.PublishedPackages?.Packages.ToArray();
         frozenStorePartial = inventory.Store?.Partial;
@@ -62,6 +64,7 @@ internal sealed class DriverReportPublicationGuard
         item with
         {
             HardwareIds = item.HardwareIds.ToArray(),
+            CompatibleIds = item.CompatibleIds.ToArray(),
             WindowsEvents = item.WindowsEvents.ToArray()
         };
 
@@ -79,6 +82,8 @@ internal sealed class DriverReportPublicationGuard
             a.HardwareIds.Count == b.HardwareIds.Count &&
             a.HardwareIds.ToHashSet(StringComparer.OrdinalIgnoreCase)
                 .SetEquals(b.HardwareIds) &&
+            a.CompatibleIds.Count == b.CompatibleIds.Count &&
+            a.CompatibleIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(b.CompatibleIds) &&
             a.WindowsEvents.SequenceEqual(b.WindowsEvents);
     }
 
@@ -154,7 +159,8 @@ internal sealed class DriverReportPublicationGuard
     {
         if (!ReferenceEquals(inventory, current) || currentGeneration != generation ||
             !SameEvidence(selected, selection) || !SamePackageSnapshots() ||
-            inventory.Items.Count != frozenItems.Length || !SelectedUnique())
+            inventory.Items.Count != frozenItems.Length || !SelectedUnique() ||
+            !frozenOtherPnpTargetIds.SequenceEqual(inventory.OtherPnpTargetIds, StringComparer.OrdinalIgnoreCase))
             return false;
         for (int i = 0; i < frozenItems.Length; i++)
             if (!SameEvidence(frozenItems[i], inventory.Items[i])) return false;
@@ -178,7 +184,8 @@ internal sealed class DriverReportPublicationGuard
             if (matches.Length != 1) return false;
             var device = matches[0];
             if (!PackageCoherent(device) ||
-                !device.HardwareIds.Contains(match.Offer.HardwareId, StringComparer.OrdinalIgnoreCase) ||
+                DriverOfficialLookup.FindMatch(device, match.Offer) is not { } expected ||
+                expected.Kind != match.Kind || expected.Entry != match.MatchingWuaEntry ||
                 match.Installed is null ||
                 !string.Equals(device.InfName, match.Installed.InfName, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(device.Version, match.Installed.Version, StringComparison.Ordinal) ||

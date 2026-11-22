@@ -147,8 +147,7 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
             string.Equals(d.DeviceId, choice.DeviceId, StringComparison.OrdinalIgnoreCase)).ToArray();
         // G3.2: a mesma oferta não pode corresponder a outra instância
         // presente, nem a dispositivo com código PnP desconhecido/problemático.
-        bool uniqueHardware = inventory.Items.Count(d => d.Present == true &&
-            d.HardwareIds.Contains(choice.HardwareId, StringComparer.OrdinalIgnoreCase)) == 1;
+        bool uniqueHardware = DriverInventory.HasExclusiveHardwareId(inventory, choice.HardwareId);
         bool sameDevice = !inventory.Partial && items.Length == 1 && uniqueHardware &&
             items[0].Present == true && items[0].Signed == true &&
             items[0].PnpProblemCode == 0 &&

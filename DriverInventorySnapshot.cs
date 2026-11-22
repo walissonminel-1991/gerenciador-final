@@ -24,8 +24,10 @@ internal static class DriverInventorySnapshot
             Items = source.Items.Select(item => item with
             {
                 HardwareIds = item.HardwareIds.ToArray(),
+                CompatibleIds = item.CompatibleIds.ToArray(),
                 WindowsEvents = item.WindowsEvents.ToArray()
             }).ToArray(),
+            OtherPnpTargetIds = source.OtherPnpTargetIds.ToArray(),
             Store = source.Store is null ? null : source.Store with
             {
                 Packages = source.Store.Packages.ToArray()
@@ -52,11 +54,13 @@ internal static class DriverInventorySnapshot
         a.DeviceMetadata == b.DeviceMetadata &&
         a.PackageEvidence == b.PackageEvidence &&
         a.HardwareIds.SequenceEqual(b.HardwareIds, StringComparer.Ordinal) &&
+        a.CompatibleIds.SequenceEqual(b.CompatibleIds, StringComparer.Ordinal) &&
         a.WindowsEvents.SequenceEqual(b.WindowsEvents);
 
     private static bool Equivalent(DriverInventoryResult a, DriverInventoryResult b)
     {
         if (a.Partial != b.Partial || a.Status != b.Status ||
+            !a.OtherPnpTargetIds.SequenceEqual(b.OtherPnpTargetIds, StringComparer.Ordinal) ||
             a.PnpEntities != b.PnpEntities || a.SignedRows != b.SignedRows ||
             a.Items.Count != b.Items.Count ||
             (a.Store is null) != (b.Store is null) ||
@@ -100,7 +104,7 @@ internal static class DriverInventorySnapshot
         foreach (var item in result.Items)
         {
             if (item.DeviceId is null || item.InfName is null ||
-                item.HardwareIds is null || item.WindowsEvents is null)
+                item.HardwareIds is null || item.CompatibleIds is null || item.WindowsEvents is null)
                 return false;
             if (item.WindowsEvents.Any(e => e is null ||
                 !string.Equals(e.DeviceId, item.DeviceId, StringComparison.OrdinalIgnoreCase) ||

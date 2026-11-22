@@ -466,6 +466,7 @@ internal sealed partial class MainForm
                 return;
             // A elegibilidade da interface não substitui a nova prova no clique.
             var matches = official.Matches.Where(m =>
+                m.Kind == DriverOfficialMatchKind.PrimaryHardwareId &&
                 string.Equals(m.DeviceId, requested.DeviceId,
                     StringComparison.OrdinalIgnoreCase)).ToArray();
             if (matches.Length != 1 ||

@@ -1,5 +1,15 @@
 using GerenciadorAplicativos;
 
+if (args is ["--wua-pnp-matching"])
+{
+    DriverWuaPnpMatchingTests.Run((ok, message) =>
+    {
+        if (!ok) throw new InvalidOperationException(message);
+        Console.WriteLine("OK " + message);
+    });
+    return;
+}
+
 if (args is ["--hardware-catalog"])
 {
     DriverHardwareCatalogTests.Run();
@@ -185,6 +195,7 @@ catch (InvalidDataException) { refusedEmptyHistory = true; }
 Check(refusedEmptyHistory,
     "PnP: consulta so com dispositivos sem driver preserva historico anterior");
 ReadOnlyDriverTests.Run(Check);
+DriverWuaPnpMatchingTests.Run(Check);
 Stage2DriverTests.Run(Check);
 G1EvidenceTests.Run(Check);
 G15CaptureTests.Run(Check);

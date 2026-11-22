@@ -9,6 +9,7 @@ internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, 
     internal DriverDeviceMetadata? DeviceMetadata { get; init; }
     internal DriverStoreEvidence? PackageEvidence { get; init; }
     internal IReadOnlyList<string> HardwareIds { get; init; } = [];
+    internal IReadOnlyList<string> CompatibleIds { get; init; } = [];
     internal IReadOnlyList<DriverWindowsEvent> WindowsEvents { get; init; } = [];
     // Codigo informado pelo PnP do Windows, não diagnóstico independente de hardware.
     internal int? PnpProblemCode { get; init; }
@@ -34,6 +35,7 @@ internal sealed record DriverInventoryResult(IReadOnlyList<DriverInventoryEntry>
     internal DriverWindowsHistoryResult? WindowsHistory { get; init; }
     internal int PnpEntities { get; init; }
     internal int SignedRows { get; init; }
+    internal IReadOnlyList<string> OtherPnpTargetIds { get; init; } = [];
 }
 
 // Somente SELECT. Nao enumera todo o Driver Store nem autoriza exclusoes.
@@ -43,6 +45,22 @@ internal static class DriverInventory
     internal static bool ValidHardwareId(string? id) => id is { Length: > 2 and <= 4000 } &&
         id == id.Trim() && id.Contains('\\') && !id.Any(char.IsControl) &&
         !id.Contains('*') && !id.Contains('?');
+
+    // IDs legados como *PNP0501 são literais, sem expansão de curingas.
+    internal static bool ValidCompatibleId(string? id) => ValidHardwareId(id) ||
+        id is { Length: 8 } && id.StartsWith("*PNP", StringComparison.OrdinalIgnoreCase) &&
+        id.Skip(4).All(Uri.IsHexDigit);
+
+    internal static bool HasExclusiveHardwareId(DriverInventoryResult inventory, string id)
+    {
+        var comparer = StringComparer.OrdinalIgnoreCase;
+        if (inventory.OtherPnpTargetIds.Contains(id, comparer)) return false;
+        var targets = inventory.Items.Where(d => d.Present != false &&
+            (d.HardwareIds.Contains(id, comparer) || d.CompatibleIds.Contains(id, comparer)))
+            .Take(2).ToArray();
+        return targets.Length == 1 && targets[0].Present == true &&
+            targets[0].HardwareIds.Contains(id, comparer);
+    }
     internal static IReadOnlyList<DriverInventoryEntry> Correlate(IEnumerable<DriverInventoryEntry> drivers,
         IReadOnlyDictionary<string, bool?> presence,
         IReadOnlyDictionary<string, string>? deviceNames = null)
@@ -61,6 +79,8 @@ internal static class DriverInventory
                 DeviceName = string.IsNullOrWhiteSpace(d.DeviceName)
                     ? names.GetValueOrDefault(d.DeviceId.Trim(), "") : d.DeviceName,
                 HardwareIds = d.HardwareIds.Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+                CompatibleIds = d.CompatibleIds.Distinct(StringComparer.OrdinalIgnoreCase)
                     .Order(StringComparer.OrdinalIgnoreCase).ToArray()
             })
             // G1.19: preservar inclusive as linhas WMI identicas. Deduplicar
@@ -76,7 +96,8 @@ internal static class DriverInventory
         IEnumerable<DriverInventoryEntry> signedDrivers,
         IReadOnlyDictionary<string, int?> problemCodes,
         IReadOnlyDictionary<string, string> deviceNames,
-        IReadOnlyDictionary<string, string[]> hardwareIds)
+        IReadOnlyDictionary<string, string[]> hardwareIds,
+        IReadOnlyDictionary<string, string[]>? compatibleIds = null)
     {
         var rows = signedDrivers.Select(d => d with
         {
@@ -93,6 +114,7 @@ internal static class DriverInventory
                 "", "", "", null, null)
             {
                 HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [],
+                CompatibleIds = compatibleIds?.GetValueOrDefault(id) ?? [],
                 PnpProblemCode = pair.Value,
                 WithoutSignedDriverAssociation = true
             });
@@ -141,6 +163,8 @@ internal static class DriverInventory
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         var deviceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var hardwareIds = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        var compatibleIds = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        var conflictingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var problemCodes = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
         var conflictedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         bool partial = false;
@@ -194,7 +218,7 @@ internal static class DriverInventory
                 }
                 finally { Release(result); }
             }
-            Query("SELECT PNPDeviceID, Name, Description, Present, HardwareID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
+            Query("SELECT PNPDeviceID, Name, Description, Present, HardwareID, CompatibleID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
             {
                 string id = (Convert.ToString(get("PNPDeviceID")) ?? "").Trim();
                 if (id.Length > 0)
@@ -208,10 +232,27 @@ internal static class DriverInventory
                     if (name.Length > 0) deviceNames[id] = name;
                     string[] ids = get("HardwareID") is Array list ? list.Cast<object>()
                         .OfType<string>().Where(ValidHardwareId).Distinct(StringComparer.OrdinalIgnoreCase)
-                        .Take(64).ToArray() : [];
-                    if (hardwareIds.TryGetValue(id, out var oldIds) && !oldIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(ids))
-                    { hardwareIds[id] = []; partial = true; }
-                    else hardwareIds[id] = ids;
+                        .Take(65).ToArray() : [];
+                    object? rawCompatible = get("CompatibleID");
+                    string[] compatible = rawCompatible is Array candidates ? candidates.Cast<object>()
+                        .OfType<string>().Where(ValidCompatibleId).Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Take(65).ToArray() : [];
+                    if (conflictingIds.Contains(id) || ids.Length > 64 || compatible.Length > 64 ||
+                        rawCompatible is not (null or Array) ||
+                        (hardwareIds.TryGetValue(id, out var oldIds) &&
+                            (!oldIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(ids) ||
+                             !compatibleIds[id].ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(compatible))))
+                    {
+                        hardwareIds[id] = [];
+                        compatibleIds[id] = [];
+                        conflictingIds.Add(id);
+                        partial = true;
+                    }
+                    else
+                    {
+                        hardwareIds[id] = ids;
+                        compatibleIds[id] = compatible;
+                    }
                     object? rawCode = get("ConfigManagerErrorCode");
                     int? code = rawCode switch
                     {
@@ -242,20 +283,32 @@ internal static class DriverInventory
                     partial = true;
                 rows.Add(new(id, Text("DeviceName"), Text("DriverProviderName"), Text("DriverVersion"),
                     Text("InfName"), get("IsSigned") is bool b ? b : null, null)
-                    { HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [] });
+                    {
+                        HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [],
+                        CompatibleIds = compatibleIds.GetValueOrDefault(id) ?? []
+                    });
             });
             // A divergência de classe só pode ser descoberta ao fim da leitura.
             rows = rows.Select(d => d with
                 { ReportedDriverClass = driverClasses.GetValueOrDefault(d.DeviceId, "") }).ToList();
-            return new(Correlate(
-                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds),
-                presence, deviceNames), partial, partial ? "Consulta parcial" : "Consulta concluída")
-                { PnpEntities = presence.Count, SignedRows = rows.Count };
+            var items = Correlate(IncludeUnboundProblemDevices(rows, problemCodes, deviceNames,
+                hardwareIds, compatibleIds), presence, deviceNames);
+            var represented = items.Select(item => item.DeviceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var otherTargetIds = presence.Where(p => p.Value != false && !represented.Contains(p.Key))
+                .SelectMany(p => (hardwareIds.GetValueOrDefault(p.Key) ?? [])
+                    .Concat(compatibleIds.GetValueOrDefault(p.Key) ?? []))
+                .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+            return new(items, partial, partial ? "Consulta parcial" : "Consulta concluída")
+            {
+                PnpEntities = presence.Count,
+                SignedRows = rows.Count,
+                OtherPnpTargetIds = otherTargetIds
+            };
         }
         catch (Exception ex)
         {
             return new(Correlate(
-                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds),
+                IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds, compatibleIds),
                 presence, deviceNames), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
         }

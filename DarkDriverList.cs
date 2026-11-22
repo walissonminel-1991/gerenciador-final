@@ -564,7 +564,8 @@ internal static class DriverUpdateEligibility
         if (inventory.Partial || official.Partial ||
             official.SearchContext is not { Source: "Windows Update", Online: true })
             return eligible;
-        foreach (var group in official.Matches.GroupBy(
+        foreach (var group in official.Matches.Where(
+            match => match.Kind == DriverOfficialMatchKind.PrimaryHardwareId).GroupBy(
             match => match.DeviceId, StringComparer.OrdinalIgnoreCase))
         {
             if (string.IsNullOrWhiteSpace(group.Key) || group.Count() != 1) continue;
