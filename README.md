@@ -1,5 +1,13 @@
 # Gerenciador Final · GF
 
+## Estado vigente — candidata pessoal P0 (21/11/2026)
+
+A candidata integrada está na [PR #97](https://github.com/walissonminel-1991/gerenciador-final/pull/97), fonte `d0a5156ab548cf4365ca9d1babe44deaca0da6bf`. A [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279577) e a [integridade externa](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279588) passaram no código integrado. A aplicação win-x64 self-contained foi compilada no runner, mas **o artefato público não contém o executável** por política de distribuição. O ZIP pessoal e a homologação física nos PCs FORTE/FRACO continuam pendentes. A compilação não equivale à entrega, assinatura Authenticode, liberação pública ou validação AVG.
+
+A interface atualmente tem seis abas principais: **Aplicativos; DRIVERS; Limpeza e desempenho; Reparo e rede; Planos de energia; Inicialização e sistema**, cujo painel integrado inclui Windows Update. Drivers implementa **consulta e manutenção OEM/WUA estritamente elegível**, com backup, autorização, revalidação e diário — não é mais exclusivamente somente leitura, mas também **não atualiza universalmente todo hardware**. Em Aplicativos, `Atualizar e verificar` é consulta e atualização da lista, **não** o botão `Atualizar todos`; a ação global de atualização ainda não foi implementada. A edição local desabilita diagnósticos remotos e verificações online automáticas; consulta sob ação explícita permanece disponível.
+
+**Próxima ação P0:** gerar o ZIP pela rota local existente em Windows x64, conferir SHA-256 do pacote e realizar homologação controlada com AVG ativo. **Roadmap 27/42; expansão VF01–VF16 separada e ainda não aceita formalmente.** Os registros datados abaixo são históricos e não substituem esta fotografia.
+
 **Diretriz vigente (01/11/2026): um único produto, sem programa de distribuição antecipada ou recrutamento externo.** O projeto prossegue com testes controlados e validação do autoatualizador; nenhuma entrega histórica autoriza publicação, diagnóstico remoto ou atualização automática. [Decisão e limites de segurança](docs/DECISAO-CANAL-UNICO-20261101.md). **Não há release oficial aprovado; roadmap 27/42.**
 
 ### Histórico de preparação (28/10/2026; não é o plano atual)
