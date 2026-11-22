@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace GerenciadorAplicativos;
 
 // VF02 fase 2: destinos OFICIAIS fixos para conferência humana.
@@ -15,10 +17,23 @@ internal static class GraphicsDriverOfficialSources
     private const string NvidiaAll = "https://www.nvidia.com/pt-br/drivers/";
     private const string AmdAll = "https://www.amd.com/en/support/download/drivers.html";
     private const string IntelArc = "https://www.intel.com/content/www/us/en/products/docs/discrete-gpus/arc/software/drivers.html";
+    // Registro oficial Intel #785597: versão, Windows e lista de produtos.
+    // Conteúdo remoto muda com o tempo; somente abrir para revisão humana.
+    private const string IntelArcConsumerDetails =
+        "https://www.intel.com/content/www/us/en/download/785597/intel-arc-graphics-windows.html";
     private const string IntelAll = "https://www.intel.com/content/www/us/en/download-center/home.html";
 
     private static readonly HashSet<string> OfficialPages =
-        new(StringComparer.Ordinal) { NvidiaGeForce, NvidiaAll, AmdAll, IntelArc, IntelAll };
+        new(StringComparer.Ordinal)
+        { NvidiaGeForce, NvidiaAll, AmdAll, IntelArc, IntelArcConsumerDetails, IntelAll };
+
+    // Apenas SKUs de consumo listados nominalmente no registro Intel #785597.
+    // Arc Pro, SKU desconhecido e família genérica NÃO são mapeados como oferta.
+    // Mesmo para SKU conhecido, a compatibilidade do equipamento/OEM é inconclusiva.
+    private static readonly Regex IntelConsumerSku = new(
+        @"\bArc(?:\s*(?:\(TM\)|\(R\)|[®™]))*\s+(?:A(?:310|380|580|750|770|350M|370M|530M|550M|570M|730M|770M)|B(?:570|580))\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromMilliseconds(100));
 
     internal static bool IsApprovedOfficialPage(string? url) =>
         url is not null && OfficialPages.Contains(url) &&
@@ -36,6 +51,7 @@ internal static class GraphicsDriverOfficialSources
             "NVIDIA" when gpu.Model.Contains("GeForce", StringComparison.OrdinalIgnoreCase) => NvidiaGeForce,
             "NVIDIA" => NvidiaAll,
             "AMD" => AmdAll,
+            "Intel" when IntelConsumerSku.IsMatch(gpu.Model) => IntelArcConsumerDetails,
             "Intel" when gpu.Model.Contains("Arc", StringComparison.OrdinalIgnoreCase) => IntelArc,
             "Intel" => IntelAll,
             _ => ""
