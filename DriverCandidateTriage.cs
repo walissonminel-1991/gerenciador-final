@@ -97,7 +97,7 @@ internal static class DriverCandidateTriage
             var matches = official.Matches.Where(m =>
                 string.Equals(m.DeviceId, device.DeviceId, StringComparison.OrdinalIgnoreCase)).ToArray();
             if (matches.Length == 0)
-                text.AppendLine($"WUA: {official.Offered} ofertas observadas; nenhuma correspondência PnP exata para esta instância.");
+                text.AppendLine($"WUA: {official.Offered} ofertas observadas; nenhum vínculo PnP comprovado para esta instância.");
             else
             {
                 text.AppendLine($"WUA: {matches.Length} vínculos consultivos desta instância; DriverVer ofertado NÃO COMPROVADO.");
