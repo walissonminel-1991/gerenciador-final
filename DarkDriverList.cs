@@ -110,6 +110,10 @@ internal sealed class DarkDriverList : Control
         _actionsCurrent && _eligibleUpdateDevices.Contains(item.DeviceId);
     internal bool CanUninstall(DriverInventoryEntry item) =>
         _actionsCurrent && _evaluateRemoval?.Invoke(item).Allowed == true;
+    // A rota manual abre o Gerenciador de Dispositivos com consentimento.
+    // Nunca prometer desinstalação direta quando o gate OEM a proíbe.
+    internal static string RemovalActionLabel(bool directEligible) =>
+        directEligible ? "Desinstalar" : "Gerenciar";
     internal string UninstallReason(DriverInventoryEntry item) =>
         _evaluateRemoval?.Invoke(item).Reason ?? "Selecione um dispositivo em inventário válido.";
 
@@ -226,10 +230,12 @@ internal sealed class DarkDriverList : Control
                     ? "; oferta WUA apenas consultiva, sem ação de atualização elegível" : "") +
             ". " + DriverPnpGuidance.Describe(selected.PnpProblemCode) +
             (_actionsCurrent
-                ? "; Detalhes: consulta oficial e evidências; Desinstalar: " +
+                ? "; Detalhes: consulta oficial e evidências; " +
                   (CanUninstall(selected)
-                    ? "disponível com confirmação e backup"
-                    : "gerenciamento manual no Windows; " + UninstallReason(selected)) +
+                    ? "Desinstalar: disponível com confirmação e backup"
+                    : "Gerenciar: encaminha ao Gerenciador de Dispositivos do Windows, " +
+                      "após confirmação, sem remoção automática pelo GF; " +
+                      UninstallReason(selected)) +
                   ". Use Enter para abrir as ações acessíveis."
                 : "; ações bloqueadas até consulta válida; pressione Tab para Investigar.");
     }
@@ -349,10 +355,11 @@ internal sealed class DarkDriverList : Control
             DrawAction(canvas, DriverRowGeometry.Update(bounds, dpi, _actionFont),
                 "Atualizar", true, hover == DriverCardAction.Update, false, true);
         Rectangle uninstall = DriverRowGeometry.Uninstall(bounds, dpi, _actionFont);
-        // A ação aparece para todos. O backend OEM continua protegido:
-        // casos não elegíveis seguem ao gerenciamento manual do Windows.
-        DrawAction(canvas, uninstall, "Desinstalar", _actionsCurrent,
-            hover == DriverCardAction.Uninstall, CanUninstall(item));
+        // Rotas distintas, mesma geometria virtual: remover apenas quando
+        // elegível; caso contrário, oferecer gerenciamento MANUAL no Windows.
+        bool directUninstall = CanUninstall(item);
+        DrawAction(canvas, uninstall, RemovalActionLabel(directUninstall), _actionsCurrent,
+            hover == DriverCardAction.Uninstall, directUninstall);
     }
 
     private void DrawAction(Graphics canvas, Rectangle bounds, string text,
@@ -460,9 +467,13 @@ internal sealed class DarkDriverList : Control
         _detailsMenu.Enabled = _actionsCurrent;
         _updateMenu.Enabled = CanUpdate(item);
         _uninstallMenu.Enabled = _actionsCurrent;
+        bool directUninstall = CanUninstall(item);
+        _uninstallMenu.Text = directUninstall ? "Desinstalar" : "Gerenciar no Windows";
         _detailsMenu.ToolTipText = "";
         _updateMenu.ToolTipText = "";
-        _uninstallMenu.ToolTipText = "";
+        _uninstallMenu.ToolTipText = directUninstall
+            ? "Remoção OEM elegível: exige confirmação, backup e revalidação."
+            : "Abre o Gerenciador de Dispositivos após confirmação; o GF não remove.";
         _actionsMenu.Show(this, location);
     }
 
@@ -564,7 +575,8 @@ internal static class DriverUpdateEligibility
         if (inventory.Partial || official.Partial ||
             official.SearchContext is not { Source: "Windows Update", Online: true })
             return eligible;
-        foreach (var group in official.Matches.GroupBy(
+        foreach (var group in official.Matches.Where(
+            match => match.Kind == DriverOfficialMatchKind.PrimaryHardwareId).GroupBy(
             match => match.DeviceId, StringComparer.OrdinalIgnoreCase))
         {
             if (string.IsNullOrWhiteSpace(group.Key) || group.Count() != 1) continue;

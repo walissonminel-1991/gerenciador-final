@@ -89,7 +89,7 @@ internal static class DriverCandidateTriageTests
             throw new Exception("UX4: estados WUA incompletos incorretos.");
         var unlinked = empty with { Offered = 1 };
         if (!DriverCandidateTriage.Format(inv, device, unlinked)
-            .Contains("nenhuma correspondência PnP exata"))
+            .Contains("nenhum vínculo PnP comprovado"))
             throw new Exception("UX4: oferta sem vínculo PnP indevidamente aceita.");
 
         var entry = new DriverOfficialEntryEvidence(hw, "Fornecedor fictício", "Modelo",

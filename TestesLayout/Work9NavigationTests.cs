@@ -14,6 +14,18 @@ internal static class Work9NavigationTests
         var setView = typeof(MainForm).GetMethod("SetSystemView", Private)!;
         var refresh = typeof(MainForm).GetMethod("RefreshStartupEntriesAsync", Private)!;
         nav.SelectTab(5);
+        var tooltip = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!.GetValue(form)!;
+        check(!tooltip.Active, "WU-UI1 nenhum tooltip flutuante na janela principal");
+        setView.Invoke(form, ["update"]);
+        typeof(MainForm).GetMethod("DrawWindowsUpdates", Private)!.Invoke(form, null);
+        var search = (Button)typeof(MainForm).GetField("_searchWindowsUpdatesButton", Private)!.GetValue(form)!;
+        var summary = (Label)typeof(MainForm).GetField("_systemPanelSummary", Private)!.GetValue(form)!;
+        bool scanning = (bool)typeof(MainForm).GetField("_windowsUpdateScanning", Private)!.GetValue(form)!;
+        bool checkedWU = (bool)typeof(MainForm).GetField("_windowsUpdateChecked", Private)!.GetValue(form)!;
+        check(search.Name == "WindowsUpdateExplicitSearch" && search.Text == "Buscar atualizações" &&
+            search.Enabled && !scanning && !checkedWU &&
+            summary.Text.Contains("Buscar atualizações", StringComparison.Ordinal),
+            "WU-UI2 visualização sem consulta e botão de busca explícito");
         foreach (bool leaveMainTab in new[] { false, true })
         {
             setView.Invoke(form, ["startup"]);

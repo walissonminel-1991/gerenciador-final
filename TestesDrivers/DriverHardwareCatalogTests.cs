@@ -15,6 +15,228 @@ internal static class DriverHardwareCatalogTests
         Check(DriverHardwareCatalog.Identify(gpu).Vendor.Contains("NVIDIA", StringComparison.Ordinal) &&
             DriverHardwareCatalog.DisplayName(gpu).Contains("GeForce RTX 5060 Ti", StringComparison.Ordinal),
             "o ID de instância PCI identifica a RTX 5060 Ti mesmo sem HardwareID");
+        // VF02 fase 1: GPU/versão Windows por mesmo DeviceId, sem criar
+        // oferta Game Ready, canal presumido ou elegibilidade Display.
+        var rtx = gpu with { ReportedDriverClass = "Display" };
+        var found = GraphicsDriverInventory.Find(new([rtx], false, "consulta completa"));
+        Check(found is [{ Manufacturer: "NVIDIA", InstalledWindowsVersion: "10.0.26100.1",
+                         InstalledChannel: GraphicsDriverInventory.UnknownChannel }] &&
+            found[0].Model.Contains("RTX 5060 Ti", StringComparison.Ordinal) &&
+            found[0].ModelSource.Contains("catálogo PCI", StringComparison.Ordinal) &&
+            found[0].VersionSource.Contains("Win32_PnPSignedDriver.DriverVersion", StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 lê RTX 5060 Ti e versão Windows por PCI/WMI; canal desconhecido e Display bloqueado");
+        Check(GraphicsDriverInventory.CompactSummary(new([rtx], false, ""))
+                .Contains("Canal: não identificado", StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), null)
+                .Contains("DRIVERS DE JOGOS — IDENTIFICAÇÃO LOCAL", StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), rtx)
+                .Contains("Versão do driver Windows: 10.0.26100.1", StringComparison.Ordinal),
+            "VF02 mostra evidência gráfica na aba e no relatório geral/selecionado");
+
+        var amdDisplay = new DriverInventoryEntry(@"PCI\VEN_1002&DEV_A123\LOCAL",
+            "Radeon de fixture", "AMD", "32.0.1.1234", "oem3.inf", true, true)
+            { ReportedDriverClass = "Display" };
+        var intelDisplay = new DriverInventoryEntry(@"PCI\VEN_8086&DEV_B123\LOCAL",
+            "Intel Arc de fixture", "Intel", "31.0.1.1234", "oem4.inf", true, true)
+            { ReportedDriverClass = "Display" };
+        var graphics = GraphicsDriverInventory.Find(new([rtx, amdDisplay, intelDisplay], false, ""));
+        Check(graphics.Length == 3 &&
+            graphics.Any(x => x.Manufacturer == "AMD" && x.Model == "Radeon de fixture") &&
+            graphics.Any(x => x.Manufacturer == "Intel" && x.Model == "Intel Arc de fixture") &&
+            graphics.All(x => x.InstalledChannel == GraphicsDriverInventory.UnknownChannel),
+            "VF02 estrutura AMD/Intel por PCI + classe Display, sem afirmar canais instalados");
+
+        var intelNonGpu = intelDisplay with { ReportedDriverClass = "Net", DeviceName = "Rede Intel" };
+        var conflictingRtx = rtx with { HardwareIds = [@"PCI\VEN_1002&DEV_A123"] };
+        var malformedId = rtx with { DeviceId = @"PCI\VEN_10DE&DEV_2D04X\LOCAL" };
+        Check(GraphicsDriverInventory.Find(new([intelNonGpu, conflictingRtx, malformedId], false, "")).Length == 0,
+            "VF02 recusa PCI de rede, IDs de GPU conflitantes e identificador malformado");
+        var duplicates = GraphicsDriverInventory.Find(new([rtx, rtx], false, ""));
+        var partial = GraphicsDriverInventory.Find(new([rtx], true, "parcial"));
+        var unknownClass = GraphicsDriverInventory.Find(new([gpu], false, "classe indisponível"));
+        Check(duplicates is [{ InstalledWindowsVersion: "não confirmada" }] &&
+            partial is [{ InstalledWindowsVersion: "não confirmada" }] &&
+            unknownClass is [{ Manufacturer: "NVIDIA", InstalledWindowsVersion: "não confirmada" }] &&
+            duplicates[0].Observation.Contains("múltiplas", StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 duplicidade, inventário parcial e classe ausente não confirmam versão nem autorizam instalação");
+
+        // VF02 fase 3: equivalência de numeração NVIDIA DOCUMENTADA, somente
+        // para fornecedor NVIDIA e versão Windows íntegra do mesmo Display.
+        var nvidiaSigned = rtx with { Provider = "NVIDIA", Version = "32.0.16.1742", InfName = "oem617.inf" };
+        var nvidiaInventory = new DriverInventoryResult([nvidiaSigned], false, "consulta completa");
+        var nvidiaSnapshot = GraphicsDriverInventory.Find(nvidiaInventory).Single();
+        Check(GraphicsDriverInventory.NvidiaPublicVersion(nvidiaSnapshot) == "617.42" &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned)
+                .Contains("Versão NVIDIA equivalente (derivada da WMI): 617.42", StringComparison.Ordinal) &&
+            nvidiaSnapshot.InstalledWindowsVersion == "32.0.16.1742" &&
+            nvidiaSnapshot.InstalledChannel == GraphicsDriverInventory.UnknownChannel &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 apresenta conversão oficial WMI->NVIDIA sem inferir canal nem liberar Display");
+        var nvidiaOlder = GraphicsDriverInventory.Find(new(
+            [nvidiaSigned with { Version = "31.0.15.6094" }], false, "")).Single();
+        Check(GraphicsDriverInventory.NvidiaPublicVersion(nvidiaOlder) == "560.94" &&
+            GraphicsDriverInventory.NvidiaPublicVersion(found[0]) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(graphics.Single(x => x.Manufacturer == "AMD")) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(graphics.Single(x => x.Manufacturer == "Intel")) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { Provider = "Microsoft" }], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { Version = "32.0.16.174" }], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { Version = "32.1.16.1742" }], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned, nvidiaSigned], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned], true, "parcial")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { ReportedDriverClass = "" }], false, "")).Single()) is null,
+            "VF02 recusa conversão NVIDIA para outros fornecedores, provedor errado, formato inválido, duplicidade e lacunas");
+
+        // VF02 fase 5: API NVAPI oficial informa o canal INSTALADO, não uma oferta.
+        // Valores de fixtures não são chamadas nativas nem provas da RTX 5060 Ti física.
+        Check(NvidiaDriverChannel.NativeStructureSize == 76 &&
+            NvidiaDriverChannel.Classify(61742, 0x02, "617.42") == "Studio" &&
+            NvidiaDriverChannel.Classify(61742, 0x04, "617.42") == "Game Ready" &&
+            NvidiaDriverChannel.Classify(61742, 0x05, "617.42") == "Game Ready" &&
+            NvidiaDriverChannel.Classify(61742, 0x08, "617.42") == "RTX Production Branch" &&
+            NvidiaDriverChannel.Classify(61742, 0x10, "617.42") == "RTX New Feature Branch" &&
+            NvidiaDriverChannel.CanRead(nvidiaInventory, nvidiaSnapshot) &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned,
+                nvidiaInstalledChannel: "Game Ready")
+                .Contains("Canal instalado (Game Ready/Studio/Adrenalin/Game On): Game Ready",
+                    StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned,
+                nvidiaInstalledChannel: "Game Ready")
+                .Contains("Origem do canal: NVAPI local oficial", StringComparison.Ordinal),
+            "VF02 fase 5 reconhece flags exclusivas NVIDIA, versão exata e relatório com proveniência");
+        var secondNvidia = nvidiaSigned with { DeviceId = @"PCI\VEN_10DE&DEV_2D04\SECOND" };
+        Check(NvidiaDriverChannel.Classify(61742, 0, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x01, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x06, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x20, "617.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x04, "618.42") is null &&
+            NvidiaDriverChannel.Classify(61742, 0x04, null) is null &&
+            NvidiaDriverChannel.Classify(61742, 0x04, "617.42.0") is null &&
+            NvidiaDriverChannel.Classify(0, 0x04, "617.42") is null &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned, secondNvidia], false, ""),
+                nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned, nvidiaSigned], false, ""),
+                nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned], true, ""),
+                nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([nvidiaSigned with { Provider = "Microsoft" }],
+                false, ""), nvidiaSnapshot) &&
+            !NvidiaDriverChannel.CanRead(new([intelDisplay], false, ""), 
+                graphics.Single(x => x.Manufacturer == "Intel")) &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned)
+                .Contains("Canal instalado (Game Ready/Studio/Adrenalin/Game On): não identificado",
+                    StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 fase 5 falha fechada para flags, versões ou GPU ambiguas, sem abrir Display");
+
+        // VF02 fase 6: edição AMD fornecida pelo SDK oficial ADLX, somente
+        // quando uma única GPU AMD tem identidade e versão Windows verificáveis.
+        var amdSnapshot = GraphicsDriverInventory.Find(
+            new([amdDisplay], false, "consulta completa")).Single();
+        var amdInventory = new DriverInventoryResult([amdDisplay], false, "completo");
+        Check(AmdDriverChannel.CanRead(amdInventory, amdSnapshot) &&
+            AmdDriverChannel.Classify("AMD Software: Adrenalin Edition",
+                "32.0.1.1234", amdSnapshot.InstalledWindowsVersion) ==
+                "AMD Software: Adrenalin Edition" &&
+            AmdDriverChannel.Classify("AMD Software: PRO Edition",
+                "32.0.1.1234", amdSnapshot.InstalledWindowsVersion) ==
+                "AMD Software: PRO Edition" &&
+            AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\NATIVE",
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\WMI") &&
+            DriverReadOnlyReport.Format(amdInventory, amdDisplay,
+                amdInstalledEdition: "AMD Software: Adrenalin Edition")
+                .Contains("Edição AMD instalada (ADLX local): AMD Software: Adrenalin Edition",
+                    StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 fase 6 identifica edição ADLX com identidade OEM e versão WMI sem instalação");
+        var anotherAmd = amdDisplay with { DeviceId = @"PCI\VEN_1002&DEV_A124\OTHER" };
+        Check(AmdDriverChannel.Classify("AMD Software: Adrenalin Edition",
+                "32.0.1.1235", "32.0.1.1234") is null &&
+            AmdDriverChannel.Classify("Gaming Driver", "32.0.1.1234", "32.0.1.1234") is null &&
+            AmdDriverChannel.Classify("AMD Software: PRO Edition", "", "32.0.1.1234") is null &&
+            AmdDriverChannel.Classify(null, "32.0.1.1234", "32.0.1.1234") is null &&
+            !AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\NATIVE",
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_99991002\WMI") &&
+            !AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123\NATIVE",
+                @"PCI\VEN_1002&DEV_A123\WMI") &&
+            !AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\NATIVE",
+                @"PCI\VEN_1002&DEV_A124&SUBSYS_12341002\WMI") &&
+            !AmdDriverChannel.CanRead(new([amdDisplay, anotherAmd], false, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(new([amdDisplay, amdDisplay], false, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(new([amdDisplay], true, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(new([amdDisplay with { Provider = "Microsoft" }],
+                false, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(amdInventory, nvidiaSnapshot) &&
+            DriverReadOnlyReport.Format(amdInventory, amdDisplay)
+                .Contains("Edição AMD instalada: não identificada", StringComparison.Ordinal),
+            "VF02 fase 6 recusa edição inventada, WMI divergente, OEM inconclusivo e GPUs ambíguas");
+
+        // VF02 fase 2: nenhum endpoint de scraping nem versão remota presumida.
+        var nvidiaSite = GraphicsDriverOfficialSources.For(found[0]);
+        var amdSite = GraphicsDriverOfficialSources.For(graphics.Single(x => x.Manufacturer == "AMD"));
+        var intelSite = GraphicsDriverOfficialSources.For(graphics.Single(x => x.Manufacturer == "Intel"));
+        Check(nvidiaSite is { Manufacturer: "NVIDIA",
+            PageUrl: "https://www.nvidia.com/pt-br/geforce/drivers/" } &&
+            amdSite is { Manufacturer: "AMD",
+            PageUrl: "https://www.amd.com/en/support/download/drivers.html" } &&
+            intelSite is { Manufacturer: "Intel",
+            PageUrl: "https://www.intel.com/content/www/us/en/products/docs/discrete-gpus/arc/software/drivers.html" } &&
+            new[] { nvidiaSite, amdSite, intelSite }.All(s =>
+                s!.ReviewState == GraphicsDriverOfficialSources.ManualReview &&
+                s.OfferedChannel == GraphicsDriverOfficialSources.UnknownOffer &&
+                s.OfferedVersion == GraphicsDriverOfficialSources.UnknownOffer &&
+                GraphicsDriverOfficialSources.IsApprovedOfficialPage(s.PageUrl)),
+            "VF02 fase 2 fontes oficiais por fabricante com oferta/canal desconhecidos");
+        Check(!GraphicsDriverOfficialSources.IsApprovedOfficialPage("http://www.nvidia.com/pt-br/geforce/drivers/") &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage("https://www.nvidia.com.evil.test/pt-br/geforce/drivers/") &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage("https://www.nvidia.com/pt-br/geforce/drivers/?model=secret") &&
+            GraphicsDriverOfficialSources.For(found[0] with { Manufacturer = "desconhecido" }) is null &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), rtx)
+                .Contains("Consulta de versão oficial: inconclusiva", StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), rtx)
+                .Contains("nenhuma versão remota foi consultada ou comparada pelo GF", StringComparison.Ordinal),
+            "VF02 rejeita URLs não aprovadas, não infere ofertas e exibe estado inconclusivo");
+
+        // VF02 fase 4: registro oficial Intel #785597 publica versão, lista de
+        // produtos e OS; o link é somente consulta MANUAL (sem oferta inferida).
+        var intelB580 = intelDisplay with { DeviceName = "Intel(R) Arc(TM) B580 Graphics" };
+        var intelA770 = intelDisplay with { DeviceName = "Intel® Arc™ A770 Graphics" };
+        var intelA350M = intelDisplay with { DeviceName = "Intel Arc A350M Graphics" };
+        var intelPro = intelDisplay with { DeviceName = "Intel Arc Pro B60 Graphics" };
+        var intelUnknown = intelDisplay with { DeviceName = "Intel Arc A999 Graphics" };
+        var intelFalseSku = intelDisplay with { DeviceName = "Intel Arc B5800 Graphics" };
+        var officialIntelRecord =
+            "https://www.intel.com/content/www/us/en/download/785597/intel-arc-graphics-windows.html";
+        GraphicsDriverOfficialSource? IntelSite(DriverInventoryEntry entry) =>
+            GraphicsDriverOfficialSources.For(
+                GraphicsDriverInventory.Find(new([entry], false, "consulta completa")).Single());
+        Check(IntelSite(intelB580) is { PageUrl: var b580Url, OfferedVersion: "não verificada",
+                OfferedChannel: "não verificada" } && b580Url == officialIntelRecord &&
+            IntelSite(intelA770)?.PageUrl == officialIntelRecord &&
+            IntelSite(intelA350M)?.PageUrl == officialIntelRecord &&
+            GraphicsDriverOfficialSources.IsApprovedOfficialPage(officialIntelRecord) &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage(officialIntelRecord + "?driver=999") &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage(
+                "https://www.intel.com.evil.test/en/download/785597/intel-arc-graphics-windows.html"),
+            "VF02 fase 4 encaminha SKUs Intel Arc reconhecidos ao registro oficial sem oferta automática");
+        Check(IntelSite(intelPro)?.PageUrl != officialIntelRecord &&
+            IntelSite(intelUnknown)?.PageUrl != officialIntelRecord &&
+            IntelSite(intelFalseSku)?.PageUrl != officialIntelRecord &&
+            IntelSite(intelDisplay)?.ReviewState == GraphicsDriverOfficialSources.ManualReview &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 fase 4 recusa associação do registro específico a Pro, SKU desconhecido ou parecido");
+
         var named = gpu with { DeviceName = "Nome específico informado pelo fabricante" };
         Check(DriverHardwareCatalog.DisplayName(named) == named.DeviceName,
             "preserva o nome específico informado pelo Windows");
@@ -128,6 +350,32 @@ internal static class DriverHardwareCatalogTests
             DriverReadOnlyReport.Format(enriched, namedByBus)
                 .Contains("Descrição informada pelo dispositivo: Nome informado pelo dispositivo", StringComparison.Ordinal),
             "o nome do barramento recupera rótulos genéricos e aparece em Detalhes");
+
+        var fromFriendly = generic with
+        {
+            DeviceMetadata = new("Texto do barramento", "", "Placa de captura virtual", "Descrição local")
+        };
+        Check(DriverHardwareCatalog.DisplayName(fromFriendly) == "Placa de captura virtual" &&
+            DriverListFilters.Apply([fromFriendly], "Todos", "captura virtual").Single() == fromFriendly &&
+            DriverReadOnlyReport.Format(new([fromFriendly], false, ""), fromFriendly)
+                .Contains("Nome amigável da instância (Windows PnP): Placa de captura virtual"),
+            "o nome amigável do MESMO devnode pode identificar uma entrada WMI genérica");
+        var fromBus = generic with
+        {
+            DeviceMetadata = new("Nome do barramento", "", "Dispositivo desconhecido", "Outro detalhe específico")
+        };
+        Check(DriverHardwareCatalog.DisplayName(fromBus) == "Nome do barramento" &&
+            DriverListFilters.Apply([fromBus], "Todos", "específico").Single() == fromBus,
+            "bus description e device description podem ser pesquisados independentemente");
+        var noNativeEvidence = generic with
+        {
+            DeviceMetadata = new("", "", "%INVALID%", "@unresolved")
+        };
+        Check(DriverHardwareCatalog.DisplayName(noNativeEvidence) == generic.DeviceName &&
+            DriverInventory.ReportedDeviceName("Dispositivo desconhecido", "Controlador Realtek HD") ==
+                "Controlador Realtek HD" &&
+            DriverInventory.ReportedDeviceName("Nome verdadeiro", "Outro nome") == "Nome verdadeiro",
+            "não atribui nome sem evidência e privilegia descrição específica da mesma instância");
 
         var broad = named with { Provider = "Realtek ALC892" };
         var contains = named with { DeviceName = "Dispositivo de teste Realtek ALC892" };

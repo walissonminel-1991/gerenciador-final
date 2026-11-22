@@ -58,10 +58,20 @@ internal sealed record DriverOfficialInstalledEvidence(
     string InfName, string Provider, string Version, bool? SignedReportedByWindows,
     DriverStoreState? StoreState, int? PnpProblemCode, bool WithoutSignedDriverAssociation);
 
+internal enum DriverOfficialMatchKind { PrimaryHardwareId, AdditionalHardwareId, CompatibleId }
+
 internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string DeviceId, string DeviceName)
 {
     internal DriverOfficialInstalledEvidence? Installed { get; init; }
     internal DriverOfficialEntryEvidence? MatchingWuaEntry { get; init; }
+    internal DriverOfficialMatchKind Kind { get; init; }
+    internal string MatchedId => MatchingWuaEntry?.HardwareOrCompatibleId ?? Offer.HardwareId;
+    internal string MatchDescription => Kind switch
+    {
+        DriverOfficialMatchKind.PrimaryHardwareId => "HardwareID da entrada principal WUA",
+        DriverOfficialMatchKind.AdditionalHardwareId => "HardwareID de entrada adicional WUA",
+        _ => "ID compatível informado pelo PnP"
+    };
     internal DriverOfficialRelationsAudit? Relations => Offer.Relations;
     internal bool ProviderMatchesInstalled => Installed is { WithoutSignedDriverAssociation: false } current &&
         current.Provider.Equals(Offer.Provider, StringComparison.OrdinalIgnoreCase);
@@ -76,7 +86,7 @@ internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string Dev
     internal bool IsNewerProven => false;
     internal bool CanInstall => false;
     internal string Label =>
-        "Oferta WUA vinculada por HardwareID exato à instância PnP. " +
+        $"Vínculo consultivo por {MatchDescription}. " +
         "Versão numérica da oferta, ranking, compatibilidade independente de SO/arquitetura e pacote completo não comprovados; não classificar como mais novo.";
 }
 internal sealed record DriverOfficialResult(IReadOnlyList<DriverOfficialMatch> Matches,
@@ -140,6 +150,10 @@ internal static class DriverOfficialLookup
             return new([], offers.Count, offers.Count, true,
                 "Relações WUA com ciclos, autossubstituição ou metadados contraditórios; nenhum vínculo aprovado.");
         var devices = deviceGroups.Select(g => g.First() with { DeviceId = g.Key }).ToArray();
+        var devicesByReportedId = devices.Where(d => d.Present == true && d.DeviceId.Length > 0)
+            .SelectMany(device => device.HardwareIds.Concat(device.CompatibleIds)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Select(id => (Id: id, Device: device)))
+            .ToLookup(x => x.Id, x => x.Device, StringComparer.OrdinalIgnoreCase);
         var matched = new List<DriverOfficialMatch>();
         int unmatched = 0;
         bool partial = false;
@@ -149,7 +163,7 @@ internal static class DriverOfficialLookup
         {
             var offer = group.First();
             if (!Guid.TryParseExact(offer.UpdateId, "D", out var id) || id == Guid.Empty || offer.Revision < 1 ||
-                !ValidHardwareId(offer.HardwareId) ||
+                !DriverInventory.ValidCompatibleId(offer.HardwareId) ||
                 !SafeText(offer.Provider, true, 256) || !SafeText(offer.Model, true, 256) ||
                 !SafeText(offer.Title, true, 2000) ||
                 !SafeText(offer.DriverClass, false, 256) || !SafeText(offer.Manufacturer, false, 256) ||
@@ -165,30 +179,62 @@ internal static class DriverOfficialLookup
                      !audit.Entries.Any(e => e.HardwareOrCompatibleId.Equals(offer.HardwareId,
                          StringComparison.OrdinalIgnoreCase)))))
             { unmatched += group.Count(); partial = true; continue; }
-            var exact = devices.Where(d => d.DeviceId.Length > 0 && d.Present == true &&
-                d.HardwareIds.Any(h => ValidHardwareId(h) && h.Equals(offer.HardwareId, StringComparison.OrdinalIgnoreCase))).ToArray();
-            if (exact.Length == 0) { unmatched += group.Count(); continue; }
-            if (exact.Any(d => !UsableInstalledEvidence(d)))
+            int before = matched.Count;
+            IEnumerable<string> identifiers = offer.EntryAudit is { State: DriverOfficialEntryState.Complete } entries
+                ? entries.Entries.Select(e => e.HardwareOrCompatibleId).Prepend(offer.HardwareId)
+                : [offer.HardwareId];
+            foreach (var device in identifiers.SelectMany(id => devicesByReportedId[id])
+                .DistinctBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase))
             {
-                // Um vínculo incompleto não publica um subconjunto como consulta segura.
-                partial = true;
-                unmatched += group.Count();
-                continue;
-            }
-            foreach (var device in exact)
+                if (FindMatch(device, offer) is not { } link)
+                    continue;
+                if (!UsableInstalledEvidence(device))
+                {
+                    // Preservar a garantia original para o HardwareID principal.
+                    partial |= link.Kind == DriverOfficialMatchKind.PrimaryHardwareId;
+                    continue;
+                }
                 matched.Add(new(offer, device.DeviceId, device.DeviceName)
                 {
                     Installed = new(device.InfName, device.Provider, device.Version, device.Signed,
                         device.PackageEvidence?.State, device.PnpProblemCode, device.WithoutSignedDriverAssociation),
-                    MatchingWuaEntry = offer.EntryAudit is { State: DriverOfficialEntryState.Complete } entryAudit
-                        ? entryAudit.Entries.First(e => e.HardwareOrCompatibleId.Equals(offer.HardwareId,
-                            StringComparison.OrdinalIgnoreCase)) : null
+                    MatchingWuaEntry = link.Entry,
+                    Kind = link.Kind
                 });
+            }
+            if (matched.Count == before) unmatched += group.Count();
         }
         if (partial) return new([], offers.Count, offers.Count, true,
             "Metadados oficiais incompletos ou conflitantes; nenhuma correspondência publicada.");
+        int compatible = matched.Count(m => m.Kind == DriverOfficialMatchKind.CompatibleId);
         return new(matched, offers.Count, unmatched, false,
-            $"Windows Update: {offers.Count} ofertas; {matched.Count} vínculos por ID exato; {unmatched} sem vínculo aprovado. Somente consulta; sem comparação numérica de versões.");
+            $"Windows Update: {offers.Count} ofertas; {matched.Count - compatible} vínculos por HardwareID, " +
+            $"{compatible} por ID compatível; {unmatched} ofertas sem vínculo comprovado. Somente consulta.");
+    }
+
+    internal static (DriverOfficialMatchKind Kind, DriverOfficialEntryEvidence? Entry)? FindMatch(
+        DriverInventoryEntry device, DriverOfficialOffer offer)
+    {
+        if (device.DeviceId.Length == 0 || device.Present != true ||
+            !DriverInventory.ValidCompatibleId(offer.HardwareId))
+            return null;
+        var comparer = StringComparer.OrdinalIgnoreCase;
+        var entries = offer.EntryAudit is { State: DriverOfficialEntryState.Complete } audit
+            ? audit.Entries : [];
+        var primary = entries.FirstOrDefault(e => comparer.Equals(e.HardwareOrCompatibleId, offer.HardwareId));
+        if (ValidHardwareId(offer.HardwareId) && device.HardwareIds.Contains(offer.HardwareId, comparer))
+            return (DriverOfficialMatchKind.PrimaryHardwareId, primary);
+        var additional = entries.Where(e => ValidHardwareId(e.HardwareOrCompatibleId) &&
+            device.HardwareIds.Contains(e.HardwareOrCompatibleId, comparer))
+            .MinBy(e => e.HardwareOrCompatibleId, comparer);
+        if (additional is not null)
+            return (DriverOfficialMatchKind.AdditionalHardwareId, additional);
+        if (device.CompatibleIds.Contains(offer.HardwareId, comparer))
+            return (DriverOfficialMatchKind.CompatibleId, primary);
+        var compatible = entries.Where(e => DriverInventory.ValidCompatibleId(e.HardwareOrCompatibleId) &&
+            device.CompatibleIds.Contains(e.HardwareOrCompatibleId, comparer))
+            .MinBy(e => e.HardwareOrCompatibleId, comparer);
+        return compatible is null ? null : (DriverOfficialMatchKind.CompatibleId, compatible);
     }
 
     internal static DriverOfficialRelationsAudit AuditRelations(string updateId,
@@ -367,7 +413,7 @@ internal static class DriverOfficialLookup
     {
         if (entries is null || entries.Count is < 1 or > MaxWuaEntriesPerOffer)
             return new(DriverOfficialEntryState.Inconclusive, []);
-        if (entries.Any(e => e is null || !ValidHardwareId(e.HardwareOrCompatibleId) ||
+        if (entries.Any(e => e is null || !DriverInventory.ValidCompatibleId(e.HardwareOrCompatibleId) ||
                 !SafeText(e.Provider, true, 256) || !SafeText(e.Model, true, 256) ||
                 !SafeText(e.DriverClass, false, 256) || !SafeText(e.Manufacturer, false, 256) ||
                 e.VersionDate == DateTime.MinValue || e.DeviceProblemNumber is < 0 or > 9999))
@@ -517,7 +563,8 @@ internal static class DriverOfficialLookup
         left.WithoutSignedDriverAssociation == right.WithoutSignedDriverAssociation &&
         left.PackageEvidence?.State == right.PackageEvidence?.State &&
         string.Equals(left.PackageEvidence?.InfName, right.PackageEvidence?.InfName, StringComparison.OrdinalIgnoreCase) &&
-        left.HardwareIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(right.HardwareIds);
+        left.HardwareIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(right.HardwareIds) &&
+        left.CompatibleIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(right.CompatibleIds);
 
     internal static Task<DriverOfficialResult> Start(
         DriverInventoryResult inventory, CancellationToken token, bool online = true) =>

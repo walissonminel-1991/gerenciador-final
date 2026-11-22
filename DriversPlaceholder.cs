@@ -50,18 +50,20 @@ internal sealed partial class MainForm
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
-        searchBar.Controls.Add(new Label
+        var searchLabel = new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
-            TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 0);
+            TextAlign = ContentAlignment.MiddleLeft,
+            AutoSize = false, AutoEllipsis = true
+        };
+        searchBar.Controls.Add(searchLabel, 0, 0);
         var search = new TextBox
         {
             Name = "DriverInventorySearch", Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(19, 26, 34), ForeColor = Ink,
             BorderStyle = BorderStyle.FixedSingle,
-            PlaceholderText = "Nome, fabricante, ID ou INF",
-            AccessibleDescription = "Pesquise por nome do dispositivo, fabricante, ID de hardware, versão ou INF.",
+            PlaceholderText = "Nome, categoria, fabricante, ID ou INF",
+            AccessibleDescription = "Pesquise por nome, categoria como vídeo ou controles de jogo, fabricante, ID de hardware, versão ou INF.",
             Margin = new Padding(0, 3, 8, 3)
         };
         searchBar.Controls.Add(search, 1, 0);
@@ -466,6 +468,7 @@ internal sealed partial class MainForm
                 return;
             // A elegibilidade da interface não substitui a nova prova no clique.
             var matches = official.Matches.Where(m =>
+                m.Kind == DriverOfficialMatchKind.PrimaryHardwareId &&
                 string.Equals(m.DeviceId, requested.DeviceId,
                     StringComparison.OrdinalIgnoreCase)).ToArray();
             if (matches.Length != 1 ||
@@ -859,11 +862,14 @@ internal sealed partial class MainForm
                 copySummary.Enabled = true;
                 resultPublished = true;
                 Render();
-                actionHint.Text =
-                    $"PnP: {result.Items.Count(x => x.HasPnpProblem)} · " +
+                string pnpSummary = $"PnP: {result.Items.Count(x => x.HasPnpProblem)} · " +
                     $"Sem vínculo WMI: {result.Items.Count(x => x.WithoutSignedDriverAssociation)} · " +
                     $"Não confirmados: {result.Items.Count(x => x.Present != true)}. Só consulta.";
-                actionHint.AccessibleDescription = actionHint.Text;
+                string gpuSummary = GraphicsDriverInventory.CompactSummary(result);
+                actionHint.Text = gpuSummary.Length > 0 ? gpuSummary : pnpSummary;
+                actionHint.AccessibleDescription = gpuSummary.Length > 0
+                    ? gpuSummary + ". " + pnpSummary + ". Modelo/canal em Detalhes; sem instalação de Display."
+                    : pnpSummary;
                 SuppressHoverHint(actionHint, actionHint.Text);
                 // A lista agora representa OUTRA fotografia. O rodapé não deve
                 // anunciar a comparação da fotografia anterior enquanto a
@@ -1063,6 +1069,13 @@ internal sealed partial class MainForm
             bool splitActions = root.ClientSize.Width <
                 refreshWidth + updateWidth + investigationWidth +
                 (labOpen is null ? Scale(92) : Scale(230));
+            // O rótulo quebrava "Pesquisar:" em duas linhas no PC FORTE
+            // porque a primeira coluna era fixa em 80 px, sem medir a fonte.
+            searchBar.ColumnStyles[0].Width = Math.Max(Scale(80),
+                TextRenderer.MeasureText(searchLabel.Text, searchLabel.Font,
+                    new Size(int.MaxValue, Scale(35)),
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
+                    TextFormatFlags.NoPrefix).Width + Scale(18));
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
             root.RowStyles[1].Height = splitActions ? Scale(79) :
                 tiny ? Scale(35) : Scale(44);
