@@ -622,6 +622,7 @@ internal sealed partial class MainForm : Form
     private Button? _updateAllButton;
     private bool _batchUpdatesActive;
     private bool _batchStopRequested;
+    private UpdateOperationSnapshot? _batchLastAttempt;
     private Button? _bulkUninstallButton;
     private Button? _selectManyButton;
     private Button? _clearSelectionButton;
@@ -2792,8 +2793,12 @@ internal sealed partial class MainForm : Form
                 }
                 attempted++;
                 Status($"Atualizar todos: {attempted}/{candidates.Length} — {candidate.Name}");
+                _batchLastAttempt = null;
                 await UpdateThirdPartyAsync(current);
-                UpdateOperationSnapshot? result = _updateOperations.Find(current)?.Snapshot;
+                // A confirmação pode remapear a chave para o novo inventário.
+                // Capturar o resultado na própria tentativa evita perder sucesso
+                // legítimo quando o cadastro antigo deixa de existir.
+                UpdateOperationSnapshot? result = _batchLastAttempt;
                 if (result?.Progress.Stage == UpdateStage.Confirmed)
                 {
                     confirmed++;
@@ -3326,6 +3331,7 @@ internal sealed partial class MainForm : Form
                 _deploymentWaitCts = null;
                 if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                if (_batchUpdatesActive) _batchLastAttempt = operation.Snapshot;
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 if (VerifiedUpdaters.IsFolderProtected(folder))
                     Log("Pacote temporario protegido nesta sessao. Mantenha o GF aberto ate todos os instaladores terminarem.");
