@@ -721,7 +721,8 @@ internal sealed partial class MainForm
         }
     }
 
-    private bool CanSelectWindowsUpdates => !_busy && !_betaClose.IsClosing && !_windowsUpdateInstalling &&
+    private bool CanSelectWindowsUpdates => !_busy && !_batchUpdatesActive &&
+        !_betaClose.IsClosing && !_windowsUpdateInstalling &&
         !_windowsUpdateScanning && _windowsUpdateChecked && _windowsUpdateRebootRequired is not true;
 
     private void RefreshWindowsUpdateInstallButton()

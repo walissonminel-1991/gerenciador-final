@@ -21,6 +21,7 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
+        if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
         if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
@@ -324,6 +325,7 @@ internal static class LayoutTests
         if (AppBatchUpdatePolicy.Revalidate(planned[0], [batchA], true, true, SyntheticRecipe) is not null)
             throw new Exception("Lote de atualizações aceitou versão alterada entre consulta e execução.");
         Console.WriteLine("OK P1 Atualizar todos: seleção conservadora, ordem, identidade e revogação.");
+        AppBatchUpdateP1Tests.Run();
 
 
         var repairCards = Descendants(form).OfType<Button>().ToArray();
@@ -558,7 +560,7 @@ internal static class LayoutTests
                                 name + " / " + filterButton.Text);
                     }
                     bool expectCompact = commands.ClientSize.Width <
-                        (int)Math.Ceiling(895d * Math.Max(1, commands.DeviceDpi) / 96d);
+                        (int)Math.Ceiling(860d * Math.Max(1, commands.DeviceDpi) / 96d);
                     if (commands.RowCount != (expectCompact ? 3 : 1))
                         throw new Exception("Acoes com numero incorreto de linhas: " + resolution);
                     if (commands.Controls.OfType<Button>().Single(b => b.Text == "Atualizar todos").Enabled)

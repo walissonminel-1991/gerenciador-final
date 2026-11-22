@@ -9,7 +9,7 @@ internal readonly record struct AppActionLayout(int Dpi, bool Compact, int RowHe
     {
         int effectiveDpi = Math.Max(96, dpi);
         double scale = effectiveDpi / 96d;
-        bool compact = availableWidth < (int)Math.Ceiling(895 * scale);
+        bool compact = availableWidth < (int)Math.Ceiling(860 * scale);
         return new AppActionLayout(effectiveDpi, compact,
             (int)Math.Ceiling((compact ? 114 : 44) * scale));
     }

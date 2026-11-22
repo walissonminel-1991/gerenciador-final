@@ -56,3 +56,87 @@ internal static class AppBatchUpdatePolicy
         return rechecked.Length == 1 && rechecked[0] == candidate ? items[0] : null;
     }
 }
+
+// Cada saída é classificada uma única vez, inclusive quando a identidade é
+// revogada antes da primeira tentativa; a fila NUNCA retenta um alvo incerto.
+internal enum AppBatchUpdateStepResult { Confirmed, Inconclusive, BlockedBeforeStart }
+
+internal sealed record AppBatchUpdateSummary(int Confirmed, int Inconclusive, int BlockedBeforeStart,
+    int NotStarted, int Planned)
+{
+    internal bool ConservesItems => Confirmed >= 0 && Inconclusive >= 0 &&
+        BlockedBeforeStart >= 0 && NotStarted >= 0 &&
+        Confirmed + Inconclusive + BlockedBeforeStart + NotStarted == Planned;
+
+    internal string Describe(bool userStopped) =>
+        $"Atualizar todos: {Confirmed} confirmado(s), {Inconclusive} inconclusivo(s), " +
+        $"{BlockedBeforeStart} bloqueado(s) antes da tentativa, {NotStarted} não iniciado(s)." +
+        (userStopped ? " Interrompido por escolha do usuário." : "");
+}
+
+internal static class AppBatchUpdateRun
+{
+    internal const int MaxCandidates = 20;
+
+    // Executores externos nunca herdam a autorização da fila, mesmo no intervalo
+    // entre duas operações quando o executor individual já liberou _busy.
+    internal static bool MayExecute(bool busy, bool batchActive, bool fromApprovedBatch) =>
+        !busy && (!batchActive || fromApprovedBatch);
+
+    private static string OneLine(string value) =>
+        new(value.Select(ch => char.IsControl(ch) ? ' ' : ch).ToArray());
+
+    internal static string Preview(IReadOnlyList<AppBatchUpdateCandidate> candidates, int indicatedUpdates)
+    {
+        if (candidates.Count is < 1 or > MaxCandidates)
+            throw new InvalidOperationException("Quantidade fora do limite de consentimento.");
+        string targets = string.Join(Environment.NewLine, candidates.Select((c, index) =>
+            $"{index + 1}. {OneLine(c.Name)} → {OneLine(c.TargetVersion)}"));
+        int outside = Math.Max(0, indicatedUpdates - candidates.Count);
+        return $"Atualizar todos os elegíveis ({candidates.Count})?\n" +
+            $"Atualizações indicadas que não entram neste lote: {outside} (sem autorização direta/revisão/Store).\n\n" +
+            targets +
+            "\n\nRevise TODOS os nomes e versões acima (a lista é rolável). " +
+            "Cada alvo será revalidado, em sequência. Instaladores podem fechar programas ou solicitar UAC. " +
+            "Parar lote impede somente próximos itens. Falha ou resultado não confirmado interrompe o lote; " +
+            "não existe reversão automática e não há repetição automática.";
+    }
+
+    internal static async Task<AppBatchUpdateSummary> RunAsync(
+        IReadOnlyList<AppBatchUpdateCandidate> candidates,
+        Func<AppBatchUpdateCandidate, Task<AppBatchUpdateStepResult>> attempt,
+        Func<bool> stopBeforeNext, Action<Exception>? reportFailure = null)
+    {
+        if (candidates.Count is < 1 or > MaxCandidates)
+            throw new InvalidOperationException("Lote fora do limite permitido.");
+        int confirmed = 0, inconclusive = 0, blocked = 0;
+        foreach (var candidate in candidates)
+        {
+            if (stopBeforeNext()) break;
+            AppBatchUpdateStepResult result;
+            try { result = await attempt(candidate); }
+            catch (Exception ex)
+            {
+                try { reportFailure?.Invoke(ex); } catch { }
+                result = AppBatchUpdateStepResult.Inconclusive;
+            }
+            switch (result)
+            {
+                case AppBatchUpdateStepResult.Confirmed:
+                    confirmed++;
+                    break;
+                case AppBatchUpdateStepResult.BlockedBeforeStart:
+                    blocked++;
+                    break;
+                default:
+                    inconclusive++;
+                    break;
+            }
+            if (result != AppBatchUpdateStepResult.Confirmed) break;
+        }
+        var summary = new AppBatchUpdateSummary(confirmed, inconclusive, blocked,
+            candidates.Count - confirmed - inconclusive - blocked, candidates.Count);
+        if (!summary.ConservesItems) throw new InvalidDataException("Resumo do lote inconsistente.");
+        return summary;
+    }
+}
