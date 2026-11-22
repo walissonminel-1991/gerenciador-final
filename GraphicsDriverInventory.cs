@@ -27,6 +27,29 @@ internal static class GraphicsDriverInventory
         _ => ""
     };
 
+    // Conversão documentada pelo fabricante: últimos 5 dígitos da versão
+    // do Gerenciador de Dispositivos = número NVIDIA xxx.xx.
+    // https://www.nvidia.com/en-gb/drivers/drivers-faq/
+    // Só converter WMI confirmado com provedor NVIDIA: nunca infere canal,
+    // oferta remota, compatibilidade de pacote ou autorização de Display.
+    internal static string? NvidiaPublicVersion(GraphicsDriverSnapshot? gpu)
+    {
+        if (gpu is null || gpu.Manufacturer != "NVIDIA") return null;
+        string provider = gpu.DriverProvider.Trim();
+        if (!provider.Equals("NVIDIA", StringComparison.OrdinalIgnoreCase) &&
+            !provider.Equals("NVIDIA Corporation", StringComparison.OrdinalIgnoreCase)) return null;
+        string[] parts = gpu.InstalledWindowsVersion.Split('.');
+        if (parts.Length != 4 ||
+            (parts[0] != "31" && parts[0] != "32") ||
+            parts[1] != "0" ||
+            parts[2].Length != 2 || parts[2][0] != '1' ||
+            parts[2][1] < '5' || parts[2][1] > '9' ||
+            parts[3].Length != 4 ||
+            !parts[3].All(c => c >= '0' && c <= '9')) return null;
+        string digits = $"{parts[2][1]}{parts[3]}";
+        return $"{digits[..3]}.{digits[3..]}";
+    }
+
     internal static GraphicsDriverSnapshot[] Find(DriverInventoryResult inventory)
     {
         var result = new List<GraphicsDriverSnapshot>();
