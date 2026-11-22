@@ -112,6 +112,7 @@ internal sealed partial class MainForm
             _driverReusableOfficial is { Partial: false } known ? known : null;
         DriverInfVerificationResult? verification = null;
         string? nvidiaInstalledChannel = null;
+        string? amdInstalledEdition = null;
         CancellationTokenSource? current = null;
         // A identidade é julgada sobre o INVENTÁRIO COMPLETO, nunca apenas
         // sobre as linhas que um filtro deixou visíveis.
@@ -198,6 +199,7 @@ internal sealed partial class MainForm
             official = null;
             verification = null;
             nvidiaInstalledChannel = null;
+            amdInstalledEdition = null;
             current?.Cancel(); // cancela a espera, não força fim do Search COM
             body.SetText(!validAtOpening
                 ? ambiguousSelection ? duplicateOpeningText : invalidOpeningText
@@ -218,7 +220,7 @@ internal sealed partial class MainForm
             CheckCurrent();
             if (!obsolete)
                 body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification,
-                    nvidiaInstalledChannel));
+                    nvidiaInstalledChannel, amdInstalledEdition));
             pilotLink.Enabled = !obsolete && !closing && selected is not null &&
                 official is { Partial: false } result && isCurrent() &&
                 result.Matches.Any(m => DriverUpdatePilot.TryPrepare(inventory, result, m, out _) &&
@@ -243,6 +245,24 @@ internal sealed partial class MainForm
             catch (Exception)
             {
                 // NVAPI ausente/não suportada/tempo esgotado: manter canal desconhecido.
+            }
+        }
+        async Task ReadAmdEdition()
+        {
+            try
+            {
+                // Somente por abertura explícita do diálogo, sem escrita nem rede.
+                var edition = await Task.Run(() =>
+                    AmdDriverChannel.Read(inventory, selectedGraphics)).WaitAsync(TimeSpan.FromSeconds(5));
+                if (edition is null || dialog.IsDisposed || closing || obsolete) return;
+                CheckCurrent();
+                if (obsolete || closing || current is not null || !isCurrent()) return;
+                amdInstalledEdition = edition;
+                Render();
+            }
+            catch (Exception)
+            {
+                // Driver ADLX não suportado, edição desconhecida ou timeout = inconclusivo.
             }
         }
         // Revalidação só nos eventos de estado e foco, sem thread/timer novo.
@@ -399,6 +419,7 @@ internal sealed partial class MainForm
             official = null;
             verification = null;
             nvidiaInstalledChannel = null;
+            amdInstalledEdition = null;
             pilotLink.Enabled = false;
             gpuLink.Enabled = false;
         };
@@ -412,6 +433,10 @@ internal sealed partial class MainForm
                 validAtOpening && !duplicatedIds && !ambiguousSelection &&
                 NvidiaDriverChannel.CanRead(inventory, selectedGraphics))
                 _ = ReadNvidiaChannel();
+            if (!startOfficialOnShow && officialReadForTest is null && infReadForTest is null &&
+                validAtOpening && !duplicatedIds && !ambiguousSelection &&
+                AmdDriverChannel.CanRead(inventory, selectedGraphics))
+                _ = ReadAmdEdition();
         };
         onInvalidationChanged(CheckCurrent);
         try { dialog.ShowDialog(this); }
