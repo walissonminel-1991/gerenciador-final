@@ -1,5 +1,35 @@
 using GerenciadorAplicativos;
 
+if (args is ["--hardware-support"])
+{
+    DriverHardwareSupportTests.Run((ok, message) =>
+    {
+        if (!ok) throw new InvalidOperationException(message);
+        Console.WriteLine("OK " + message);
+    });
+    return;
+}
+
+if (args is ["--gaming-driver-sources"])
+{
+    DriverGamingCatalogTests.Run((ok, message) =>
+    {
+        if (!ok) throw new InvalidOperationException(message);
+        Console.WriteLine("OK " + message);
+    });
+    return;
+}
+
+if (args is ["--wua-pnp-matching"])
+{
+    DriverWuaPnpMatchingTests.Run((ok, message) =>
+    {
+        if (!ok) throw new InvalidOperationException(message);
+        Console.WriteLine("OK " + message);
+    });
+    return;
+}
+
 if (args is ["--hardware-catalog"])
 {
     DriverHardwareCatalogTests.Run();
@@ -185,6 +215,9 @@ catch (InvalidDataException) { refusedEmptyHistory = true; }
 Check(refusedEmptyHistory,
     "PnP: consulta so com dispositivos sem driver preserva historico anterior");
 ReadOnlyDriverTests.Run(Check);
+DriverWuaPnpMatchingTests.Run(Check);
+DriverGamingCatalogTests.Run(Check);
+DriverHardwareSupportTests.Run(Check);
 Stage2DriverTests.Run(Check);
 G1EvidenceTests.Run(Check);
 G15CaptureTests.Run(Check);
@@ -325,6 +358,14 @@ if (args.Contains("--live") || OperatingSystem.IsWindows())
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
     Check(live.Items.Any(d => d.HardwareIds.Count > 0), "D2/G1: IDs de hardware reais recebidos do WMI no runner descartável");
+    Check(live.Items.Any(d => d.ReportedPnpClass.Length > 0),
+        "Categorias de hardware recebem classes PnP da consulta WMI real");
+    Console.WriteLine($"DRIVER_BINDING_CI confirmados={live.Items.Count(d => d.BindingStatus == DriverBindingStatus.Confirmed)} " +
+        $"divergentes={live.Items.Count(d => d.BindingStatus == DriverBindingStatus.Conflicting)} " +
+        $"parciais={live.Items.Count(d => d.BindingStatus == DriverBindingStatus.Incomplete)} " +
+        $"indisponiveis={live.Items.Count(d => d.BindingStatus == DriverBindingStatus.Unavailable)}");
+    Check(live.Items.Any(d => d.BindingStatus == DriverBindingStatus.Confirmed),
+        "ConfigMgr confirma ao menos um INF e DriverVer reais da mesma instância PnP");
     foreach (var group in live.Store!.Packages.GroupBy(x => (x.State, x.FailureStage, x.NativeError)))
         Console.WriteLine($"DRIVER_STORE_CI estado={group.Key.State} etapa={group.Key.FailureStage} erro=0x{unchecked((uint)group.Key.NativeError):X8} quantidade={group.Count()}");
     Check(live.Store is not null && live.Store.Packages.Any(x => x.State == DriverStoreState.Mapped) &&
