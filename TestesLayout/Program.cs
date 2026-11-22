@@ -30,7 +30,8 @@ internal static class LayoutTests
             MsixPackageName = "Contoso.Reader",
             MsixPackageFamilyName = "Contoso.Reader_contosopub",
             MsixPackageFullName = "Contoso.Reader_3.2.1.0_x64__contosopub",
-            MsixPublisherId = "contosopub"
+            MsixPublisherId = "contosopub",
+            MsixSystemSigned = false
         };
         if (!msixButton.CanUninstallMsix ||
             msixButton.UninstallAction != "msix-uninstall")
@@ -41,7 +42,8 @@ internal static class LayoutTests
             InventoryOnly = true, InventorySource = "Aplicativo empacotado (MSIX)",
             InventoryId = "MSIX|Contoso.Reader_pub",
             MsixPackageFamilyName = "Contoso.Reader_pub",
-            MsixPublisherId = "pub", MsixPackageName = "Contoso.Reader"
+            MsixPublisherId = "pub", MsixPackageName = "Contoso.Reader",
+            MsixSystemSigned = false
         };
         if (msixWithoutFullName.UninstallAction != "uninstall-manual" ||
             new ProgramEntry { Name = "Win32", CanUninstall = true }.UninstallAction != "uninstall")
