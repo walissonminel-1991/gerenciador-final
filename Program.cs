@@ -2185,8 +2185,15 @@ internal sealed partial class MainForm : Form
         _toolTips.SetToolTip(_status, text);
     }
 
-    private async Task ExecuteAsync(string description, Func<Task> work,
-        bool quietStartup = false, bool allowDuringBatch = false)
+    // Preservar o contrato original de três argumentos utilizado pela janela
+    // BETA e pelos chamadores existentes. Apenas a operação autorizada pelo
+    // coordenador do lote pode chamar a variante interna.
+    private Task ExecuteAsync(string description, Func<Task> work,
+        bool quietStartup = false) =>
+        ExecuteBatchAwareAsync(description, work, quietStartup, allowDuringBatch: false);
+
+    private async Task ExecuteBatchAwareAsync(string description, Func<Task> work,
+        bool quietStartup, bool allowDuringBatch)
     {
         if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
             allowDuringBatch) || _betaClose.IsClosing) return;
@@ -3169,7 +3176,7 @@ internal sealed partial class MainForm : Form
         Log("Atualização solicitada diretamente na lista: " + recipe.ProductName +
             " (" + recipe.Identifier + "). Origem e SHA-256 serão conferidos; assinatura digital exigida quando aplicável.");
         string previousFilter = _appFilter;
-        await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
+        await ExecuteBatchAwareAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
         {
             var operation = BeginUpdateOperation(entry, recipe.Version);
             if (operation is null) return;
@@ -3335,7 +3342,7 @@ internal sealed partial class MainForm : Form
                     catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
                 }
             }
-        }, allowDuringBatch: fromApprovedBatch);
+        }, quietStartup: false, allowDuringBatch: fromApprovedBatch);
     }
 
     private async Task UninstallCheckedAsync() => await UninstallEntriesAsync(_checkedApps.ToArray());
