@@ -111,6 +111,7 @@ internal sealed partial class MainForm
             ReferenceEquals(inventory, _driverReusableInventory) &&
             _driverReusableOfficial is { Partial: false } known ? known : null;
         DriverInfVerificationResult? verification = null;
+        string? nvidiaInstalledChannel = null;
         CancellationTokenSource? current = null;
         // A identidade é julgada sobre o INVENTÁRIO COMPLETO, nunca apenas
         // sobre as linhas que um filtro deixou visíveis.
@@ -196,6 +197,7 @@ internal sealed partial class MainForm
             obsolete = true;
             official = null;
             verification = null;
+            nvidiaInstalledChannel = null;
             current?.Cancel(); // cancela a espera, não força fim do Search COM
             body.SetText(!validAtOpening
                 ? ambiguousSelection ? duplicateOpeningText : invalidOpeningText
@@ -215,12 +217,33 @@ internal sealed partial class MainForm
             if (body.IsDisposed) return;
             CheckCurrent();
             if (!obsolete)
-                body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification));
+                body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification,
+                    nvidiaInstalledChannel));
             pilotLink.Enabled = !obsolete && !closing && selected is not null &&
                 official is { Partial: false } result && isCurrent() &&
                 result.Matches.Any(m => DriverUpdatePilot.TryPrepare(inventory, result, m, out _) &&
                     string.Equals(m.DeviceId, selected.DeviceId, StringComparison.OrdinalIgnoreCase));
             RefreshGpuLink();
+        }
+        // A abertura de Detalhes foi solicitada pelo usuário. Consulta NVAPI
+        // SOMENTE local e opcional, executada fora da UI, com publicação vinculada
+        // à geração/seleção. Nunca infere canal quando a API falha ou diverge da WMI.
+        async Task ReadNvidiaChannel()
+        {
+            try
+            {
+                var channel = await Task.Run(() =>
+                    NvidiaDriverChannel.Read(inventory, selectedGraphics)).WaitAsync(TimeSpan.FromSeconds(5));
+                if (channel is null || dialog.IsDisposed || closing || obsolete) return;
+                CheckCurrent();
+                if (obsolete || closing || current is not null || !isCurrent()) return;
+                nvidiaInstalledChannel = channel;
+                Render();
+            }
+            catch (Exception)
+            {
+                // NVAPI ausente/não suportada/tempo esgotado: manter canal desconhecido.
+            }
         }
         // Revalidação só nos eventos de estado e foco, sem thread/timer novo.
         dialog.Activated += (_, _) => CheckCurrent();
@@ -375,6 +398,7 @@ internal sealed partial class MainForm
             current?.Cancel();
             official = null;
             verification = null;
+            nvidiaInstalledChannel = null;
             pilotLink.Enabled = false;
             gpuLink.Enabled = false;
         };
@@ -384,6 +408,10 @@ internal sealed partial class MainForm
             // Não enviar o foco inicial para uma ação indisponível.
             (officialButton.Enabled ? officialButton : verifyButton.Enabled ? verifyButton : close).Focus();
             if (startOfficialOnShow && officialButton.Enabled) _ = RunOfficial();
+            if (!startOfficialOnShow && officialReadForTest is null && infReadForTest is null &&
+                validAtOpening && !duplicatedIds && !ambiguousSelection &&
+                NvidiaDriverChannel.CanRead(inventory, selectedGraphics))
+                _ = ReadNvidiaChannel();
         };
         onInvalidationChanged(CheckCurrent);
         try { dialog.ShowDialog(this); }
