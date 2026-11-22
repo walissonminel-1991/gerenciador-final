@@ -50,11 +50,13 @@ internal sealed partial class MainForm
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
-        searchBar.Controls.Add(new Label
+        var searchLabel = new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
-            TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 0);
+            TextAlign = ContentAlignment.MiddleLeft,
+            AutoSize = false, AutoEllipsis = true
+        };
+        searchBar.Controls.Add(searchLabel, 0, 0);
         var search = new TextBox
         {
             Name = "DriverInventorySearch", Dock = DockStyle.Fill,
@@ -1066,6 +1068,13 @@ internal sealed partial class MainForm
             bool splitActions = root.ClientSize.Width <
                 refreshWidth + updateWidth + investigationWidth +
                 (labOpen is null ? Scale(92) : Scale(230));
+            // O rótulo quebrava "Pesquisar:" em duas linhas no PC FORTE
+            // porque a primeira coluna era fixa em 80 px, sem medir a fonte.
+            searchBar.ColumnStyles[0].Width = Math.Max(Scale(80),
+                TextRenderer.MeasureText(searchLabel.Text, searchLabel.Font,
+                    new Size(int.MaxValue, Scale(35)),
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
+                    TextFormatFlags.NoPrefix).Width + Scale(18));
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
             root.RowStyles[1].Height = splitActions ? Scale(79) :
                 tiny ? Scale(35) : Scale(44);
