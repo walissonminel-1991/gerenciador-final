@@ -268,11 +268,13 @@ var msixTarget = generic! with
 {
     PackageFamilyName = "Contoso.Reader_contosopub",
     PackageFullName = "Contoso.Reader_3.2.1.0_x64__contosopub",
-    PublisherId = "contosopub"
+    PublisherId = "contosopub",
+    SystemSigned = false
 };
 var msixRequest = new MsixRemovalRequest(msixTarget.PackageFullName,
     msixTarget.PackageFamilyName, msixTarget.PackageName, msixTarget.PublisherId,
-    msixTarget.Version, msixTarget.Name, LocalMsixInventory.InventoryId(msixTarget));
+    msixTarget.Version, msixTarget.Name, LocalMsixInventory.InventoryId(msixTarget),
+    msixTarget.SystemSigned);
 var msixPresent = new LocalMsixResult([msixTarget], 1, "ok",
     ObservedMainPackageFullNames: [msixTarget.PackageFullName]);
 var msixEmpty = new LocalMsixResult([], 0, "ok", ObservedMainPackageFullNames: []);
@@ -284,6 +286,13 @@ Check(!MsixUninstall.CanOffer(msixRequest with { PublisherId = "8wekyb3d8bbwe" }
       !MsixUninstall.CanOffer(msixRequest with { PackageName = "MicrosoftWindows.Client.CBS" }) &&
       !MsixUninstall.CanOffer(msixRequest with { PackageName = "Windows.Shell" }),
     "C1: pacotes Microsoft e componentes nativos não ganham ação integrada");
+Check(!MsixUninstall.CanOffer(msixRequest with { SystemSigned = true }) &&
+      !MsixUninstall.CanOffer(msixRequest with { SystemSigned = null }) &&
+      !MsixUninstall.CanStart(msixRequest, msixPresent with
+        { Items = [msixTarget with { SystemSigned = true }] }) &&
+      !MsixUninstall.CanStart(msixRequest, msixPresent with
+        { Items = [msixTarget with { SystemSigned = null }] }),
+    "C1: assinatura do sistema ou indisponível bloqueia remoção na lista e na revalidação");
 Check(!MsixUninstall.CanStart(msixRequest, msixPresent with { Failures = 1 }) &&
       !MsixUninstall.CanStart(msixRequest, msixPresent with { Status = "COMException(0x80040154)" }) &&
       !MsixUninstall.CanStart(msixRequest, msixPresent with

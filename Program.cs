@@ -105,11 +105,12 @@ internal sealed class ProgramEntry
     public string MsixPackageFullName { get; init; } = "";
     public string MsixPublisherId { get; init; } = "";
     public string MsixPackageName { get; init; } = "";
+    public bool? MsixSystemSigned { get; init; }
     // A mesma elegibilidade rege aparencia e clique: nunca exibir acao
     // executavel que o hit-test encaminhe para o gerenciador manual.
     internal MsixRemovalRequest MsixRemovalIdentity =>
         new(MsixPackageFullName, MsixPackageFamilyName, MsixPackageName,
-            MsixPublisherId, Version, Name, InventoryId);
+            MsixPublisherId, Version, Name, InventoryId, MsixSystemSigned);
     internal bool CanUninstallMsix =>
         InventoryOnly && !CanUninstall &&
         InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase) &&
@@ -291,6 +292,7 @@ internal static class AppServices
                 MsixPackageFullName = app.PackageFullName,
                 MsixPublisherId = app.PublisherId,
                 MsixPackageName = app.PackageName,
+                MsixSystemSigned = app.SystemSigned,
                 CatalogIdentity = verified?.Id ?? "",
                 CatalogDisplayName = verified?.Name ?? ""
             });

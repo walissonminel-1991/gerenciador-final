@@ -7,7 +7,7 @@ namespace GerenciadorAplicativos;
 // remover. Para todas as identidades não auditadas: somente inventário.
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
     string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "",
-    string PackageFullName = "", string PublisherId = "");
+    string PackageFullName = "", string PublisherId = "", bool? SystemSigned = null);
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
     bool Retried = false, string FailureStage = "", string Apartment = "",
@@ -164,10 +164,19 @@ internal static class LocalMsixInventory
                 package.IsFramework, package.IsResourcePackage, true,
                 v.Major, v.Minor, v.Build, v.Revision);
             return new(described is null ? null : described with
-            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId },
+            {
+                PackageFamilyName = id.FamilyName, PackageFullName = id.FullName,
+                PublisherId = id.PublisherId, SystemSigned = ReadSystemSignature(package)
+            },
                 Launchable: true);
         });
         return scan with { ObservedMainPackageFullNames = observedMainPackages };
+    }
+
+    private static bool? ReadSystemSignature(Windows.ApplicationModel.Package package)
+    {
+        try { return package.SignatureKind == Windows.ApplicationModel.PackageSignatureKind.System; }
+        catch (Exception) { return null; } // Mantém visível, sem autorizar remoção.
     }
 
     // A enumeração COM é preguiçosa: MoveNext pode falhar DEPOIS de produzir

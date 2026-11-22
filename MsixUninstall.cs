@@ -8,7 +8,7 @@ namespace GerenciadorAplicativos;
 // do sistema ou de outros perfis.
 internal sealed record MsixRemovalRequest(
     string PackageFullName, string PackageFamilyName, string PackageName,
-    string PublisherId, string Version, string DisplayName, string InventoryId);
+    string PublisherId, string Version, string DisplayName, string InventoryId, bool? SystemSigned);
 
 internal enum MsixRemovalState { Blocked, Confirmed, Pending }
 internal sealed record MsixNativeRemoval(bool Completed, bool Started, int? ErrorCode = null);
@@ -21,6 +21,7 @@ internal static class MsixUninstall
     private const string MicrosoftPublisherId = "8wekyb3d8bbwe";
 
     internal static bool CanOffer(MsixRemovalRequest request) =>
+        request.SystemSigned is false &&
         !string.IsNullOrWhiteSpace(request.PackageFullName) &&
         !string.IsNullOrWhiteSpace(request.PackageFamilyName) &&
         !string.IsNullOrWhiteSpace(request.PackageName) &&
@@ -41,7 +42,7 @@ internal static class MsixUninstall
         scan.Items.All(item => !item.Stale);
 
     private static bool Matches(MsixRemovalRequest request, LocalMsixApp app) =>
-        !app.Stale &&
+        !app.Stale && app.SystemSigned is false &&
         app.PackageFullName.Equals(request.PackageFullName, StringComparison.Ordinal) &&
         app.PackageFamilyName.Equals(request.PackageFamilyName, StringComparison.Ordinal) &&
         app.PackageName.Equals(request.PackageName, StringComparison.Ordinal) &&
