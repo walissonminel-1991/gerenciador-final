@@ -10,6 +10,13 @@ internal static class DriverWuaPnpMatchingTests
         const string legacy = "*PNP0501";
         var date = new DateTime(2026, 11, 1);
         var context = new DriverOfficialSearchContext("Windows Update", true, "10.0", "X64", DateTimeOffset.UtcNow);
+        check(DriverInventory.ReadCompatibleIds(null) is [] &&
+              DriverInventory.ReadCompatibleIds(DBNull.Value) is [] &&
+              DriverInventory.ReadCompatibleIds(new[] { compatible, compatible.ToLowerInvariant(), "*PNP05*" }) is [compatible] &&
+              DriverInventory.ReadCompatibleIds(compatible) is null &&
+              DriverInventory.ReadCompatibleIds(new[] { 1234 }) is null &&
+              DriverInventory.ReadCompatibleIds(new string[1, 1]) is null,
+            "Inventário WMI distingue valor nulo do COM, lista válida e valor malformado");
 
         DriverInventoryEntry Device(string id, string hardware, params string[] compatibility) =>
             new($@"USB\GF_FIXTURE\{id}", id, "Fornecedor de teste", "1.2.3.4", "oem7.inf", true, true)

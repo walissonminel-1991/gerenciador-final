@@ -51,6 +51,17 @@ internal static class DriverInventory
         id is { Length: 8 } && id.StartsWith("*PNP", StringComparison.OrdinalIgnoreCase) &&
         id.Skip(4).All(Uri.IsHexDigit);
 
+    internal static string[]? ReadCompatibleIds(object? raw)
+    {
+        // WMI COM representa uma propriedade sem valor também como VT_NULL (DBNull).
+        if (raw is null or DBNull) return [];
+        if (raw is not Array { Rank: 1 } values) return null;
+        if (values.Cast<object?>().Any(value => value is not (string or null))) return null;
+        var ids = values.Cast<object>().OfType<string>().Where(ValidCompatibleId)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(65).ToArray();
+        return ids.Length <= 64 ? ids : null;
+    }
+
     internal static bool HasExclusiveHardwareId(DriverInventoryResult inventory, string id)
     {
         var comparer = StringComparer.OrdinalIgnoreCase;
@@ -233,12 +244,8 @@ internal static class DriverInventory
                     string[] ids = get("HardwareID") is Array list ? list.Cast<object>()
                         .OfType<string>().Where(ValidHardwareId).Distinct(StringComparer.OrdinalIgnoreCase)
                         .Take(65).ToArray() : [];
-                    object? rawCompatible = get("CompatibleID");
-                    string[] compatible = rawCompatible is Array candidates ? candidates.Cast<object>()
-                        .OfType<string>().Where(ValidCompatibleId).Distinct(StringComparer.OrdinalIgnoreCase)
-                        .Take(65).ToArray() : [];
-                    if (conflictingIds.Contains(id) || ids.Length > 64 || compatible.Length > 64 ||
-                        rawCompatible is not (null or Array) ||
+                    string[]? compatible = ReadCompatibleIds(get("CompatibleID"));
+                    if (conflictingIds.Contains(id) || ids.Length > 64 || compatible is null ||
                         (hardwareIds.TryGetValue(id, out var oldIds) &&
                             (!oldIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(ids) ||
                              !compatibleIds[id].ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(compatible))))
