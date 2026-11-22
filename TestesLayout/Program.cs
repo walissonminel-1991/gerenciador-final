@@ -20,6 +20,32 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        // VF06/C1: o mesmo roteador deve servir para desenho e clique;
+        // nenhum pacote e removido por estes testes de interface.
+        var msixButton = new ProgramEntry
+        {
+            Name = "Leitor de documentos", Publisher = "Contoso", Version = "3.2.1.0",
+            InventoryOnly = true, InventorySource = "Aplicativo empacotado (MSIX)",
+            InventoryId = "MSIX|Contoso.Reader_contosopub",
+            MsixPackageName = "Contoso.Reader",
+            MsixPackageFamilyName = "Contoso.Reader_contosopub",
+            MsixPackageFullName = "Contoso.Reader_3.2.1.0_x64__contosopub",
+            MsixPublisherId = "contosopub"
+        };
+        if (!msixButton.CanUninstallMsix ||
+            DarkProgramList.UninstallAction(msixButton) != "msix-uninstall")
+            throw new Exception("VF06: botao MSIX elegivel nao aponta para o novo executor.");
+        var msixWithoutFullName = new ProgramEntry
+        {
+            Name = "Leitor MSIX", Version = "1.0.0.0",
+            InventoryOnly = true, InventorySource = "Aplicativo empacotado (MSIX)",
+            InventoryId = "MSIX|Contoso.Reader_pub",
+            MsixPackageFamilyName = "Contoso.Reader_pub",
+            MsixPublisherId = "pub", MsixPackageName = "Contoso.Reader"
+        };
+        if (DarkProgramList.UninstallAction(msixWithoutFullName) != "uninstall-manual" ||
+            DarkProgramList.UninstallAction(new ProgramEntry { Name = "Win32", CanUninstall = true }) != "uninstall")
+            throw new Exception("VF06: roteamento de MSIX incompleto ou Win32 foi alterado.");
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
