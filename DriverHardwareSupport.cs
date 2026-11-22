@@ -20,6 +20,9 @@ internal static class DriverHardwareSupport
     private static readonly Uri AmdLegacy = new("https://www.amd.com/en/resources/support-articles/faqs/GPU-630.html");
     private static readonly Uri IntelLegacy = new("https://www.intel.com/content/www/us/en/support/articles/000008632/graphics.html");
     private static readonly Uri MatroxLegacy = new("https://video.matrox.com/en/support/legacy/");
+    // Referências históricas não atestam compatibilidade com o Windows atual.
+    private static readonly Uri NvidiaFermi = new("https://www.nvidia.com/pt-br/drivers/details/132985/");
+    private static readonly Uri IntelOldOs = new("https://www.intel.com/content/www/us/en/support/articles/000005526/graphics.html");
     private static readonly Uri Dell = new("https://www.dell.com/support/home/pt-br?app=drivers");
     private static readonly Uri Hp = new("https://support.hp.com/br-pt/drivers");
     private static readonly Uri Lenovo = new("https://pcsupport.lenovo.com/br/pt");
@@ -27,11 +30,18 @@ internal static class DriverHardwareSupport
     private static readonly Uri RealtekNetwork = new("https://www.realtek.com/Download/Index?cate_id=194&menu_id=368");
     private static readonly Uri RealtekEthernet = new("https://www.realtek.com/Download/List?cate_id=584");
     private static readonly Uri AsixEthernet = new("https://www.asix.com.tw/en/support/download/step2/11/2/3");
+    // A Qualcomm orienta consultar o OEM; MediaTek não mantém catálogo público Windows nesta URL.
+    private static readonly Uri QualcommQca9377 = new("https://www.qualcomm.com/wi-fi/products/qca9377/support");
+    private static readonly Uri QualcommDrivers = new("https://www.qualcomm.com/drivers");
+    private static readonly Uri MediaTekNetwork = new("https://www.mediatek.com/products/networking-and-connectivity");
     private static readonly Uri Logitech = new("https://support.logi.com/hc/pt-br");
     private static readonly Uri Thrustmaster = new("https://support.thrustmaster.com/pt/");
     private static readonly Uri MicrosoftWindows = new("https://support.microsoft.com/pt-br/windows");
     private static readonly Uri SonyDualSense = new("https://www.playstation.com/pt-br/support/hardware/pair-dualsense-controller-bluetooth/");
     private static readonly Uri SonyDualSenseEdge = new("https://www.playstation.com/pt-br/support/hardware/dualsense-edge-other-devices/");
+    private static readonly Uri SonyDualShock4 = new("https://www.playstation.com/pt-br/support/hardware/ps4-pair-dualshock-4-wireless-with-pc-or-mac/");
+    private static readonly Uri SteamController2015 = new("https://help.steampowered.com/pt-br/faqs/view/1796-5FC3-88B3-C85F");
+    private static readonly Uri Xbox360Catalog = new("https://www.catalog.update.microsoft.com/Search.aspx?q=USB%5CVID_045E%26PID_028E");
     private static readonly Uri Corsair = new("https://www.corsair.com/br/pt/s/downloads");
     private static readonly Uri SteelSeries = new("https://support.steelseries.com/hc/en-us/");
     private static readonly Uri UsbAudio = new("https://learn.microsoft.com/pt-br/windows-hardware/drivers/audio/usb-2-0-audio-drivers");
@@ -102,11 +112,27 @@ internal static class DriverHardwareSupport
                 "Confirme o modelo do equipamento e o Windows no suporte OEM.");
 
         if (category == DriverHardwareCategory.Graphics && LegacyPage(pci?.Product) is { } legacy)
-            return new(category, legacy, "Suporte legado do fabricante. Confira o sistema operacional e o pacote indicado para o modelo.");
+            return new(category, legacy, legacy == IntelOldOs
+                ? "Suporte legado: matriz oficial de sistemas operacionais, não um pacote confirmado para este Windows."
+                : "Suporte legado do fabricante. Referência histórica, não oferta atual nem prova de compatibilidade com este Windows.");
 
         uint? usbProduct = DriverHardwareCatalog.ReportedUsbProduct(item);
         if (category == DriverHardwareCategory.Network && NetworkPage(pci, usbProduct) is { } network)
-            return new(category, network, "Consulta manual ao suporte de rede. Confirme o modelo, a variante OEM e o Windows.");
+        {
+            string status = network == QualcommQca9377
+                ? "ID PCI Qualcomm QCA9377 reconhecido. A Qualcomm orienta procurar o OEM para drivers; sem oferta ou compatibilidade confirmada."
+                : network == QualcommDrivers
+                    ? "Fabricante Qualcomm/Atheros identificado; modelo e pacote específicos inconclusivos. Consulte o OEM."
+                    : network == MediaTekNetwork
+                        ? (pci?.Product switch
+                        {
+                            0x14c37961 => "ID PCI MediaTek MT7921 reconhecido. ",
+                            0x14c30616 => "ID PCI MediaTek MT7922/RZ616 reconhecido. ",
+                            _ => "Fabricante MediaTek identificado; modelo específico inconclusivo. "
+                        }) + "Página institucional, não catálogo de drivers Windows. Confirme o modelo no OEM."
+                        : "Consulta manual ao suporte de rede. Confirme o modelo, a variante OEM e o Windows.";
+            return new(category, network, status);
+        }
 
         bool input = category is DriverHardwareCategory.GameInput or DriverHardwareCategory.Peripherals;
         Uri? page = input ? InputPage(category, usbProduct) : (category, pci?.Vendor) switch
@@ -119,9 +145,13 @@ internal static class DriverHardwareSupport
         };
         return page is null
             ? new(category, null, "Fonte específica inconclusiva. Confira as ofertas do Windows Update para este dispositivo.")
-            : new(category, page, category == DriverHardwareCategory.GameInput
-                ? "Consulte o fabricante pelo modelo. Driver, aplicativo e firmware têm versões próprias."
-                : "Consulta manual ao suporte oficial. Confirme o modelo, a variante OEM e a versão do Windows.");
+            : new(category, page, page == Xbox360Catalog
+                ? "Catálogo histórico da Microsoft para este VID/PID; não comprova oferta atual nem compatibilidade do pacote."
+                : page == SteamController2015
+                    ? "Suporte oficial do Steam Controller de 2015 (descontinuado). Firmware, aplicativo e driver são distintos."
+                    : category == DriverHardwareCategory.GameInput
+                        ? "Consulte o fabricante pelo modelo. Driver, aplicativo e firmware têm versões próprias."
+                        : "Consulta manual ao suporte oficial. Confirme o modelo, a variante OEM e a versão do Windows.");
     }
 
     internal static (string Name, Uri Page)? OemFor(DriverPciIdentity pci) => pci.SubsystemVendor switch
@@ -136,8 +166,10 @@ internal static class DriverHardwareSupport
     private static Uri? LegacyPage(uint? product) => product switch
     {
         0x10de0fc6 or 0x10de0fc8 => NvidiaKepler,
-        0x10026770 or 0x10026779 => AmdLegacy,
+        0x10de0dc4 or 0x10de0e22 => NvidiaFermi,
+        0x10026770 or 0x10026779 or 0x100268f9 => AmdLegacy,
         0x80860166 => IntelLegacy,
+        0x80860126 => IntelOldOs,
         0x102b0520 or 0x102b0521 => MatroxLegacy,
         _ => null
     };
@@ -145,6 +177,9 @@ internal static class DriverHardwareSupport
     private static Uri? NetworkPage(DriverPciIdentity? pci, uint? usb) => (pci?.Vendor, pci?.Product, usb) switch
     {
         (0x8086, _, _) => IntelNetwork,
+        (0x168c, 0x168c0042, _) => QualcommQca9377,
+        (0x168c or 0x17cb, _, _) => QualcommDrivers,
+        (0x14c3, _, _) => MediaTekNetwork,
         (0x10ec, 0x10ec8125 or 0x10ec8168, _) => RealtekEthernet,
         (0x10ec, _, _) => RealtekNetwork,
         (_, _, 0x0b951790) => AsixEthernet,
@@ -156,6 +191,9 @@ internal static class DriverHardwareSupport
     {
         0x054c0ce6 => SonyDualSense,
         0x054c0df2 => SonyDualSenseEdge,
+        0x054c05c4 or 0x054c09cc => SonyDualShock4,
+        0x28de1102 => SteamController2015,
+        0x045e028e when category == DriverHardwareCategory.GameInput => Xbox360Catalog,
         _ => (product >> 16) switch
         {
             0x046d => Logitech,

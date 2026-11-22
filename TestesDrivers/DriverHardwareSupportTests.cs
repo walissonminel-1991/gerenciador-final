@@ -71,6 +71,7 @@ internal static class DriverHardwareSupportTests
             "Busca por categoria preserva o bloqueio do piloto para vídeo, rede e HID");
 
         CheckSources(check);
+        CheckExtendedSources(check);
     }
 
     private static void CheckSources(Action<bool, string> check)
@@ -137,6 +138,84 @@ internal static class DriverHardwareSupportTests
               Find(corsair).Page?.Host == "www.corsair.com" &&
               Find(steelSeries).Page?.Host == "support.steelseries.com",
             "DualSense e Edge usam o produto exato e periféricos Corsair e SteelSeries recebem suporte oficial");
+    }
+
+
+    // O SUBSYS sintético valida a seleção de portal, sem atribuir um SKU real.
+    private static void CheckExtendedSources(Action<bool, string> check)
+    {
+        var qca = Device(@"PCI\VEN_168C&DEV_0042", "Net");
+        var qcaOther = Device(@"PCI\VEN_168C&DEV_DEAD", "Net");
+        var qNew = Device(@"PCI\VEN_17CB&DEV_DEAD", "Net");
+        check(Find(qca).Page?.AbsolutePath.EndsWith("/qca9377/support", StringComparison.Ordinal) == true &&
+              Find(qca).Status.Contains("OEM", StringComparison.Ordinal) &&
+              Find(qcaOther).Page?.AbsolutePath == "/drivers" &&
+              Find(qcaOther).Status.Contains("inconclusivos", StringComparison.Ordinal) &&
+              Find(qNew).Page?.Host == "www.qualcomm.com",
+            "Qualcomm QCA9377 específico e fabricante sem identificação de modelo");
+
+        var mt1 = Device(@"PCI\VEN_14C3&DEV_7961", "Net");
+        var mt2 = Device(@"PCI\VEN_14C3&DEV_0616", "Net");
+        var mtUnknown = Device(@"PCI\VEN_14C3&DEV_DEAD", "Net");
+        check(Find(mt1).Page?.Host == "www.mediatek.com" &&
+              Find(mt1).Status.Contains("MT7921", StringComparison.Ordinal) &&
+              Find(mt1).Status.Contains("não catálogo de drivers Windows", StringComparison.Ordinal) &&
+              Find(mt2).Status.Contains("MT7922", StringComparison.Ordinal) &&
+              Find(mtUnknown).Status.Contains("modelo específico inconclusivo", StringComparison.Ordinal),
+            "MediaTek MT7921 e MT7922 com fabricante sem pacote Windows presumido");
+
+        var qOem = Device(@"PCI\VEN_168C&DEV_0042&SUBSYS_090117AA", "Net");
+        var mOem = Device(@"PCI\VEN_14C3&DEV_7961&SUBSYS_12341028", "Net");
+        check(Find(qOem).Page?.Host == "pcsupport.lenovo.com" &&
+              Find(mOem).Page?.Host == "www.dell.com" &&
+              Find(qOem).Status.Contains("SUBSYS_090117AA", StringComparison.Ordinal),
+            "SUBSYS coerente prioriza o portal OEM em Qualcomm e MediaTek");
+
+        var conflict = qOem with { HardwareIds = [
+            @"PCI\VEN_168C&DEV_0042&SUBSYS_090117AA",
+            @"PCI\VEN_168C&DEV_0042&SUBSYS_0001103C"] };
+        var malformed = mOem with { HardwareIds = [
+            @"PCI\VEN_14C3&DEV_7961&SUBSYS_12341028",
+            @"PCI\VEN_14C3&DEV_7961&SUBSYS_1234ZZZZ"] };
+        var compatible = mt1 with { CompatibleIds = [@"PCI\VEN_14C3&DEV_7961&SUBSYS_12341028"] };
+        check(Find(conflict).Page is null && Find(malformed).Page is null &&
+              Find(compatible).Page?.Host == "www.mediatek.com" &&
+              DriverHardwareCatalog.ReportedPciIdentity(compatible) is { Subsystem: null } &&
+              Find(mt1 with { HardwareIds = [] }).Page is null &&
+              Find(mt1 with { HardwareIds = [@"PCI\VEN_168C&DEV_0042"] }).Page is null,
+            "SUBSYS conflitante/malformado, sem evidência e IDs divergentes não geram falsa fonte");
+
+        var fermi = Device(@"PCI\VEN_10DE&DEV_0DC4", "Display");
+        var gtx460 = Device(@"PCI\VEN_10DE&DEV_0E22", "Display");
+        var cedar = Device(@"PCI\VEN_1002&DEV_68F9", "Display");
+        var hd3000 = Device(@"PCI\VEN_8086&DEV_0126", "Display");
+        check(new[] { fermi, gtx460 }.All(d => Find(d).Page?.Host == "www.nvidia.com" &&
+                    Find(d).Status.Contains("histórica", StringComparison.Ordinal)) &&
+              Find(cedar).Page?.Host == "www.amd.com" &&
+              Find(hd3000).Page?.AbsolutePath.EndsWith("/000005526/graphics.html", StringComparison.Ordinal) == true &&
+              Find(hd3000).Status.Contains("não um pacote confirmado", StringComparison.Ordinal) &&
+              Find(fermi with { ReportedDriverClass = "Net" }).Page is null,
+            "GTS 450, GTX 460, Radeon HD 5450 e HD 3000 com avisos de legado");
+
+        var ds4 = Device(@"HID\VID_054C&PID_05C4&COL01", "HIDClass") with { HasGameInputUsage = true };
+        var ds4v2 = Device(@"USB\VID_054C&PID_09CC", "HIDClass") with { HasGameInputUsage = true };
+        var steam = Device(@"HID\VID_28DE&PID_1102&MI_00", "HIDClass") with { HasGameInputUsage = true };
+        var xbox = Device(@"USB\VID_045E&PID_028E", "HIDClass") with { HasGameInputUsage = true };
+        check(new[] { ds4, ds4v2 }.All(d => Find(d).Page?.AbsolutePath.Contains("dualshock-4", StringComparison.Ordinal) == true) &&
+              Find(steam).Page?.Host == "help.steampowered.com" &&
+              Find(steam).Status.Contains("2015", StringComparison.Ordinal) &&
+              Find(xbox).Page?.Host == "www.catalog.update.microsoft.com" &&
+              Find(xbox).Status.Contains("histórico", StringComparison.Ordinal),
+            "DUALSHOCK 4, Steam Controller 2015 e Xbox 360 possuem fontes próprias");
+
+        check(Find(Device(@"HID\VID_28DE&PID_1142", "HIDClass") with { HasGameInputUsage = true }).Page is null &&
+              Find(Device(@"HID\VID_054C&PID_0001", "HIDClass") with { HasGameInputUsage = true }).Page is null &&
+              Find(xbox with { HasGameInputUsage = false }).Page is null &&
+              Find(steam with { ReportedDriverClass = "Net" }).Page is null &&
+              Find(ds4 with { Present = false }).Page is null &&
+              !DriverUpdatePilot.AllowedClass("Display") && !DriverUpdatePilot.AllowedClass("Net") &&
+              !DriverUpdatePilot.AllowedClass("HIDClass"),
+            "Periféricos não comprovados e leitura ausente são inconclusivos; instalar segue bloqueado");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>
