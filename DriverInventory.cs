@@ -7,6 +7,9 @@ internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, 
     string Version, string InfName, bool? Signed, bool? Present)
 {
     internal DriverDeviceMetadata? DeviceMetadata { get; init; }
+    internal DriverBindingEvidence? DeviceBinding { get; init; }
+    internal DriverBindingStatus BindingStatus =>
+        DeviceBinding?.Compare(InfName, Version) ?? DriverBindingStatus.Unavailable;
     internal DriverStoreEvidence? PackageEvidence { get; init; }
     internal IReadOnlyList<string> HardwareIds { get; init; } = [];
     internal IReadOnlyList<string> CompatibleIds { get; init; } = [];

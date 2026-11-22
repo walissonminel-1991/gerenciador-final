@@ -52,6 +52,7 @@ internal static class DriverInventorySnapshot
         a.ReportedDriverClass == b.ReportedDriverClass &&
         a.WithoutSignedDriverAssociation == b.WithoutSignedDriverAssociation &&
         a.DeviceMetadata == b.DeviceMetadata &&
+        a.DeviceBinding == b.DeviceBinding &&
         a.PackageEvidence == b.PackageEvidence &&
         a.HardwareIds.SequenceEqual(b.HardwareIds, StringComparer.Ordinal) &&
         a.CompatibleIds.SequenceEqual(b.CompatibleIds, StringComparer.Ordinal) &&

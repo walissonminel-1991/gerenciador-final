@@ -118,6 +118,9 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
             if (inventory.Partial || items.Length != 1)
                 return new DriverUpdatePilotObservation(false, false, false, false);
             var item = items[0];
+            if (DriverDeviceMetadata.ReadBinding(item.DeviceId)?.Compare(item.InfName, item.Version)
+                == DriverBindingStatus.Conflicting)
+                return new DriverUpdatePilotObservation(false, false, false, false);
             bool changed = !string.Equals(item.Version, choice.InstalledVersion,
                     StringComparison.Ordinal) ||
                 !string.Equals(item.InfName, choice.InfName,
@@ -158,6 +161,9 @@ internal sealed class DriverWuaNativeBackend : IDriverUpdatePilotBackend
             string.Equals(items[0].InfName, choice.InfName, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(items[0].Version, choice.InstalledVersion, StringComparison.Ordinal) &&
             items[0].HardwareIds.Contains(choice.HardwareId, StringComparer.OrdinalIgnoreCase);
+        if (sameDevice && DriverDeviceMetadata.ReadBinding(choice.DeviceId)?.Compare(
+                choice.InfName, choice.InstalledVersion) == DriverBindingStatus.Conflicting)
+            sameDevice = false;
         return new(
             true, view.ExactIdentity, sameDevice, view.Applicable,
             view.NoAdditionalUpdates, view.EulaAccepted,

@@ -83,6 +83,7 @@ internal static class DriverUpdatePilot
         if (!DriverInventory.HasExclusiveHardwareId(inventory, selected.Offer.HardwareId))
             return false;
         if (device.Signed != true || device.Present != true ||
+            device.BindingStatus == DriverBindingStatus.Conflicting ||
             device.WithoutSignedDriverAssociation ||
             device.PackageEvidence is { State: not DriverStoreState.Mapped } ||
             string.IsNullOrWhiteSpace(device.InfName) ||

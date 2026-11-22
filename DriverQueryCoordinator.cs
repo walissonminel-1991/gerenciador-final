@@ -79,6 +79,7 @@ internal sealed class DriverReportPublicationGuard
             a.PnpProblemCode == b.PnpProblemCode &&
             a.WithoutSignedDriverAssociation == b.WithoutSignedDriverAssociation &&
             a.PackageEvidence == b.PackageEvidence &&
+            a.DeviceBinding == b.DeviceBinding &&
             a.HardwareIds.Count == b.HardwareIds.Count &&
             a.HardwareIds.ToHashSet(StringComparer.OrdinalIgnoreCase)
                 .SetEquals(b.HardwareIds) &&
@@ -204,6 +205,7 @@ internal sealed class DriverReportPublicationGuard
     {
         if (token.IsCancellationRequested || !IsCurrent(current, selection, currentGeneration) ||
             selected?.PackageEvidence?.State != DriverStoreState.Mapped ||
+            selected.BindingStatus == DriverBindingStatus.Conflicting ||
             !PackageCoherent(selected) || result is null ||
             result.CanInstall || result.CanMaintain)
             return false;

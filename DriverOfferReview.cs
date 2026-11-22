@@ -45,6 +45,9 @@ internal static class DriverOfferReview
             return "BLOQUEADO: identidade PnP não única no inventário integral.";
         if (!DriverInventory.HasExclusiveHardwareId(inventory, match.Offer.HardwareId))
             return "BLOQUEADO: identificador WUA sem alvo físico exclusivo no inventário.";
+        if (inventory.Items.Any(d => string.Equals(d.DeviceId, match.DeviceId, StringComparison.OrdinalIgnoreCase) &&
+            d.BindingStatus == DriverBindingStatus.Conflicting))
+            return "BLOQUEADO: INF ou versão diverge entre o inventário WMI e a associação PnP atual.";
         if (match.Installed is null)
             return "BLOQUEADO: evidência do driver instalado indisponível.";
         if (!DriverUpdatePilot.TryPrepare(inventory, official, match, out _))

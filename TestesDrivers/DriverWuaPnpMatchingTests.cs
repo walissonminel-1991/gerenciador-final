@@ -66,6 +66,41 @@ internal static class DriverWuaPnpMatchingTests
         var one = Search(inventory, single);
         check(one.Matches.Count == 1 && DriverUpdatePilot.TryPrepare(inventory, one, one.Matches[0], out _),
             "WUA preserva a revisão experimental de oferta principal com alvo exclusivo");
+        var sameBinding = DriverBindingEvidence.FromProperties("OEM7.INF", "1.02.003.4", primary);
+        var differentInf = DriverBindingEvidence.FromProperties("oem8.inf", "1.2.3.4", primary);
+        var differentVersion = DriverBindingEvidence.FromProperties("oem7.inf", "2.2.3.4", primary);
+        var incomplete = DriverBindingEvidence.FromProperties("oem7.inf", "", "");
+        check(sameBinding?.Compare(main.InfName, main.Version) == DriverBindingStatus.Confirmed &&
+              sameBinding.MatchingId == primary &&
+              incomplete?.Compare(main.InfName, main.Version) == DriverBindingStatus.Incomplete,
+            "ConfigMgr confirma INF e DriverVer com normalização conservadora");
+        check(differentInf?.Compare(main.InfName, main.Version) == DriverBindingStatus.Conflicting &&
+              differentVersion?.Compare(main.InfName, main.Version) == DriverBindingStatus.Conflicting,
+            "ConfigMgr distingue INF antigo e DriverVer divergente");
+        check(DriverBindingEvidence.FromProperties(@"..\fio.inf", "x.y.z", "") is null &&
+              DriverBindingEvidence.FromProperties("oem7.inf", "1.2.3.4", "*PNP05*") is { MatchingId: "" },
+            "ConfigMgr rejeita caminho de INF e identificador malformados");
+        var withConflict = main with { DeviceBinding = differentInf };
+        var conflicted = inventory with { Items = [withConflict, second, third] };
+        var stillConsultive = Search(conflicted, single);
+        check(stillConsultive.Matches.Count == 1 &&
+              !DriverUpdatePilot.TryPrepare(conflicted, stillConsultive, stillConsultive.Matches[0], out _) &&
+              DriverReadOnlyReport.Format(conflicted, withConflict, stillConsultive).Contains("divergência com WMI") &&
+              DriverReadOnlyReport.InfAvailability(withConflict).Contains("diverge"),
+            "Divergência do driver instalado permanece visível e bloqueia prova do INF e revisão WUA");
+        var frozen = new DriverReportPublicationGuard(conflicted, withConflict, 2);
+        check(!frozen.IsCurrent(conflicted, withConflict with { DeviceBinding = sameBinding }, 2),
+            "Mudança no vínculo ConfigMgr invalida a publicação assíncrona");
+        var duplicateOrAbsent = inventory with { Items = [main, main, second with { Present = false }, third] };
+        var requested = new List<string>();
+        var enriched = DriverBindingEvidence.Enrich(duplicateOrAbsent, CancellationToken.None, id =>
+        {
+            requested.Add(id);
+            return sameBinding;
+        });
+        check(requested.SequenceEqual([third.DeviceId]) && enriched.Items[3].DeviceBinding == sameBinding &&
+              enriched.Items.Take(3).All(d => d.DeviceBinding is null),
+            "Enriquecimento nativo consulta apenas instância presente e única");
         var otherOccupant = second with { CompatibleIds = [primary], Present = null };
         var additionalTargets = inventory with { Items = [main, otherOccupant, third] };
         var withoutAssociation = inventory with { OtherPnpTargetIds = [primary.ToLowerInvariant()] };

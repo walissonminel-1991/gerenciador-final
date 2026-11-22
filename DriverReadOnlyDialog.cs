@@ -112,6 +112,7 @@ internal sealed partial class MainForm
         bool canOfficial = validAtOpening && !inventory.Partial &&
             inventory.Items.Count > 0 && !duplicatedIds;
         bool canVerify = validAtOpening && !ambiguousSelection &&
+            selected?.BindingStatus != DriverBindingStatus.Conflicting &&
             selected is { WithoutSignedDriverAssociation: false,
                 PackageEvidence.State: DriverStoreState.Mapped };
         // Nenhuma tarefa WUA/INF deve ser iniciada com identidade inicialmente

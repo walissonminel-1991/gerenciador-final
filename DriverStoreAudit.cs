@@ -37,12 +37,13 @@ internal static class DriverStoreAudit
         var published = DriverPublishedPackages.Capture(inventory, token);
         var history = DriverWindowsHistory.Capture(token);
         var byInf = store.Packages.ToDictionary(x => x.InfName, StringComparer.OrdinalIgnoreCase);
-        return inventory with
+        var audited = inventory with
         {
             Store = store, PublishedPackages = published, WindowsHistory = history,
             Items = inventory.Items.Select(x => x with
                 { PackageEvidence = byInf.GetValueOrDefault(x.InfName), WindowsEvents = DriverWindowsHistory.Correlate(x, history) }).ToArray()
         };
+        return DriverBindingEvidence.Enrich(audited, token);
     }
 
     internal static DriverStoreAuditResult Capture(DriverInventoryResult inventory, CancellationToken token,
