@@ -77,6 +77,7 @@ internal static class DriverHardwareSupportTests
         CheckLogitechGameSources(check);
         CheckFlightControls(check);
         CheckUsbHeadsets(check);
+        CheckOtherUsbManufacturers(check);
     }
 
     private static void CheckSources(Action<bool, string> check)
@@ -425,6 +426,62 @@ internal static class DriverHardwareSupportTests
               DriverHardwareSupport.Get(new([windowsAudio], true, ""), windowsAudio).Page is null &&
               DriverHardwareSupport.Get(new([windowsAudio, windowsAudio], false, ""), windowsAudio).Page is null,
             "Orientação do fabricante preserva o relato USB Audio do Windows e os bloqueios de identidade do inventário");
+    }
+
+    private static void CheckOtherUsbManufacturers(Action<bool, string> check)
+    {
+        const string mambaId = @"HID\VID_231D&PID_0117&MI_02&COL01";
+        var mamba = Device(mambaId, "HIDClass") with { HasGameInputUsage = true };
+        var gunfighter = Device(@"HID\VID_231D&PID_0125", "HIDClass") with { HasGameInputUsage = true };
+        check(Find(mamba) is { Category: DriverHardwareCategory.GameInput, Page.Host: "vkbsimcontrollers.com" } &&
+              Find(mamba).Status.Contains("perfil Fat Mamba", StringComparison.Ordinal) &&
+              Find(gunfighter).Page == Find(mamba).Page &&
+              Find(gunfighter).Status.Contains("perfil Gunfighter Modern Combat PRO", StringComparison.Ordinal) &&
+              new[] { mamba, gunfighter }.All(item => DriverHardwareCatalog.Identify(item).Model.Length == 0 &&
+                  Find(item).Status.Contains("modelo físico é inconclusivo", StringComparison.Ordinal)),
+            "VKB Fat Mamba e Gunfighter abrem a documentação oficial sem atribuir uma montagem física");
+
+        var invalidVkb = new[]
+        {
+            mamba with { HasGameInputUsage = false },
+            mamba with { ReportedPnpClass = "Media" },
+            mamba with { HardwareIds = [mambaId.Replace("MI_02", "MI_03")] },
+            mamba with { HardwareIds = [], CompatibleIds = [mambaId] },
+            Device(@"HID\VID_231D&PID_DEAD", "HIDClass") with { HasGameInputUsage = true }
+        };
+        check(invalidVkb.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "Perfil VKB sem classe e identidade corroboradas ou com PID desconhecido fica inconclusivo");
+
+        const string eposId = @"USB\VID_1395&PID_0400&MI_01";
+        var epos = Device(eposId, "Media") with { HardwareIds = [eposId, @"usb\vid_1395&pid_0400&rev_0100&mi_01"] };
+        var eposReport = DriverReadOnlyReport.Format(new([epos], false, ""), epos);
+        check(Find(epos) is { Category: DriverHardwareCategory.Audio, Page.Host: "www.eposaudio.com" } &&
+              DriverHardwareCatalog.Identify(epos).Model == "Família EPOS Command 260 USB PTT" &&
+              eposReport.Contains("A variante física é inconclusiva", StringComparison.Ordinal) &&
+              Find(epos with { HardwareIds = [eposId.Replace("MI_01", "MI_02")] }).Page is null &&
+              Find(Device(@"HID\VID_1395&PID_0400", "HIDClass")).Page is null,
+            "EPOS Command 260 consulta a ficha da família somente na função de áudio USB corroborada");
+
+        const string voxiconId = @"USB\VID_260D&PID_2007&MI_00";
+        var voxicon = Device(voxiconId, "Media") with { ReportedDriverClass = "Sound" };
+        var voxiconReport = DriverReadOnlyReport.Format(new([voxicon], false, ""), voxicon);
+        check(Find(voxicon).Page is { Host: "catalog.update.microsoft.com", AbsolutePath: "/ScopedViewInline.aspx" } &&
+              Find(voxicon).Page?.Query == "?updateid=08f12451-f2bc-475a-bc4b-795e75af3860" &&
+              DriverHardwareCatalog.Identify(voxicon).Model.Length == 0 &&
+              voxiconReport.Contains("Modelo comercial, oferta e compatibilidade inconclusivos", StringComparison.Ordinal),
+            "VOXICON consulta o registro de áudio no Catálogo Microsoft sem inferir SKU ou oferta");
+
+        var invalidVoxicon = new[]
+        {
+            Device(@"USB\VID_260D&PID_2007", "Media"),
+            Device(@"USB\VID_260D&PID_2007&MI_01", "Media"),
+            voxicon with { HardwareIds = [@"USB\VID_260D&PID_2007"] },
+            voxicon with { HardwareIds = [voxiconId + "&MI_00"] },
+            voxicon with { ReportedPnpClass = "AudioEndpoint" },
+            voxicon with { Present = null }
+        };
+        check(invalidVoxicon.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "VOXICON exige MI_00 consistente e classe Media na instância presente");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>
