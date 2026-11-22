@@ -62,6 +62,38 @@ internal static class DriverHardwareCatalogTests
             !DriverUpdatePilot.AllowedClass("Display"),
             "VF02 duplicidade, inventário parcial e classe ausente não confirmam versão nem autorizam instalação");
 
+        // VF02 fase 3: equivalência de numeração NVIDIA DOCUMENTADA, somente
+        // para fornecedor NVIDIA e versão Windows íntegra do mesmo Display.
+        var nvidiaSigned = rtx with { Provider = "NVIDIA", Version = "32.0.16.1742", InfName = "oem617.inf" };
+        var nvidiaInventory = new DriverInventoryResult([nvidiaSigned], false, "consulta completa");
+        var nvidiaSnapshot = GraphicsDriverInventory.Find(nvidiaInventory).Single();
+        Check(GraphicsDriverInventory.NvidiaPublicVersion(nvidiaSnapshot) == "617.42" &&
+            DriverReadOnlyReport.Format(nvidiaInventory, nvidiaSigned)
+                .Contains("Versão NVIDIA equivalente (derivada da WMI): 617.42", StringComparison.Ordinal) &&
+            nvidiaSnapshot.InstalledWindowsVersion == "32.0.16.1742" &&
+            nvidiaSnapshot.InstalledChannel == GraphicsDriverInventory.UnknownChannel &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 apresenta conversão oficial WMI->NVIDIA sem inferir canal nem liberar Display");
+        var nvidiaOlder = GraphicsDriverInventory.Find(new(
+            [nvidiaSigned with { Version = "31.0.15.6094" }], false, "")).Single();
+        Check(GraphicsDriverInventory.NvidiaPublicVersion(nvidiaOlder) == "560.94" &&
+            GraphicsDriverInventory.NvidiaPublicVersion(found[0]) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(graphics.Single(x => x.Manufacturer == "AMD")) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(graphics.Single(x => x.Manufacturer == "Intel")) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { Provider = "Microsoft" }], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { Version = "32.0.16.174" }], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { Version = "32.1.16.1742" }], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned, nvidiaSigned], false, "")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned], true, "parcial")).Single()) is null &&
+            GraphicsDriverInventory.NvidiaPublicVersion(GraphicsDriverInventory.Find(new(
+                [nvidiaSigned with { ReportedDriverClass = "" }], false, "")).Single()) is null,
+            "VF02 recusa conversão NVIDIA para outros fornecedores, provedor errado, formato inválido, duplicidade e lacunas");
+
         // VF02 fase 2: nenhum endpoint de scraping nem versão remota presumida.
         var nvidiaSite = GraphicsDriverOfficialSources.For(found[0]);
         var amdSite = GraphicsDriverOfficialSources.For(graphics.Single(x => x.Manufacturer == "AMD"));
