@@ -109,6 +109,14 @@ internal static class DriverMainPanelTemporalTests
                 page.ClientSize = size;
                 Pump();
                 CheckStatus(status, refresh);
+                var searchLabel = Descendants(page).OfType<Label>()
+                    .Single(x => x.Text == "Pesquisar:");
+                int requiredSearchWidth = TextRenderer.MeasureText(searchLabel.Text,
+                    searchLabel.Font, new Size(int.MaxValue, 40),
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
+                    TextFormatFlags.NoPrefix).Width;
+                if (searchLabel.Width < requiredSearchWidth || !searchLabel.AutoEllipsis)
+                    throw new Exception("Drivers: Pesquisar: quebrado ou cortado em " + size);
                 var compact = Find<ComboBox>(page, "DriverCompactFilter");
                 if (compact.Visible != (size.Height < 230 || size.Width < 760) ||
                     compact.Items.Count != 5)
