@@ -15,11 +15,11 @@ internal static class DriverGamingUsbCatalog
     private static readonly Uri FlightYoke = LogitechArticle("360023462873");
     private static readonly Uri FlightThrottle = LogitechArticle("360023462893");
     private static readonly Uri G430 = LogitechArticle("360023466633");
+    private static readonly Uri G533 = LogitechArticle("360023303074");
     private static readonly Uri G930 = LogitechArticle("360023466133");
     private static readonly Uri G933 = LogitechArticle("360023464013");
     private static readonly Uri G733 = LogitechArticle("17207077246871");
     private static readonly Uri ProXWireless = LogitechArticle("360052715513");
-    private static readonly Uri ProXWired = new("https://support.logi.com/hc/en-150/articles/360055249533-PRO-X-Gaming-Headset-Technical-Specifications");
     private static readonly Uri G635 = LogitechArticle("360023303694");
     private static readonly Uri VkbSupport = new("https://vkbsimcontrollers.com/pages/downloads");
     private static readonly Uri EposCommand260 = new("https://www.eposaudio.com/en-br/products/audio/series/epos-command-260-usb-ptt/");
@@ -64,17 +64,21 @@ internal static class DriverGamingUsbCatalog
             Status: "A ficha Logitech associa este VID/PID ao manche. A presença do acelerador ligado ao manche é inconclusiva."),
         0x06a30c2d => new(FlightThrottle, "Acelerador USB Logitech Flight Throttle Quadrant", IsAudio: false),
         0x046d0a4d => new(G430, "Adaptador USB Logitech G430", IsAudio: true),
+        0x046d0a66 => new(G533, "Adaptador USB Logitech G533", IsAudio: true,
+            Status: "A ficha do Logitech G533 atribui este VID/PID ao adaptador. A presença e o modelo do headset conectado são inconclusivos."),
         0x046d0a1f => new(G930, "Receptor USB Logitech G930", IsAudio: true),
         0x046d0a5b => new(G933, "Receptor USB Logitech G933", IsAudio: true),
         0x046d0ab6 => new(G733, "Receptor USB Logitech G733", IsAudio: true),
         0x046d0aba => new(ProXWireless, "Receptor USB Logitech PRO X Wireless", IsAudio: true),
-        0x046d0aaa => new(ProXWired, "DAC USB Logitech PRO X com fio", IsAudio: true,
-            Status: "DAC USB do kit Logitech PRO X com fio identificado. O modelo do fone analógico conectado ao DAC é inconclusivo."),
+        0x046d0aaa => new(DriverHardwareSupport.Logitech, "DAC USB Logitech", IsAudio: true,
+            Status: "As fichas do PRO, PRO X e PRO X SE com fio documentam este VID/PID. O kit e o fone analógico conectado são inconclusivos."),
         0x046d0a89 => new(G635, null, IsAudio: true,
             Status: "O VID/PID da função USB de áudio consta na ficha do Logitech G635. O modelo físico do headset é inconclusivo."),
         0x046d0a87 => new(DriverHardwareSupport.Logitech, null, IsAudio: true,
             Status: "Receptor USB Logitech com VID/PID compartilhado por G935 e G933s. O modelo do headset é inconclusivo."),
         // O manual VKB mostra perfis do controlador. O VID/PID sozinho não determina a montagem física.
+        0x231d011d => new(VkbSupport, "Controlador USB VKB TinyBox", IsAudio: false,
+            Status: "O manual VKB T-Link documenta o controlador USB TinyBox para pedais T-Rudder. A presença e a versão dos pedais são inconclusivas."),
         0x231d0117 => new(VkbSupport, null, IsAudio: false,
             Status: "O manual VKB Njoy32 documenta este VID/PID no perfil Fat Mamba. O modelo físico é inconclusivo."),
         0x231d0125 => new(VkbSupport, null, IsAudio: false,

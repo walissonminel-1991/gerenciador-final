@@ -79,6 +79,7 @@ internal static class DriverHardwareSupportTests
         CheckUsbHeadsets(check);
         CheckOtherUsbManufacturers(check);
         CheckAdditionalLogitechFlightAndAudio(check);
+        CheckPedalControllerAndHeadsetAdapter(check);
     }
 
     private static void CheckSources(Action<bool, string> check)
@@ -528,15 +529,16 @@ internal static class DriverHardwareSupportTests
         var wireless = Device(@"USB\VID_046D&PID_0ABA", "Media");
         var g635 = Device(@"USB\VID_046D&PID_0A89", "Media");
         var wiredSource = Find(wired);
-        check(wiredSource is { Category: DriverHardwareCategory.Audio, Page: { Host: "support.logi.com" } wiredPage } &&
-              wiredPage.AbsolutePath.Contains("360055249533", StringComparison.Ordinal) &&
-              DriverHardwareCatalog.Identify(wired).Model == "DAC USB Logitech PRO X com fio" &&
-              wiredSource.Status.Contains("fone analógico conectado ao DAC é inconclusivo", StringComparison.Ordinal) &&
+        check(wiredSource.Category == DriverHardwareCategory.Audio &&
+              wiredSource.Page == DriverHardwareSupport.Logitech &&
+              DriverHardwareCatalog.Identify(wired).Model == "DAC USB Logitech" &&
+              wiredSource.Status.Contains("PRO, PRO X e PRO X SE com fio", StringComparison.Ordinal) &&
+              wiredSource.Status.Contains("kit e o fone analógico conectado são inconclusivos", StringComparison.Ordinal) &&
               Find(wireless).Page?.AbsolutePath.Contains("360052715513", StringComparison.Ordinal) == true &&
               Find(g635).Page?.AbsolutePath.Contains("360023303694", StringComparison.Ordinal) == true &&
               Find(g635).Status.Contains("modelo físico do headset é inconclusivo", StringComparison.Ordinal) &&
               DriverHardwareCatalog.Identify(g635).Model.Length == 0,
-            "PRO X com fio identifica o DAC e G635 mantém o modelo físico inconclusivo");
+            "DAC Logitech com ID compartilhado e referência G635 mantêm o headset inconclusivo");
 
         var invalid = new[]
         {
@@ -550,6 +552,48 @@ internal static class DriverHardwareSupportTests
         };
         check(invalid.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
             "Periféricos Logitech com classe USB ou interface divergente ficam inconclusivos");
+    }
+
+    private static void CheckPedalControllerAndHeadsetAdapter(Action<bool, string> check)
+    {
+        const string tinyBoxId = @"HID\VID_231D&PID_011D&MI_02&COL01";
+        var tinyBox = Device(tinyBoxId, "HIDClass") with
+        {
+            HasGameInputUsage = true,
+            HardwareIds = [tinyBoxId, @"hid\vid_231d&pid_011d&rev_0100&mi_02&col01"]
+        };
+        var tinyBoxReport = DriverReadOnlyReport.Format(new([tinyBox], false, ""), tinyBox);
+        check(Find(tinyBox) is { Category: DriverHardwareCategory.GameInput, Page.Host: "vkbsimcontrollers.com" } &&
+              DriverHardwareCatalog.Identify(tinyBox).Model == "Controlador USB VKB TinyBox" &&
+              tinyBoxReport.Contains("TinyBox para pedais T-Rudder", StringComparison.Ordinal) &&
+              tinyBoxReport.Contains("presença e a versão dos pedais são inconclusivas", StringComparison.Ordinal),
+            "VKB TinyBox associa a fonte T-Link ao controlador e mantém os pedais inconclusivos");
+
+        const string g533Id = @"USB\VID_046D&PID_0A66&MI_00";
+        var g533 = Device(g533Id, "Media") with
+        {
+            HardwareIds = [g533Id, @"usb\vid_046d&pid_0a66&rev_0100&mi_00"]
+        };
+        var g533Report = DriverReadOnlyReport.Format(new([g533], false, ""), g533);
+        check(Find(g533) is { Category: DriverHardwareCategory.Audio, Page: { Host: "support.logi.com" } g533Page } &&
+              g533Page.AbsolutePath.Contains("360023303074", StringComparison.Ordinal) &&
+              DriverHardwareCatalog.Identify(g533).Model == "Adaptador USB Logitech G533" &&
+              g533Report.Contains("presença e o modelo do headset conectado são inconclusivos", StringComparison.Ordinal),
+            "G533 consulta a ficha do adaptador USB sem determinar qual headset está conectado");
+
+        var invalid = new[]
+        {
+            tinyBox with { HasGameInputUsage = false },
+            tinyBox with { ReportedPnpClass = "Media" },
+            tinyBox with { HardwareIds = [tinyBoxId.Replace("MI_02", "MI_03")] },
+            tinyBox with { Present = null },
+            g533 with { ReportedPnpClass = "AudioEndpoint" },
+            g533 with { HardwareIds = [], CompatibleIds = [g533Id] },
+            g533 with { HardwareIds = [g533Id.Replace("MI_00", "MI_01")] },
+            Device(@"HID\VID_046D&PID_0A66&MI_00", "Media")
+        };
+        check(invalid.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "TinyBox e G533 exigem classe, função e identidade USB coerentes");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>
