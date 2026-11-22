@@ -26,7 +26,8 @@ internal static class DriverReadOnlyReport
     // Relatório de tela local. Não enviar ao diagnóstico: contém identificadores
     // necessários à conferência humana. Não contém linhas brutas de setupapi.dev.log.
     internal static string Format(DriverInventoryResult inventory, DriverInventoryEntry? selected,
-        DriverOfficialResult? official = null, DriverInfVerificationResult? verification = null)
+        DriverOfficialResult? official = null, DriverInfVerificationResult? verification = null,
+        string? nvidiaInstalledChannel = null)
     {
         var text = new StringBuilder("DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n");
         text.AppendLine("Dados locais de hardware nesta janela; nenhum pacote é instalado, removido ou baixado.");
@@ -63,7 +64,17 @@ internal static class DriverReadOnlyReport
                 text.AppendLine("Conversão pela regra oficial dos últimos cinco dígitos; não identifica Game Ready/Studio, " +
                     "não comprova versão mais recente ou pacote compatível. Confirme no NVIDIA App.");
             }
-            text.AppendLine($"Canal instalado (Game Ready/Studio/Adrenalin/Game On): {gpu.InstalledChannel}.");
+            bool selectedNvidia = selected is not null && gpu.Manufacturer == "NVIDIA" &&
+                !inventory.Partial && string.Equals(selected.DeviceId, gpu.DeviceId,
+                    StringComparison.OrdinalIgnoreCase) &&
+                GraphicsDriverInventory.NvidiaPublicVersion(gpu) is not null;
+            string displayedChannel = selectedNvidia && nvidiaInstalledChannel is
+                "Game Ready" or "Studio" or "RTX Production Branch" or "RTX New Feature Branch"
+                ? nvidiaInstalledChannel : gpu.InstalledChannel;
+            text.AppendLine($"Canal instalado (Game Ready/Studio/Adrenalin/Game On): {displayedChannel}.");
+            if (selectedNvidia && displayedChannel != gpu.InstalledChannel)
+                text.AppendLine("Origem do canal: NVAPI local oficial + versão concordante com WMI. " +
+                    "Não comprova oferta, compatibilidade ou permissão de atualização.");
             text.AppendLine("Observação: " + gpu.Observation + ".");
             if (GraphicsDriverOfficialSources.For(gpu) is { } site)
             {
