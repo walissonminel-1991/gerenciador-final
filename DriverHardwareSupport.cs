@@ -34,7 +34,18 @@ internal static class DriverHardwareSupport
     private static readonly Uri QualcommQca9377 = new("https://www.qualcomm.com/wi-fi/products/qca9377/support");
     private static readonly Uri QualcommDrivers = new("https://www.qualcomm.com/drivers");
     private static readonly Uri MediaTekNetwork = new("https://www.mediatek.com/products/networking-and-connectivity");
+    private static readonly Uri Broadcom5719 = new("https://www.broadcom.com/products/ethernet-connectivity/network-adapters/bcm5719-4p");
+    private static readonly Uri Broadcom5720 = new("https://www.broadcom.com/products/ethernet-connectivity/network-adapters/bcm5720-2p");
+    private static readonly Uri MarvellAqtion = new("https://www.marvell.com/support/ethernet-adapters-and-controllers.html");
+    private static readonly Uri MarvellYukon = new("https://www.catalog.update.microsoft.com/Search.aspx?q=Marvell%20Yukon%2088E8056");
+    // Páginas de metadados do Catálogo Microsoft, sem selecionar um pacote ou versão.
+    private static readonly Uri QualcommBluetooth = new("https://www.catalog.update.microsoft.com/Search.aspx?q=USB%5CVID_0CF3%26PID_E300");
+    private static readonly Uri MediaTekRz608 = new("https://www.catalog.update.microsoft.com/Search.aspx?q=USB%5CVID_0E8D%26PID_0608%26MI_00");
+    private static readonly Uri MediaTekRz616 = new("https://www.catalog.update.microsoft.com/Search.aspx?q=USB%5CVID_0E8D%26PID_0616%26MI_00");
     private static readonly Uri Logitech = new("https://support.logi.com/hc/pt-br");
+    private static readonly Uri LogitechWheels = new("https://support.logi.com/hc/pt-br/articles/4404187621911-Troubleshoot-G923-G29-G920-for-connection-Issues");
+    private static readonly Uri LogitechF310 = new("https://support.logi.com/hc/pt-br/articles/360023467133-Logitech-Gamepad-F310-Technical-Specifications");
+    private static readonly Uri LogitechF710 = new("https://support.logi.com/hc/pt-br/articles/360023465553-Logitech-Wireless-Gamepad-F710-Technical-Specifications");
     private static readonly Uri Thrustmaster = new("https://support.thrustmaster.com/pt/");
     private static readonly Uri MicrosoftWindows = new("https://support.microsoft.com/pt-br/windows");
     private static readonly Uri SonyDualSense = new("https://www.playstation.com/pt-br/support/hardware/pair-dualsense-controller-bluetooth/");
@@ -117,6 +128,15 @@ internal static class DriverHardwareSupport
                 : "Suporte legado do fabricante. Referência histórica, não oferta atual nem prova de compatibilidade com este Windows.");
 
         uint? usbProduct = DriverHardwareCatalog.ReportedUsbProduct(item);
+        if (category == DriverHardwareCategory.Network && EthernetSource(pci?.Product) is { } ethernet)
+            return new(category, ethernet.Page, ethernet.Page == MarvellYukon
+                ? $"{ethernet.Model} reconhecido pelo ID PCI. Catálogo histórico da Microsoft; compatibilidade inconclusiva."
+                : $"{ethernet.Model} reconhecido pelo ID PCI. Confirme a variante e o Windows no suporte oficial.");
+
+        if (category == DriverHardwareCategory.Network && BluetoothSource(item, usbProduct) is { } bluetooth)
+            return new(category, bluetooth.Page, bluetooth.Label +
+                " Consulta manual ao Catálogo Microsoft. Oferta e compatibilidade continuam inconclusivas.");
+
         if (category == DriverHardwareCategory.Network && NetworkPage(pci, usbProduct) is { } network)
         {
             string status = network == QualcommQca9377
@@ -135,6 +155,11 @@ internal static class DriverHardwareSupport
         }
 
         bool input = category is DriverHardwareCategory.GameInput or DriverHardwareCategory.Peripherals;
+        if (input && LogitechGameSource(usbProduct) is { } logitech)
+            return new(category, logitech.Page, logitech.Model is null
+                ? "VID/PID Logitech compartilhado em DirectInput. O modelo específico é inconclusivo. Confira a identificação física."
+                : $"{logitech.Model} reconhecido pelo VID/PID. Consulte a documentação oficial para o Windows.");
+
         Uri? page = input ? InputPage(category, usbProduct) : (category, pci?.Vendor) switch
         {
             (DriverHardwareCategory.Graphics, 0x10de) => NvidiaDrivers,
@@ -174,6 +199,51 @@ internal static class DriverHardwareSupport
         _ => null
     };
 
+    private static (Uri Page, string Model)? EthernetSource(uint? product) => product switch
+    {
+        0x14e41657 => (Broadcom5719, "Broadcom NetXtreme BCM5719"),
+        0x14e4165f => (Broadcom5720, "Broadcom NetXtreme BCM5720"),
+        0x1d6a07b1 => (MarvellAqtion, "Marvell AQtion AQC107"),
+        0x1d6a04c0 => (MarvellAqtion, "Marvell AQtion AQC113"),
+        0x11ab4364 => (MarvellYukon, "Marvell Yukon 88E8056"),
+        _ => null
+    };
+
+    private static (Uri Page, string Label)? BluetoothSource(DriverInventoryEntry item, uint? product)
+    {
+        if (!item.DeviceId.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase) ||
+            (!item.ReportedPnpClass.Equals("Bluetooth", StringComparison.OrdinalIgnoreCase) &&
+             !item.ReportedDriverClass.Equals("Bluetooth", StringComparison.OrdinalIgnoreCase)) ||
+            item.ReportedPnpClass.Equals("Net", StringComparison.OrdinalIgnoreCase) ||
+            item.ReportedDriverClass.Equals("Net", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        (Uri Page, string Label, string? Interface)? source = product switch
+        {
+            0x0cf3e300 => (QualcommBluetooth, "Rádio Qualcomm/Atheros reconhecido; modelo específico inconclusivo.", null),
+            0x0e8d0608 => (MediaTekRz608, "Rádio MediaTek RZ608 reconhecido pelo ID USB.", "MI_00"),
+            0x0e8d0616 => (MediaTekRz616, "Rádio MediaTek RZ616 reconhecido pelo ID USB.", "MI_00"),
+            _ => null
+        };
+        if (source is not { } match) return null;
+
+        // O Catálogo Microsoft lista as interfaces MediaTek com MI_00.
+        // Corrobore a interface nos mesmos IDs USB usados para resolver o produto.
+        bool MatchesInterface(string id)
+        {
+            var interfaces = id.Split('&').Skip(2)
+                .Where(part => part.StartsWith("MI", StringComparison.OrdinalIgnoreCase));
+            return match.Interface is string expected
+                ? interfaces.SequenceEqual([expected], StringComparer.OrdinalIgnoreCase)
+                : !interfaces.Any();
+        }
+
+        return MatchesInterface(DriverDeviceMetadata.HardwarePart(item.DeviceId)) &&
+            item.HardwareIds.Where(id => id.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase))
+                .All(MatchesInterface)
+            ? (match.Page, match.Label) : null;
+    }
+
     private static Uri? NetworkPage(DriverPciIdentity? pci, uint? usb) => (pci?.Vendor, pci?.Product, usb) switch
     {
         (0x8086, _, _) => IntelNetwork,
@@ -184,6 +254,18 @@ internal static class DriverHardwareSupport
         (0x10ec, _, _) => RealtekNetwork,
         (_, _, 0x0b951790) => AsixEthernet,
         _ when (usb >> 16) == 0x0bda => RealtekNetwork,
+        _ => null
+    };
+
+    private static (Uri Page, string? Model)? LogitechGameSource(uint? product) => product switch
+    {
+        0x046dc24f => (LogitechWheels, "Volante Logitech G29"),
+        0x046dc262 => (LogitechWheels, "Volante Logitech G920"),
+        0x046dc266 => (LogitechWheels, "Volante Logitech G923 para PlayStation"),
+        0x046dc26e => (LogitechWheels, "Volante Logitech G923 para Xbox"),
+        0x046dc21d => (LogitechF310, "Controle Logitech F310 em modo XInput"),
+        0x046dc21f => (LogitechF710, "Controle Logitech F710 em modo XInput"),
+        0x046dc216 or 0x046dc219 => (Logitech, null),
         _ => null
     };
 

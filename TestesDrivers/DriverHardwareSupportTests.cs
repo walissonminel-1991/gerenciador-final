@@ -72,6 +72,9 @@ internal static class DriverHardwareSupportTests
 
         CheckSources(check);
         CheckExtendedSources(check);
+        CheckEthernetSources(check);
+        CheckBluetoothSources(check);
+        CheckLogitechGameSources(check);
     }
 
     private static void CheckSources(Action<bool, string> check)
@@ -216,6 +219,109 @@ internal static class DriverHardwareSupportTests
               !DriverUpdatePilot.AllowedClass("Display") && !DriverUpdatePilot.AllowedClass("Net") &&
               !DriverUpdatePilot.AllowedClass("HIDClass"),
             "Periféricos não comprovados e leitura ausente são inconclusivos; instalar segue bloqueado");
+    }
+
+    private static void CheckEthernetSources(Action<bool, string> check)
+    {
+        var bcm5719 = Device(@"PCI\VEN_14E4&DEV_1657", "Net");
+        const string bcm5720Id = @"PCI\VEN_14E4&DEV_165F";
+        var bcm5720 = Device(bcm5720Id, "Net");
+        check(Find(bcm5719).Page?.Host == "www.broadcom.com" &&
+              Find(bcm5719).Status.Contains("BCM5719", StringComparison.Ordinal) &&
+              Find(bcm5720).Page?.Host == "www.broadcom.com" &&
+              Find(bcm5720).Status.Contains("BCM5720", StringComparison.Ordinal) &&
+              Find(Device(@"PCI\VEN_14E4&DEV_DEAD", "Net")).Page is null &&
+              Find(Device(bcm5720Id, "Media")).Page is null,
+            "Broadcom BCM5719 e BCM5720 recebem fontes oficiais somente com ID e categoria coerentes");
+
+        var aqc107 = Device(@"PCI\VEN_1D6A&DEV_07B1", "Net");
+        var aqc113 = Device(@"PCI\VEN_1D6A&DEV_04C0", "Net");
+        const string yukonId = @"PCI\VEN_11AB&DEV_4364";
+        var yukon = Device(yukonId, "Net");
+        check(Find(aqc107).Page?.Host == "www.marvell.com" &&
+              Find(aqc107).Status.Contains("AQC107", StringComparison.Ordinal) &&
+              Find(aqc113).Page?.Host == "www.marvell.com" &&
+              Find(aqc113).Status.Contains("AQC113", StringComparison.Ordinal) &&
+              Find(yukon).Page?.Host == "www.catalog.update.microsoft.com" &&
+              Find(yukon).Status.Contains("histórico", StringComparison.Ordinal) &&
+              Find(Device(@"PCI\VEN_1D6A&DEV_00B1", "Net")).Page is null,
+            "Marvell AQC107, AQC113 e Yukon têm fontes próprias e mantêm variantes não mapeadas inconclusivas");
+
+        string dellId = bcm5720Id + "&SUBSYS_00011028";
+        var dell = Device(dellId, "Net");
+        var lenovoYukon = Device(yukonId + "&SUBSYS_305617AA", "Net");
+        check(Find(dell).Page?.Host == "www.dell.com" &&
+              Find(lenovoYukon).Page?.Host == "pcsupport.lenovo.com" &&
+              Find(dell with { HardwareIds = [dellId, bcm5720Id + "&SUBSYS_000117AA"] }).Page is null &&
+              Find(bcm5720 with { CompatibleIds = [dellId] }).Page?.Host == "www.broadcom.com",
+            "SUBSYS OEM prevalece em Broadcom e Marvell; conflito e ID apenas compatível não concedem fonte OEM");
+    }
+
+    private static void CheckBluetoothSources(Action<bool, string> check)
+    {
+        const string qualcommId = @"USB\VID_0CF3&PID_E300";
+        const string rz608Id = @"USB\VID_0E8D&PID_0608&MI_00";
+        const string rz616Id = @"USB\VID_0E8D&PID_0616&MI_00";
+        var qualcomm = Device(qualcommId, "Bluetooth");
+        var rz608 = Device(rz608Id, "Bluetooth") with { ReportedDriverClass = "OtherHardware" };
+        var rz616 = Device(rz616Id, "Bluetooth") with
+        {
+            HardwareIds = [@"usb\vid_0e8d&pid_0616&rev_0100&mi_00", rz616Id]
+        };
+        var known = new[] { (qualcomm, qualcommId), (rz608, rz608Id), (rz616, rz616Id) };
+        check(known.All(entry =>
+        {
+            var source = Find(entry.Item1);
+            return source.Page is { Host: "www.catalog.update.microsoft.com" } page &&
+                   Uri.UnescapeDataString(page.Query) == "?q=" + entry.Item2 &&
+                   source.Status.Contains("compatibilidade continuam inconclusivas", StringComparison.Ordinal);
+        }) && Find(qualcomm).Status.Contains("modelo específico inconclusivo", StringComparison.Ordinal),
+            "Bluetooth Qualcomm E300 e MediaTek RZ608/RZ616 consultam o Catálogo Microsoft por IDs exatos");
+
+        var unknown = Device(@"USB\VID_0CF3&PID_DEAD", "Bluetooth");
+        var parent = Device(@"USB\VID_0E8D&PID_0616", "Bluetooth");
+        var otherInterface = Device(@"USB\VID_0E8D&PID_0616&MI_01", "Bluetooth");
+        check(Find(unknown).Page is null &&
+              Find(parent with { CompatibleIds = [rz616Id] }).Page is null &&
+              Find(otherInterface).Page is null &&
+              Find(rz616 with { HardwareIds = [rz616Id, @"USB\VID_0E8D&PID_0616&MI_01"] }).Page is null &&
+              Find(rz616 with { HardwareIds = [rz616Id + "&MI_00"] }).Page is null &&
+              Find(rz616 with { HardwareIds = [] }).Page is null &&
+              Find(rz616 with { ReportedPnpClass = "Net" }).Page is null &&
+              Find(Device(@"HID\VID_0CF3&PID_E300", "Bluetooth")).Page is null,
+            "Bluetooth sem interface USB corroborada ou com classe incompatível fica inconclusivo");
+    }
+
+    private static void CheckLogitechGameSources(Action<bool, string> check)
+    {
+        var wheels = new[]
+        {
+            ("C24F", "G29"), ("C262", "G920"),
+            ("C266", "G923 para PlayStation"), ("C26E", "G923 para Xbox")
+        };
+        check(wheels.All(wheel =>
+        {
+            var device = Device($"HID\\VID_046D&PID_{wheel.Item1}&COL01", "HIDClass") with { HasGameInputUsage = true };
+            var source = Find(device);
+            return source.Category == DriverHardwareCategory.GameInput &&
+                   source.Page is { Host: "support.logi.com" } page &&
+                   page.AbsolutePath.Contains("4404187621911", StringComparison.Ordinal) &&
+                   source.Status.Contains(wheel.Item2, StringComparison.Ordinal);
+        }), "Volantes Logitech G29, G920 e as duas variantes G923 usam suporte específico");
+
+        var f310 = Device(@"USB\VID_046D&PID_C21D", "USBDevice");
+        var f710 = Device(@"HID\VID_046D&PID_C21F", "HIDClass") with { HasGameInputUsage = true };
+        var sharedF310 = Device(@"HID\VID_046D&PID_C216", "HIDClass");
+        var sharedF710 = Device(@"HID\VID_046D&PID_C219", "HIDClass");
+        check(Find(f310).Page?.AbsolutePath.Contains("360023467133", StringComparison.Ordinal) == true &&
+              Find(f710).Page?.AbsolutePath.Contains("360023465553", StringComparison.Ordinal) == true &&
+              Find(f310).Status.Contains("F310 em modo XInput", StringComparison.Ordinal) &&
+              Find(f710).Status.Contains("F710 em modo XInput", StringComparison.Ordinal) &&
+              new[] { sharedF310, sharedF710 }.All(device =>
+                  Find(device).Page?.AbsolutePath == "/hc/pt-br" &&
+                  Find(device).Status.Contains("modelo específico é inconclusivo", StringComparison.Ordinal)) &&
+              Find(f710 with { ReportedPnpClass = "Net" }).Page is null,
+            "Gamepads Logitech F310/F710 têm páginas em XInput e modelo inconclusivo em DirectInput compartilhado");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>
