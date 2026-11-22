@@ -5,6 +5,7 @@
     <Compile Include="../DriverHardwareCatalog.cs" Link="DriverHardwareCatalog.cs" />
     <Compile Include="../GraphicsDriverInventory.cs" Link="GraphicsDriverInventory.cs" />
     <Compile Include="../NvidiaDriverChannel.cs" Link="NvidiaDriverChannel.cs" />
+    <Compile Include="../AmdDriverChannel.cs" Link="AmdDriverChannel.cs" />
     <Compile Include="../GraphicsDriverOfficialSources.cs" Link="GraphicsDriverOfficialSources.cs" />
     <Compile Include="../DriverDeviceMetadata.cs" Link="DriverDeviceMetadata.cs" />
     <Compile Include="../DriverListFilters.cs" Link="DriverListFilters.cs" />
