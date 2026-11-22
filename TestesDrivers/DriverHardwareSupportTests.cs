@@ -69,6 +69,74 @@ internal static class DriverHardwareSupportTests
             !DriverUpdatePilot.AllowedClass("Display") && !DriverUpdatePilot.AllowedClass("Net") &&
             !DriverUpdatePilot.AllowedClass("HIDClass"),
             "Busca por categoria preserva o bloqueio do piloto para vídeo, rede e HID");
+
+        CheckSources(check);
+    }
+
+    private static void CheckSources(Action<bool, string> check)
+    {
+        var legacy = new[]
+        {
+            (Device(@"PCI\VEN_10DE&DEV_0FC6", "Display"), "nvidia.custhelp.com"),
+            (Device(@"PCI\VEN_1002&DEV_6779", "Display"), "www.amd.com"),
+            (Device(@"PCI\VEN_8086&DEV_0166", "Display"), "www.intel.com"),
+            (Device(@"PCI\VEN_102B&DEV_0520", "Display"), "video.matrox.com")
+        };
+        check(legacy.All(pair =>
+        {
+            var source = Find(pair.Item1);
+            return source.Page?.Host == pair.Item2 && source.Status.Contains("Suporte legado");
+        }), "GTX 650, Radeon Caicos, Intel HD 4000 e Matrox G200 usam fontes legadas oficiais");
+
+        const string caicos = @"PCI\VEN_1002&DEV_6779";
+        const string dell = caicos + "&SUBSYS_21201028";
+        var oemGraphics = Device(dell + "&REV_00", "Display") with { HardwareIds = [dell.ToLowerInvariant(), caicos] };
+        var oemLookup = Find(oemGraphics);
+        check(DriverHardwareCatalog.ReportedPciIdentity(oemGraphics) is { Product: 0x10026779, Subsystem: 0x21201028, SubsystemVendor: 0x1028 } &&
+              oemLookup.Page?.Host == "www.dell.com" && oemLookup.Status.Contains("SUBSYS_21201028") &&
+              Find(Device(caicos + "&SUBSYS_10282120", "Display")).Page?.Host == "www.amd.com",
+            "SUBSYS usa o fabricante na metade baixa e prioriza Dell sobre o catálogo legado do chip");
+
+        const string geforce = @"PCI\VEN_10DE&DEV_2D04";
+        var oemNvidia = Device(geforce + "&SUBSYS_0001103C", "Display");
+        var oemIntel = Device(@"PCI\VEN_8086&DEV_2723&SUBSYS_002017AA", "Net");
+        var oemAcer = Device(geforce + "&SUBSYS_00011025", "Display");
+        check(Find(oemNvidia).Page?.Host == "support.hp.com" &&
+              DriverGamingCatalog.Find(new([oemNvidia], false, ""), oemNvidia, true) is null &&
+              Find(oemIntel).Page?.Host == "pcsupport.lenovo.com" &&
+              Find(oemAcer).Page?.Host == "www.acer.com",
+            "A rota OEM atende GPU e rede e precede o catálogo de jogos na variante HP");
+
+        var conflicting = oemGraphics with { HardwareIds = [dell, caicos + "&SUBSYS_2128103C"] };
+        var malformed = oemGraphics with { HardwareIds = [dell, caicos + "&SUBSYS_2120ZZZZ"] };
+        var zero = Device(caicos + "&SUBSYS_00000000", "Display");
+        var compatibleOnly = Device(caicos, "Display") with { CompatibleIds = [dell] };
+        check(Find(conflicting) is { Page: null, Category: DriverHardwareCategory.Graphics } &&
+              Find(malformed).Page is null &&
+              DriverHardwareCatalog.ReportedPciIdentity(zero) is { Subsystem: null } &&
+              DriverHardwareCatalog.ReportedPciIdentity(compatibleOnly) is { Subsystem: null } &&
+              Find(compatibleOnly).Page?.Host == "www.amd.com",
+            "SUBSYS contraditório ou malformado fica inconclusivo e IDs compatíveis não concedem rota OEM");
+
+        var realtekEthernet = Device(@"PCI\VEN_10EC&DEV_8125", "Net");
+        var realtekWireless = Device(@"PCI\VEN_10EC&DEV_C822", "Net");
+        var asix = Device(@"USB\VID_0B95&PID_1790", "Net");
+        check(Find(realtekEthernet).Page?.AbsolutePath == "/Download/List" &&
+              Find(realtekWireless).Page?.AbsolutePath == "/Download/Index" &&
+              Find(asix).Page?.Host == "www.asix.com.tw" &&
+              Find(asix with { ReportedPnpClass = "Media", ReportedDriverClass = "Media" }).Page is null,
+            "Realtek Ethernet, Realtek de rede e ASIX USB recebem rotas distintas e restritas à função de rede");
+
+        var dualSense = Device(@"HID\VID_054C&PID_0CE6&COL01", "HIDClass") with { HasGameInputUsage = true };
+        var dualSenseEdge = Device(@"USB\VID_054C&PID_0DF2", "HIDClass") with { HasGameInputUsage = true };
+        var corsair = Device(@"HID\VID_1B1C&PID_1B3D", "Keyboard");
+        var steelSeries = Device(@"HID\VID_1038&PID_1720", "Mouse");
+        check(Find(dualSense) is { Category: DriverHardwareCategory.GameInput, Page.Host: "www.playstation.com" } &&
+              Find(dualSenseEdge).Page?.AbsolutePath.Contains("dualsense-edge", StringComparison.Ordinal) == true &&
+              Find(Device(@"USB\VID_054C&PID_0001", "HIDClass")).Page is null &&
+              Find(corsair).Page?.Host == "www.corsair.com" &&
+              Find(steelSeries).Page?.Host == "support.steelseries.com",
+            "DualSense e Edge usam o produto exato e periféricos Corsair e SteelSeries recebem suporte oficial");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>

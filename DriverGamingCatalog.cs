@@ -65,7 +65,9 @@ internal static class DriverGamingCatalog
         if (inventory.Partial || selected is not { Present: true } ||
             DriverHardwareSupport.CategoryOf(selected) != DriverHardwareCategory.Graphics ||
             inventory.Items.Count(item => item.DeviceId.Equals(selected.DeviceId, StringComparison.OrdinalIgnoreCase)) != 1 ||
-            !inventory.Items.Contains(selected))
+            !inventory.Items.Contains(selected) ||
+            DriverHardwareCatalog.ReportedPciIdentity(selected) is not { } pci ||
+            DriverHardwareSupport.OemFor(pci) is not null)
             return null;
 
         Version? installed = null;
@@ -75,7 +77,7 @@ internal static class DriverGamingCatalog
             selected.Provider.Equals("NVIDIA Corporation", StringComparison.OrdinalIgnoreCase);
         bool IntelProvider() => selected.Provider.Equals("Intel Corporation", StringComparison.OrdinalIgnoreCase);
 
-        return DriverHardwareCatalog.ReportedPciProduct(selected) switch
+        return pci.Product switch
         {
             // NVIDIA Supported GPU Products: 10DE:2D04.
             0x10de2d04 => new("NVIDIA GeForce RTX 5060 Ti", DriverHardwareSupport.NvidiaDrivers,

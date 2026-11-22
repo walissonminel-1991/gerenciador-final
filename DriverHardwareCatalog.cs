@@ -11,6 +11,13 @@ internal sealed record DriverHardwareIdentity(string Vendor, string Model, strin
     internal bool FromUsbParent { get; init; }
 }
 
+internal readonly record struct DriverPciIdentity(uint Product, uint? Subsystem)
+{
+    internal uint Vendor => Product >> 16;
+    // Windows representa SUBSYS como dispositivo nos 16 bits altos e fabricante nos baixos.
+    internal uint? SubsystemVendor => Subsystem & 0xffff;
+}
+
 // Metadados consultivos para a tela. Os IDs, nomes WMI e vínculos de INF
 // do inventário continuam sendo a evidência usada pelo Windows e pelo WUA.
 internal static partial class DriverHardwareCatalog
@@ -49,8 +56,28 @@ internal static partial class DriverHardwareCatalog
     internal static DriverHardwareIdentity Identify(DriverInventoryEntry item) =>
         Identities.GetValue(item, Resolve);
 
-    internal static uint? ReportedPciProduct(DriverInventoryEntry item) =>
-        ReportedProduct(item, @"PCI\VEN_", PciId());
+    internal static DriverPciIdentity? ReportedPciIdentity(DriverInventoryEntry item)
+    {
+        const string prefix = @"PCI\VEN_";
+        if (ReportedProduct(item, prefix, PciId()) is not uint product)
+            return null;
+
+        uint? subsystem = null;
+        var identifiers = item.HardwareIds.Prepend(DriverDeviceMetadata.HardwarePart(item.DeviceId))
+            .Where(id => id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        foreach (string qualifier in identifiers.SelectMany(id => id.Split('&').Skip(2))
+                     .Where(part => part.StartsWith("SUBSYS", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!qualifier.StartsWith("SUBSYS_", StringComparison.OrdinalIgnoreCase) ||
+                !Hex(qualifier.AsSpan(7), 8, out uint value))
+                return null;
+            if (value == 0) continue; // SUBSYS_00000000 significa subsistema não informado.
+            if ((value & 0xffff) is 0 or 0xffff || (subsystem.HasValue && subsystem != value))
+                return null;
+            subsystem = value;
+        }
+        return new(product, subsystem);
+    }
 
     internal static uint? ReportedUsbProduct(DriverInventoryEntry item) =>
         item.DeviceId.StartsWith(@"HID\", StringComparison.OrdinalIgnoreCase)
