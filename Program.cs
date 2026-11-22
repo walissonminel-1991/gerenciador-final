@@ -102,6 +102,9 @@ internal sealed class ProgramEntry
     internal string QueryArchitecture { get; set; } = "unknown";
     public string MsiProductCode { get; init; } = "";
     public string MsixPackageFamilyName { get; init; } = "";
+    public string MsixPackageFullName { get; init; } = "";
+    public string MsixPublisherId { get; init; } = "";
+    public string MsixPackageName { get; init; } = "";
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     private bool _inventoryOnly;
@@ -272,6 +275,9 @@ internal static class AppServices
                 InventoryId = LocalMsixInventory.InventoryId(app),
                 VerifiedMsixIdentity = app.RecipeEligible,
                 MsixPackageFamilyName = app.PackageFamilyName,
+                MsixPackageFullName = app.PackageFullName,
+                MsixPublisherId = app.PublisherId,
+                MsixPackageName = app.PackageName,
                 CatalogIdentity = verified?.Id ?? "",
                 CatalogDisplayName = verified?.Name ?? ""
             });
@@ -1191,6 +1197,8 @@ internal sealed partial class MainForm : Form
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "uninstall-manual" && !item.CanUninstall)
                 OpenManualAppUninstall(item);
+            else if (action == "msix-uninstall")
+                _ = ExecuteAsync("Conferindo aplicativo MSIX...", () => UninstallMsixAsync(item));
             else if (action == "update")
                 _ = UpdateThirdPartyAsync(item);
             else if (action == "terminal")
@@ -1440,7 +1448,8 @@ internal sealed partial class MainForm : Form
             : item.InventoryOnly && item.InventorySource.StartsWith("Biblioteca de jogos:", StringComparison.Ordinal)
             ? $"Jogo da {item.InventorySource["Biblioteca de jogos:".Length..].Trim()} (somente leitura)"
             : item.InventoryOnly && item.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase)
-            ? $"Versão: {DisplayAppVersion(item.Version)} · Microsoft Store/MSIX · somente leitura"
+            ? $"Versão: {DisplayAppVersion(item.Version)} · Microsoft Store/MSIX · " +
+                (CanRemoveMsix(item) ? "remoção por API do Windows" : "gerenciar pelo Windows")
             : item.InventoryOnly
             ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
@@ -1474,14 +1483,16 @@ internal sealed partial class MainForm : Form
             // A opção existe em TODOS os cartões, como solicitado. O motor
             // interno só executa quando o desinstalador é confiável e vinculado.
             // Nos demais casos, abre o gerenciador manual, sem burlar proteções.
+            bool msixAllowed = CanRemoveMsix(item);
             DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
                 uninstall?.PreventRetry == true
                     ? uninstall.Active ? "Em andamento" : "Pendente"
                     : "Desinstalar",
                 uninstall?.PreventRetry == true ? AppServices.Gray :
-                    item.CanUninstall ? AppServices.Red : AppServices.Gray,
+                    item.CanUninstall || msixAllowed ? AppServices.Red : AppServices.Gray,
                 _programList.ActionVisual(item,
-                    item.CanUninstall ? "uninstall" : "uninstall-manual"));
+                    item.CanUninstall ? "uninstall" :
+                    msixAllowed ? "msix-uninstall" : "uninstall-manual"));
         }
     }
 
@@ -3007,6 +3018,98 @@ internal sealed partial class MainForm : Form
             Log("Gerenciamento do Windows indisponível: " + ex.GetType().Name);
             Status("Abra Configurações > Aplicativos instalados manualmente.");
         }
+    }
+
+    private static MsixRemovalRequest MsixRequest(ProgramEntry entry) =>
+        new(entry.MsixPackageFullName, entry.MsixPackageFamilyName,
+            entry.MsixPackageName, entry.MsixPublisherId, entry.Version,
+            entry.Name, entry.InventoryId);
+
+    private static bool CanRemoveMsix(ProgramEntry entry) =>
+        entry.InventoryOnly && !entry.CanUninstall &&
+        entry.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase) &&
+        MsixUninstall.CanOffer(MsixRequest(entry));
+
+    // C1: somente aplicativos MSIX do usuario atual, nunca Microsoft/frameworks
+    // ou entradas com identidade parcial. Executar no mesmo fluxo serial do GF.
+    private async Task UninstallMsixAsync(ProgramEntry entry)
+    {
+        if (_betaClose.IsClosing || !_installed.Contains(entry) ||
+            _inventoryIncomplete || !CanRemoveMsix(entry) ||
+            _uninstallOperations.Find(entry)?.PreventRetry == true)
+        {
+            Status("MSIX: operação indisponível ou inventário incompleto.");
+            return;
+        }
+        var request = MsixRequest(entry);
+        SetUninstallProgress(entry, "preparing");
+        var initial = await Task.Run(LocalMsixInventory.ReadCurrentUserFresh);
+        if (!MsixUninstall.CanStart(request, initial))
+        {
+            SetUninstallProgress(entry, "failed", "Identidade ou leitura alterada; remoção não iniciada.");
+            Status("MSIX: pacote alterado ou consulta parcial. Atualize a lista antes de tentar novamente.");
+            return;
+        }
+        SetUninstallProgress(entry, "awaiting_consent");
+        bool consent = DarkConfirmDialog.Confirm(this,
+            "Remover o aplicativo MSIX da sua conta do Windows?\n\n" +
+            entry.Name + "\nVersão: " + entry.Version + "\nEditor: " + entry.Publisher +
+            "\n\nO Windows pode remover dependências sem uso e dados do aplicativo. " +
+            "Esta ação não possui desfazer automático e não pode ser interrompida " +
+            "com segurança após iniciar.\n\nDeseja continuar?",
+            "Confirmar desinstalação MSIX") == DialogResult.Yes;
+        if (!consent)
+        {
+            SetUninstallProgress(entry, "cancelled");
+            Status("MSIX: remoção cancelada antes de iniciar.");
+            return;
+        }
+        if (!DiagnosticTrace.Write("MSIX.REMOCAO etapa=consentimento estado=confirmado"))
+        {
+            SetUninstallProgress(entry, "failed", "Diário indisponível; remoção não iniciada.");
+            Status("MSIX: diário indisponível. Nenhuma remoção iniciada.");
+            return;
+        }
+        SetUninstallProgress(entry, "working");
+        Status("MSIX: aguardando o Windows remover o aplicativo selecionado...");
+        var outcome = await Task.Run(() => MsixUninstall.ExecuteAsync(request,
+            LocalMsixInventory.ReadCurrentUserFresh,
+            MsixUninstall.RemoveCurrentUserAsync));
+        string stage = outcome.State switch
+        {
+            MsixRemovalState.Confirmed => "finished",
+            MsixRemovalState.Blocked => "failed",
+            _ => "pending"
+        };
+        string explanation = outcome.State switch
+        {
+            MsixRemovalState.Confirmed => "MSIX removido e ausência confirmada no usuário atual.",
+            MsixRemovalState.Blocked => "MSIX não iniciado: identidade ou inventário alterado.",
+            _ => "Resultado MSIX inconclusivo; não repita até confirmar nas Configurações."
+        };
+        string code = outcome.ErrorCode is int error ? " codigo=" + error : "";
+        bool audited = DiagnosticTrace.Write("MSIX.REMOCAO etapa=resultado estado=" +
+            outcome.State.ToString().ToLowerInvariant() +
+            " motivo=" + outcome.Reason + code);
+        if (!audited)
+        {
+            stage = "pending";
+            explanation += " O diário não pôde ser concluído.";
+        }
+        SetUninstallProgress(entry, stage, explanation);
+        Status(explanation);
+        Log(explanation);
+        if (outcome.State == MsixRemovalState.Confirmed)
+        {
+            try { await RefreshCatalogAsync(); }
+            catch (Exception ex)
+            {
+                DiagnosticTrace.Failure("MSIX.RECARREGAR_FALHA", ex);
+                Log("MSIX: não foi possível renovar a lista após a confirmação.");
+            }
+        }
+        ShowUninstallResult(entry.Name + "\n" + explanation +
+            "\nNenhuma limpeza residual ou remoção de outros usuários foi executada pelo GF.");
     }
 
     private void OpenWindowsInstalledApps(ProgramEntry entry)
