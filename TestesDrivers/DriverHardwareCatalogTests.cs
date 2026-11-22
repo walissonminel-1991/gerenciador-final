@@ -136,6 +136,52 @@ internal static class DriverHardwareCatalogTests
             !DriverUpdatePilot.AllowedClass("Display"),
             "VF02 fase 5 falha fechada para flags, versões ou GPU ambiguas, sem abrir Display");
 
+        // VF02 fase 6: edição AMD fornecida pelo SDK oficial ADLX, somente
+        // quando uma única GPU AMD tem identidade e versão Windows verificáveis.
+        var amdSnapshot = GraphicsDriverInventory.Find(
+            new([amdDisplay], false, "consulta completa")).Single();
+        var amdInventory = new DriverInventoryResult([amdDisplay], false, "completo");
+        Check(AmdDriverChannel.CanRead(amdInventory, amdSnapshot) &&
+            AmdDriverChannel.Classify("AMD Software: Adrenalin Edition",
+                "32.0.1.1234", amdSnapshot.InstalledWindowsVersion) ==
+                "AMD Software: Adrenalin Edition" &&
+            AmdDriverChannel.Classify("AMD Software: PRO Edition",
+                "32.0.1.1234", amdSnapshot.InstalledWindowsVersion) ==
+                "AMD Software: PRO Edition" &&
+            AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\NATIVE",
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\WMI") &&
+            DriverReadOnlyReport.Format(amdInventory, amdDisplay,
+                amdInstalledEdition: "AMD Software: Adrenalin Edition")
+                .Contains("Edição AMD instalada (ADLX local): AMD Software: Adrenalin Edition",
+                    StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 fase 6 identifica edição ADLX com identidade OEM e versão WMI sem instalação");
+        var anotherAmd = amdDisplay with { DeviceId = @"PCI\VEN_1002&DEV_A124\OTHER" };
+        Check(AmdDriverChannel.Classify("AMD Software: Adrenalin Edition",
+                "32.0.1.1235", "32.0.1.1234") is null &&
+            AmdDriverChannel.Classify("Gaming Driver", "32.0.1.1234", "32.0.1.1234") is null &&
+            AmdDriverChannel.Classify("AMD Software: PRO Edition", "", "32.0.1.1234") is null &&
+            AmdDriverChannel.Classify(null, "32.0.1.1234", "32.0.1.1234") is null &&
+            !AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\NATIVE",
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_99991002\WMI") &&
+            !AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123\NATIVE",
+                @"PCI\VEN_1002&DEV_A123\WMI") &&
+            !AmdDriverChannel.SamePnp(
+                @"PCI\VEN_1002&DEV_A123&SUBSYS_12341002\NATIVE",
+                @"PCI\VEN_1002&DEV_A124&SUBSYS_12341002\WMI") &&
+            !AmdDriverChannel.CanRead(new([amdDisplay, anotherAmd], false, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(new([amdDisplay, amdDisplay], false, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(new([amdDisplay], true, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(new([amdDisplay with { Provider = "Microsoft" }],
+                false, ""), amdSnapshot) &&
+            !AmdDriverChannel.CanRead(amdInventory, nvidiaSnapshot) &&
+            DriverReadOnlyReport.Format(amdInventory, amdDisplay)
+                .Contains("Edição AMD instalada: não identificada", StringComparison.Ordinal),
+            "VF02 fase 6 recusa edição inventada, WMI divergente, OEM inconclusivo e GPUs ambíguas");
+
         // VF02 fase 2: nenhum endpoint de scraping nem versão remota presumida.
         var nvidiaSite = GraphicsDriverOfficialSources.For(found[0]);
         var amdSite = GraphicsDriverOfficialSources.For(graphics.Single(x => x.Manufacturer == "AMD"));
