@@ -1,5 +1,12 @@
 using GerenciadorAplicativos;
 
+if (args.Contains("--cleanup-p0"))
+{
+    SafeTemporaryCleanupTests.Run();
+    await CleanupP0Tests.RunAsync();
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--probe-protected")
 {
     try { using var write = new FileStream(args[1], FileMode.Open, FileAccess.Write, FileShare.Read); Environment.ExitCode = 1; }
@@ -140,6 +147,7 @@ if (OperatingSystem.IsWindows())
         "caminho absoluto registrado do fabricante e preservado sem executar");
 }
 SafeTemporaryCleanupTests.Run();
+await CleanupP0Tests.RunAsync();
 
 // A fixture usa bytes no formato da API, e nao a ordem dos campos gerenciados.
 // Nenhuma chamada a SRSetRestorePoint e feita nesta bateria.

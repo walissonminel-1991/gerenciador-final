@@ -9,6 +9,11 @@ namespace GerenciadorAplicativos;
 internal sealed partial class MainForm
 {
     private readonly Label _cleanupPreview = new();
+    private readonly Dictionary<CleanupTarget, (Label Title, Label State)> _cleanupRows = new();
+    private TableLayoutPanel? _cleanupReport;
+    private RowStyle? _cleanupReportRow;
+    private Button? _cleanupPreviewButton;
+    private CancellationTokenSource? _cleanupCancellation;
     private readonly Label _networkSummary = new();
     private readonly Label _networkDetails = new();
     private Button? _repairNetworkButton;
@@ -142,29 +147,247 @@ internal sealed partial class MainForm
         }
     }
 
-    private async Task ShowCleanupPreviewAsync()
+    private Control BuildCleanupReport(RowStyle rowStyle)
     {
-        if (_busy) return;
-        await ExecuteAsync("Estimando arquivos elegíveis sem apagar...", async () =>
+        var report = new TableLayoutPanel
         {
-            var categories = await SafetyDiagnostics.EstimateCleanupAsync();
-            var messages = categories.Select(c => $"{c.Category}: {c.EligibleBytes / 1048576d:N1} MiB / {c.EligibleFiles} arquivo(s)" +
-                (c.Partial ? " (estimativa parcial)" : "")).ToArray();
-            bool partial = categories.Any(c => c.Partial);
-            int totalFiles = categories.Sum(c => c.EligibleFiles);
-            double totalMiB = categories.Sum(c => c.EligibleBytes / 1048576d);
-            string preview = (partial ? "Prévia parcial" : "Prévia") + $" · {totalFiles} arquivo(s) · {totalMiB:N1} MiB";
-            _cleanupPreview.Text = preview;
-            _toolTips.SetToolTip(_cleanupPreview, string.Join(Environment.NewLine, messages));
-            foreach (string item in messages) Log("Prévia de limpeza: " + item);
-            Status(preview + ". Confira a estimativa por categoria no Registro.");
+            Name = "CleanupCategoryReport", Dock = DockStyle.Fill, Margin = Padding.Empty,
+            RowCount = CleanupTarget.All.Count, ColumnCount = 2, BackColor = PanelBackground
+        };
+        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 41));
+        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 59));
+        foreach (var target in CleanupTarget.All)
+        {
+            int row = _cleanupRows.Count;
+            report.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+            var title = new Label { Text = target.Title, Dock = DockStyle.Fill, ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft };
+            var state = new Label
+            {
+                Text = "Aguardando análise", Dock = DockStyle.Fill, ForeColor = Muted,
+                TextAlign = ContentAlignment.MiddleLeft, AccessibleName = target.Title + " — situação"
+            };
+            _cleanupRows.Add(target, (title, state));
+            report.Controls.Add(title, 0, row);
+            report.Controls.Add(state, 1, row);
+        }
+        _cleanupReport = report;
+        _cleanupReportRow = rowStyle;
+        return report;
+    }
+
+    private int CleanupReportHeight(int pageWidth)
+    {
+        if (_cleanupReport is null || _cleanupReportRow is null) return 0;
+        int usable = Math.Max(1, pageWidth - 42);
+        int left = Math.Max(1, (int)(usable * .41) - 8);
+        int right = Math.Max(1, usable - left - 16);
+        int total = 0;
+        int row = 0;
+        foreach (var pair in _cleanupRows.Values)
+        {
+            int height = Math.Max(CleanupTextHeight(pair.Title, left), CleanupTextHeight(pair.State, right)) + 5;
+            _cleanupReport.RowStyles[row++].Height = height;
+            total += height;
+        }
+        _cleanupReportRow.Height = total;
+        return total;
+    }
+
+    private static int CleanupTextHeight(Label label, int width) =>
+        TextRenderer.MeasureText(label.Text, label.Font, new Size(width, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix).Height;
+
+    private void SetCleanupRow(CleanupTarget target, string text)
+    {
+        if (IsDisposed || Disposing || !_cleanupRows.TryGetValue(target, out var row)) return;
+        row.State.Text = text;
+        row.State.AccessibleDescription = text;
+        _relayoutCleaning?.Invoke();
+    }
+
+    private void ShowCleanupStatus(string text)
+    {
+        if (IsDisposed || Disposing) return;
+        _cleanupPreview.Text = text;
+        _toolTips.SetToolTip(_cleanupPreview, text);
+        Status(text);
+    }
+
+    private static string DisplayCleanupSize(double bytes) => bytes switch
+    {
+        < 1024 => $"{bytes:N0} B",
+        < 1048576 => $"{bytes / 1024:N1} KiB",
+        < 1073741824 => $"{bytes / 1048576:N1} MiB",
+        _ => $"{bytes / 1073741824:N2} GiB"
+    };
+
+    private static string DescribeCleanupState(CleanupState state) => state switch
+    {
+        CleanupState.Partial => "Parcial",
+        CleanupState.Missing => "Pasta ausente",
+        CleanupState.Unavailable => "Não foi possível acessar ou verificar a categoria",
+        CleanupState.Cancelled => "Cancelada",
+        CleanupState.Busy => "Serviços de atualização ativos",
+        CleanupState.Inconclusive => "Resultado inconclusivo",
+        _ => "Concluída"
+    };
+
+    private static string DescribeCleanupEstimate(CleanupEstimate estimate)
+    {
+        string state = estimate.State switch
+        {
+            CleanupState.Complete => "Prévia",
+            CleanupState.Partial => "Prévia parcial",
+            _ => DescribeCleanupState(estimate.State)
+        };
+        string unit = estimate.Target == CleanupTarget.RecycleBin ? "itens" : "arquivos";
+        if (estimate.State is CleanupState.Complete or CleanupState.Partial || estimate.Items > 0)
+            state += $" · {estimate.Items:N0} {unit} · {DisplayCleanupSize(estimate.Bytes)}";
+        return state + CleanupError(estimate.Error);
+    }
+
+    private static string CleanupError(int error) => error == 0 ? "" : $" (0x{error:X8})";
+
+    private Action<CleanupProgress> CreateCleanupProgress(CleanupTarget target, CancellationTokenSource operation, bool preview)
+    {
+        IProgress<CleanupProgress> reporter = new Progress<CleanupProgress>(current =>
+        {
+            if (!ReferenceEquals(_cleanupCancellation, operation) || operation.IsCancellationRequested || IsDisposed ||
+                !_cleanupRows[target].State.Text.StartsWith(preview ? "Analisando" : "Limpando", StringComparison.Ordinal))
+                return;
+            string prefix = preview ? "Analisando" : "Limpando";
+            string text = $"{prefix} · {current.Examined:N0} examinados";
+            if (!preview) text += $" · {current.Removed:N0} removidos";
+            SetCleanupRow(target, text);
+            Status($"{target.Title} · {text}");
+        });
+        return reporter.Report;
+    }
+
+    private async Task RunCancelableCleanupAsync(string initialStatus, string cancelCaption,
+        Func<CancellationTokenSource, Task> work)
+    {
+        await ExecuteAsync(initialStatus, async () =>
+        {
+            using var operation = new CancellationTokenSource();
+            _cleanupCancellation = operation;
+            if (_cleanupPreviewButton is not null) _cleanupPreviewButton.Text = cancelCaption;
+            ShowCleanupStatus(initialStatus);
+            try { await work(operation); }
+            finally
+            {
+                _cleanupCancellation = null;
+                if (_cleanupPreviewButton is { IsDisposed: false }) _cleanupPreviewButton.Text = "Analisar limpeza";
+            }
         });
     }
 
-    private void ShowCleanupResult(string summary)
+    private void RequestCleanupCancellation()
     {
-        _cleanupPreview.Text = summary;
-        _toolTips.SetToolTip(_cleanupPreview, summary);
-        Status(summary);
+        if (_cleanupCancellation is not { IsCancellationRequested: false } operation) return;
+        operation.Cancel();
+        ShowCleanupStatus("Cancelamento solicitado…");
+    }
+
+    private async Task ShowCleanupPreviewAsync()
+    {
+        if (_cleanupCancellation is not null) { RequestCleanupCancellation(); return; }
+        if (_busy) return;
+
+        await RunCancelableCleanupAsync("Analisando limpeza…", "Cancelar análise", async operation =>
+        {
+            foreach (var target in CleanupTarget.All) SetCleanupRow(target, "Aguardando análise");
+            double totalBytes = 0;
+            int uncertain = 0;
+            bool cancelled = false;
+            foreach (var target in CleanupTarget.All)
+            {
+                if (operation.IsCancellationRequested) { cancelled = true; break; }
+                SetCleanupRow(target, "Analisando…");
+                var estimate = await SafetyDiagnostics.EstimateCleanupAsync(target, operation.Token,
+                    CreateCleanupProgress(target, operation, preview: true));
+                string description = DescribeCleanupEstimate(estimate);
+                SetCleanupRow(target, description);
+                Log($"Prévia de limpeza · {target.Title} · {description}");
+                totalBytes += estimate.Bytes;
+                if (estimate.State is not (CleanupState.Complete or CleanupState.Missing)) uncertain++;
+                if (estimate.State == CleanupState.Cancelled) { cancelled = true; break; }
+            }
+            if (cancelled)
+                ShowCleanupStatus("Análise cancelada · confira os resultados já obtidos.");
+            else
+                ShowCleanupStatus((uncertain == 0 ? "Recuperável estimado" : "Prévia incompleta · identificado") +
+                    $" · {DisplayCleanupSize(totalBytes)}");
+        });
+    }
+
+    private async Task CleanTemporaryCategoryAsync(CleanupTarget target)
+    {
+        await RunCancelableCleanupAsync(target.Elevated ? "Aguardando autorização administrativa…" : "Iniciando limpeza…",
+            "Cancelar limpeza", async operation =>
+            {
+                SetCleanupRow(target, "Limpando…");
+                var progress = CreateCleanupProgress(target, operation, preview: false);
+                TemporaryCleanupResult result;
+                if (target.Elevated)
+                {
+                    var protocol = new ElevatedCleanupProtocol(operation.Token, progress, Log);
+                    try { await RunElevatedAsync(target.Task, cleanup: protocol); }
+                    catch (Exception ex) when (ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+                    { DiagnosticTrace.Failure("LIMPEZA.SEM_RETORNO", ex); }
+                    result = protocol.Result;
+                    if (result.State == CleanupState.Inconclusive && SafeMaintenanceAudit.NoReturn(target.Task) is { } noReturn)
+                        DiagnosticTrace.Write(noReturn);
+                    else if (SafeMaintenanceAudit.ElevatedExit(target.Task,
+                        ElevatedCleanupProtocol.ExitCode(result).ToString(System.Globalization.CultureInfo.InvariantCulture)) is { } elevated)
+                        DiagnosticTrace.Write(elevated);
+                }
+                else result = await Task.Run(() => target.Clean(operation.Token, progress, Log));
+
+                if (result.State == CleanupState.Missing && SafeMaintenanceAudit.MissingSource(target.Task) is { } missing)
+                    DiagnosticTrace.Write(missing);
+                if (result.State == CleanupState.Cancelled && SafeMaintenanceAudit.Cancelled(target.Task) is { } cancel)
+                    DiagnosticTrace.Write(cancel);
+                if (result.State != CleanupState.Inconclusive &&
+                    SafeMaintenanceAudit.LocalResult(target.Task, result.FilesRemoved, result.DirectoriesRemoved,
+                        result.Skipped, result.ReparseSkipped, result.Failed) is { } verified)
+                    DiagnosticTrace.Write(verified);
+
+                string description = DescribeCleanupState(result.State);
+                if (result.State == CleanupState.Inconclusive)
+                    description += " · consulte novamente antes de repetir";
+                else if (result.State is CleanupState.Complete or CleanupState.Partial || result.FilesRemoved > 0 ||
+                    result.DirectoriesRemoved > 0 || result.Failed > 0 || result.Skipped + result.ReparseSkipped > 0)
+                    description += $" · {result.FilesRemoved:N0} arquivos · {DisplayCleanupSize(result.BytesRemoved)} removidos" +
+                        $" · {result.Skipped + result.ReparseSkipped:N0} preservados" +
+                        (result.Failed > 0 ? $" · {result.Failed:N0} falhas/limites" : "");
+                SetCleanupRow(target, description);
+                ShowCleanupStatus($"{target.Title} · {DescribeCleanupState(result.State)}");
+                Log($"Limpeza · {target.Title} · {description}" +
+                    (result.DirectoriesRemoved > 0 ? $" · {result.DirectoriesRemoved:N0} pastas vazias removidas" : ""));
+            });
+    }
+
+    private async Task EmptyRecycleBinAsync()
+    {
+        if (_busy || _betaClose.IsClosing) return;
+        if (DarkConfirmDialog.Confirm(this, "Esvaziar a Lixeira de todas as unidades deste usuário? A exclusão é permanente.",
+            "Esvaziar Lixeira") != DialogResult.Yes)
+        {
+            Status("Operação cancelada");
+            return;
+        }
+        await ExecuteAsync("Verificando e esvaziando a Lixeira…", async () =>
+        {
+            SetCleanupRow(CleanupTarget.RecycleBin, "Verificando no Windows…");
+            var result = await StaWorker.Run(RecycleBinCleanup.Empty);
+            string state = result.State == CleanupState.Complete ? "Vazia, confirmado pelo Windows" : DescribeCleanupState(result.State);
+            string text = state + (result.State != CleanupState.Complete && result.Current.Known
+                ? $" · {result.Current.Items:N0} itens restantes · {DisplayCleanupSize(result.Current.Bytes)}" : "")
+                + CleanupError(result.Error);
+            SetCleanupRow(CleanupTarget.RecycleBin, text);
+            ShowCleanupStatus("Lixeira · " + state);
+            Log("Limpeza · Lixeira · " + text);
+        });
     }
 }

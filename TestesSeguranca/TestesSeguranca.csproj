@@ -10,6 +10,9 @@
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../SafeTemporaryCleanup.cs" Link="SafeTemporaryCleanup.cs" />
+    <Compile Include="../CleanupTargets.cs" Link="CleanupTargets.cs" />
+    <Compile Include="../ElevatedCleanupProtocol.cs" Link="ElevatedCleanupProtocol.cs" />
+    <Compile Include="../RecycleBinCleanup.cs" Link="RecycleBinCleanup.cs" />
     <Compile Include="../SafeMaintenanceAudit.cs" Link="SafeMaintenanceAudit.cs" />
     <Compile Include="../WindowsIntegrityAssessment.cs" Link="WindowsIntegrityAssessment.cs" />
     <Compile Include="../WindowsMaintenanceProgress.cs" Link="WindowsMaintenanceProgress.cs" />

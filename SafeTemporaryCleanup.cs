@@ -5,45 +5,57 @@ using Microsoft.Win32.SafeHandles;
 
 namespace GerenciadorAplicativos;
 
+internal enum CleanupState { Complete, Partial, Missing, Unavailable, Cancelled, Busy, Inconclusive }
+
+internal readonly record struct CleanupProgress(int Examined, int Removed);
+
 internal sealed record TemporaryCleanupResult(int FilesRemoved, int DirectoriesRemoved,
     int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples)
 {
+    internal long BytesRemoved { get; init; }
+    internal CleanupState State { get; init; }
+    internal static TemporaryCleanupResult WithoutChanges(CleanupState state) => new(0, 0, 0, 0, 0, []) { State = state };
+
     internal string Summary => $"{FilesRemoved} arquivo(s) removido(s) · " +
         $"{Skipped + ReparseSkipped} item(ns) preservado(s) · {Failed} falha(s)/limite(s)";
 }
 
-internal readonly record struct TemporaryCleanupEstimate(long EligibleBytes, int EligibleFiles, bool Partial);
+internal readonly record struct TemporaryCleanupEstimate(long EligibleBytes, int EligibleFiles, bool Partial)
+{
+    internal CleanupState State { get; init; }
+}
 
 // Execução restrita à raiz temporária que o chamador já autorizou. Não integra
 // a investigação de resíduos. O handle usado para conferir é o usado para excluir.
 internal static class SafeTemporaryCleanup
 {
     private const uint Read = 0x80000000, Delete = 0x00010000;
-    private const uint DirectoryFlag = 0x10, ReparseFlag = 0x400, ReadOnlyFlag = 1;
+    private const uint DirectoryFlag = 0x10, ReparseFlag = 0x400, ProtectedFlags = 0x5;
     private const uint OpenReparse = 0x00200000, BackupSemantics = 0x02000000;
-    private const int MaxDepth = 64, MaxEntries = 100_000, MaxPreviewEntries = 12_000;
+    private const int MaxDepth = 64, MaxEntries = 100_000;
     private static readonly TimeSpan MaximumDuration = TimeSpan.FromMinutes(2);
 
     internal static TemporaryCleanupResult Clean(string root, Action<string>? log = null,
-        CancellationToken cancellationToken = default) => Scan(root, preview: false, log, cancellationToken).Cleanup;
+        CancellationToken cancellationToken = default, Action<CleanupProgress>? progress = null,
+        Func<CleanupState>? checkScope = null) =>
+        Scan(root, preview: false, log, cancellationToken, progress, checkScope).Cleanup;
 
-    internal static TemporaryCleanupEstimate Estimate(string root, CancellationToken cancellationToken = default) =>
-        Scan(root, preview: true, log: null, cancellationToken).Estimate;
+    internal static TemporaryCleanupEstimate Estimate(string root, CancellationToken cancellationToken = default,
+        Action<CleanupProgress>? progress = null, Func<CleanupState>? checkScope = null) =>
+        Scan(root, preview: true, log: null, cancellationToken, progress, checkScope).Estimate;
 
     internal static bool IsEligibleFile(FileAttributes attributes, uint links, long written, long cutoff) =>
         (attributes & (FileAttributes.ReadOnly | FileAttributes.System | FileAttributes.ReparsePoint)) == 0 &&
         links == 1 && written > 0 && written <= cutoff;
 
     private static (TemporaryCleanupResult Cleanup, TemporaryCleanupEstimate Estimate) Scan(
-        string root, bool preview, Action<string>? log, CancellationToken cancellationToken)
+        string root, bool preview, Action<string>? log, CancellationToken cancellationToken,
+        Action<CleanupProgress>? progress, Func<CleanupState>? checkScope)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        int files = 0, directories = 0, failed = 0, links = 0, skipped = 0;
-        int entries = preview ? 1 : 0;
-        int eligibleFiles = 0;
-        long eligibleBytes = 0;
-        bool stopped = false, previewIncomplete = false;
-        int maxEntries = preview ? MaxPreviewEntries : MaxEntries;
+        int files = 0, directories = 0, failed = 0, links = 0, skipped = 0, entries = 0, eligibleFiles = 0;
+        long eligibleBytes = 0, removedBytes = 0, lastProgress = 0;
+        bool stopped = false, openedRoot = false;
+        CleanupState state = CleanupState.Complete;
         var examples = new List<string>();
         var timer = Stopwatch.StartNew();
         long cutoff = DateTime.UtcNow.AddHours(-24).ToFileTimeUtc();
@@ -53,86 +65,110 @@ internal static class SafeTemporaryCleanup
             failed++;
             if (examples.Count < 5) examples.Add(Path.GetFileName(path) + ": " + reason);
         }
+        bool CheckScope()
+        {
+            CleanupState scope = checkScope?.Invoke() ?? CleanupState.Complete;
+            if (scope == CleanupState.Complete) return true;
+            state = scope;
+            stopped = true;
+            return false;
+        }
         bool WithinBudget(int depth)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (stopped) return false;
-            if (depth <= MaxDepth && entries <= maxEntries && timer.Elapsed <= MaximumDuration)
+            if (depth <= MaxDepth && entries <= MaxEntries && timer.Elapsed <= MaximumDuration)
                 return true;
             stopped = true;
-            Failure(root, "Limite seguro da consulta atingido; limpeza parcial.");
+            Failure(root, "Limite seguro da operação atingido.");
             return false;
         }
         void ProcessChecked(SafeFileHandle handle, string path, FileInformation info, bool directory)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (directory && (info.Attributes & ReadOnlyFlag) != 0)
-            { skipped++; return; }
+            ulong size = 0;
             if (!directory)
             {
                 long written = ((long)info.Written.dwHighDateTime << 32) | (uint)info.Written.dwLowDateTime;
-                if (!IsEligibleFile((FileAttributes)info.Attributes, info.Links, written, cutoff))
+                long created = ((long)info.Created.dwHighDateTime << 32) | (uint)info.Created.dwLowDateTime;
+                if (info.IndexHigh == 0 && info.IndexLow == 0 ||
+                    created <= 0 || created > cutoff ||
+                    !IsEligibleFile((FileAttributes)info.Attributes, info.Links, written, cutoff))
                 { skipped++; return; }
+                size = ((ulong)info.SizeHigh << 32) | info.SizeLow;
             }
-            if (preview)
+            long countedBytes = preview ? eligibleBytes : removedBytes;
+            if (size > (ulong)(long.MaxValue - countedBytes))
             {
-                if (directory) return;
-                ulong size = ((ulong)info.SizeHigh << 32) | info.SizeLow;
-                if (size > (ulong)(long.MaxValue - eligibleBytes)) previewIncomplete = true;
-                else { eligibleBytes += (long)size; eligibleFiles++; }
+                Failure(path, "Tamanho total não representável.");
                 return;
             }
+            if (directory && (info.Attributes & (ProtectedFlags | ReparseFlag)) != 0) { skipped++; return; }
+            if (!CheckScope()) return;
+            if (preview)
+            {
+                eligibleBytes += (long)size;
+                eligibleFiles++;
+                return;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
             var disposition = new FileDisposition { DeleteFile = 1 };
             if (!SetFileInformationByHandle(handle, 4, ref disposition, 1))
             {
                 int error = Marshal.GetLastWin32Error();
-                // Partilha, ACL, arquivo em uso ou pasta preenchida durante a consulta:
-                // preservar. Nunca tentar novamente por pathname ou elevar privilégio.
-                if (error is 2 or 3 or 5 or 32 or 33 or 145) { skipped++; return; }
+                if (error is 2 or 3 or 32 or 33 or 145) { skipped++; return; }
                 Failure(path, new Win32Exception(error).Message);
                 return;
             }
-            if (directory) directories++; else files++;
+            if (directory) directories++;
+            else { files++; removedBytes += (long)size; }
         }
         void Visit(string path, SafeFileHandle directory, int depth, bool keepRoot)
         {
             if (!WithinBudget(depth)) return;
             try
             {
-                // Todos os ancestrais e o diretório enumerado permanecem presos.
-                // Os compartilhamentos não impedem a criação normal de arquivos filhos.
-                foreach (string child in Directory.EnumerateFileSystemEntries(path))
+                // A enumeração fornece o tipo esperado. A confirmação é feita pelo handle.
+                foreach (var item in new DirectoryInfo(path).EnumerateFileSystemInfos())
                 {
                     entries++;
                     if (!WithinBudget(depth + 1)) return;
-                    if (Path.GetFileName(child).StartsWith("_avg_", StringComparison.OrdinalIgnoreCase))
+                    long elapsed = timer.ElapsedMilliseconds;
+                    if (elapsed - lastProgress >= 350)
+                    {
+                        lastProgress = elapsed;
+                        progress?.Invoke(new(entries, files));
+                    }
+                    if (item.Name.StartsWith("_avg_", StringComparison.OrdinalIgnoreCase))
                     { skipped++; continue; }
+                    string child = item.FullName;
                     try
                     {
-                        // As duas operações verificam o mesmo acesso e compartilhamento.
-                        // A prévia só lê metadados; a disposição de exclusão fica no modo de limpeza.
-                        using var handle = Open(child, deletable: true);
+                        var expected = item.Attributes;
+                        if ((expected & FileAttributes.ReparsePoint) != 0) { links++; continue; }
+                        if ((expected & (FileAttributes.System | FileAttributes.ReadOnly)) != 0) { skipped++; continue; }
+                        bool expectedDirectory = (expected & FileAttributes.Directory) != 0;
+                        using var handle = Open(child, deletable: true, exclusive: !expectedDirectory);
                         FileInformation info = Information(handle);
                         if ((info.Attributes & ReparseFlag) != 0) { links++; continue; }
                         bool isDirectory = (info.Attributes & DirectoryFlag) != 0;
-                        if (isDirectory) Visit(child, handle, depth + 1, keepRoot: false);
+                        if (isDirectory != expectedDirectory)
+                        { Failure(child, "Tipo do item mudou durante a conferência."); continue; }
+                        if (isDirectory)
+                        {
+                            if ((info.Attributes & ProtectedFlags) != 0) { skipped++; continue; }
+                            Visit(child, handle, depth + 1, keepRoot: false);
+                        }
                         else ProcessChecked(handle, child, info, directory: false);
+                        if (stopped) return;
                     }
-                    catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3 or 5 or 32 or 33)
-                    {
-                        if (preview && ex.NativeErrorCode == 5) previewIncomplete = true;
-                        skipped++;
-                    }
+                    catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3 or 32 or 33) { skipped++; }
                     catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception)
                     { Failure(child, ex.Message); }
                 }
-                if (!preview && !keepRoot && !stopped)
-                {
-                    // Uma criação concorrente torna a pasta não vazia: o próprio Windows
-                    // recusa FileDispositionInfo. Nenhuma exclusão recursiva é solicitada.
-                    if (!Directory.EnumerateFileSystemEntries(path).Any())
-                        ProcessChecked(directory, path, Information(directory), directory: true);
-                }
+                if (!preview && !keepRoot && WithinBudget(depth) &&
+                    !Directory.EnumerateFileSystemEntries(path).Any())
+                    ProcessChecked(directory, path, Information(directory), directory: true);
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception)
             { Failure(path, ex.Message); }
@@ -140,33 +176,42 @@ internal static class SafeTemporaryCleanup
 
         try
         {
-            string fullRoot = Path.TrimEndingDirectorySeparator(InstallerFileGuard.ValidateLocalPath(root));
-            if (fullRoot.Equals(Path.TrimEndingDirectorySeparator(Path.GetPathRoot(fullRoot)!),
-                StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("A raiz de uma unidade não é uma pasta temporária.");
-            using var held = PinRoot(fullRoot);
-            log?.Invoke("Pasta temporária protegida; examinando arquivos antigos sem seguir links.");
-            Visit(fullRoot, held.Leaf, 0, keepRoot: true);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (CheckScope())
+            {
+                string fullRoot = Path.TrimEndingDirectorySeparator(InstallerFileGuard.ValidateLocalPath(root));
+                if (fullRoot.Equals(Path.TrimEndingDirectorySeparator(Path.GetPathRoot(fullRoot)!),
+                    StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("A raiz de uma unidade não é uma pasta temporária.");
+                using var held = PinRoot(fullRoot);
+                if ((Information(held.Leaf).Attributes & ProtectedFlags) != 0)
+                    throw new InvalidDataException("A pasta de limpeza tem atributos de proteção.");
+                openedRoot = true;
+                log?.Invoke("Examinando arquivos antigos sem seguir links.");
+                progress?.Invoke(new(0, 0));
+                Visit(fullRoot, held.Leaf, 0, keepRoot: true);
+            }
         }
-        catch (Win32Exception ex) when (preview && ex.NativeErrorCode is (2 or 3))
-        { /* A pasta ainda não existe. O volume e o caminho já foram validados. */ }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        { state = CleanupState.Cancelled; }
+        catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
+        { state = CleanupState.Missing; }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             ArgumentException or NotSupportedException or Win32Exception)
         { Failure(root, ex.Message); }
 
-        log?.Invoke($"Limpeza: {files} arquivo(s) e {directories} pasta(s) removidos; " +
-            $"{skipped} itens recentes, protegidos, vinculados ou em uso preservados; " +
-            $"{links} links redirecionados ignorados; {failed} falhas/limites.");
+        if (state == CleanupState.Complete && failed > 0)
+            state = openedRoot ? CleanupState.Partial : CleanupState.Unavailable;
         foreach (string example in examples) log?.Invoke("Detalhe: " + example);
-        return (new(files, directories, failed, links, skipped, examples),
-            new(eligibleBytes, eligibleFiles, previewIncomplete || failed > 0));
+        return (new(files, directories, failed, links, skipped, examples) { BytesRemoved = removedBytes, State = state },
+            new(eligibleBytes, eligibleFiles, state is not (CleanupState.Complete or CleanupState.Missing)) { State = state });
     }
 
-    private static SafeFileHandle Open(string path, bool deletable)
+    private static SafeFileHandle Open(string path, bool deletable, bool exclusive = false)
     {
         // Não seguir nem compartilhar alteração/renomeação do componente final.
         // OPEN_EXISTING nunca cria arquivo ou diretório; DELETE não implica WRITE.
-        var handle = CreateFileW(path, Read | (deletable ? Delete : 0), 1,
+        var handle = CreateFileW(path, Read | (deletable ? Delete : 0), exclusive ? 0u : 1u,
             IntPtr.Zero, 3, BackupSemantics | OpenReparse, IntPtr.Zero);
         if (handle.IsInvalid)
         {

@@ -29,7 +29,7 @@ internal sealed partial class MainForm
         float scale = Math.Max(1f, DeviceDpi / 96f);
         int fixedRows = 34 + 38 + 20 + 8 + 2 + 4;
         int cards = rows * (98 + 7);
-        return (int)Math.Ceiling((fixedRows + cards) * scale);
+        return (int)Math.Ceiling((fixedRows + cards) * scale) + CleanupReportHeight(width);
     }
 
     // A pagina inteira rola quando necessario, mas nunca acrescenta barras

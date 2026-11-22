@@ -12,7 +12,7 @@ namespace GerenciadorAplicativos;
 internal enum FindingLevel { Ok, Info, Attention }
 internal sealed record Finding(FindingLevel Level, string Subject, string Detail, int SuggestedTab = -1);
 internal sealed record DiagnosticReport(DateTime CollectedAt, IReadOnlyList<Finding> Findings);
-internal sealed record CleanupEstimate(string Category, long EligibleBytes, int EligibleFiles, bool Partial);
+internal sealed record CleanupEstimate(CleanupTarget Target, long Bytes, long Items, CleanupState State, int Error = 0);
 
 // Somente leitura: não exige elevação nem aplica quaisquer alterações ao computador.
 internal static class SafetyDiagnostics
@@ -81,21 +81,19 @@ internal static class SafetyDiagnostics
         catch (Exception ex) { return "DNS externo: indisponível nesta consulta (" + ex.GetType().Name + ")."; }
     }
 
-    public static Task<IReadOnlyList<CleanupEstimate>> EstimateCleanupAsync() => Task.Run<IReadOnlyList<CleanupEstimate>>(() =>
+    internal static async Task<CleanupEstimate> EstimateCleanupAsync(CleanupTarget target, CancellationToken token,
+        Action<CleanupProgress> progress)
     {
-        var result = new List<CleanupEstimate>();
-        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        foreach (var (label, folder) in new[]
+        if (token.IsCancellationRequested) return new(target, 0, 0, CleanupState.Cancelled);
+        if (target == CleanupTarget.RecycleBin)
         {
-            ("Temporários do usuário", Path.GetTempPath()),
-            ("Temporários do Windows", Path.Combine(windows, "Temp")),
-            ("Shaders DirectX", Path.Combine(local, "D3DSCache"))
-        })
-        {
-            var estimate = SafeTemporaryCleanup.Estimate(folder);
-            result.Add(new(label, estimate.EligibleBytes, estimate.EligibleFiles, estimate.Partial));
+            var recycle = await StaWorker.Run(RecycleBinCleanup.Query);
+            if (token.IsCancellationRequested) return new(target, 0, 0, CleanupState.Cancelled);
+            return recycle.Known
+                ? new(target, recycle.Bytes, recycle.Items, CleanupState.Complete)
+                : new(target, 0, 0, CleanupState.Unavailable, recycle.Error);
         }
-        return result;
-    });
+        var estimate = await Task.Run(() => target.Estimate(token, progress));
+        return new(target, estimate.EligibleBytes, estimate.EligibleFiles, estimate.State);
+    }
 }
