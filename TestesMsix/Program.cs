@@ -278,7 +278,9 @@ var msixEmpty = new LocalMsixResult([], 0, "ok");
 Check(MsixUninstall.CanStart(msixRequest, msixPresent),
     "C1: identidade completa de MSIX de terceiro habilita preflight");
 Check(!MsixUninstall.CanOffer(msixRequest with { PublisherId = "8wekyb3d8bbwe" }) &&
-      !MsixUninstall.CanOffer(msixRequest with { PackageName = "Microsoft.WindowsTerminal" }),
+      !MsixUninstall.CanOffer(msixRequest with { PackageName = "Microsoft.WindowsTerminal" }) &&
+      !MsixUninstall.CanOffer(msixRequest with { PackageName = "MicrosoftWindows.Client.CBS" }) &&
+      !MsixUninstall.CanOffer(msixRequest with { PackageName = "Windows.Shell" }),
     "C1: pacotes Microsoft e componentes nativos não ganham ação integrada");
 Check(!MsixUninstall.CanStart(msixRequest, msixPresent with { Failures = 1 }) &&
       !MsixUninstall.CanStart(msixRequest, msixPresent with { Status = "COMException(0x80040154)" }) &&
