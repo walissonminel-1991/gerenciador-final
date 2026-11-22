@@ -1499,9 +1499,7 @@ internal sealed partial class MainForm : Form
                     : "Desinstalar",
                 uninstall?.PreventRetry == true ? AppServices.Gray :
                     item.CanUninstall || msixAllowed ? AppServices.Red : AppServices.Gray,
-                _programList.ActionVisual(item,
-                    item.CanUninstall ? "uninstall" :
-                    msixAllowed ? "msix-uninstall" : "uninstall-manual"));
+                _programList.ActionVisual(item, DarkProgramList.UninstallAction(item)));
         }
     }
 
