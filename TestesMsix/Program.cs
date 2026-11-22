@@ -273,8 +273,10 @@ var msixTarget = generic! with
 var msixRequest = new MsixRemovalRequest(msixTarget.PackageFullName,
     msixTarget.PackageFamilyName, msixTarget.PackageName, msixTarget.PublisherId,
     msixTarget.Version, msixTarget.Name, LocalMsixInventory.InventoryId(msixTarget));
-var msixPresent = new LocalMsixResult([msixTarget], 1, "ok");
-var msixEmpty = new LocalMsixResult([], 0, "ok");
+var msixPresent = new LocalMsixResult([msixTarget], 1, "ok",
+    ObservedMainPackageFullNames: [msixTarget.PackageFullName]);
+var msixEmpty = new LocalMsixResult([], 0, "ok", ObservedMainPackageFullNames: []);
+var replacementFullName = "Contoso.Reader_4.0.0.0_x64__contosopub";
 Check(MsixUninstall.CanStart(msixRequest, msixPresent),
     "C1: identidade completa de MSIX de terceiro habilita preflight");
 Check(!MsixUninstall.CanOffer(msixRequest with { PublisherId = "8wekyb3d8bbwe" }) &&
@@ -290,7 +292,8 @@ Check(!MsixUninstall.CanStart(msixRequest, msixPresent with { Failures = 1 }) &&
 Check(!MsixUninstall.CanStart(msixRequest, msixPresent with
         { Items = [msixTarget with { PackageFullName = "outro_pacote" }] }) &&
       !MsixUninstall.CanStart(msixRequest, msixPresent with
-        { Items = [msixTarget, msixTarget] }),
+        { ObservedMainPackageFullNames = [msixTarget.PackageFullName, replacementFullName] }) &&
+      !MsixUninstall.CanStart(msixRequest, msixPresent with { ObservedMainPackageFullNames = null }),
     "C1: pacote alterado e duplicação de família bloqueiam remoção");
 int msixReads = 0;
 int msixCalls = 0;
@@ -310,6 +313,19 @@ var msixStillPresent = await MsixUninstall.ExecuteAsync(msixRequest,
     _ => Task.FromResult(new MsixNativeRemoval(true, true)));
 Check(msixStillPresent.State == MsixRemovalState.Pending,
     "C1: retorno do Windows sem ausência confirmada permanece pendente");
+msixReads = 0;
+var msixFilteredPost = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => ++msixReads == 1 ? msixPresent : new LocalMsixResult([], 1, "ok", Filtered: 1,
+        ObservedMainPackageFullNames: [replacementFullName]),
+    _ => Task.FromResult(new MsixNativeRemoval(true, true)));
+Check(msixFilteredPost is { State: MsixRemovalState.Pending, Reason: "family_still_present" },
+    "C1: pacote principal da família omitido da lista visual impede confirmação de remoção");
+msixReads = 0;
+var msixNoObservation = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => ++msixReads == 1 ? msixPresent : msixEmpty with { ObservedMainPackageFullNames = null },
+    _ => Task.FromResult(new MsixNativeRemoval(true, true)));
+Check(msixNoObservation.State == MsixRemovalState.Pending,
+    "C1: lista visual vazia sem consulta da família não comprova remoção");
 msixReads = 0;
 var msixPartialPost = await MsixUninstall.ExecuteAsync(msixRequest,
     () => ++msixReads == 1 ? msixPresent : msixEmpty with { Failures = 1 },

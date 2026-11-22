@@ -10,7 +10,8 @@ internal sealed record LocalMsixApp(string Name, string Version, string Publishe
     string PackageFullName = "", string PublisherId = "");
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
-    bool Retried = false, string FailureStage = "", string Apartment = "");
+    bool Retried = false, string FailureStage = "", string Apartment = "",
+    IReadOnlyList<string>? ObservedMainPackageFullNames = null);
 internal sealed record LocalMsixObservation(LocalMsixApp? App, bool Launchable = false);
 
 internal static class LocalMsixInventory
@@ -71,12 +72,12 @@ internal static class LocalMsixInventory
     // explicitamente: lista MSIX vazia nunca significa zero apps instalados.
     private static readonly LocalMsixSnapshot Snapshot = new();
     internal static LocalMsixResult ReadCurrentUser() =>
-        Snapshot.Read(() => ReadWithRetry(ReadOnce, () => Thread.Sleep(250)));
+        Snapshot.Read(() => ReadWithRetry(() => ReadOnce(null), () => Thread.Sleep(250)));
 
     // Apenas para autorizacao e confirmacao de remocao: nenhuma retencao de
     // leituras anteriores. A fonte deve responder integralmente nesta chamada.
-    internal static LocalMsixResult ReadCurrentUserFresh() =>
-        ReadWithRetry(ReadOnce, () => Thread.Sleep(250));
+    internal static LocalMsixResult ReadCurrentUserFamilyFresh(string packageFamilyName) =>
+        ReadWithRetry(() => ReadOnce(packageFamilyName), () => Thread.Sleep(250));
 
     internal static LocalMsixResult ReadWithRetry(Func<LocalMsixResult> read,
         Action? beforeRetry = null)
@@ -116,7 +117,7 @@ internal static class LocalMsixInventory
         IsClassNotRegistered(status) ||
         string.Equals(status, "COMException(0x800703FA)", StringComparison.Ordinal);
 
-    private static LocalMsixResult ReadOnce()
+    private static LocalMsixResult ReadOnce(string? packageFamilyName)
     {
         PackageManager manager;
         try
@@ -130,13 +131,25 @@ internal static class LocalMsixInventory
         {
             // Usuário corrente; não requer permissões administrativas nem
             // enumeração de apps privados instalados em outros perfis.
-            packages = manager.FindPackagesForUser(string.Empty);
+            packages = packageFamilyName is null
+                ? manager.FindPackagesForUser(string.Empty)
+                : manager.FindPackagesForUserWithPackageTypes(
+                    string.Empty, packageFamilyName, PackageTypes.Main);
         }
         catch (Exception ex) { return Failed(ex, "query"); }
 
-        return ReadPackages(packages, package =>
+        List<string>? observedMainPackages = packageFamilyName is null ? null : new();
+        var scan = ReadPackages(packages, package =>
         {
             var id = package.Id;
+            // A presença da família independe de ícone, nome ou entrada iniciável.
+            if (observedMainPackages is not null)
+            {
+                string fullName = id.FullName;
+                if (string.IsNullOrWhiteSpace(fullName))
+                    throw new InvalidOperationException("Nome completo do pacote MSIX indisponível.");
+                observedMainPackages.Add(fullName);
+            }
             var v = id.Version;
             var candidate = Recognize(id.Name, id.PublisherId,
                 v.Major, v.Minor, v.Build, v.Revision);
@@ -154,6 +167,7 @@ internal static class LocalMsixInventory
             { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId },
                 Launchable: true);
         });
+        return scan with { ObservedMainPackageFullNames = observedMainPackages };
     }
 
     // A enumeração COM é preguiçosa: MoveNext pode falhar DEPOIS de produzir

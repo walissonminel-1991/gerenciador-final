@@ -3049,8 +3049,10 @@ internal sealed partial class MainForm : Form
             return;
         }
         var request = MsixRequest(entry);
+        LocalMsixResult ReadFreshInventory() =>
+            LocalMsixInventory.ReadCurrentUserFamilyFresh(request.PackageFamilyName);
         SetUninstallProgress(entry, "preparing");
-        var initial = await Task.Run(LocalMsixInventory.ReadCurrentUserFresh);
+        var initial = await Task.Run(ReadFreshInventory);
         if (!MsixUninstall.CanStart(request, initial))
         {
             SetUninstallProgress(entry, "failed", "Identidade ou leitura alterada; remoção não iniciada.");
@@ -3081,7 +3083,7 @@ internal sealed partial class MainForm : Form
         SetUninstallProgress(entry, "working");
         Status("MSIX: aguardando o Windows remover o aplicativo selecionado...");
         var outcome = await Task.Run(() => MsixUninstall.ExecuteAsync(request,
-            LocalMsixInventory.ReadCurrentUserFresh,
+            ReadFreshInventory,
             MsixUninstall.RemoveCurrentUserAsync));
         string stage = outcome.State switch
         {
@@ -3091,7 +3093,7 @@ internal sealed partial class MainForm : Form
         };
         string explanation = outcome.State switch
         {
-            MsixRemovalState.Confirmed => "MSIX removido e ausência confirmada no usuário atual.",
+            MsixRemovalState.Confirmed => "MSIX removido. Nenhum pacote principal da família permanece no usuário atual.",
             MsixRemovalState.Blocked => "MSIX não iniciado: identidade ou inventário alterado.",
             _ => "Resultado MSIX inconclusivo; não repita até confirmar nas Configurações."
         };

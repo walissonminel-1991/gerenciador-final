@@ -51,8 +51,8 @@ internal static class MsixUninstall
 
     internal static bool CanStart(MsixRemovalRequest request, LocalMsixResult scan) =>
         CanOffer(request) && Complete(scan) &&
-        scan.Items.Count(x => x.PackageFamilyName.Equals(
-            request.PackageFamilyName, StringComparison.Ordinal)) == 1 &&
+        scan.ObservedMainPackageFullNames is [var fullName] &&
+        fullName.Equals(request.PackageFullName, StringComparison.Ordinal) &&
         scan.Items.Count(x => Matches(request, x)) == 1;
 
     internal static async Task<MsixRemovalResult> ExecuteAsync(
@@ -78,11 +78,10 @@ internal static class MsixUninstall
         LocalMsixResult after;
         try { after = freshInventory(); }
         catch { return new(MsixRemovalState.Pending, "postcheck_unavailable", native.ErrorCode); }
-        if (!Complete(after))
+        if (!Complete(after) || after.ObservedMainPackageFullNames is not { } observedPackages)
             return new(MsixRemovalState.Pending, "postcheck_partial", native.ErrorCode);
 
-        bool sameFamilyPresent = after.Items.Any(item => item.PackageFamilyName.Equals(
-            request.PackageFamilyName, StringComparison.Ordinal));
+        bool sameFamilyPresent = observedPackages.Count > 0;
         if (native.Completed && native.Started && !sameFamilyPresent)
             return new(MsixRemovalState.Confirmed, "native_completed_and_family_absent");
 
