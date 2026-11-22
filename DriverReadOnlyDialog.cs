@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Diagnostics;
 using System.Windows.Forms;
@@ -28,7 +30,11 @@ internal sealed partial class MainForm
         };
         var working = Screen.FromControl(this).WorkingArea;
         dialog.Size = new Size(Math.Min(dialog.Width, working.Width - 24), Math.Min(dialog.Height, working.Height - 36));
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+        var gaming = DriverGamingCatalog.Find(inventory, selected, DriverGamingCatalog.Windows11X64);
+        Uri? officialPage = gaming?.Support ??
+            (selected is null ? null : DriverHardwareSupport.Get(inventory, selected).Page);
+        using var sourceMenu = officialPage is null ? null : new ContextMenuStrip();
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = officialPage is null ? 3 : 4,
             Padding = new Padding(10), BackColor = PanelBackground };
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
@@ -98,6 +104,46 @@ internal sealed partial class MainForm
         statusRow.Controls.Add(pilotLink, 1, 0);
         statusRow.Controls.Add(gpuLink, 2, 0);
         root.Controls.Add(body, 0, 0); root.Controls.Add(statusRow, 0, 1); root.Controls.Add(bar, 0, 2);
+        if (officialPage is not null && sourceMenu is not null)
+        {
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+            var sourceLink = new LinkLabel
+            {
+                Name = gaming is null ? "DriverHardwareSourcesLink" : "DriverGamingSourcesLink",
+                Dock = DockStyle.Fill, LinkColor = Accent,
+                Text = gaming is null ? "Hardware — abrir fonte oficial" : "Driver gráfico — abrir fonte oficial",
+                TextAlign = ContentAlignment.MiddleLeft,
+                AccessibleName = "Abrir páginas oficiais do dispositivo",
+                AccessibleDescription = "Abra a página de suporte ou as notas de uma versão no navegador."
+            };
+            void AddPage(string label, Uri page)
+            {
+                sourceMenu.Items.Add(label, null, (_, _) =>
+                {
+                    if (!isCurrent())
+                    {
+                        SetStatus("O inventário mudou. Reabra a investigação para consultar o fabricante.");
+                        return;
+                    }
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(page.AbsoluteUri) { UseShellExecute = true });
+                    }
+                    catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+                    {
+                        SetStatus("O navegador não pôde abrir a página oficial.");
+                    }
+                });
+            }
+            AddPage("Abrir página de suporte", officialPage);
+            foreach (var reference in gaming?.References ?? [])
+                AddPage($"{reference.Channel} {reference.Version}", reference.Page);
+            sourceLink.LinkClicked += (_, _) =>
+            {
+                if (isCurrent()) sourceMenu.Show(sourceLink, new Point(0, sourceLink.Height));
+            };
+            root.Controls.Add(sourceLink, 0, 3);
+        }
         dialog.Controls.Add(root);
         dialog.HandleCreated += (_, _) =>
         {
@@ -142,6 +188,7 @@ internal sealed partial class MainForm
         bool canOfficial = validAtOpening && !inventory.Partial &&
             inventory.Items.Count > 0 && !duplicatedIds;
         bool canVerify = validAtOpening && !ambiguousSelection &&
+            selected?.BindingStatus != DriverBindingStatus.Conflicting &&
             selected is { WithoutSignedDriverAssociation: false,
                 PackageEvidence.State: DriverStoreState.Mapped };
         // Nenhuma tarefa WUA/INF deve ser iniciada com identidade inicialmente
