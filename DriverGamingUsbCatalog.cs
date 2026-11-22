@@ -11,11 +11,16 @@ internal static class DriverGamingUsbCatalog
     private static readonly Uri X52 = LogitechArticle("360023462973");
     private static readonly Uri X52Pro = LogitechArticle("360023462793");
     private static readonly Uri X56 = LogitechArticle("360023302854");
+    private static readonly Uri LegacyLogitechFlight = new("https://support.logi.com/hc/en-us/articles/360023375193");
+    private static readonly Uri FlightYoke = LogitechArticle("360023462873");
+    private static readonly Uri FlightThrottle = LogitechArticle("360023462893");
     private static readonly Uri G430 = LogitechArticle("360023466633");
     private static readonly Uri G930 = LogitechArticle("360023466133");
     private static readonly Uri G933 = LogitechArticle("360023464013");
     private static readonly Uri G733 = LogitechArticle("17207077246871");
     private static readonly Uri ProXWireless = LogitechArticle("360052715513");
+    private static readonly Uri ProXWired = new("https://support.logi.com/hc/en-150/articles/360055249533-PRO-X-Gaming-Headset-Technical-Specifications");
+    private static readonly Uri G635 = LogitechArticle("360023303694");
     private static readonly Uri VkbSupport = new("https://vkbsimcontrollers.com/pages/downloads");
     private static readonly Uri EposCommand260 = new("https://www.eposaudio.com/en-br/products/audio/series/epos-command-260-usb-ptt/");
     private static readonly Uri VoxiconAudioRecord = new("https://catalog.update.microsoft.com/ScopedViewInline.aspx?updateid=08f12451-f2bc-475a-bc4b-795e75af3860");
@@ -50,11 +55,23 @@ internal static class DriverGamingUsbCatalog
         0x06a30762 => new(X52Pro, "Controle de voo Logitech X52 Pro H.O.T.A.S.", IsAudio: false),
         0x07382221 => new(X56, "Joystick Logitech X56 H.O.T.A.S.", IsAudio: false),
         0x0738a221 => new(X56, "Acelerador Logitech X56 H.O.T.A.S.", IsAudio: false),
+        0x046dc207 => new(LegacyLogitechFlight, "Joystick Logitech Extreme Digital 3D", IsAudio: false),
+        0x046dc214 => new(LegacyLogitechFlight, "Joystick Logitech Attack 3", IsAudio: false),
+        0x046dc283 => new(LegacyLogitechFlight, "Joystick Logitech Force 3D", IsAudio: false),
+        0x046dc287 => new(LegacyLogitechFlight, null, IsAudio: false,
+            Status: "O VID/PID consta na documentação do Logitech Flight System G940. Os módulos físicos conectados são inconclusivos."),
+        0x06a30bac => new(FlightYoke, "Manche USB Logitech Flight Yoke System", IsAudio: false,
+            Status: "A ficha Logitech associa este VID/PID ao manche. A presença do acelerador ligado ao manche é inconclusiva."),
+        0x06a30c2d => new(FlightThrottle, "Acelerador USB Logitech Flight Throttle Quadrant", IsAudio: false),
         0x046d0a4d => new(G430, "Adaptador USB Logitech G430", IsAudio: true),
         0x046d0a1f => new(G930, "Receptor USB Logitech G930", IsAudio: true),
         0x046d0a5b => new(G933, "Receptor USB Logitech G933", IsAudio: true),
         0x046d0ab6 => new(G733, "Receptor USB Logitech G733", IsAudio: true),
         0x046d0aba => new(ProXWireless, "Receptor USB Logitech PRO X Wireless", IsAudio: true),
+        0x046d0aaa => new(ProXWired, "DAC USB Logitech PRO X com fio", IsAudio: true,
+            Status: "DAC USB do kit Logitech PRO X com fio identificado. O modelo do fone analógico conectado ao DAC é inconclusivo."),
+        0x046d0a89 => new(G635, null, IsAudio: true,
+            Status: "O VID/PID da função USB de áudio consta na ficha do Logitech G635. O modelo físico do headset é inconclusivo."),
         0x046d0a87 => new(DriverHardwareSupport.Logitech, null, IsAudio: true,
             Status: "Receptor USB Logitech com VID/PID compartilhado por G935 e G933s. O modelo do headset é inconclusivo."),
         // O manual VKB mostra perfis do controlador. O VID/PID sozinho não determina a montagem física.

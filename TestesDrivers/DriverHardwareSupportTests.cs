@@ -78,6 +78,7 @@ internal static class DriverHardwareSupportTests
         CheckFlightControls(check);
         CheckUsbHeadsets(check);
         CheckOtherUsbManufacturers(check);
+        CheckAdditionalLogitechFlightAndAudio(check);
     }
 
     private static void CheckSources(Action<bool, string> check)
@@ -482,6 +483,73 @@ internal static class DriverHardwareSupportTests
         };
         check(invalidVoxicon.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
             "VOXICON exige MI_00 consistente e classe Media na instância presente");
+    }
+
+    private static void CheckAdditionalLogitechFlightAndAudio(Action<bool, string> check)
+    {
+        var legacy = new[]
+        {
+            ("C207", "Joystick Logitech Extreme Digital 3D"),
+            ("C214", "Joystick Logitech Attack 3"),
+            ("C283", "Joystick Logitech Force 3D")
+        };
+        check(legacy.All(product =>
+        {
+            var item = Device($@"HID\VID_046D&PID_{product.Item1}", "HIDClass") with { HasGameInputUsage = true };
+            return Find(item) is { Category: DriverHardwareCategory.GameInput, Page: { Host: "support.logi.com" } page } &&
+                   page.AbsolutePath.Contains("360023375193", StringComparison.Ordinal) &&
+                   DriverHardwareCatalog.Identify(item).Model == product.Item2;
+        }), "Extreme Digital 3D, Attack 3 e Force 3D têm fontes oficiais por VID/PID");
+
+        var g940 = Device(@"HID\VID_046D&PID_C287&COL01", "HIDClass") with { HasGameInputUsage = true };
+        var g940Report = DriverReadOnlyReport.Format(new([g940], false, ""), g940);
+        check(Find(g940).Page?.AbsolutePath.Contains("360023375193", StringComparison.Ordinal) == true &&
+              g940Report.Contains("Logitech Flight System G940", StringComparison.Ordinal) &&
+              g940Report.Contains("módulos físicos conectados são inconclusivos", StringComparison.Ordinal) &&
+              DriverHardwareCatalog.Identify(g940).Model.Length == 0,
+            "Flight System G940 aponta a referência do conjunto e mantém os módulos inconclusivos");
+
+        const string yokeId = @"HID\VID_06A3&PID_0BAC&MI_00";
+        var yoke = Device(yokeId, "HIDClass") with
+        {
+            HasGameInputUsage = true,
+            HardwareIds = [yokeId, @"hid\vid_06a3&pid_0bac&rev_0100&mi_00"]
+        };
+        var throttle = Device(@"HID\VID_06A3&PID_0C2D", "HIDClass") with { HasGameInputUsage = true };
+        check(Find(yoke).Page?.AbsolutePath.Contains("360023462873", StringComparison.Ordinal) == true &&
+              DriverHardwareCatalog.Identify(yoke).Model == "Manche USB Logitech Flight Yoke System" &&
+              Find(yoke).Status.Contains("presença do acelerador ligado ao manche é inconclusiva", StringComparison.Ordinal) &&
+              Find(throttle).Page?.AbsolutePath.Contains("360023462893", StringComparison.Ordinal) == true &&
+              DriverHardwareCatalog.Identify(throttle).Model == "Acelerador USB Logitech Flight Throttle Quadrant",
+            "Flight Yoke e Flight Throttle Quadrant USB têm identidades distintas");
+
+        const string dacId = @"USB\VID_046D&PID_0AAA&MI_00";
+        var wired = Device(dacId, "Media");
+        var wireless = Device(@"USB\VID_046D&PID_0ABA", "Media");
+        var g635 = Device(@"USB\VID_046D&PID_0A89", "Media");
+        var wiredSource = Find(wired);
+        check(wiredSource is { Category: DriverHardwareCategory.Audio, Page: { Host: "support.logi.com" } wiredPage } &&
+              wiredPage.AbsolutePath.Contains("360055249533", StringComparison.Ordinal) &&
+              DriverHardwareCatalog.Identify(wired).Model == "DAC USB Logitech PRO X com fio" &&
+              wiredSource.Status.Contains("fone analógico conectado ao DAC é inconclusivo", StringComparison.Ordinal) &&
+              Find(wireless).Page?.AbsolutePath.Contains("360052715513", StringComparison.Ordinal) == true &&
+              Find(g635).Page?.AbsolutePath.Contains("360023303694", StringComparison.Ordinal) == true &&
+              Find(g635).Status.Contains("modelo físico do headset é inconclusivo", StringComparison.Ordinal) &&
+              DriverHardwareCatalog.Identify(g635).Model.Length == 0,
+            "PRO X com fio identifica o DAC e G635 mantém o modelo físico inconclusivo");
+
+        var invalid = new[]
+        {
+            g940 with { HasGameInputUsage = false },
+            yoke with { HardwareIds = [yokeId.Replace("MI_00", "MI_01")] },
+            yoke with { HardwareIds = [yokeId.Replace("PID_0BAC", "PID_0C2D")] },
+            wired with { HardwareIds = [], CompatibleIds = [dacId] },
+            wired with { ReportedPnpClass = "AudioEndpoint" },
+            Device(@"HID\VID_046D&PID_0AAA&MI_00", "HIDClass"),
+            g635 with { Present = null }
+        };
+        check(invalid.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "Periféricos Logitech com classe USB ou interface divergente ficam inconclusivos");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>
