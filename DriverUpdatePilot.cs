@@ -59,10 +59,12 @@ internal static class DriverUpdatePilot
         if (inventory is null || official is null || selected is null ||
             inventory.Partial || official.Partial || inventory.Items.Count is < 1 or > 4000 ||
             official.SearchContext is not { Source: "Windows Update", Online: true } ||
+            selected.Kind != DriverOfficialMatchKind.PrimaryHardwareId ||
             !AllowedClass(selected.Offer.DriverClass) ||
-            selected.Offer.EntryAudit?.State != DriverOfficialEntryState.Complete ||
+            selected.Offer.EntryAudit is not { State: DriverOfficialEntryState.Complete, Entries.Count: 1 } ||
             selected.Offer.Relations?.State != DriverOfficialRelationsState.Complete ||
             selected.MatchingWuaEntry is null || selected.Installed is null ||
+            selected.Offer.EntryAudit.Entries[0] != selected.MatchingWuaEntry ||
             !Guid.TryParseExact(selected.Offer.UpdateId, "D", out var guid) ||
             guid == Guid.Empty || selected.Offer.Revision < 1 ||
             !DriverInventory.ValidHardwareId(selected.Offer.HardwareId))
@@ -77,11 +79,11 @@ internal static class DriverUpdatePilot
         if (found.Length != 1 || offered.Length != 1 || !Equals(offered[0], selected))
             return false;
         var device = found[0];
-        // O mesmo HardwareID em duas instancias pode levar WUA a alterar ambas.
-        if (inventory.Items.Count(d => d.Present == true && d.HardwareIds.Contains(
-                selected.Offer.HardwareId, StringComparer.OrdinalIgnoreCase)) != 1)
+        // O mesmo identificador também pode atingir outra instância por CompatibleID.
+        if (!DriverInventory.HasExclusiveHardwareId(inventory, selected.Offer.HardwareId))
             return false;
         if (device.Signed != true || device.Present != true ||
+            device.BindingStatus == DriverBindingStatus.Conflicting ||
             device.WithoutSignedDriverAssociation ||
             device.PackageEvidence is { State: not DriverStoreState.Mapped } ||
             string.IsNullOrWhiteSpace(device.InfName) ||
