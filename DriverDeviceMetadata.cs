@@ -86,6 +86,28 @@ internal sealed record DriverDeviceMetadata(string BusDescription, string UsbPar
         return value.Any(char.IsControl) ? "" : value;
     }
 
+    internal static DriverBindingEvidence? ReadBinding(string deviceId)
+    {
+        if (!OperatingSystem.IsWindows() || deviceId.Length > 200 ||
+            !DriverInventory.ValidHardwareId(deviceId))
+            return null;
+        var driverPropertySet = new Guid("a8b865dd-2e3d-4094-ad97-e593a70c75d6");
+        DriverBindingEvidence? Sample(uint node) => DriverBindingEvidence.FromProperties(
+            ReadString(node, new(driverPropertySet, 5)), // DEVPKEY_Device_DriverInfPath
+            ReadString(node, new(driverPropertySet, 3)), // DEVPKEY_Device_DriverVersion
+            ReadString(node, new(driverPropertySet, 8))); // DEVPKEY_Device_MatchingDeviceId
+        try
+        {
+            if (CM_Locate_DevNodeW(out uint node, deviceId, 0) != 0) return null;
+            var snapshot = Sample(node);
+            return snapshot is not null && snapshot == Sample(node) ? snapshot : null;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return null;
+        }
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private readonly struct PropertyKey(Guid format, uint id)
     {
@@ -101,4 +123,58 @@ internal sealed record DriverDeviceMetadata(string BusDescription, string UsbPar
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern uint CM_Get_DevNode_PropertyW(uint node, in PropertyKey key, out uint type,
         [Out] byte[] buffer, ref uint bytes, uint flags);
+}
+
+internal enum DriverBindingStatus { Unavailable, Incomplete, Confirmed, Conflicting }
+
+// Associação local do devnode. Não representa assinatura, arquivos carregados
+// pelo kernel nem versão de uma oferta remota.
+internal sealed record DriverBindingEvidence
+{
+    private DriverBindingEvidence(string infName, string version, string matchingId) =>
+        (InfName, Version, MatchingId) = (infName, version, matchingId);
+
+    internal string InfName { get; }
+    internal string Version { get; }
+    internal string MatchingId { get; }
+
+    internal static DriverBindingEvidence? FromProperties(string inf, string version, string matchingId)
+    {
+        string validInf = DriverPackageLinks.IsValidInf(inf) ? inf : "";
+        string validVersion = DriverOfficialLookup.NormalizeInstalledDriverVersion(version) ?? "";
+        string validId = DriverInventory.ValidCompatibleId(matchingId) ? matchingId : "";
+        return validInf.Length == 0 && validVersion.Length == 0
+            ? null : new(validInf, validVersion, validId);
+    }
+
+    internal DriverBindingStatus Compare(string wmiInf, string wmiVersion)
+    {
+        string? normalized = DriverOfficialLookup.NormalizeInstalledDriverVersion(wmiVersion);
+        bool comparableInf = InfName.Length > 0 && DriverPackageLinks.IsValidInf(wmiInf);
+        bool comparableVersion = Version.Length > 0 && normalized is not null;
+        if ((comparableInf && !InfName.Equals(wmiInf, StringComparison.OrdinalIgnoreCase)) ||
+            (comparableVersion && Version != normalized))
+            return DriverBindingStatus.Conflicting;
+        return comparableInf && comparableVersion
+            ? DriverBindingStatus.Confirmed : DriverBindingStatus.Incomplete;
+    }
+
+    internal static DriverInventoryResult Enrich(DriverInventoryResult inventory, CancellationToken token,
+        Func<string, DriverBindingEvidence?>? read = null)
+    {
+        if (read is null && !OperatingSystem.IsWindows()) return inventory;
+        read ??= DriverDeviceMetadata.ReadBinding;
+        var duplicateIds = inventory.Items.GroupBy(item => item.DeviceId, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Skip(1).Any()).Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var clock = Stopwatch.StartNew();
+        return inventory with
+        {
+            Items = inventory.Items.Select(item => item.Present == true &&
+                !token.IsCancellationRequested && clock.Elapsed < TimeSpan.FromSeconds(2) &&
+                !duplicateIds.Contains(item.DeviceId)
+                    ? item with { DeviceBinding = read(item.DeviceId) }
+                    : item).ToArray()
+        };
+    }
 }
