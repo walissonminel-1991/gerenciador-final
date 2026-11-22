@@ -3061,10 +3061,11 @@ internal sealed partial class MainForm : Form
         bool consent = DarkConfirmDialog.Confirm(this,
             "Remover o aplicativo MSIX da sua conta do Windows?\n\n" +
             entry.Name + "\nVersão: " + entry.Version + "\nEditor: " + entry.Publisher +
+            "\nFamília do pacote: " + request.PackageFamilyName +
             "\n\nO Windows pode remover dependências sem uso e dados do aplicativo. " +
             "Esta ação não possui desfazer automático e não pode ser interrompida " +
             "com segurança após iniciar.\n\nDeseja continuar?",
-            "Confirmar desinstalação MSIX") == DialogResult.Yes;
+            "Confirmar desinstalação MSIX", defaultNo: true) == DialogResult.Yes;
         if (!consent)
         {
             SetUninstallProgress(entry, "cancelled");
