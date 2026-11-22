@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Diagnostics;
 using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
@@ -69,11 +70,12 @@ internal sealed partial class MainForm
         foreach (var button in new[] { officialButton, verifyButton, close })
         { button.Dock = DockStyle.Fill; button.Margin = new Padding(2); button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold); }
         bar.Controls.Add(officialButton, 0, 0); bar.Controls.Add(verifyButton, 1, 0); bar.Controls.Add(close, 2, 0);
-        // Link de revisão F3, preservando os TRES botões anteriores e as
-        // regressões de acessibilidade G1.10–G1.23.
-        var statusRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        // Manter os três botões originais; o link GPU é separado e só abre
+        // o navegador por clique. Sem consulta automática ou ação de instalação.
+        var statusRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
         statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
         statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
+        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 0));
         var pilotLink = new LinkLabel
         {
             Name = "DriverPilotReviewLink", Dock = DockStyle.Fill,
@@ -82,8 +84,19 @@ internal sealed partial class MainForm
             AccessibleName = "Revisar piloto WUA experimental",
             AccessibleDescription = "Consulta WUA; opção de instalação G3.2 só com administrador, pacote OEM elegível, backup e consentimento."
         };
+        var gpuLink = new LinkLabel
+        {
+            Name = "GameDriverOfficialSite", Dock = DockStyle.Fill,
+            Text = "Site oficial GPU", TextAlign = ContentAlignment.MiddleRight,
+            LinkColor = Accent, Enabled = false, Visible = false,
+            Font = new Font("Segoe UI", 8.5F),
+            AccessibleName = "Abrir página oficial de drivers da GPU selecionada",
+            AccessibleDescription = "Abre somente o site oficial no navegador. " +
+                "Consulte manualmente produto, Windows e canal; nenhuma atualização é confirmada."
+        };
         statusRow.Controls.Add(status, 0, 0);
         statusRow.Controls.Add(pilotLink, 1, 0);
+        statusRow.Controls.Add(gpuLink, 2, 0);
         root.Controls.Add(body, 0, 0); root.Controls.Add(statusRow, 0, 1); root.Controls.Add(bar, 0, 2);
         dialog.Controls.Add(root);
         dialog.HandleCreated += (_, _) =>
@@ -109,6 +122,21 @@ internal sealed partial class MainForm
              inventory.Items.Count(x => string.Equals(x.DeviceId, selected.DeviceId,
                  StringComparison.OrdinalIgnoreCase)) != 1);
         bool validAtOpening = isCurrent();
+        // Links ficam fixos por fabricante, derivados do snapshot selecionado;
+        // não enviam DeviceId/HardwareID ao site nem possuem query string.
+        var selectedGraphics = selected is null ? null :
+            GraphicsDriverInventory.Find(inventory).SingleOrDefault(g =>
+                string.Equals(g.DeviceId, selected.DeviceId, StringComparison.OrdinalIgnoreCase));
+        GraphicsDriverOfficialSource? graphicsSite = selected is not null &&
+            !ambiguousSelection && !duplicatedIds && !inventory.Partial
+            ? GraphicsDriverOfficialSources.For(selectedGraphics) : null;
+        if (graphicsSite is not null)
+        {
+            gpuLink.Visible = true;
+            statusRow.ColumnStyles[0].Width = 50;
+            statusRow.ColumnStyles[1].Width = 28;
+            statusRow.ColumnStyles[2].Width = 22;
+        }
         bool canOfficial = validAtOpening && !inventory.Partial &&
             inventory.Items.Count > 0 && !duplicatedIds;
         bool canVerify = validAtOpening && !ambiguousSelection &&
@@ -146,6 +174,9 @@ internal sealed partial class MainForm
                             : "Consultas locais; os IDs nesta janela não são enviados ao diagnóstico.");
         bool obsolete = false;
         bool closing = false;
+        void RefreshGpuLink() =>
+            gpuLink.Enabled = graphicsSite is not null && validAtOpening &&
+                !obsolete && !closing && current is null && isCurrent();
         const string obsoleteText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
             "Inventário ou seleção alterados. Feche esta janela e abra uma nova investigação. " +
             "Nenhum resultado antigo será publicado.";
@@ -177,6 +208,7 @@ internal sealed partial class MainForm
             officialButton.Enabled = false;
             verifyButton.Enabled = false;
             pilotLink.Enabled = false;
+            gpuLink.Enabled = false;
         }
         void Render()
         {
@@ -188,6 +220,7 @@ internal sealed partial class MainForm
                 official is { Partial: false } result && isCurrent() &&
                 result.Matches.Any(m => DriverUpdatePilot.TryPrepare(inventory, result, m, out _) &&
                     string.Equals(m.DeviceId, selected.DeviceId, StringComparison.OrdinalIgnoreCase));
+            RefreshGpuLink();
         }
         // Revalidação só nos eventos de estado e foco, sem thread/timer novo.
         dialog.Activated += (_, _) => CheckCurrent();
@@ -199,6 +232,7 @@ internal sealed partial class MainForm
             if (current is not null) { current.Cancel(); return; }
             using var source = new CancellationTokenSource(timeout);
             current = source;
+            gpuLink.Enabled = false;
             string label = button.Text;
             string? accessibleLabel = button.AccessibleName;
             string? accessibleDescription = button.AccessibleDescription;
@@ -246,6 +280,7 @@ internal sealed partial class MainForm
                 current = null;
                 if (!dialog.IsDisposed && !closing)
                 {
+                    RefreshGpuLink();
                     button.Text = label;
                     button.AccessibleName = accessibleLabel;
                     button.AccessibleDescription = accessibleDescription;
@@ -291,6 +326,31 @@ internal sealed partial class MainForm
                 return true;
             }, timeoutForTest ?? TimeSpan.FromSeconds(25));
         }
+        gpuLink.LinkClicked += (_, _) =>
+        {
+            CheckCurrent();
+            RefreshGpuLink();
+            if (!gpuLink.Enabled || graphicsSite is null ||
+                !GraphicsDriverOfficialSources.IsApprovedOfficialPage(graphicsSite.PageUrl)) return;
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = graphicsSite.PageUrl,
+                    UseShellExecute = true
+                });
+                if (!dialog.IsDisposed && !closing && !obsolete)
+                    SetStatus("Site oficial aberto no navegador. Compare manualmente modelo, Windows e canal; " +
+                        "nenhuma versão ofertada foi validada pelo GF.");
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or
+                InvalidOperationException or ArgumentException)
+            {
+                if (!dialog.IsDisposed && !closing && !obsolete)
+                    SetStatus("Não foi possível abrir a página oficial (" +
+                        ex.GetType().Name + "); nenhum driver foi baixado.");
+            }
+        };
         pilotLink.LinkClicked += (_, _) =>
         {
             CheckCurrent();
@@ -316,6 +376,7 @@ internal sealed partial class MainForm
             official = null;
             verification = null;
             pilotLink.Enabled = false;
+            gpuLink.Enabled = false;
         };
         Render();
         dialog.Shown += (_, _) =>

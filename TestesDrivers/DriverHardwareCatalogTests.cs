@@ -62,6 +62,32 @@ internal static class DriverHardwareCatalogTests
             !DriverUpdatePilot.AllowedClass("Display"),
             "VF02 duplicidade, inventário parcial e classe ausente não confirmam versão nem autorizam instalação");
 
+        // VF02 fase 2: nenhum endpoint de scraping nem versão remota presumida.
+        var nvidiaSite = GraphicsDriverOfficialSources.For(found[0]);
+        var amdSite = GraphicsDriverOfficialSources.For(graphics.Single(x => x.Manufacturer == "AMD"));
+        var intelSite = GraphicsDriverOfficialSources.For(graphics.Single(x => x.Manufacturer == "Intel"));
+        Check(nvidiaSite is { Manufacturer: "NVIDIA",
+            PageUrl: "https://www.nvidia.com/pt-br/geforce/drivers/" } &&
+            amdSite is { Manufacturer: "AMD",
+            PageUrl: "https://www.amd.com/en/support/download/drivers.html" } &&
+            intelSite is { Manufacturer: "Intel",
+            PageUrl: "https://www.intel.com/content/www/us/en/products/docs/discrete-gpus/arc/software/drivers.html" } &&
+            new[] { nvidiaSite, amdSite, intelSite }.All(s =>
+                s!.ReviewState == GraphicsDriverOfficialSources.ManualReview &&
+                s.OfferedChannel == GraphicsDriverOfficialSources.UnknownOffer &&
+                s.OfferedVersion == GraphicsDriverOfficialSources.UnknownOffer &&
+                GraphicsDriverOfficialSources.IsApprovedOfficialPage(s.PageUrl)),
+            "VF02 fase 2 fontes oficiais por fabricante com oferta/canal desconhecidos");
+        Check(!GraphicsDriverOfficialSources.IsApprovedOfficialPage("http://www.nvidia.com/pt-br/geforce/drivers/") &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage("https://www.nvidia.com.evil.test/pt-br/geforce/drivers/") &&
+            !GraphicsDriverOfficialSources.IsApprovedOfficialPage("https://www.nvidia.com/pt-br/geforce/drivers/?model=secret") &&
+            GraphicsDriverOfficialSources.For(found[0] with { Manufacturer = "desconhecido" }) is null &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), rtx)
+                .Contains("Consulta de versão oficial: inconclusiva", StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), rtx)
+                .Contains("nenhuma versão remota foi consultada ou comparada pelo GF", StringComparison.Ordinal),
+            "VF02 rejeita URLs não aprovadas, não infere ofertas e exibe estado inconclusivo");
+
         var named = gpu with { DeviceName = "Nome específico informado pelo fabricante" };
         Check(DriverHardwareCatalog.DisplayName(named) == named.DeviceName,
             "preserva o nome específico informado pelo Windows");

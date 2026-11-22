@@ -59,8 +59,19 @@ internal static class DriverReadOnlyReport
             text.AppendLine($"Versão do driver Windows: {gpu.InstalledWindowsVersion}; origem: {gpu.VersionSource}.");
             text.AppendLine($"Canal instalado (Game Ready/Studio/Adrenalin/Game On): {gpu.InstalledChannel}.");
             text.AppendLine("Observação: " + gpu.Observation + ".");
+            if (GraphicsDriverOfficialSources.For(gpu) is { } site)
+            {
+                text.AppendLine("Consulta de versão oficial: " + site.ReviewState + ".");
+                text.AppendLine("Canal ofertado: " + site.OfferedChannel +
+                    "; versão ofertada: " + site.OfferedVersion + ".");
+                text.AppendLine("Página oficial para pesquisa manual: " + site.PageUrl);
+                text.AppendLine("No site, selecione modelo, Windows, arquitetura e canal; " +
+                    "a página não confirma automaticamente uma atualização para esta GPU.");
+            }
         }
-        text.AppendLine("Somente leitura; não consulta versões dos fabricantes. WUA sem ofertas não prova atualização desnecessária.");
+        text.AppendLine("Fontes dos fabricantes: somente links oficiais para pesquisa manual por clique; " +
+            "nenhuma versão remota foi consultada ou comparada pelo GF.");
+        text.AppendLine("WUA sem ofertas não comprova que a GPU tem driver atualizado.");
         text.AppendLine("Drivers da classe Display continuam sem autorização de instalação pelo GF.");
         text.AppendLine();
         if (selected is null) text.AppendLine("Selecione um dispositivo na lista para conferir histórico e assinatura do INF.");

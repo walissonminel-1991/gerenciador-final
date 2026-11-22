@@ -34,6 +34,10 @@ internal static class DriverReadOnlyDialogTests
                     var controls = Descendants(dialog).ToArray();
                     var body = controls.OfType<DarkLogView>().Single(c => c.Name == "DriverReadOnlyReportText");
                     var buttons = controls.OfType<Button>().ToArray();
+                    var officialGpu = controls.OfType<LinkLabel>().Single(c => c.Name == "GameDriverOfficialSite");
+                    if (officialGpu.Enabled || officialGpu.Visible ||
+                        officialGpu.AccessibleName != "Abrir página oficial de drivers da GPU selecionada")
+                        throw new Exception("VF02: link oficial não pode aparecer para impressora.");
                     if (!Descendants(body).OfType<TextBox>().Single().ReadOnly ||
                         !body.RenderedText.Contains("falha registrada") ||
                         !body.RenderedText.Contains("Classe do driver (WMI SignedDriver): Printer") ||
