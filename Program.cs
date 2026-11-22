@@ -96,6 +96,8 @@ internal sealed class ProgramEntry
     public string CatalogDisplayName { get; set; } = "";
     public string InventorySource { get; init; } = "";
     public string InventoryId { get; init; } = "";
+    // Marcador consultivo da entrada ARP oculta; nunca concede permissao de remocao.
+    public bool HiddenFromNormalView { get; init; }
     // Evidência consultiva capturada junto ao inventário; não autoriza execução.
     internal string QueryArchitecture { get; set; } = "unknown";
     public string MsiProductCode { get; init; } = "";
@@ -298,6 +300,15 @@ internal static class AppServices
     // INDEPENDENTE do catálogo de atualizações. Nunca executa uninstallers.
     internal static RegistryInventoryScan ScanInstalledPrograms() => ScanInstalledPrograms(includeHidden: false);
 
+    // Analisa entradas ARP explicitamente ocultas, apenas para revisao visual.
+    // Historico de updates, entradas de nome invalido e componentes protegidos
+    // nao se tornam elegiveis a desinstalacao por aparecerem nesta lista.
+    internal static RegistryInventoryScan ScanHiddenWindowsProgramsForReview()
+    {
+        var scan = ScanInstalledPrograms(includeHidden: true);
+        return scan with { Items = scan.Items.Where(item => item.HiddenFromNormalView).ToArray() };
+    }
+
     private static RegistryInventoryScan ScanInstalledPrograms(bool includeHidden)
     {
         var entries = new List<ProgramEntry>();
@@ -356,6 +367,8 @@ internal static class AppServices
                             CatalogDisplayName = known?.Name ?? "",
                             InventorySource = $"Registro: {scope} ({architecture})",
                             InventoryId = registryIdentity,
+                            HiddenFromNormalView = systemComponent && !updateRecord && !longName &&
+                                !ProtectedApplications.IsProtectedName(name),
                             MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
                             UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
@@ -984,12 +997,13 @@ internal sealed partial class MainForm : Form
 
         var searchBar = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty,
+            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102));
         searchBar.Controls.Add(new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -1009,8 +1023,23 @@ internal sealed partial class MainForm : Form
         clear.Click += (_, _) => _search.Clear();
         _toolTips.SetToolTip(clear, "Apaga apenas o texto da pesquisa.");
         searchBar.Controls.Add(clear, 2, 0);
-        // A pesquisa contém apenas o campo e Limpar; recarregar o catálogo é
-        // uma operação de gerenciamento e fica junto das demais ações.
+        var hiddenReview = CreateSecondaryButton("Ocultos");
+        hiddenReview.Dock = DockStyle.Fill;
+        hiddenReview.Margin = new Padding(0, 3, 0, 3);
+        hiddenReview.AccessibleName = "Consultar aplicativos ocultos";
+        _toolTips.SetToolTip(hiddenReview,
+            "Consulta separada dos registros marcados pelo Windows como ocultos. " +
+            "Somente leitura; não habilita desinstalação nem modifica componentes.");
+        hiddenReview.Click += async (_, _) =>
+        {
+            if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
+            hiddenReview.Enabled = false;
+            try { await ShowHiddenAppsReviewAsync(); }
+            catch (Exception ex) { ReportError(ex); }
+            finally { if (!hiddenReview.IsDisposed) hiddenReview.Enabled = true; }
+        };
+        searchBar.Controls.Add(hiddenReview, 3, 0);
+        // A consulta de ocultos nao altera a lista principal nem a fila de acoes.
         root.Controls.Add(searchBar, 0, 0);
 
         var actions = new TableLayoutPanel
@@ -1204,6 +1233,79 @@ internal sealed partial class MainForm : Form
         UpdateBulkButtons();
         RenderTitle();
         return root;
+    }
+
+
+    private async Task ShowHiddenAppsReviewAsync()
+    {
+        var scan = await Task.Run(AppServices.ScanHiddenWindowsProgramsForReview);
+        if (IsDisposed || _betaClose.IsClosing) return;
+
+        using var dialog = new Form
+        {
+            Text = "Aplicativos ocultos — consulta",
+            StartPosition = FormStartPosition.CenterParent,
+            Width = 710,
+            Height = 475,
+            MinimumSize = new Size(480, 310),
+            BackColor = PanelBackground,
+            ForeColor = Ink,
+            ShowInTaskbar = false
+        };
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(12),
+            BackColor = PanelBackground
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
+        var info = new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = Muted,
+            Font = new Font("Segoe UI", 9F),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = $"{scan.Items.Count} entrada(s) marcadas como ocultas no Registro. " +
+                "Não são necessariamente aplicativos removíveis. Nenhuma ação é oferecida." +
+                (scan.ReadFailures > 0
+                    ? $" ATENÇÃO: {scan.ReadFailures} falha(s) de leitura; resultado parcial."
+                    : "")
+        };
+        layout.Controls.Add(info, 0, 0);
+        static string DisplayValue(string value) =>
+            new string((value ?? "").Where(c => !char.IsControl(c)).Take(160).ToArray());
+        string[] entries = scan.Items.OrderBy(item => item.Name,
+            StringComparer.CurrentCultureIgnoreCase)
+            .Select(item => $"{DisplayValue(item.Name)}  |  Versão: {DisplayValue(item.Version)}  |  " +
+                $"Editor: {DisplayValue(item.Publisher)}")
+            .ToArray();
+        var result = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            WordWrap = true,
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = AppServices.Background,
+            ForeColor = Ink,
+            Font = new Font("Consolas", 9F),
+            Text = entries.Length > 0
+                ? string.Join(Environment.NewLine + Environment.NewLine, entries)
+                : "Nenhum componente oculto identificado nesta consulta."
+        };
+        layout.Controls.Add(result, 0, 1);
+        var close = CreateSecondaryButton("Fechar");
+        close.Dock = DockStyle.Right;
+        close.Width = 105;
+        close.Click += (_, _) => dialog.Close();
+        layout.Controls.Add(close, 0, 2);
+        dialog.Controls.Add(layout);
+        dialog.ShowDialog(this);
     }
 
     private async Task CheckUpdatesFromButtonAsync()
