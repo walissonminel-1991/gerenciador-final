@@ -49,19 +49,28 @@ internal static partial class DriverHardwareCatalog
     internal static DriverHardwareIdentity Identify(DriverInventoryEntry item) =>
         Identities.GetValue(item, Resolve);
 
-    internal static uint? ReportedPciProduct(DriverInventoryEntry item)
+    internal static uint? ReportedPciProduct(DriverInventoryEntry item) =>
+        ReportedProduct(item, @"PCI\VEN_", PciId());
+
+    internal static uint? ReportedUsbProduct(DriverInventoryEntry item) =>
+        item.DeviceId.StartsWith(@"HID\", StringComparison.OrdinalIgnoreCase)
+            ? ReportedProduct(item, @"HID\VID_", UsbId())
+            : ReportedProduct(item, @"USB\VID_", UsbId());
+
+    private static uint? ReportedProduct(DriverInventoryEntry item, string prefix, Regex pattern)
     {
-        static uint? Product(string id)
+        uint? Product(string id)
         {
-            if (id.Length > 256) return null;
-            var match = PciId().Match(id);
+            if (id.Length > 256 || !id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return null;
+            var match = pattern.Match(id);
             return match.Success && Hex(match.Groups[1].ValueSpan, 4, out uint vendor) &&
                 vendor is not (0 or 0xffff) && Hex(match.Groups[2].ValueSpan, 4, out uint device)
                     ? (vendor << 16) | device : null;
         }
         uint? instance = Product(DriverDeviceMetadata.HardwarePart(item.DeviceId));
         var reported = item.HardwareIds
-            .Where(id => id.StartsWith(@"PCI\VEN_", StringComparison.OrdinalIgnoreCase)).ToArray();
+            .Where(id => id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray();
         return instance.HasValue && reported.Length > 0 && reported.All(id => Product(id) == instance)
             ? instance : null;
     }
@@ -86,7 +95,7 @@ internal static partial class DriverHardwareCatalog
         if (DriverDeviceMetadata.IsUsbPrinter(item.DeviceId))
         {
             if (item.DeviceMetadata is not { UsbParentHardwareId: { Length: > 0 } parent } ||
-                !UsbId().IsMatch(parent))
+                !parent.StartsWith(@"USB\", StringComparison.OrdinalIgnoreCase) || !UsbId().IsMatch(parent))
                 return DriverHardwareIdentity.Unknown;
             return ResolveIds([parent]) with { FromUsbParent = true };
         }
@@ -108,7 +117,7 @@ internal static partial class DriverHardwareCatalog
             var (candidateBus, match) = id[..separator].ToUpperInvariant() switch
             {
                 "PCI" => (HardwareBus.Pci, PciId().Match(id)),
-                "USB" => (HardwareBus.Usb, UsbId().Match(id)),
+                "USB" or "HID" => (HardwareBus.Usb, UsbId().Match(id)),
                 "HDAUDIO" => (HardwareBus.HdAudio, HdAudioId().Match(id)),
                 _ => (default, Match.Empty)
             };
@@ -152,7 +161,7 @@ internal static partial class DriverHardwareCatalog
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PciId();
 
-    [GeneratedRegex(@"\AUSB\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})(?:&[0-9A-Z_]+)*\z",
+    [GeneratedRegex(@"\A(?:USB|HID)\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})(?:&[0-9A-Z_]+)*\z",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex UsbId();
 

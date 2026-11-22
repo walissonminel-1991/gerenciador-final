@@ -56,6 +56,8 @@ internal static class DriverReadOnlyReport
             text.AppendLine("DISPOSITIVO SELECIONADO");
             text.AppendLine("Nome no Windows: " + (string.IsNullOrWhiteSpace(selected.DeviceName)
                 ? "não informado" : selected.DeviceName));
+            var support = DriverHardwareSupport.Get(inventory, selected);
+            text.AppendLine("Categoria: " + DriverHardwareSupport.Label(support.Category));
             if (selected.DeviceMetadata is { BusDescription: { Length: > 0 } description })
                 text.AppendLine("Descrição informada pelo dispositivo: " + description);
             var identity = DriverHardwareCatalog.Identify(selected);
@@ -103,6 +105,8 @@ internal static class DriverReadOnlyReport
                 DriverGamingCatalog.AppendReport(text, gaming);
                 text.AppendLine();
             }
+            else
+                text.AppendLine(support.Status);
             // A apresentação nunca deve alegar "trecho lido" se a fonte
             // histórica nem foi consultada ou informou indisponibilidade.
             var visibleEvents = windowsHistory?.Unavailable == true

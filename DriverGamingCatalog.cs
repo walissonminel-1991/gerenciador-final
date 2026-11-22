@@ -17,8 +17,6 @@ internal static class DriverGamingCatalog
     private static readonly Lazy<bool> Windows11Desktop = new(DetectWindows11X64);
     internal static bool Windows11X64 => Windows11Desktop.Value;
 
-    private static readonly Uri NvidiaSupport = new("https://www.nvidia.com/pt-br/drivers/");
-    private static readonly Uri AmdSupport = new("https://www.amd.com/en/support/download/drivers.html");
     private static readonly Uri Amd9070 = new("https://www.amd.com/en/support/downloads/drivers.html/graphics/radeon-rx/radeon-rx-9000-series/amd-radeon-rx-9070.html");
     private static readonly Uri Amd9070Xt = new("https://www.amd.com/en/support/downloads/drivers.html/graphics/radeon-rx/radeon-rx-9000-series/amd-radeon-rx-9070-xt.html");
     private static readonly Uri IntelSupport = new("https://www.intel.com/content/www/us/en/download/785597/intel-arc-graphics-windows.html");
@@ -65,7 +63,7 @@ internal static class DriverGamingCatalog
         DriverInventoryEntry? selected, bool windows11X64)
     {
         if (inventory.Partial || selected is not { Present: true } ||
-            !string.Equals(selected.ReportedDriverClass, "Display", StringComparison.OrdinalIgnoreCase) ||
+            DriverHardwareSupport.CategoryOf(selected) != DriverHardwareCategory.Graphics ||
             inventory.Items.Count(item => item.DeviceId.Equals(selected.DeviceId, StringComparison.OrdinalIgnoreCase)) != 1 ||
             !inventory.Items.Contains(selected))
             return null;
@@ -80,7 +78,7 @@ internal static class DriverGamingCatalog
         return DriverHardwareCatalog.ReportedPciProduct(selected) switch
         {
             // NVIDIA Supported GPU Products: 10DE:2D04.
-            0x10de2d04 => new("NVIDIA GeForce RTX 5060 Ti", NvidiaSupport,
+            0x10de2d04 => new("NVIDIA GeForce RTX 5060 Ti", DriverHardwareSupport.NvidiaDrivers,
                 NvidiaProvider() && installed is { Build: >= 0, Revision: >= 0 and <= 9999 }
                     ? new Version((installed.Build % 10) * 100 + installed.Revision / 100, installed.Revision % 100)
                     : null, windows11X64 ? NvidiaReferences : []),
@@ -108,7 +106,7 @@ internal static class DriverGamingCatalog
                 return new("AMD Radeon RX 9070 (nome PnP)", Amd9070, null,
                     windows11X64 ? AmdReferences : []);
         }
-        return new("AMD Navi 48 (modelo comercial a confirmar)", AmdSupport, null, []);
+        return new("AMD Navi 48 (modelo comercial a confirmar)", DriverHardwareSupport.AmdDrivers, null, []);
     }
 
     internal static void AppendReport(StringBuilder text, DriverGamingInfo info)

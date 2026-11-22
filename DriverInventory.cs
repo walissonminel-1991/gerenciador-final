@@ -18,6 +18,8 @@ internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, 
     internal int? PnpProblemCode { get; init; }
     // DeviceClass relatado por Win32_PnPSignedDriver, não inferido do hardware.
     internal string ReportedDriverClass { get; init; } = "";
+    internal string ReportedPnpClass { get; init; } = "";
+    internal bool HasGameInputUsage { get; init; }
     internal bool WithoutSignedDriverAssociation { get; init; }
     internal bool HasPnpProblem => PnpProblemCode is > 0;
     internal string PnpStatusLabel => PnpProblemCode switch
@@ -65,6 +67,14 @@ internal static class DriverInventory
         return ids.Length <= 64 ? ids : null;
     }
 
+    // Esses descritores HID classificam a função da coleção. Permanecem
+    // separados dos identificadores usados para selecionar uma oferta WUA.
+    internal static bool ReadGameInputUsage(object? raw) =>
+        raw is Array { Rank: 1 } values && values.OfType<string>().Any(id =>
+            id.Equals("HID_DEVICE_SYSTEM_GAME", StringComparison.OrdinalIgnoreCase) ||
+            id.Equals("HID_DEVICE_UP:0001_U:0004", StringComparison.OrdinalIgnoreCase) ||
+            id.Equals("HID_DEVICE_UP:0001_U:0005", StringComparison.OrdinalIgnoreCase));
+
     internal static bool HasExclusiveHardwareId(DriverInventoryResult inventory, string id)
     {
         var comparer = StringComparer.OrdinalIgnoreCase;
@@ -77,7 +87,9 @@ internal static class DriverInventory
     }
     internal static IReadOnlyList<DriverInventoryEntry> Correlate(IEnumerable<DriverInventoryEntry> drivers,
         IReadOnlyDictionary<string, bool?> presence,
-        IReadOnlyDictionary<string, string>? deviceNames = null)
+        IReadOnlyDictionary<string, string>? deviceNames = null,
+        IReadOnlyDictionary<string, string>? pnpClasses = null,
+        IReadOnlyDictionary<string, bool>? gameInputs = null)
     {
         var indexed = presence.GroupBy(x => x.Key.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Value).Distinct().Count() == 1
@@ -88,6 +100,8 @@ internal static class DriverInventory
             {
                 DeviceId = d.DeviceId.Trim(),
                 Present = indexed.GetValueOrDefault(d.DeviceId.Trim()),
+                ReportedPnpClass = pnpClasses?.GetValueOrDefault(d.DeviceId.Trim()) ?? d.ReportedPnpClass,
+                HasGameInputUsage = gameInputs?.GetValueOrDefault(d.DeviceId.Trim()) ?? d.HasGameInputUsage,
                 // DeviceName pode ser vazio na associação do driver. O nome
                 // PnP só é aproveitado quando pertence ao MESMO ID de dispositivo.
                 DeviceName = string.IsNullOrWhiteSpace(d.DeviceName)
@@ -174,6 +188,9 @@ internal static class DriverInventory
         var rows = new List<DriverInventoryEntry>();
         var driverClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var classConflicts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pnpClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var pnpClassConflicts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var gameInputs = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         var deviceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var hardwareIds = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
@@ -232,7 +249,7 @@ internal static class DriverInventory
                 }
                 finally { Release(result); }
             }
-            Query("SELECT PNPDeviceID, Name, Description, Present, HardwareID, CompatibleID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
+            Query("SELECT PNPDeviceID, PNPClass, Name, Description, Present, HardwareID, CompatibleID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
             {
                 string id = (Convert.ToString(get("PNPDeviceID")) ?? "").Trim();
                 if (id.Length > 0)
@@ -244,17 +261,24 @@ internal static class DriverInventory
                     string name = ReportedDeviceName(
                         Convert.ToString(get("Name")), Convert.ToString(get("Description")));
                     if (name.Length > 0) deviceNames[id] = name;
-                    string[] ids = get("HardwareID") is Array list ? list.Cast<object>()
+                    if (!RecordDriverClass(pnpClasses, pnpClassConflicts, id, Convert.ToString(get("PNPClass"))))
+                        partial = true;
+                    object? rawHardware = get("HardwareID");
+                    object? rawCompatible = get("CompatibleID");
+                    bool gameInput = ReadGameInputUsage(rawHardware) || ReadGameInputUsage(rawCompatible);
+                    string[] ids = rawHardware is Array list ? list.Cast<object>()
                         .OfType<string>().Where(ValidHardwareId).Distinct(StringComparer.OrdinalIgnoreCase)
                         .Take(65).ToArray() : [];
-                    string[]? compatible = ReadCompatibleIds(get("CompatibleID"));
+                    string[]? compatible = ReadCompatibleIds(rawCompatible);
                     if (conflictingIds.Contains(id) || ids.Length > 64 || compatible is null ||
                         (hardwareIds.TryGetValue(id, out var oldIds) &&
                             (!oldIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(ids) ||
-                             !compatibleIds[id].ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(compatible))))
+                             !compatibleIds[id].ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(compatible) ||
+                             gameInputs[id] != gameInput)))
                     {
                         hardwareIds[id] = [];
                         compatibleIds[id] = [];
+                        gameInputs[id] = false;
                         conflictingIds.Add(id);
                         partial = true;
                     }
@@ -262,6 +286,7 @@ internal static class DriverInventory
                     {
                         hardwareIds[id] = ids;
                         compatibleIds[id] = compatible;
+                        gameInputs[id] = gameInput;
                     }
                     object? rawCode = get("ConfigManagerErrorCode");
                     int? code = rawCode switch
@@ -302,7 +327,7 @@ internal static class DriverInventory
             rows = rows.Select(d => d with
                 { ReportedDriverClass = driverClasses.GetValueOrDefault(d.DeviceId, "") }).ToList();
             var items = Correlate(IncludeUnboundProblemDevices(rows, problemCodes, deviceNames,
-                hardwareIds, compatibleIds), presence, deviceNames);
+                hardwareIds, compatibleIds), presence, deviceNames, pnpClasses, gameInputs);
             var represented = items.Select(item => item.DeviceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var otherTargetIds = presence.Where(p => p.Value != false && !represented.Contains(p.Key))
                 .SelectMany(p => (hardwareIds.GetValueOrDefault(p.Key) ?? [])
@@ -319,7 +344,7 @@ internal static class DriverInventory
         {
             return new(Correlate(
                 IncludeUnboundProblemDevices(rows, problemCodes, deviceNames, hardwareIds, compatibleIds),
-                presence, deviceNames), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}")
+                presence, deviceNames, pnpClasses, gameInputs), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
         }
         finally { Release(services); Release(locator); }

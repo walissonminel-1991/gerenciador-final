@@ -76,6 +76,7 @@ internal sealed class DriverReportPublicationGuard
             string.Equals(a.Version, b.Version, StringComparison.Ordinal) &&
             string.Equals(a.Provider, b.Provider, StringComparison.OrdinalIgnoreCase) &&
             a.Signed == b.Signed && a.Present == b.Present &&
+            a.ReportedPnpClass == b.ReportedPnpClass && a.HasGameInputUsage == b.HasGameInputUsage &&
             a.PnpProblemCode == b.PnpProblemCode &&
             a.WithoutSignedDriverAssociation == b.WithoutSignedDriverAssociation &&
             a.PackageEvidence == b.PackageEvidence &&

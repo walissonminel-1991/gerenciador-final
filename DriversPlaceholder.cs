@@ -60,8 +60,8 @@ internal sealed partial class MainForm
             Name = "DriverInventorySearch", Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(19, 26, 34), ForeColor = Ink,
             BorderStyle = BorderStyle.FixedSingle,
-            PlaceholderText = "Nome, fabricante, ID ou INF",
-            AccessibleDescription = "Pesquise por nome do dispositivo, fabricante, ID de hardware, versão ou INF.",
+            PlaceholderText = "Nome, categoria, fabricante, ID ou INF",
+            AccessibleDescription = "Pesquise por nome, categoria como vídeo ou controles de jogo, fabricante, ID de hardware, versão ou INF.",
             Margin = new Padding(0, 3, 8, 3)
         };
         searchBar.Controls.Add(search, 1, 0);

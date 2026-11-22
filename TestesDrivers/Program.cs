@@ -1,5 +1,15 @@
 using GerenciadorAplicativos;
 
+if (args is ["--hardware-support"])
+{
+    DriverHardwareSupportTests.Run((ok, message) =>
+    {
+        if (!ok) throw new InvalidOperationException(message);
+        Console.WriteLine("OK " + message);
+    });
+    return;
+}
+
 if (args is ["--gaming-driver-sources"])
 {
     DriverGamingCatalogTests.Run((ok, message) =>
@@ -207,6 +217,7 @@ Check(refusedEmptyHistory,
 ReadOnlyDriverTests.Run(Check);
 DriverWuaPnpMatchingTests.Run(Check);
 DriverGamingCatalogTests.Run(Check);
+DriverHardwareSupportTests.Run(Check);
 Stage2DriverTests.Run(Check);
 G1EvidenceTests.Run(Check);
 G15CaptureTests.Run(Check);
@@ -347,6 +358,8 @@ if (args.Contains("--live") || OperatingSystem.IsWindows())
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
     Check(live.Items.Any(d => d.HardwareIds.Count > 0), "D2/G1: IDs de hardware reais recebidos do WMI no runner descartável");
+    Check(live.Items.Any(d => d.ReportedPnpClass.Length > 0),
+        "Categorias de hardware recebem classes PnP da consulta WMI real");
     Console.WriteLine($"DRIVER_BINDING_CI confirmados={live.Items.Count(d => d.BindingStatus == DriverBindingStatus.Confirmed)} " +
         $"divergentes={live.Items.Count(d => d.BindingStatus == DriverBindingStatus.Conflicting)} " +
         $"parciais={live.Items.Count(d => d.BindingStatus == DriverBindingStatus.Incomplete)} " +

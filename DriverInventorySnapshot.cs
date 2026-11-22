@@ -50,6 +50,7 @@ internal static class DriverInventorySnapshot
         a.InfName == b.InfName && a.Signed == b.Signed &&
         a.Present == b.Present && a.PnpProblemCode == b.PnpProblemCode &&
         a.ReportedDriverClass == b.ReportedDriverClass &&
+        a.ReportedPnpClass == b.ReportedPnpClass && a.HasGameInputUsage == b.HasGameInputUsage &&
         a.WithoutSignedDriverAssociation == b.WithoutSignedDriverAssociation &&
         a.DeviceMetadata == b.DeviceMetadata &&
         a.DeviceBinding == b.DeviceBinding &&
