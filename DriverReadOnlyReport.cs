@@ -48,6 +48,21 @@ internal static class DriverReadOnlyReport
             text.AppendLine("Histórico Windows incompleto: apenas eventos observados nesta leitura; " +
                 "lacunas não comprovam ausência de instalações anteriores.");
         text.AppendLine();
+        text.AppendLine("DRIVERS DE JOGOS — IDENTIFICAÇÃO LOCAL (VF02 FASE 1)");
+        var graphics = GraphicsDriverInventory.Find(inventory);
+        if (graphics.Length == 0)
+            text.AppendLine("Nenhuma GPU reconhecida nesta fotografia; não comprova ausência de hardware gráfico.");
+        foreach (var gpu in graphics)
+        {
+            text.AppendLine($"GPU: {gpu.Manufacturer} — {gpu.Model}");
+            text.AppendLine($"Origem do modelo: {gpu.ModelSource}.");
+            text.AppendLine($"Versão do driver Windows: {gpu.InstalledWindowsVersion}; origem: {gpu.VersionSource}.");
+            text.AppendLine($"Canal instalado (Game Ready/Studio/Adrenalin/Game On): {gpu.InstalledChannel}.");
+            text.AppendLine("Observação: " + gpu.Observation + ".");
+        }
+        text.AppendLine("Somente leitura; não consulta versões dos fabricantes. WUA sem ofertas não prova atualização desnecessária.");
+        text.AppendLine("Drivers da classe Display continuam sem autorização de instalação pelo GF.");
+        text.AppendLine();
         if (selected is null) text.AppendLine("Selecione um dispositivo na lista para conferir histórico e assinatura do INF.");
         else
         {

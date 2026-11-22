@@ -859,11 +859,14 @@ internal sealed partial class MainForm
                 copySummary.Enabled = true;
                 resultPublished = true;
                 Render();
-                actionHint.Text =
-                    $"PnP: {result.Items.Count(x => x.HasPnpProblem)} · " +
+                string pnpSummary = $"PnP: {result.Items.Count(x => x.HasPnpProblem)} · " +
                     $"Sem vínculo WMI: {result.Items.Count(x => x.WithoutSignedDriverAssociation)} · " +
                     $"Não confirmados: {result.Items.Count(x => x.Present != true)}. Só consulta.";
-                actionHint.AccessibleDescription = actionHint.Text;
+                string gpuSummary = GraphicsDriverInventory.CompactSummary(result);
+                actionHint.Text = gpuSummary.Length > 0 ? gpuSummary : pnpSummary;
+                actionHint.AccessibleDescription = gpuSummary.Length > 0
+                    ? gpuSummary + ". " + pnpSummary + ". Modelo/canal em Detalhes; sem instalação de Display."
+                    : pnpSummary;
                 SuppressHoverHint(actionHint, actionHint.Text);
                 // A lista agora representa OUTRA fotografia. O rodapé não deve
                 // anunciar a comparação da fotografia anterior enquanto a

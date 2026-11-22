@@ -15,6 +15,53 @@ internal static class DriverHardwareCatalogTests
         Check(DriverHardwareCatalog.Identify(gpu).Vendor.Contains("NVIDIA", StringComparison.Ordinal) &&
             DriverHardwareCatalog.DisplayName(gpu).Contains("GeForce RTX 5060 Ti", StringComparison.Ordinal),
             "o ID de instância PCI identifica a RTX 5060 Ti mesmo sem HardwareID");
+        // VF02 fase 1: GPU/versão Windows por mesmo DeviceId, sem criar
+        // oferta Game Ready, canal presumido ou elegibilidade Display.
+        var rtx = gpu with { ReportedDriverClass = "Display" };
+        var found = GraphicsDriverInventory.Find(new([rtx], false, "consulta completa"));
+        Check(found is [{ Manufacturer: "NVIDIA", InstalledWindowsVersion: "10.0.26100.1",
+                         InstalledChannel: GraphicsDriverInventory.UnknownChannel }] &&
+            found[0].Model.Contains("RTX 5060 Ti", StringComparison.Ordinal) &&
+            found[0].ModelSource.Contains("catálogo PCI", StringComparison.Ordinal) &&
+            found[0].VersionSource.Contains("Win32_PnPSignedDriver.DriverVersion", StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 lê RTX 5060 Ti e versão Windows por PCI/WMI; canal desconhecido e Display bloqueado");
+        Check(GraphicsDriverInventory.CompactSummary(new([rtx], false, ""))
+                .Contains("Canal: não identificado", StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), null)
+                .Contains("DRIVERS DE JOGOS — IDENTIFICAÇÃO LOCAL", StringComparison.Ordinal) &&
+            DriverReadOnlyReport.Format(new([rtx], false, ""), rtx)
+                .Contains("Versão do driver Windows: 10.0.26100.1", StringComparison.Ordinal),
+            "VF02 mostra evidência gráfica na aba e no relatório geral/selecionado");
+
+        var amdDisplay = new DriverInventoryEntry(@"PCI\VEN_1002&DEV_A123\LOCAL",
+            "Radeon de fixture", "AMD", "32.0.1.1234", "oem3.inf", true, true)
+            { ReportedDriverClass = "Display" };
+        var intelDisplay = new DriverInventoryEntry(@"PCI\VEN_8086&DEV_B123\LOCAL",
+            "Intel Arc de fixture", "Intel", "31.0.1.1234", "oem4.inf", true, true)
+            { ReportedDriverClass = "Display" };
+        var graphics = GraphicsDriverInventory.Find(new([rtx, amdDisplay, intelDisplay], false, ""));
+        Check(graphics.Length == 3 &&
+            graphics.Any(x => x.Manufacturer == "AMD" && x.Model == "Radeon de fixture") &&
+            graphics.Any(x => x.Manufacturer == "Intel" && x.Model == "Intel Arc de fixture") &&
+            graphics.All(x => x.InstalledChannel == GraphicsDriverInventory.UnknownChannel),
+            "VF02 estrutura AMD/Intel por PCI + classe Display, sem afirmar canais instalados");
+
+        var intelNonGpu = intelDisplay with { ReportedDriverClass = "Net", DeviceName = "Rede Intel" };
+        var conflictingRtx = rtx with { HardwareIds = [@"PCI\VEN_1002&DEV_A123"] };
+        var malformedId = rtx with { DeviceId = @"PCI\VEN_10DE&DEV_2D04X\LOCAL" };
+        Check(GraphicsDriverInventory.Find(new([intelNonGpu, conflictingRtx, malformedId], false, "")).Length == 0,
+            "VF02 recusa PCI de rede, IDs de GPU conflitantes e identificador malformado");
+        var duplicates = GraphicsDriverInventory.Find(new([rtx, rtx], false, ""));
+        var partial = GraphicsDriverInventory.Find(new([rtx], true, "parcial"));
+        var unknownClass = GraphicsDriverInventory.Find(new([gpu], false, "classe indisponível"));
+        Check(duplicates is [{ InstalledWindowsVersion: "não confirmada" }] &&
+            partial is [{ InstalledWindowsVersion: "não confirmada" }] &&
+            unknownClass is [{ Manufacturer: "NVIDIA", InstalledWindowsVersion: "não confirmada" }] &&
+            duplicates[0].Observation.Contains("múltiplas", StringComparison.Ordinal) &&
+            !DriverUpdatePilot.AllowedClass("Display"),
+            "VF02 duplicidade, inventário parcial e classe ausente não confirmam versão nem autorizam instalação");
+
         var named = gpu with { DeviceName = "Nome específico informado pelo fabricante" };
         Check(DriverHardwareCatalog.DisplayName(named) == named.DeviceName,
             "preserva o nome específico informado pelo Windows");
