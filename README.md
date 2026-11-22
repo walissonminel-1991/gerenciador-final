@@ -1,5 +1,7 @@
 # Gerenciador Final · GF
 
+**Candidata vigente P0 de 21/11/2026:** [PR Draft #97](https://github.com/walissonminel-1991/gerenciador-final/pull/97), versão **5.13.11.66 BETA LOCAL TESTE**, HEAD d0a5156ab548cf4365ca9d1babe44deaca0da6bf. [Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279577) e [integridade](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/44966279588) aprovadas. Drivers, Windows Update e Limpeza integrados, mas **não há ZIP executável pessoal entregue ou validação física nos PCs**. Roadmap **27/42** e **VF01–VF16 0/16 aceitas**. [Estado e bloqueios](docs/P0-ESTADO-CANDIDATA-PR97.md).
+
 **Diretriz vigente (01/11/2026): um único produto, sem programa de distribuição antecipada ou recrutamento externo.** O projeto prossegue com testes controlados e validação do autoatualizador; nenhuma entrega histórica autoriza publicação, diagnóstico remoto ou atualização automática. [Decisão e limites de segurança](docs/DECISAO-CANAL-UNICO-20261101.md). **Não há release oficial aprovado; roadmap 27/42.**
 
 ### Histórico de preparação (28/10/2026; não é o plano atual)
@@ -41,7 +43,7 @@ Históricos e critérios na [matriz](docs/WORK-INTEGRACAO-MATRIZ.md).
 - Diagnóstico de rede, reparos específicos mediante consentimento, redefinição avançada e reparo do Windows por DISM/SFC.
 - Planos de energia e hibernação com opções explícitas.
 - Gráfico de RAM com acompanhamento na bandeja, descarte de caches internos e ajuste seletivo do working set de um aplicativo em segundo plano autorizado pelo usuário (não equivale a liberar RAM permanentemente), inicialização, Windows Update e informações do computador.
-- Aba DRIVERS somente leitura: IDs de hardware, histórico Windows, associações de INFs publicados, ofertas oficiais do Windows Update e verificação nativa do INF selecionado. Não instala, remove nem reverte drivers; a assinatura do INF não certifica o pacote inteiro nem sua compatibilidade.
+- Aba **Drivers**: inventário PnP e identificação consultiva PCI/USB/HDAUDIO, histórico Windows, INF e ofertas oficiais WUA. Possui manutenção **restrita**: revisão de instalação G3.2 apenas para ofertas e classes elegíveis, com revalidação, consentimento, diário e backup OEM; desinstalação direta somente com alvo protegido, backup e UAC, ou encaminhamento ao Windows. **Não cobre todas as classes**, não comprova integridade integral de pacotes nem foi homologada fisicamente nesta candidata.
 - Desinstalação com investigação residual automática e confirmação única SIM/NÃO, incluindo lotes. Exclusão por identidade/conteúdo, conferência final e UAC integrado quando necessário; locais pessoais, compartilhados, alterados e não verificáveis são preservados. Sem ferramenta residual manual independente.
 - Consultas multifontes com versões divergentes preservadas, origem na dica da linha e bloqueio do instalador direto em conflitos; cinco novos produtos consultivos e comparação Proton com feed estável Windows priorizado. A consulta WinGet COM é somente leitura e condicionada à disponibilidade do Windows; o CLI não é executado e descoberta consultiva não autoriza instalação.
 - Atualizações com progresso real de download por instalação, etapas sem porcentagem inventada, resultado verde/vermelho/pendente/cancelado e confirmação persistente durante a sessão, mesmo após renovar a lista.
