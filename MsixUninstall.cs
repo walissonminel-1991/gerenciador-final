@@ -30,7 +30,9 @@ internal static class MsixUninstall
         request.PackageFamilyName.Length <= 512 &&
         request.InventoryId.Equals("MSIX|" + request.PackageFamilyName, StringComparison.Ordinal) &&
         !request.PublisherId.Equals(MicrosoftPublisherId, StringComparison.OrdinalIgnoreCase) &&
-        !request.PackageName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) &&
+        !request.PackageName.StartsWith("Microsoft", StringComparison.OrdinalIgnoreCase) &&
+        !request.PackageName.StartsWith("Windows.", StringComparison.OrdinalIgnoreCase) &&
+        !request.PackageName.StartsWith("System.", StringComparison.OrdinalIgnoreCase) &&
         !ProtectedApplications.IsProtectedName(request.DisplayName) &&
         !ProtectedApplications.IsExcludedFromManagement(request.DisplayName);
 
