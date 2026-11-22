@@ -15,16 +15,17 @@ internal sealed class ElevatedCleanupProtocol(CancellationToken request, Action<
 
     internal async Task ReadAsync(Stream pipe, StreamReader reader)
     {
-        using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true };
         using var finished = new CancellationTokenSource();
         bool cancelledBeforeStart = request.IsCancellationRequested;
-        await writer.WriteLineAsync(cancelledBeforeStart ? Cancel : Start);
-        Task relay = cancelledBeforeStart ? Task.CompletedTask : RelayAsync(writer, finished.Token);
+        await SendCommandAsync(pipe, cancelledBeforeStart ? Cancel : Start, finished.Token);
+        Task relay = cancelledBeforeStart ? Task.CompletedTask : RelayAsync(pipe, finished.Token);
         try
         {
             TemporaryCleanupResult? report = null;
+            bool complete = false;
             while (await reader.ReadLineAsync() is { } line)
             {
+                if (complete) return;
                 if (line.StartsWith("LOG|", StringComparison.Ordinal)) log(line[4..]);
                 else if (line.StartsWith("PROGRESS|", StringComparison.Ordinal))
                 {
@@ -36,11 +37,16 @@ internal sealed class ElevatedCleanupProtocol(CancellationToken request, Action<
                 }
                 else if (line.StartsWith("DONE|", StringComparison.Ordinal))
                 {
-                    if (report is not null && line[5..] == ExitCode(report).ToString(CultureInfo.InvariantCulture))
-                        Result = report;
-                    return;
+                    if (report is null || line[5..] != ExitCode(report).ToString(CultureInfo.InvariantCulture))
+                        return;
+                    complete = true;
+                    finished.Cancel();
                 }
+                else return;
             }
+            // O lado elevado ainda fecha seu escritor após o DONE. Confirmar
+            // somente no fim do canal evita fechar o pipe durante o flush dele.
+            if (complete && report is not null) Result = report;
         }
         finally
         {
@@ -49,13 +55,16 @@ internal sealed class ElevatedCleanupProtocol(CancellationToken request, Action<
         }
     }
 
-    private async Task RelayAsync(StreamWriter writer, CancellationToken finished)
+    private static ValueTask SendCommandAsync(Stream pipe, string command, CancellationToken token) =>
+        pipe.WriteAsync(Encoding.ASCII.GetBytes(command + "\n"), token);
+
+    private async Task RelayAsync(Stream pipe, CancellationToken finished)
     {
         using var wait = CancellationTokenSource.CreateLinkedTokenSource(request, finished);
         try { await Task.Delay(Timeout.InfiniteTimeSpan, wait.Token); }
         catch (OperationCanceledException) { }
         if (!request.IsCancellationRequested || finished.IsCancellationRequested) return;
-        try { await writer.WriteLineAsync(Cancel.AsMemory(), finished); }
+        try { await SendCommandAsync(pipe, Cancel, finished); }
         catch (Exception ex) when (ex is IOException or OperationCanceledException) { }
     }
 

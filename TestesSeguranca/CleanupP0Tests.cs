@@ -48,6 +48,16 @@ internal static class CleanupP0Tests
             ElevatedCleanupProtocol.ReadResult("1:1:0:0:0:-1:1") is null,
             "protocolo rejeita bytes sem arquivos e contagem negativa");
 
+        using (var channel = new CommandCapture())
+        using (var incoming = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("RESULT|" + wire + "\nDONE|2\n"))))
+        {
+            var exchange = new ElevatedCleanupProtocol(default, _ => { }, _ => { });
+            await exchange.ReadAsync(channel, incoming);
+            Check(exchange.Result.State == CleanupState.Cancelled &&
+                Encoding.ASCII.GetString(channel.ToArray()) == "START\n",
+                "o pai conclui por EOF sem tentar descarregar um escritor após a desconexão");
+        }
+
         if (!OperatingSystem.IsWindows()) return;
 
         async Task<(CleanupState State, string? Signal)> Exchange(string[] lines, bool cancel)
@@ -81,7 +91,8 @@ internal static class CleanupP0Tests
         var returned = await Exchange(["RESULT|" + wire, "DONE|2"], true);
         Check(returned == (CleanupState.Cancelled, "CANCEL"), "cancelamento percorre o pipe sem perder o resultado final");
         Check((await Exchange(["RESULT|" + wire], false)).State == CleanupState.Inconclusive &&
-            (await Exchange(["RESULT|" + wire, "DONE|0"], false)).State == CleanupState.Inconclusive,
+            (await Exchange(["RESULT|" + wire, "DONE|0"], false)).State == CleanupState.Inconclusive &&
+            (await Exchange(["RESULT|" + wire, "DONE|2", "DONE|2"], false)).State == CleanupState.Inconclusive,
             "pipe interrompido ou código contraditório permanece inconclusivo");
 
         await VerifyWorkerCancellationAsync(Check);
@@ -129,19 +140,32 @@ internal static class CleanupP0Tests
         await worker.ConnectAsync(timeout.Token);
         await connected;
         using var reader = new StreamReader(parent, Encoding.UTF8, false, 1024, leaveOpen: true);
-        using var writer = new StreamWriter(worker, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true };
         var exchange = new ElevatedCleanupProtocol(cancellation.Token, _ => cancellation.Cancel(), _ => { });
-        Task<int> running = ElevatedCleanupProtocol.RunWorkerAsync(worker, (token, progress, _) =>
+        Task<int> running = RunWorkerAsync();
+        async Task<int> RunWorkerAsync()
         {
-            progress(new(7, 1));
-            if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(5))) throw new TimeoutException();
-            return new TemporaryCleanupResult(1, 0, 0, 0, 0, [])
-                { State = CleanupState.Cancelled, BytesRemoved = 22 };
-        }, (kind, message) => writer.WriteLine(kind + "|" + message));
+            using (worker)
+            using (var writer = new StreamWriter(worker, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true })
+            {
+                return await ElevatedCleanupProtocol.RunWorkerAsync(worker, (token, progress, _) =>
+                {
+                    progress(new(7, 1));
+                    if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(5))) throw new TimeoutException();
+                    return new TemporaryCleanupResult(1, 0, 0, 0, 0, [])
+                        { State = CleanupState.Cancelled, BytesRemoved = 22 };
+                }, (kind, message) => writer.WriteLine(kind + "|" + message));
+            }
+        }
         await exchange.ReadAsync(parent, reader).WaitAsync(timeout.Token);
         int exit = await running.WaitAsync(timeout.Token);
         check(exit == 2 && exchange.Result is { State: CleanupState.Cancelled, FilesRemoved: 1, BytesRemoved: 22 },
             "worker cooperativo recebe cancelamento durante a operação e confirma os contadores");
     }
 
+    private sealed class CommandCapture : MemoryStream
+    {
+        public override void Flush() => throw new IOException("fixture: pipe fechado");
+        public override Task FlushAsync(CancellationToken cancellationToken) =>
+            Task.FromException(new IOException("fixture: pipe fechado"));
+    }
 }
