@@ -75,6 +75,8 @@ internal static class DriverHardwareSupportTests
         CheckEthernetSources(check);
         CheckBluetoothSources(check);
         CheckLogitechGameSources(check);
+        CheckFlightControls(check);
+        CheckUsbHeadsets(check);
     }
 
     private static void CheckSources(Action<bool, string> check)
@@ -322,6 +324,107 @@ internal static class DriverHardwareSupportTests
                   Find(device).Status.Contains("modelo específico é inconclusivo", StringComparison.Ordinal)) &&
               Find(f710 with { ReportedPnpClass = "Net" }).Page is null,
             "Gamepads Logitech F310/F710 têm páginas em XInput e modelo inconclusivo em DirectInput compartilhado");
+    }
+
+    private static void CheckFlightControls(Action<bool, string> check)
+    {
+        var products = new[]
+        {
+            (@"HID\VID_046D&PID_C215", "360023331594", "Joystick Logitech Extreme 3D Pro"),
+            (@"HID\VID_06A3&PID_0255", "360023462973", "Controle de voo Logitech X52 H.O.T.A.S."),
+            (@"HID\VID_06A3&PID_0762", "360023462793", "Controle de voo Logitech X52 Pro H.O.T.A.S."),
+            (@"HID\VID_0738&PID_2221", "360023302854", "Joystick Logitech X56 H.O.T.A.S."),
+            (@"HID\VID_0738&PID_A221", "360023302854", "Acelerador Logitech X56 H.O.T.A.S.")
+        };
+        check(products.All(product =>
+        {
+            var item = Device(product.Item1 + "&COL01", "HIDClass") with { HasGameInputUsage = true };
+            var source = Find(item);
+            return source.Category == DriverHardwareCategory.GameInput &&
+                source.Page is { Host: "support.logi.com" } page &&
+                page.AbsolutePath.EndsWith("/" + product.Item2, StringComparison.Ordinal) &&
+                source.Status.Contains(product.Item3, StringComparison.Ordinal) &&
+                DriverHardwareCatalog.Identify(item).Model == product.Item3;
+        }), "Extreme 3D Pro, X52/X52 Pro e os dois módulos X56 usam IDs e fontes oficiais distintos");
+
+        const string x56 = @"HID\VID_0738&PID_2221&MI_03&COL01";
+        var joystick = Device(x56, "HIDClass") with { HasGameInputUsage = true };
+        var invalid = new[]
+        {
+            joystick with { HasGameInputUsage = false },
+            joystick with { ReportedPnpClass = "" },
+            joystick with { ReportedPnpClass = "Mouse" },
+            joystick with { ReportedDriverClass = "Media" },
+            joystick with { HardwareIds = [x56.Replace("MI_03", "MI_02")] },
+            joystick with { HardwareIds = [], CompatibleIds = [x56] }
+        };
+        check(Find(joystick).Page?.Host == "support.logi.com" &&
+              invalid.All(item => Find(item).Page is null && Find(item).Status.Contains("Modelo USB inconclusivo") &&
+                  DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "Joysticks sem função HID corroborada ou com interface conflitante ficam inconclusivos");
+    }
+
+    private static void CheckUsbHeadsets(Action<bool, string> check)
+    {
+        var products = new[]
+        {
+            ("0A4D", "360023466633", "Adaptador USB Logitech G430"),
+            ("0A1F", "360023466133", "Receptor USB Logitech G930"),
+            ("0A5B", "360023464013", "Receptor USB Logitech G933"),
+            ("0AB6", "17207077246871", "Receptor USB Logitech G733"),
+            ("0ABA", "360052715513", "Receptor USB Logitech PRO X Wireless")
+        };
+        check(products.All(product =>
+        {
+            var item = Device($@"USB\VID_046D&PID_{product.Item1}", "Media");
+            var source = Find(item);
+            return source.Category == DriverHardwareCategory.Audio &&
+                source.Page is { Host: "support.logi.com" } page &&
+                page.AbsolutePath.EndsWith("/" + product.Item2, StringComparison.Ordinal) &&
+                source.Status.Contains(product.Item3, StringComparison.Ordinal) &&
+                DriverHardwareCatalog.Identify(item).Model == product.Item3;
+        }), "G430, G930, G933, G733 e PRO X Wireless identificam o adaptador ou receptor USB");
+
+        var shared = Device(@"USB\VID_046D&PID_0A87&MI_00", "Media") with { DeviceName = "USB Audio Device" };
+        var report = DriverReadOnlyReport.Format(new([shared], false, ""), shared);
+        check(Find(shared).Page?.AbsolutePath == "/hc/pt-br" &&
+              report.Contains("compartilhado por G935 e G933s") &&
+              report.Contains("modelo do headset é inconclusivo") &&
+              DriverHardwareCatalog.Identify(shared).Model.Length == 0 &&
+              DriverHardwareCatalog.DisplayName(shared) == shared.DeviceName,
+            "G935 e G933s compartilham o VID/PID sem atribuição de modelo específico no relatório ou na lista");
+
+        const string headset = @"USB\VID_046D&PID_0ABA&MI_00";
+        var audio = Device(headset, "Media") with
+        {
+            HardwareIds = [headset, @"usb\vid_046d&pid_0aba&rev_0100&mi_00"]
+        };
+        var invalid = new[]
+        {
+            audio with { ReportedPnpClass = "USB" },
+            audio with { ReportedDriverClass = "HIDClass" },
+            audio with { HardwareIds = [headset, @"USB\VID_046D&PID_0ABA&MI_02"] },
+            audio with { HardwareIds = [headset.Replace("MI_00", "MI_ZZ")] },
+            audio with { HardwareIds = [headset + "&MI_00"] },
+            audio with { HardwareIds = [@"USB\VID_046D&PID_0ABA"] },
+            Device(@"HID\VID_046D&PID_0ABA&MI_00", "HIDClass"),
+            Device(@"HID\VID_046D&PID_0ABA&MI_00", "Media"),
+            Device(@"SWD\MMDEVAPI\VID_046D&PID_0ABA", "AudioEndpoint")
+        };
+        check(Find(audio).Page?.Host == "support.logi.com" &&
+              DriverHardwareCatalog.ReportedUsbIdentity(audio) is { Product: 0x046d0aba, Interface: 0 } &&
+              invalid.All(item => Find(item).Page is null && DriverHardwareCatalog.Identify(item).Model.Length == 0),
+            "Headset requer identidade USB e interface coerentes na classe Media sem inferência por HID ou endpoint");
+
+        var windowsAudio = audio with { Provider = "Microsoft", InfName = "usbaudio2.inf" };
+        var unknownInterface = windowsAudio with { HardwareIds = [] };
+        check(Find(windowsAudio).Page?.Host == "support.logi.com" &&
+              Find(windowsAudio).Status.Contains("USB Audio 2.0 fornecido pelo Windows") &&
+              Find(unknownInterface).Page?.Host == "learn.microsoft.com" &&
+              Find(unknownInterface).Status.Contains("Modelo USB inconclusivo") &&
+              DriverHardwareSupport.Get(new([windowsAudio], true, ""), windowsAudio).Page is null &&
+              DriverHardwareSupport.Get(new([windowsAudio, windowsAudio], false, ""), windowsAudio).Page is null,
+            "Orientação do fabricante preserva o relato USB Audio do Windows e os bloqueios de identidade do inventário");
     }
 
     private static DriverInventoryEntry Device(string id, string pnpClass) =>

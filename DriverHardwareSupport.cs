@@ -42,7 +42,7 @@ internal static class DriverHardwareSupport
     private static readonly Uri QualcommBluetooth = new("https://www.catalog.update.microsoft.com/Search.aspx?q=USB%5CVID_0CF3%26PID_E300");
     private static readonly Uri MediaTekRz608 = new("https://www.catalog.update.microsoft.com/Search.aspx?q=USB%5CVID_0E8D%26PID_0608%26MI_00");
     private static readonly Uri MediaTekRz616 = new("https://www.catalog.update.microsoft.com/Search.aspx?q=USB%5CVID_0E8D%26PID_0616%26MI_00");
-    private static readonly Uri Logitech = new("https://support.logi.com/hc/pt-br");
+    internal static readonly Uri Logitech = new("https://support.logi.com/hc/pt-br");
     private static readonly Uri LogitechWheels = new("https://support.logi.com/hc/pt-br/articles/4404187621911-Troubleshoot-G923-G29-G920-for-connection-Issues");
     private static readonly Uri LogitechF310 = new("https://support.logi.com/hc/pt-br/articles/360023467133-Logitech-Gamepad-F310-Technical-Specifications");
     private static readonly Uri LogitechF710 = new("https://support.logi.com/hc/pt-br/articles/360023465553-Logitech-Wireless-Gamepad-F710-Technical-Specifications");
@@ -106,15 +106,23 @@ internal static class DriverHardwareSupport
             inventory.Items.Count(row => row.DeviceId.Equals(item.DeviceId, StringComparison.OrdinalIgnoreCase)) != 1)
             return new(category, null, "Fonte inconclusiva nesta leitura. Confirme a presença e a identidade do dispositivo.");
 
-        if (item.BindingStatus != DriverBindingStatus.Conflicting && !item.WithoutSignedDriverAssociation &&
+        bool microsoftBinding = item.BindingStatus != DriverBindingStatus.Conflicting && !item.WithoutSignedDriverAssociation &&
             (item.Provider.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
-             item.Provider.Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase)))
+             item.Provider.Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase));
+        bool windowsUsbAudio = microsoftBinding && category == DriverHardwareCategory.Audio &&
+            item.InfName.Equals("usbaudio2.inf", StringComparison.OrdinalIgnoreCase);
+        const string windowsUsbAudioStatus = "O inventário informa o driver USB Audio 2.0 fornecido pelo Windows.";
+        if (DriverGamingUsbCatalog.Find(item) is { } gamingUsb)
         {
-            if (category == DriverHardwareCategory.Audio && item.InfName.Equals("usbaudio2.inf", StringComparison.OrdinalIgnoreCase))
-                return new(category, UsbAudio, "O inventário informa o driver USB Audio 2.0 fornecido pelo Windows.");
-            if (category == DriverHardwareCategory.Storage && item.InfName.Equals("stornvme.inf", StringComparison.OrdinalIgnoreCase))
-                return new(category, Nvme, "O inventário informa o driver StorNVMe fornecido pelo Windows.");
+            var devicePage = gamingUsb.Page ?? (windowsUsbAudio ? UsbAudio : null);
+            var status = windowsUsbAudio ? gamingUsb.Status + " " + windowsUsbAudioStatus : gamingUsb.Status;
+            return new(category, devicePage, status);
         }
+        if (windowsUsbAudio)
+            return new(category, UsbAudio, windowsUsbAudioStatus);
+        if (microsoftBinding && category == DriverHardwareCategory.Storage &&
+            item.InfName.Equals("stornvme.inf", StringComparison.OrdinalIgnoreCase))
+            return new(category, Nvme, "O inventário informa o driver StorNVMe fornecido pelo Windows.");
 
         var pci = DriverHardwareCatalog.ReportedPciIdentity(item);
         if (category is DriverHardwareCategory.Graphics or DriverHardwareCategory.Network &&
@@ -133,7 +141,7 @@ internal static class DriverHardwareSupport
                 ? $"{ethernet.Model} reconhecido pelo ID PCI. Catálogo histórico da Microsoft; compatibilidade inconclusiva."
                 : $"{ethernet.Model} reconhecido pelo ID PCI. Confirme a variante e o Windows no suporte oficial.");
 
-        if (category == DriverHardwareCategory.Network && BluetoothSource(item, usbProduct) is { } bluetooth)
+        if (category == DriverHardwareCategory.Network && BluetoothSource(item) is { } bluetooth)
             return new(category, bluetooth.Page, bluetooth.Label +
                 " Consulta manual ao Catálogo Microsoft. Oferta e compatibilidade continuam inconclusivas.");
 
@@ -209,7 +217,7 @@ internal static class DriverHardwareSupport
         _ => null
     };
 
-    private static (Uri Page, string Label)? BluetoothSource(DriverInventoryEntry item, uint? product)
+    private static (Uri Page, string Label)? BluetoothSource(DriverInventoryEntry item)
     {
         if (!item.DeviceId.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase) ||
             (!item.ReportedPnpClass.Equals("Bluetooth", StringComparison.OrdinalIgnoreCase) &&
@@ -218,30 +226,16 @@ internal static class DriverHardwareSupport
             item.ReportedDriverClass.Equals("Net", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        (Uri Page, string Label, string? Interface)? source = product switch
+        return DriverHardwareCatalog.ReportedUsbIdentity(item) switch
         {
-            0x0cf3e300 => (QualcommBluetooth, "Rádio Qualcomm/Atheros reconhecido; modelo específico inconclusivo.", null),
-            0x0e8d0608 => (MediaTekRz608, "Rádio MediaTek RZ608 reconhecido pelo ID USB.", "MI_00"),
-            0x0e8d0616 => (MediaTekRz616, "Rádio MediaTek RZ616 reconhecido pelo ID USB.", "MI_00"),
+            { Product: 0x0cf3e300, Interface: null } =>
+                (QualcommBluetooth, "Rádio Qualcomm/Atheros reconhecido com modelo específico inconclusivo."),
+            { Product: 0x0e8d0608, Interface: 0 } =>
+                (MediaTekRz608, "Rádio MediaTek RZ608 reconhecido pelo ID USB."),
+            { Product: 0x0e8d0616, Interface: 0 } =>
+                (MediaTekRz616, "Rádio MediaTek RZ616 reconhecido pelo ID USB."),
             _ => null
         };
-        if (source is not { } match) return null;
-
-        // O Catálogo Microsoft lista as interfaces MediaTek com MI_00.
-        // Corrobore a interface nos mesmos IDs USB usados para resolver o produto.
-        bool MatchesInterface(string id)
-        {
-            var interfaces = id.Split('&').Skip(2)
-                .Where(part => part.StartsWith("MI", StringComparison.OrdinalIgnoreCase));
-            return match.Interface is string expected
-                ? interfaces.SequenceEqual([expected], StringComparer.OrdinalIgnoreCase)
-                : !interfaces.Any();
-        }
-
-        return MatchesInterface(DriverDeviceMetadata.HardwarePart(item.DeviceId)) &&
-            item.HardwareIds.Where(id => id.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase))
-                .All(MatchesInterface)
-            ? (match.Page, match.Label) : null;
     }
 
     private static Uri? NetworkPage(DriverPciIdentity? pci, uint? usb) => (pci?.Vendor, pci?.Product, usb) switch

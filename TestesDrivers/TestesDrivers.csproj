@@ -4,6 +4,7 @@
   <ItemGroup>
     <Compile Include="../DriverHardwareCatalog.cs" Link="DriverHardwareCatalog.cs" />
     <Compile Include="../DriverHardwareSupport.cs" Link="DriverHardwareSupport.cs" />
+    <Compile Include="../DriverGamingUsbCatalog.cs" Link="DriverGamingUsbCatalog.cs" />
     <Compile Include="../DriverGamingCatalog.cs" Link="DriverGamingCatalog.cs" />
     <Compile Include="../DriverDeviceMetadata.cs" Link="DriverDeviceMetadata.cs" />
     <Compile Include="../DriverListFilters.cs" Link="DriverListFilters.cs" />
