@@ -49,6 +49,7 @@ internal static class DriverInventorySnapshot
         a.Present == b.Present && a.PnpProblemCode == b.PnpProblemCode &&
         a.ReportedDriverClass == b.ReportedDriverClass &&
         a.WithoutSignedDriverAssociation == b.WithoutSignedDriverAssociation &&
+        a.DeviceMetadata == b.DeviceMetadata &&
         a.PackageEvidence == b.PackageEvidence &&
         a.HardwareIds.SequenceEqual(b.HardwareIds, StringComparer.Ordinal) &&
         a.WindowsEvents.SequenceEqual(b.WindowsEvents);
