@@ -54,8 +54,15 @@ internal static class DriverReadOnlyReport
             text.AppendLine("DISPOSITIVO SELECIONADO");
             text.AppendLine("Nome no Windows: " + (string.IsNullOrWhiteSpace(selected.DeviceName)
                 ? "não informado" : selected.DeviceName));
-            if (selected.DeviceMetadata is { BusDescription: { Length: > 0 } description })
-                text.AppendLine("Descrição informada pelo dispositivo: " + description);
+            if (selected.DeviceMetadata is { } metadata)
+            {
+                if (metadata.FriendlyName.Length > 0)
+                    text.AppendLine("Nome amigável da instância (Windows PnP): " + metadata.FriendlyName);
+                if (metadata.BusDescription.Length > 0)
+                    text.AppendLine("Descrição informada pelo dispositivo: " + metadata.BusDescription);
+                if (metadata.DeviceDescription.Length > 0)
+                    text.AppendLine("Descrição da instância (Windows PnP): " + metadata.DeviceDescription);
+            }
             var identity = DriverHardwareCatalog.Identify(selected);
             if (identity.Vendor.Length > 0)
                 text.AppendLine("Fabricante do hardware (catálogo): " + identity.Vendor);

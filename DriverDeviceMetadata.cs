@@ -6,11 +6,18 @@ namespace GerenciadorAplicativos;
 
 // Informações somente de apresentação. O ID do pai nunca é incorporado ao
 // HardwareIds do filho nem enviado como identidade a WUA ou ao Driver Store.
-internal sealed record DriverDeviceMetadata(string BusDescription, string UsbParentHardwareId)
+internal sealed record DriverDeviceMetadata(string BusDescription, string UsbParentHardwareId,
+    string FriendlyName = "", string DeviceDescription = "")
 {
     private const int StringPropertyType = 0x12;
     private static readonly PropertyKey BusDescriptionKey =
         new(new Guid("540b947e-8b40-45bc-a8a2-6a0b894cbda2"), 4);
+    // Propriedades oficiais do MESMO devnode (leitura de exibição apenas).
+    // DEVPKEY_Device_FriendlyName PID 14 e DeviceDesc PID 2.
+    private static readonly PropertyKey FriendlyNameKey =
+        new(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 14);
+    private static readonly PropertyKey DeviceDescriptionKey =
+        new(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 2);
     private static readonly PropertyKey ParentKey =
         new(new Guid("4340a6c5-93fa-4706-972c-7b648008a5a7"), 8);
 
@@ -52,10 +59,14 @@ internal sealed record DriverDeviceMetadata(string BusDescription, string UsbPar
             // CM_LOCATE_DEVNODE_NORMAL restringe a leitura a uma instância presente.
             if (CM_Locate_DevNodeW(out uint node, deviceId, 0) != 0) return null;
             string description = ReadString(node, BusDescriptionKey);
+            string friendly = ReadString(node, FriendlyNameKey);
+            string deviceDescription = ReadString(node, DeviceDescriptionKey);
             string parent = IsUsbPrinter(deviceId) ? ReadString(node, ParentKey) : "";
             string usbParent = parent.StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase)
                 ? HardwarePart(parent) : "";
-            return description.Length == 0 && usbParent.Length == 0 ? null : new(description, usbParent);
+            return description.Length == 0 && usbParent.Length == 0 &&
+                friendly.Length == 0 && deviceDescription.Length == 0 ? null :
+                new(description, usbParent, friendly, deviceDescription);
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {

@@ -46,6 +46,10 @@ internal static partial class DriverHardwareCatalog
     internal static bool IsGenericName(string name) =>
         string.IsNullOrWhiteSpace(name) || GenericNames.Contains(name.Trim());
 
+    internal static bool ReadableReportedName(string? value) =>
+        !IsGenericName(value ?? "") && !value!.StartsWith('@') &&
+        !value.StartsWith('%') && value.Length <= 256 && !value.Any(char.IsControl);
+
     internal static DriverHardwareIdentity Identify(DriverInventoryEntry item) =>
         Identities.GetValue(item, Resolve);
 
@@ -53,8 +57,14 @@ internal static partial class DriverHardwareCatalog
     {
         string name = item.DeviceName.Trim();
         if (!IsGenericName(name)) return name;
-        if (item.DeviceMetadata is { BusDescription: var description } && !IsGenericName(description))
-            return description;
+        if (item.DeviceMetadata is { } metadata)
+        {
+            // Sem identidade inferida por ROOT/MEDIA, classe, INF ou versão.
+            // Valores são do MESMO nó PnP e não autorizam instalar drivers.
+            if (ReadableReportedName(metadata.FriendlyName)) return metadata.FriendlyName;
+            if (ReadableReportedName(metadata.BusDescription)) return metadata.BusDescription;
+            if (ReadableReportedName(metadata.DeviceDescription)) return metadata.DeviceDescription;
+        }
         var identity = Identify(item);
         string model = identity.Subsystem.Length > 0 ? identity.Subsystem : identity.Model;
         if (!IsGenericName(model))

@@ -103,9 +103,17 @@ internal static class DriverInventory
 
     // Usar Description apenas quando Name vier vazio e somente no MESMO ID PnP.
     // Nao inferir hardware, compatibilidade, fabricante ou versao.
-    internal static string ReportedDeviceName(string? name, string? description) =>
-        !string.IsNullOrWhiteSpace(name) ? name.Trim() :
-        !string.IsNullOrWhiteSpace(description) ? description.Trim() : "";
+    internal static string ReportedDeviceName(string? name, string? description)
+    {
+        string primary = name?.Trim() ?? "";
+        string secondary = description?.Trim() ?? "";
+        // A Description pertence à mesma instância PnP: quando o Name for
+        // somente genérico, preferir a descrição específica relatada.
+        if (DriverHardwareCatalog.IsGenericName(primary) &&
+            DriverHardwareCatalog.ReadableReportedName(secondary))
+            return secondary;
+        return primary.Length > 0 ? primary : secondary;
+    }
 
     internal static string NormalizeDriverClass(string? value)
     {

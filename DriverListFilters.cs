@@ -46,7 +46,8 @@ internal static class DriverListFilters
             return 4;
 
         var identity = DriverHardwareCatalog.Identify(item);
-        var names = new[] { item.DeviceName, item.DeviceMetadata?.BusDescription ?? "",
+        var names = new[] { item.DeviceName, item.DeviceMetadata?.FriendlyName ?? "",
+            item.DeviceMetadata?.BusDescription ?? "", item.DeviceMetadata?.DeviceDescription ?? "",
             identity.Model, identity.Subsystem, DriverHardwareCatalog.DisplayName(item) };
         if (names.Any(name => comparison.Compare(name, phrase, SearchOptions) == 0))
             return 3;

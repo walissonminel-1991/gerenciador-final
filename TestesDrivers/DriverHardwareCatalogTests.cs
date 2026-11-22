@@ -129,6 +129,32 @@ internal static class DriverHardwareCatalogTests
                 .Contains("Descrição informada pelo dispositivo: Nome informado pelo dispositivo", StringComparison.Ordinal),
             "o nome do barramento recupera rótulos genéricos e aparece em Detalhes");
 
+        var fromFriendly = generic with
+        {
+            DeviceMetadata = new("Texto do barramento", "", "Placa de captura virtual", "Descrição local")
+        };
+        Check(DriverHardwareCatalog.DisplayName(fromFriendly) == "Placa de captura virtual" &&
+            DriverListFilters.Apply([fromFriendly], "Todos", "captura virtual").Single() == fromFriendly &&
+            DriverReadOnlyReport.Format(new([fromFriendly], false, ""), fromFriendly)
+                .Contains("Nome amigável da instância (Windows PnP): Placa de captura virtual"),
+            "o nome amigável do MESMO devnode pode identificar uma entrada WMI genérica");
+        var fromBus = generic with
+        {
+            DeviceMetadata = new("Nome do barramento", "", "Dispositivo desconhecido", "Outro detalhe específico")
+        };
+        Check(DriverHardwareCatalog.DisplayName(fromBus) == "Nome do barramento" &&
+            DriverListFilters.Apply([fromBus], "Todos", "específico").Single() == fromBus,
+            "bus description e device description podem ser pesquisados independentemente");
+        var noNativeEvidence = generic with
+        {
+            DeviceMetadata = new("", "", "%INVALID%", "@unresolved")
+        };
+        Check(DriverHardwareCatalog.DisplayName(noNativeEvidence) == generic.DeviceName &&
+            DriverInventory.ReportedDeviceName("Dispositivo desconhecido", "Controlador Realtek HD") ==
+                "Controlador Realtek HD" &&
+            DriverInventory.ReportedDeviceName("Nome verdadeiro", "Outro nome") == "Nome verdadeiro",
+            "não atribui nome sem evidência e privilegia descrição específica da mesma instância");
+
         var broad = named with { Provider = "Realtek ALC892" };
         var contains = named with { DeviceName = "Dispositivo de teste Realtek ALC892" };
         Check(DriverListFilters.Apply([broad, contains, audio], "Todos", "Realtek ALC892")
