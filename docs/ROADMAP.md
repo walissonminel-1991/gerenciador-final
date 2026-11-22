@@ -1,5 +1,11 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+## Fotografia P0 vigente — 21/11/2026
+
+A [PR #97 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/97) integra as linhas Windows Update (#94), Limpeza (#96) e Drivers (#95) no HEAD `d0a5156ab548cf4365ca9d1babe44deaca0da6bf`. CIs Windows e integridade aprovadas; executável compilado no runner, porém **ZIP portátil pessoal não entregue e operações físicas não homologadas**. A rota pública conserva apenas manifestos. Rota local pessoal existente permanece autorizada sob os controles de segurança; sem release pública, sem afrouxar gates.
+
+Pendências: pacote ZIP e SHA-256 real; testes controlados nos PCs FORTE e FRACO; botão global de atualização de aplicativos `Atualizar todos` ausente; cobertura de manutenção de Drivers restrita a classes elegíveis; verificação integral G2 sem prova positiva. Essas pendências **não são novos checkpoints concluídos**. O roadmap original permanece **27/42**. A expansão VF01–VF16 da PR #90 é proposta separada. As etapas de outubro preservadas a seguir são históricas.
+
 **Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
 [Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
 [guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
