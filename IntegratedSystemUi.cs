@@ -29,6 +29,8 @@ internal sealed partial class MainForm
     private bool? _windowsUpdateRebootRequired;
     private WindowsUpdateOperation? _lastWindowsUpdateOperation;
     private WinUpdateChoice[] _lastWindowsUpdateSelection = [];
+    private TableLayoutPanel? _windowsUpdateActionsPanel;
+    private Button? _searchWindowsUpdatesButton;
     private string _activeSystemView = "memory";
     private bool _fittingSystemCards;
     private long _systemViewGeneration;
@@ -53,8 +55,8 @@ internal sealed partial class MainForm
             async () => { await RefreshMemoryRamAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
             async () => { await RefreshStartupEntriesAsync(); });
-        AddIntegratedAction(actions, 2, "Windows Update", "Procure, selecione e instale atualizações oficiais.", AppServices.Green,
-            async () => { await ScanWindowsUpdatesAsync(); });
+        AddIntegratedAction(actions, 2, "Windows Update", "Mostra a última consulta. Use Buscar atualizações para iniciar nova busca.", AppServices.Green,
+            () => { DrawWindowsUpdates(); return Task.CompletedTask; });
         AddIntegratedAction(actions, 3, "Este computador", "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos.", AppServices.Blue,
             async () =>
             {
@@ -105,13 +107,31 @@ internal sealed partial class MainForm
         _systemPanelSummary.ForeColor = Muted;
         _systemPanelSummary.TextAlign = ContentAlignment.MiddleLeft;
         details.Controls.Add(_systemPanelSummary, 0, 1);
+        _windowsUpdateActionsPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2,
+            BackColor = PanelBackground, Margin = Padding.Empty,
+            Padding = Padding.Empty, Visible = false
+        };
+        _windowsUpdateActionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 192));
+        _windowsUpdateActionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _searchWindowsUpdatesButton = CreateButton("Buscar atualizações", AppServices.Blue, Color.White);
+        _searchWindowsUpdatesButton.Name = "WindowsUpdateExplicitSearch";
+        _searchWindowsUpdatesButton.AccessibleName = "Buscar atualizações do Windows";
+        _searchWindowsUpdatesButton.AccessibleDescription =
+            "Inicia consulta oficial apenas quando solicitado; abrir o cartão não inicia busca.";
+        _searchWindowsUpdatesButton.Dock = DockStyle.Fill;
+        _searchWindowsUpdatesButton.Margin = new Padding(3, 1, 3, 5);
+        _searchWindowsUpdatesButton.Click += async (_, _) => await ScanWindowsUpdatesAsync();
+        _actionControls.Add(_searchWindowsUpdatesButton);
+        _windowsUpdateActionsPanel.Controls.Add(_searchWindowsUpdatesButton, 0, 0);
         _installSelectedUpdates = CreateButton("Baixar e instalar selecionadas (0)", AppServices.Green, Color.White);
         _installSelectedUpdates.Dock = DockStyle.Fill;
         _installSelectedUpdates.Margin = new Padding(3, 1, 3, 5);
-        _installSelectedUpdates.Visible = false;
         _installSelectedUpdates.Click += async (_, _) => await InstallSelectedWindowsUpdatesAsync();
         _actionControls.Add(_installSelectedUpdates);
-        details.Controls.Add(_installSelectedUpdates, 0, 2);
+        _windowsUpdateActionsPanel.Controls.Add(_installSelectedUpdates, 1, 0);
+        details.Controls.Add(_windowsUpdateActionsPanel, 0, 2);
         _systemPanelCards = new DarkScrollableFlow { Dock = DockStyle.Fill, BackColor = PanelBackground };
         _systemPanelCards.Content.BackColor = PanelBackground;
         _systemPanelCards.Content.Padding = new Padding(3, 4, 3, 3);
@@ -160,13 +180,13 @@ internal sealed partial class MainForm
         _activeSystemView = view; // Coleta em background permanece independente.
         if (changing && view is "startup" or "update" or "hardware")
             ReplaceSystemCards([]);
-        if (_systemDetails is null || _installSelectedUpdates is null) return;
+        if (_systemDetails is null || _installSelectedUpdates is null || _windowsUpdateActionsPanel is null) return;
         bool showInstall = view == "update";
         bool showMemory = view == "memory";
         _systemDetails.RowStyles[2].Height = showInstall ? 38 : 0;
         FitSystemSummaryHeight();
         UpdateProcessSamplingCadence();
-        _installSelectedUpdates.Visible = showInstall;
+        _windowsUpdateActionsPanel.Visible = showInstall;
         if (_exportHardwareButton is not null) _exportHardwareButton.Visible = view == "hardware" && _hardwareGroups.Count > 0;
         if (_hardwareGrid is not null) _hardwareGrid.Visible = view == "hardware";
         if (_memoryDashboardView is not null) _memoryDashboardView.Visible = showMemory;
@@ -357,7 +377,7 @@ internal sealed partial class MainForm
     {
         _hardwareGroups = GroupHardware(snapshot);
         _systemPanelTitle.Text = "Este computador · resumo da configuração";
-        _systemPanelSummary.Text = "Seis grupos sem dados duplicados. Passe o mouse para detalhes ou salve a ficha completa em PNG.";
+        _systemPanelSummary.Text = "Seis grupos sem dados duplicados. Salve a ficha PNG para consultar os detalhes completos.";
         if (_hardwareGrid is null) return;
         _hardwareGrid.SuspendLayout();
         try
@@ -727,6 +747,12 @@ internal sealed partial class MainForm
 
     private void RefreshWindowsUpdateInstallButton()
     {
+        if (_searchWindowsUpdatesButton is { IsDisposed: false } search)
+        {
+            search.Text = _windowsUpdateScanning ? "Buscando atualizações..." : "Buscar atualizações";
+            search.Enabled = WindowsUpdateViewActive && !_busy && !_batchUpdatesActive &&
+                !_betaClose.IsClosing && !_windowsUpdateInstalling && !_windowsUpdateScanning;
+        }
         if (_installSelectedUpdates is not { IsDisposed: false } button) return;
         button.Text = $"Baixar e instalar selecionadas ({_updateSelection.Count})";
         button.Enabled = WindowsUpdateViewActive && CanSelectWindowsUpdates && _updateSelection.Count > 0;
@@ -769,9 +795,9 @@ internal sealed partial class MainForm
         }
 
         string summary = _windowsUpdateScanFailure is string failure
-            ? $"Consulta inconclusiva {failure}. Clique em Windows Update para tentar novamente."
+            ? $"Consulta inconclusiva {failure}. Clique em Buscar atualizações para tentar novamente."
             : _lastWindowsUpdateOperation?.Summary ??
-                "Clique em Windows Update para consultar atualizações de software.";
+                "Nenhuma busca nesta sessão. Clique em Buscar atualizações para consultar.";
         if (_lastWindowsUpdateOperation is { } result && _windowsUpdateScanFailure is null)
         {
             summary += WindowsUpdateOperation.ErrorText(result.Overall.Error);
@@ -779,7 +805,7 @@ internal sealed partial class MainForm
                 !result.RequiresRestart)
                 summary += " O Windows não confirmou se é necessário reiniciar.";
             if (!result.RequiresRestart)
-                summary += " Clique em Windows Update para consultar novamente.";
+                summary += " Clique em Buscar atualizações para consultar novamente.";
         }
         ShowWindowsUpdateStatus(_windowsUpdateScanFailure is not null ? "Windows Update · consulta inconclusiva" :
             "Windows Update · resultado", summary + restart);

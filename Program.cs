@@ -582,7 +582,7 @@ internal sealed partial class MainForm : Form
     private static readonly Color LightBorder = Color.FromArgb(61, 77, 93);
     private static readonly Color SelectionBackground = Color.FromArgb(42, 66, 92);
     private static readonly Color Accent = Color.FromArgb(111, 184, 255);
-    private readonly ToolTip _toolTips = new() { AutomaticDelay = 350, AutoPopDelay = 8500, ReshowDelay = 120 };
+    private readonly ToolTip _toolTips = new() { Active = false };
     private readonly DarkProgramList _programList = new();
     private readonly LocalReliabilityHistory _reliability = new();
     private readonly UpdateOperationStore _updateOperations;
@@ -2543,22 +2543,17 @@ internal sealed partial class MainForm : Form
             Log("BETA LOCAL: consultas de versões disponíveis por ação explícita.");
             return;
         }
-        Log("Inicialização: consultando atualizações de aplicativos e Windows Update em segundo plano.");
+        Log("Inicialização: consultas de aplicativos em segundo plano; Windows Update somente pelo botão Buscar atualizações.");
         if (_startupOnlineProbe is not null) _startupOnlineProbe();
         else _ = RunStaggeredStartupChecksAsync();
     }
 
     private async Task RunStaggeredStartupChecksAsync()
     {
-        // Evita disputar CPU, disco e APIs do Windows na abertura do PC FRACO:
-        // primeiro consultas HTTPS; em seguida Windows Update (WUA/COM).
+        // WUA exige comando explícito; não consultar ao abrir o aplicativo.
         try
         {
             await LoadUpdatesAsync();
-            if (IsDisposed || Disposing) return;
-            await Task.Delay(TimeSpan.FromSeconds(3));
-            if (!IsDisposed && !Disposing)
-                await ScanWindowsUpdatesInBackgroundAsync();
         }
         catch (Exception ex)
         {
