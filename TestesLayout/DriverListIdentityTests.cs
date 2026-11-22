@@ -165,6 +165,9 @@ internal static class DriverListIdentityTests
         Application.DoEvents();
         actionsList.SetItems([a, b]);
         actionsList.SetActionPolicy(true, _ => new DriverSilentUninstallDecision(true, "Fixture"));
+        if (DarkDriverList.RemovalActionLabel(true) != "Desinstalar" ||
+            DarkDriverList.RemovalActionLabel(false) != "Gerenciar")
+            throw new Exception("UX Drivers: rota protegida rotulada como desinstalação direta.");
         int requested = 0;
         DriverInventoryEntry? lastRequested = null;
         DriverCardAction lastAction = DriverCardAction.Details;
@@ -216,6 +219,11 @@ internal static class DriverListIdentityTests
         // o motor de remoção continua recusando a operação direta.
         actionsList.SetActionPolicy(true, _ =>
             new DriverSilentUninstallDecision(false, "Dispositivo protegido"));
+        if (actionsList.AccessibleDescription?.Contains(
+                "Gerenciar: encaminha ao Gerenciador de Dispositivos", StringComparison.Ordinal) != true ||
+            actionsList.AccessibleDescription?.Contains(
+                "sem remoção automática pelo GF", StringComparison.Ordinal) != true)
+            throw new Exception("UX Drivers: ação de protegido promete desinstalação em vez de gestão manual.");
         ClickUninstall(0);
         if (requested != 3 || !ReferenceEquals(lastRequested, a) ||
             lastAction != DriverCardAction.Uninstall || actionsList.CanUninstall(a))
