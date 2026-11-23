@@ -3681,7 +3681,8 @@ internal sealed partial class MainForm : Form
     private async Task<ResidualElevationResponse?> RunElevatedAsync(string task,
         IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default,
         Action<string>? residualAudit = null, Action<string>? windowsUpdateMessage = null,
-        ElevatedCleanupProtocol? cleanup = null)
+        ElevatedCleanupProtocol? cleanup = null,
+        Action<NetworkRepairWorkerState>? networkRepairCompletion = null)
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
@@ -3855,6 +3856,9 @@ internal sealed partial class MainForm : Form
                 else if (line.StartsWith("DONE|", StringComparison.Ordinal))
                 {
                     string code = line[5..];
+                    if (networkRepairCompletion is not null &&
+                        task is "flush-dns" or "network-repair-winsock")
+                        networkRepairCompletion(NetworkRepairOutcome.FromWire(line));
                     if (task == "windows-check" && code != "0") _windowsRepairable = false;
                     if (SafeMaintenanceAudit.ElevatedExit(task, code) is { } audit)
                         DiagnosticTrace.Write(audit);
