@@ -36,10 +36,22 @@ internal static class NetworkDiagnostics
             : new("Gateway", "Atenção",
                 "Gateway IPv4 utilizável não identificado; não inferir rota válida.");
 
-    // Escolher a rota só quando existe UMA interface com IPv4 local e
-    // gateway válidos. Em máquinas multihomed sem métrica de rota consultada,
-    // a primeira interface enumerada não prova ser o caminho da Internet.
-    // -1 = nenhuma, -2 = múltiplas (ambíguo), >= 0 = índice único.
+    // Cada gateway distinto da mesma interface constitui outro caminho
+    // possível. Não tomar o primeiro enumerado como rota preferencial.
+    // Sem gateway utilizável, preservar uma entrada para diagnóstico.
+    internal static (IPAddress? Local, IPAddress? Gateway)[] Ipv4RouteCandidates(
+        IPAddress? local, IEnumerable<IPAddress> gateways)
+    {
+        var valid = gateways.Where(HasUsableIpv4).Distinct().ToArray();
+        return valid.Length == 0
+            ? new[] { (Local: local, Gateway: (IPAddress?)null) }
+            : valid.Select(g => (Local: local, Gateway: (IPAddress?)g)).ToArray();
+    }
+
+    // Escolher o caminho apenas quando há exatamente UM par de IPv4 local
+    // e gateway válidos, independentemente de quantos adaptadores existam.
+    // Sem consultar métricas Windows, não inferir rota preferencial.
+    // -1 = nenhum, -2 = múltiplos (ambíguo), >= 0 = índice único.
     internal static int FindUniqueIpv4Route(
         IReadOnlyList<(IPAddress? Local, IPAddress? Gateway)> interfaces)
     {
@@ -123,14 +135,14 @@ internal static class NetworkDiagnostics
                 .Where(n => n.OperationalStatus == OperationalStatus.Up &&
                     n.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
                     n.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
-                .Select(n =>
+                .SelectMany(n =>
                 {
                     var props = n.GetIPProperties();
-                    return (Adapter: n,
-                        Local: props.UnicastAddresses.Select(a => a.Address)
-                            .FirstOrDefault(HasUsableIpv4),
-                        Gateway: props.GatewayAddresses.Select(g => g.Address)
-                            .FirstOrDefault(HasUsableIpv4));
+                    var local = props.UnicastAddresses.Select(a => a.Address)
+                        .FirstOrDefault(HasUsableIpv4);
+                    return Ipv4RouteCandidates(local,
+                        props.GatewayAddresses.Select(g => g.Address))
+                        .Select(candidate => (Adapter: n, candidate.Local, candidate.Gateway));
                 })
                 .ToArray();
             int route = FindUniqueIpv4Route(configured.Select(x =>
@@ -140,9 +152,9 @@ internal static class NetworkDiagnostics
                 // DNS/TCP permanecem observáveis, mas não inferem uma rota
                 // local única nem habilitam os comandos de reparo.
                 checks.Add(new("Adaptador", "Atenção",
-                    "Múltiplas interfaces IPv4 com gateway; origem da rota não determinada."));
+                    "Múltiplos caminhos IPv4 (interfaces ou gateways); rota preferencial não determinada."));
                 checks.Add(new("Gateway", "Atenção",
-                    "Mais de uma rota local elegível; nenhuma escolhida por ordem de enumeração."));
+                    "Mais de um gateway/caminho elegível; nenhum escolhido por ordem de enumeração."));
             }
             else
             {

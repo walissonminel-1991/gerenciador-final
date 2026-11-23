@@ -245,6 +245,26 @@ Check(NetworkDiagnostics.FindUniqueIpv4Route([]) == -1 &&
         new NetworkCheck("DNS", "Atenção", "fixture"),
         new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null,
     "Rede: múltiplas rotas elegíveis ou nenhuma rota não permitem reparo orientado.");
+// Dois gateways distintos na MESMA interface também são caminhos
+// concorrentes; nenhum endereço pode ser escolhido pela ordem de enumeração.
+var localRoute = System.Net.IPAddress.Parse("192.168.50.10");
+var twoGatewayCandidates = NetworkDiagnostics.Ipv4RouteCandidates(localRoute, [
+    System.Net.IPAddress.Parse("192.168.50.1"),
+    System.Net.IPAddress.Parse("192.168.50.254")]);
+var oneRepeatedGateway = NetworkDiagnostics.Ipv4RouteCandidates(localRoute, [
+    System.Net.IPAddress.Parse("192.168.50.1"),
+    System.Net.IPAddress.Parse("192.168.50.1")]);
+var invalidOnlyGateway = NetworkDiagnostics.Ipv4RouteCandidates(localRoute, [
+    System.Net.IPAddress.Parse("0.0.0.0"),
+    System.Net.IPAddress.Parse("169.254.1.1")]);
+Check(twoGatewayCandidates.Length == 2 &&
+    NetworkDiagnostics.FindUniqueIpv4Route(twoGatewayCandidates) == -2 &&
+    oneRepeatedGateway.Length == 1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route(oneRepeatedGateway) == 0 &&
+    invalidOnlyGateway.Length == 1 &&
+    invalidOnlyGateway[0].Gateway is null &&
+    NetworkDiagnostics.FindUniqueIpv4Route(invalidOnlyGateway) == -1,
+    "Rede: gateways distintos da mesma interface bloqueiam rota arbitrária; duplicata não cria rota.");
 // Uma falha apenas em www.microsoft.com não autoriza sugerir Winsock.
 // Fixtures puras: nenhum teste de rede real é feito pelo runner.
 NetworkScan Probes(string dns, string alternative, string first, string second) => new([
