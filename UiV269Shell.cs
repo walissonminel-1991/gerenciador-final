@@ -426,8 +426,9 @@ internal sealed class V269Shell : UserControl
     private sealed class V269NavButton : Button
     {
         internal V269Page Page { get; }
-        internal Color IconColor { get; set; }
-        internal bool IsSelected { get; set; }
+        // Campos internos: não são propriedades serializáveis pelo Designer WinForms.
+        internal Color IconColor;
+        internal bool IsSelected;
 
         internal V269NavButton(V269Page page)
         {
