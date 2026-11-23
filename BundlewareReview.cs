@@ -150,6 +150,7 @@ internal static class BundlewareReview
         var before = PrepareUserSelection(initial, selectedIds);
         if (!before.Eligible)
             return new(false, before.Reason, []);
+        bool dispatched = false;
         try
         {
             var fresh = await freshRegistryScan();
@@ -178,6 +179,9 @@ internal static class BundlewareReview
             }
             token.ThrowIfCancellationRequested();
             var executor = new UninstallBatch();
+            // Uma falha/cancelamento DEPOIS do handoff pode esconder efeitos
+            // do instalador; não relatar que nenhuma remoção foi iniciada.
+            dispatched = true;
             var outcomes = await executor.RunAsync(current.Requests, true,
                 freshFullInventory, registeredUninstaller, waitBetweenChecks, token);
             return new(true, "Solicitação encaminhada ao executor registrado com reconferência de identidade.",
@@ -185,12 +189,17 @@ internal static class BundlewareReview
         }
         catch (OperationCanceledException)
         {
-            return new(false, "Solicitação cancelada; não iniciar novas remoções.", []);
+            return new(dispatched, dispatched
+                ? "Cancelamento depois de encaminhar ao executor; resultado desconhecido, não repetir."
+                : "Solicitação cancelada antes do executor; nenhuma remoção iniciada.", []);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return new(false, "Revalidação indisponível (" + ex.GetType().Name +
-                "); não iniciar remoção.", []);
+            return new(dispatched, dispatched
+                ? "Falha após encaminhar ao executor (" + ex.GetType().Name +
+                  "); resultado incerto, conciliar antes de tentar novamente."
+                : "Revalidação indisponível (" + ex.GetType().Name +
+                  "); nenhuma remoção iniciada.", []);
         }
     }
 
