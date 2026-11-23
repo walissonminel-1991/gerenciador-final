@@ -38,8 +38,9 @@ internal sealed record WddmGpuAdapterSample(
         if (string.IsNullOrWhiteSpace(engineType))
             return MonitorReading<double>.Unavailable(source);
         var observed = Engines
-            .Where(x => string.Equals(x.EngineType, engineType,
-                StringComparison.OrdinalIgnoreCase) &&
+            .Where(x => (string.Equals(x.EngineType, engineType,
+                StringComparison.OrdinalIgnoreCase) ||
+                x.EngineType.StartsWith(engineType + "_", StringComparison.OrdinalIgnoreCase)) &&
                 x.UsagePercent.Availability == MonitorAvailability.Available &&
                 x.UsagePercent.Value.HasValue)
             .Select(x => x.UsagePercent.Value!.Value).ToArray();
