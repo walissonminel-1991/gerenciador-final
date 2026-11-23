@@ -95,7 +95,13 @@ internal static class BundlewareReviewTests
             FakeLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
         if (denied.SentToExecutor || dispatched != 0)
             throw new Exception("Bundleware: nenhuma remoção pode iniciar sem aceite.");
-        var changed = scan with { Items = [parent, child with { BundleParentKeyName = "OutroPacote" }, independent] };
+        var changedChild = new ProgramEntry
+        {
+            Name = child.Name, Publisher = child.Publisher, Version = child.Version,
+            InventoryId = child.InventoryId, InventorySource = child.InventorySource,
+            BundleParentKeyName = "OutroPacote", InventoryOnly = true
+        };
+        var changed = scan with { Items = [parent, changedChild, independent] };
         var stale = BundlewareReview.RunConfirmedSelectionAsync(
             scan, [parent.InventoryId], true, () => Task.FromResult(changed),
             FullScan, FakeLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
