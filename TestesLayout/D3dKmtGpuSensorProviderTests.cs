@@ -101,6 +101,15 @@ internal static class D3dKmtGpuSensorProviderTests
         {
             var dxgi = DxgiGpuIdentityProvider.Capture();
             var native = D3dKmtGpuSensorProvider.Capture(dxgi, CancellationToken.None);
+            // Confirmar que nem mesmo o relatório agregado aceita GPU
+            // inventada: cada LUID da sonda deve existir no DXGI físico desta
+            // mesma consulta. Índices LDA são internos a cada LUID.
+            var dxgiPhysical = dxgi.Adapters.Where(x => !x.IsSoftware).ToArray();
+            Check(native.Adapters.GroupBy(x => x.Key).All(g => g.Count() == 1) &&
+                  native.Adapters.All(x =>
+                      dxgiPhysical.Count(d => d.LuidHigh == x.Key.LuidHigh &&
+                          d.LuidLow == x.Key.LuidLow) == 1 && x.Key.Physical < 16),
+                "D3DKMT nativo sem LUID DXGI inequívoco ou com índice físico inválido");
             Check(native.CapturedAtUtc.Offset == TimeSpan.Zero &&
                   native.Adapters.Count <= 512 &&
                   native.Adapters.All(x =>
@@ -109,10 +118,15 @@ internal static class D3dKmtGpuSensorProviderTests
                       x.RelativePowerPercent.Value is null or (>= 0 and <= 200)),
                 "GPU D3DKMT nativo fora dos limites ou identidade impossível");
             Console.WriteLine("D3DKMT_GPU estado=" + native.State +
-                "; dispositivos=" + native.Adapters.Count +
+                "; dxgi_fisicos=" + dxgiPhysical.Length +
+                "; dispositivos_consultados=" + native.Adapters.Count +
                 "; temperaturas=" + native.Adapters.Count(x => x.TemperatureC.Value.HasValue) +
                 "; ventoinhasRPM=" + native.Adapters.Count(x => x.FanRpm.Value.HasValue) +
-                "; potenciasRelativas=" + native.Adapters.Count(x => x.RelativePowerPercent.Value.HasValue));
+                "; potenciasRelativas=" + native.Adapters.Count(x => x.RelativePowerPercent.Value.HasValue) +
+                "; frequenciasMemoria=" + native.Adapters.Count(x => x.MemoryFrequencyMhz.Value.HasValue) +
+                "; sem_temperatura=" + native.Adapters.Count(x => !x.TemperatureC.Value.HasValue) +
+                "; sem_RPM=" + native.Adapters.Count(x => !x.FanRpm.Value.HasValue) +
+                "; limitacao=" + (native.Limitation ?? "nenhuma"));
         }
         Console.WriteLine("OK monitoramento GPU D3DKMT: temperatura, RPM, potência relativa e clock por LUID/phys.");
     }
