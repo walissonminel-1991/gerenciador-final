@@ -74,7 +74,7 @@ internal static class BundlewareReviewTests
             BundleParentKeyName = @"..\outro", CanUninstall = true
         };
         if (BundlewareReview.CanLaunchIndividual(corrupt) ||
-            BundlewareReview.Evaluate(new RegistryInventoryScan([corrupt], 1, 0, 0, 0, 0), { IncludesHiddenEntries = true },
+            BundlewareReview.Evaluate(new RegistryInventoryScan([corrupt], 1, 0, 0, 0, 0) { IncludesHiddenEntries = true },
                 corrupt).CanProposeRegisteredUninstall)
             throw new Exception("Bundleware: metadado inválido não bloqueou revisão.");
         Console.WriteLine("OK: bundleware por identidade ARP e seleção de bloatware explícita; nenhuma desinstalação.");
