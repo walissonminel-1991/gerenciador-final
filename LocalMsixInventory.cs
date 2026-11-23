@@ -6,10 +6,12 @@ namespace GerenciadorAplicativos;
 // receitas. Ter um pacote instalado NÃO concede permissão de atualizar ou
 // remover. Para todas as identidades não auditadas: somente inventário.
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
-    string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "");
+    string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "",
+    string PackageFullName = "", string PublisherId = "", bool? SystemSigned = null);
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
-    bool Retried = false, string FailureStage = "", string Apartment = "");
+    bool Retried = false, string FailureStage = "", string Apartment = "",
+    IReadOnlyList<string>? ObservedMainPackageFullNames = null);
 internal sealed record LocalMsixObservation(LocalMsixApp? App, bool Launchable = false);
 
 internal static class LocalMsixInventory
@@ -70,7 +72,12 @@ internal static class LocalMsixInventory
     // explicitamente: lista MSIX vazia nunca significa zero apps instalados.
     private static readonly LocalMsixSnapshot Snapshot = new();
     internal static LocalMsixResult ReadCurrentUser() =>
-        Snapshot.Read(() => ReadWithRetry(ReadOnce, () => Thread.Sleep(250)));
+        Snapshot.Read(() => ReadWithRetry(() => ReadOnce(null), () => Thread.Sleep(250)));
+
+    // Apenas para autorizacao e confirmacao de remocao: nenhuma retencao de
+    // leituras anteriores. A fonte deve responder integralmente nesta chamada.
+    internal static LocalMsixResult ReadCurrentUserFamilyFresh(string packageFamilyName) =>
+        ReadWithRetry(() => ReadOnce(packageFamilyName), () => Thread.Sleep(250));
 
     internal static LocalMsixResult ReadWithRetry(Func<LocalMsixResult> read,
         Action? beforeRetry = null)
@@ -110,7 +117,7 @@ internal static class LocalMsixInventory
         IsClassNotRegistered(status) ||
         string.Equals(status, "COMException(0x800703FA)", StringComparison.Ordinal);
 
-    private static LocalMsixResult ReadOnce()
+    private static LocalMsixResult ReadOnce(string? packageFamilyName)
     {
         PackageManager manager;
         try
@@ -124,17 +131,30 @@ internal static class LocalMsixInventory
         {
             // Usuário corrente; não requer permissões administrativas nem
             // enumeração de apps privados instalados em outros perfis.
-            packages = manager.FindPackagesForUser(string.Empty);
+            packages = packageFamilyName is null
+                ? manager.FindPackagesForUser(string.Empty)
+                : manager.FindPackagesForUserWithPackageTypes(
+                    string.Empty, packageFamilyName, PackageTypes.Main);
         }
         catch (Exception ex) { return Failed(ex, "query"); }
 
-        return ReadPackages(packages, package =>
+        List<string>? observedMainPackages = packageFamilyName is null ? null : new();
+        var scan = ReadPackages(packages, package =>
         {
             var id = package.Id;
+            // A presença da família independe de ícone, nome ou entrada iniciável.
+            if (observedMainPackages is not null)
+            {
+                string fullName = id.FullName;
+                if (string.IsNullOrWhiteSpace(fullName))
+                    throw new InvalidOperationException("Nome completo do pacote MSIX indisponível.");
+                observedMainPackages.Add(fullName);
+            }
             var v = id.Version;
             var candidate = Recognize(id.Name, id.PublisherId,
                 v.Major, v.Minor, v.Build, v.Revision);
-            if (candidate is not null) return new(candidate with { PackageFamilyName = id.FamilyName });
+            if (candidate is not null) return new(candidate with
+            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId });
             if (package.IsFramework || package.IsResourcePackage) return new(null);
             // Apenas apps efetivamente listados pelo Windows para o usuário.
             var app = package.GetAppListEntries().FirstOrDefault();
@@ -143,8 +163,20 @@ internal static class LocalMsixInventory
                 app.DisplayInfo.DisplayName, package.PublisherDisplayName,
                 package.IsFramework, package.IsResourcePackage, true,
                 v.Major, v.Minor, v.Build, v.Revision);
-            return new(described is null ? null : described with { PackageFamilyName = id.FamilyName }, Launchable: true);
+            return new(described is null ? null : described with
+            {
+                PackageFamilyName = id.FamilyName, PackageFullName = id.FullName,
+                PublisherId = id.PublisherId, SystemSigned = ReadSystemSignature(package)
+            },
+                Launchable: true);
         });
+        return scan with { ObservedMainPackageFullNames = observedMainPackages };
+    }
+
+    private static bool? ReadSystemSignature(Windows.ApplicationModel.Package package)
+    {
+        try { return package.SignatureKind == Windows.ApplicationModel.PackageSignatureKind.System; }
+        catch (Exception) { return null; } // Mantém visível, sem autorizar remoção.
     }
 
     // A enumeração COM é preguiçosa: MoveNext pode falhar DEPOIS de produzir
