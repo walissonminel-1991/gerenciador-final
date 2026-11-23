@@ -283,6 +283,16 @@ internal static class BundlewareReview
         }
     }
 
+    // A ausência da raiz ARP não dá autorização para limpar arquivos que
+    // ainda podem pertencer a componentes do mesmo bundle. Preservar os
+    // resultados de desinstalação; filtrar só a etapa de resíduos posterior.
+    internal static UninstallOutcome[] SafeResidualCleanupCandidates(
+        IReadOnlyList<UninstallOutcome> outcomes,
+        IReadOnlyDictionary<string, BundlePostRemovalReview> reviews) =>
+        outcomes.Where(outcome =>
+            !reviews.TryGetValue(outcome.Request.Original.InventoryId,
+                out var relationship) || !relationship.MustShowPartialResult).ToArray();
+
     // Uma segunda fotografia completa após o executor valida separadamente
     // o destino dos filhos vinculados ao pai. O executor não chama remoção
     // adicional e o resultado nunca certifica limpeza de arquivos/serviços.
