@@ -77,6 +77,37 @@ internal static class BundlewareReviewTests
             BundlewareReview.Evaluate(new RegistryInventoryScan([corrupt], 1, 0, 0, 0, 0) { IncludesHiddenEntries = true },
                 corrupt).CanProposeRegisteredUninstall)
             throw new Exception("Bundleware: metadado inválido não bloqueou revisão.");
+        // Prova funcional do encaminhamento ao executor já existente:
+        // delegates totalmente sintéticos não chamam MSI nem alteram Windows.
+        int dispatched = 0;
+        bool launchObserved = false;
+        Task<UninstallSnapshot> FullScan() => Task.FromResult(
+            new UninstallSnapshot(launchObserved ? [] : [parent, child, independent], true));
+        Task<int?> FakeLaunch(UninstallRequest request, CancellationToken _) 
+        {
+            dispatched++;
+            launchObserved = true;
+            return Task.FromResult<int?>(0);
+        }
+        Task<RegistryInventoryScan> FreshArp() => Task.FromResult(scan);
+        var denied = BundlewareReview.RunConfirmedSelectionAsync(
+            scan, [parent.InventoryId], false, FreshArp, FullScan,
+            FakeLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
+        if (denied.SentToExecutor || dispatched != 0)
+            throw new Exception("Bundleware: nenhuma remoção pode iniciar sem aceite.");
+        var changed = scan with { Items = [parent, child with { BundleParentKeyName = "OutroPacote" }, independent] };
+        var stale = BundlewareReview.RunConfirmedSelectionAsync(
+            scan, [parent.InventoryId], true, () => Task.FromResult(changed),
+            FullScan, FakeLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
+        if (stale.SentToExecutor || dispatched != 0)
+            throw new Exception("Bundleware: dependência alterada foi aceita indevidamente.");
+        var routed = BundlewareReview.RunConfirmedSelectionAsync(
+            scan, [parent.InventoryId], true, FreshArp, FullScan, FakeLaunch,
+            _ => Task.CompletedTask).GetAwaiter().GetResult();
+        if (!routed.SentToExecutor || dispatched != 1 ||
+            routed.Outcomes.Count != 1 ||
+            routed.Outcomes[0].State != UninstallState.RegistrationAbsent)
+            throw new Exception("Bundleware: seleção não passou pelo executor real com dupla conferência.");
         Console.WriteLine("OK: bundleware por identidade ARP e seleção de bloatware explícita; nenhuma desinstalação.");
     }
 }
