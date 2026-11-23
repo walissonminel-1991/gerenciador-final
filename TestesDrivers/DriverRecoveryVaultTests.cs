@@ -74,6 +74,41 @@ internal static class DriverRecoveryVaultTests
             check(review.Verified && review.CanStage &&
                 review.InfPath == inf && review.Receipt?.PackageSha256 == packageHash,
                 "Restore: copia OEM, hash e recibo coerentes liberam apenas revisao");
+            var evidence = new DriverStoreEvidence("oem900.inf", DriverStoreState.Mapped,
+                inf, inf);
+            var observedSet = new DriverPublishedAuditResult(
+                [new DriverPublishedPackage(evidence, 0, false)], false, true);
+            DriverInfVerificationResult Trusted(DriverStoreEvidence _) =>
+                new(DriverInfTrust.VerifiedInf, infHash);
+            var noRestore = DriverRecoveryVault.ReconcileWithEvidence(root, folder,
+                observedSet, Trusted, _ => "Printer");
+            check(noRestore.State == DriverRestoreReconcileState.NoRequest &&
+                !noRestore.MayClearPendingAutomatically,
+                "Restore: backup sem operação não é confundido com staging");
+            File.WriteAllText(folder + ".restore-pending.json", JsonSerializer.Serialize(new
+            {
+                Schema = 1, Action = "StageOnly", AtUtc = DateTimeOffset.UtcNow,
+                BackupHash = packageHash, State = "PENDING_RECONCILIATION"
+            }));
+            var observed = DriverRecoveryVault.ReconcileWithEvidence(root, folder,
+                observedSet, Trusted, _ => "Printer");
+            check(observed.State == DriverRestoreReconcileState.MatchingInfObserved &&
+                observed.PublishedInf == "oem900.inf" &&
+                !observed.DeviceRestored && !observed.MayClearPendingAutomatically,
+                "Restore: assinatura, classe e INF observados não provam dispositivo restaurado");
+            check(DriverRecoveryVault.ReconcileWithEvidence(root, folder,
+                observedSet with { Partial = true }, Trusted, _ => "Printer").State ==
+                    DriverRestoreReconcileState.Inconclusive &&
+                DriverRecoveryVault.ReconcileWithEvidence(root, folder,
+                    observedSet, Trusted, _ => "Display").State ==
+                    DriverRestoreReconcileState.Inconclusive &&
+                DriverRecoveryVault.ReconcileWithEvidence(root, folder,
+                    observedSet with { Packages =
+                        [new DriverPublishedPackage(evidence, 0, false),
+                         new DriverPublishedPackage(evidence with { InfName = "oem901.inf" }, 0, false)] },
+                    Trusted, _ => "Printer").State == DriverRestoreReconcileState.Inconclusive,
+                "Restore: enumeração parcial, classe conflitante e duplicidade não comprovam recuperação");
+            File.Delete(folder + ".restore-pending.json");
             File.WriteAllText(receiptPath, JsonSerializer.Serialize(receipt with { DriverClass = "Display" }));
             var display = DriverRecoveryVault.ReviewForTest(root, folder);
             check(display.Verified && !display.CanStage,
