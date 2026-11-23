@@ -15,6 +15,14 @@ internal sealed record DriverBackupOutcome(bool Saved, string Message, string? F
 internal sealed record DriverRestoreReview(bool Verified, bool CanStage, string Message,
     string? InfPath = null, DriverBackupReceipt? Receipt = null);
 internal sealed record DriverRestoreOutcome(bool Attempted, bool RequiresReconciliation, string Message);
+internal enum DriverRestoreReconcileState { NoRequest, Inconclusive, MatchingInfObserved }
+internal sealed record DriverRestoreReconciliation(DriverRestoreReconcileState State,
+    string Message, string? PublishedInf = null)
+{
+    // Nunca confirma vinculação PnP, instalação num dispositivo ou rollback.
+    internal bool DeviceRestored => false;
+    internal bool MayClearPendingAutomatically => false;
+}
 
 internal static class DriverRecoveryVault
 {
@@ -289,5 +297,95 @@ internal static class DriverRecoveryVault
                 " (" + ex.GetType().Name + "); conciliar antes de repetir.");
         }
         finally { DriverG32RecoveryTicket.EndOperation(); Interlocked.Exchange(ref active, 0); }
+    }
+
+    private sealed record StagePendingReceipt(int Schema, string Action,
+        DateTimeOffset AtUtc, string BackupHash, string State);
+
+    // Esta observação é opcional e não bloqueia o lançamento do aplicativo.
+    // Um INF já presente ANTES do comando também pode coincidir; portanto
+    // jamais deduzir que o GF o adicionou, instalou ou restaurou um dispositivo.
+    internal static DriverRestoreReconciliation ReconcileReadOnly(
+        string folder, CancellationToken token)
+    {
+        if (token.IsCancellationRequested || !OperatingSystem.IsWindows())
+            return new(DriverRestoreReconcileState.Inconclusive,
+                "Consulta indisponível; não alterar o diário de recuperação.");
+        try
+        {
+            var inventory = DriverInventory.Capture(token);
+            var published = DriverPublishedPackages.Capture(inventory, token,
+                maximumPackages: 4096, timeout: TimeSpan.FromSeconds(20));
+            return ReconcileWithEvidence(Root, folder, published,
+                entry => DriverInfVerification.Verify(entry, token), ReadInfClass);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new(DriverRestoreReconcileState.Inconclusive,
+                "Consulta ao Driver Store indisponível (" + ex.GetType().Name + ").");
+        }
+    }
+
+    // A fonte e os delegates também servem aos testes isolados: produção usa
+    // SetupAPI e assinatura do Windows; fixtures nunca alteram o Driver Store.
+    internal static DriverRestoreReconciliation ReconcileWithEvidence(
+        string root, string folder, DriverPublishedAuditResult published,
+        Func<DriverStoreEvidence, DriverInfVerificationResult> verify,
+        Func<string, string> infClass)
+    {
+        var inconclusive = new DriverRestoreReconciliation(
+            DriverRestoreReconcileState.Inconclusive,
+            "Recuperação inconclusiva; preservar o diário e não repetir staging.");
+        try
+        {
+            var review = ReviewForTest(root, folder);
+            if (!review.Verified || !review.CanStage || review.Receipt is null ||
+                !SafeChild(root, folder))
+                return inconclusive;
+            string marker = folder + ".restore-pending.json";
+            if (!File.Exists(marker))
+                return new(DriverRestoreReconcileState.NoRequest,
+                    "Backup íntegro, mas nenhuma recuperação foi solicitada.");
+            var info = new FileInfo(marker);
+            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+                info.Length is <= 2 or > 4096)
+                return inconclusive;
+            var pending = JsonSerializer.Deserialize<StagePendingReceipt>(File.ReadAllBytes(marker));
+            if (pending is null || pending.Schema != 1 || pending.Action != "StageOnly" ||
+                pending.State != "PENDING_RECONCILIATION" ||
+                !string.Equals(pending.BackupHash, review.Receipt.PackageSha256,
+                    StringComparison.OrdinalIgnoreCase) ||
+                pending.AtUtc == default ||
+                pending.AtUtc > DateTimeOffset.UtcNow.AddMinutes(5) ||
+                pending.AtUtc < review.Receipt.CreatedAtUtc)
+                return inconclusive;
+            if (published.Partial || !published.EnumerationComplete ||
+                published.Packages.Count is < 1 or > 4096 ||
+                published.Packages.Any(p => p.Evidence.State != DriverStoreState.Mapped))
+                return inconclusive;
+            // A observação só aceita UM único INF assinado de mesma classe e
+            // hash. A existência não prova que o GF efetuou a operação.
+            string? observed = null;
+            foreach (var package in published.Packages)
+            {
+                var evidence = package.Evidence;
+                var signature = verify(evidence);
+                if (signature.Trust != DriverInfTrust.VerifiedInf ||
+                    !string.Equals(signature.Sha256, review.Receipt.InfSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!DriverUpdatePilot.AllowedClass(infClass(evidence.StorePath)) ||
+                    !string.Equals(infClass(evidence.StorePath), review.Receipt.DriverClass,
+                        StringComparison.OrdinalIgnoreCase))
+                    return inconclusive;
+                if (observed is not null) return inconclusive;
+                observed = evidence.InfName;
+            }
+            return observed is null ? inconclusive : new(
+                DriverRestoreReconcileState.MatchingInfObserved,
+                "INF assinado correspondente observado no Driver Store. A origem da inclusão e a vinculação PnP não estão comprovadas; não repetir nem liberar diário automaticamente.",
+                observed);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return inconclusive; }
     }
 }
