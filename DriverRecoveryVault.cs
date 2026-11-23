@@ -109,7 +109,7 @@ internal static class DriverRecoveryVault
             return new(false, "Backup não autorizado ou inventário incompleto; nenhuma exportação.");
         if (Interlocked.CompareExchange(ref active, 1, 0) != 0)
             return new(false, "Outra operação de recuperação ainda está ativa.");
-        if (!DriverG32RecoveryTicket.TryBeginOperation())
+        if (!DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Export))
         {
             Interlocked.Exchange(ref active, 0);
             return new(false, "Atualização WUA ou recuperação já está em andamento.");
@@ -239,7 +239,7 @@ internal static class DriverRecoveryVault
             return new(false, false, "Restauração não autorizada; nada solicitado.");
         if (Interlocked.CompareExchange(ref active, 1, 0) != 0)
             return new(false, false, "Outra recuperação em andamento.");
-        if (!DriverG32RecoveryTicket.TryBeginOperation())
+        if (!DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Stage))
         {
             Interlocked.Exchange(ref active, 0);
             return new(false, false, "Atualização WUA ou recuperação já está em andamento.");
