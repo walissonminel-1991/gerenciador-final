@@ -1,0 +1,331 @@
+using System.Collections;
+using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.InteropServices;
+
+namespace GerenciadorAplicativos;
+
+// Inventário consultivo por componente SMBIOS/WMI e uso por instância lógica
+// de CPU. Um ID WMI não é um sensor térmico de CPU, DIMM, chipset ou VRM.
+internal sealed record WmiCpuSocketRaw(
+    string? DeviceId, string? Name, object? NumberOfCores,
+    object? NumberOfLogicalProcessors, object? CurrentClockSpeed);
+internal sealed record WmiRamModuleRaw(
+    string? BankLabel, string? DeviceLocator, object? Capacity,
+    object? ConfiguredClockSpeed, object? SMBIOSMemoryType);
+internal sealed record WmiMotherboardRaw(
+    string? Tag, string? Manufacturer, string? Product, string? Version);
+internal sealed record WmiLogicalCpuRaw(string? Name, object? PercentProcessorTime);
+
+internal sealed record WindowsCpuSocket(
+    string DeviceId, string? ReportedName,
+    uint? PhysicalCores, uint? LogicalProcessors,
+    MonitorReading<double> ReportedCurrentMhz);
+internal sealed record WindowsRamModule(
+    string BankLabel, string DeviceLocator,
+    MonitorReading<ulong> CapacityBytes,
+    MonitorReading<double> ConfiguredMhz, uint? SmbiosMemoryType);
+internal sealed record WindowsMotherboard(
+    string Tag, string? Manufacturer, string? Product, string? Version);
+internal sealed record WindowsLogicalCpuLoad(
+    string CounterInstance, MonitorReading<double> UsagePercent);
+
+internal sealed record WindowsPlatformHardwareSnapshot(
+    DateTimeOffset CapturedAtUtc,
+    HardwareDiscoveryState CpuSocketsState,
+    IReadOnlyList<WindowsCpuSocket> CpuSockets,
+    HardwareDiscoveryState RamModulesState,
+    IReadOnlyList<WindowsRamModule> RamModules,
+    HardwareDiscoveryState MotherboardsState,
+    IReadOnlyList<WindowsMotherboard> Motherboards,
+    HardwareDiscoveryState LogicalCpuState,
+    IReadOnlyList<WindowsLogicalCpuLoad> LogicalCpuInstances)
+{
+    internal int MeasuredLogicalCpuInstances => LogicalCpuInstances.Count(x =>
+        x.UsagePercent.Availability == MonitorAvailability.Available &&
+        x.UsagePercent.Value.HasValue);
+}
+
+internal static class WindowsPlatformHardwareProvider
+{
+    private const string Source = "Windows WMI root\\cimv2";
+    private const int MaxRowsPerClass = 512;
+    private const int MaxRamModules = 128;
+    private const int MaxCpuSockets = 64;
+    private const int MaxMotherboards = 16;
+
+    internal static ulong? UInt(object? raw)
+    {
+        if (raw is null or DBNull or bool or float or double or decimal) return null;
+        if (raw is string s)
+            return ulong.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture,
+                out ulong n) && n != ulong.MaxValue ? n : null;
+        if (raw is not (byte or ushort or uint or ulong or short or int or long))
+            return null;
+        try
+        {
+            ulong n = Convert.ToUInt64(raw, CultureInfo.InvariantCulture);
+            return n == ulong.MaxValue ? null : n;
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
+        { return null; }
+    }
+
+    internal static string? Identity(string? value)
+    {
+        string? clean = value?.Trim();
+        if (string.IsNullOrEmpty(clean) || clean.Length > 256 ||
+            clean.Any(char.IsControl) ||
+            clean.Equals("unknown", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("not specified", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("to be filled by o.e.m.", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("default string", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return clean;
+    }
+
+    private static HardwareDiscoveryState Section(bool querySucceeded, bool partial, int count)
+    {
+        if (!querySucceeded || count == 0) return HardwareDiscoveryState.Unavailable;
+        return partial ? HardwareDiscoveryState.Partial : HardwareDiscoveryState.Complete;
+    }
+
+    internal static WindowsPlatformHardwareSnapshot Join(
+        IEnumerable<WmiCpuSocketRaw> sockets,
+        IEnumerable<WmiRamModuleRaw> memory,
+        IEnumerable<WmiMotherboardRaw> boards,
+        IEnumerable<WmiLogicalCpuRaw> logical,
+        bool socketsOk = true, bool memoryOk = true, bool boardsOk = true,
+        bool logicalOk = true, bool sourcePartial = false)
+    {
+        var cpus = sockets.Take(MaxRowsPerClass + 1).ToArray();
+        var rams = memory.Take(MaxRowsPerClass + 1).ToArray();
+        var baseboards = boards.Take(MaxRowsPerClass + 1).ToArray();
+        var loads = logical.Take(MaxRowsPerClass + 1).ToArray();
+
+        bool cpuPartial = sourcePartial || cpus.Length > MaxCpuSockets;
+        bool memoryPartial = sourcePartial || rams.Length > MaxRamModules;
+        bool boardPartial = sourcePartial || baseboards.Length > MaxMotherboards;
+        bool loadPartial = sourcePartial || loads.Length > MaxRowsPerClass;
+
+        var cpuIdentities = cpus.Take(MaxCpuSockets)
+            .Select(x => (Row: x, Id: Identity(x.DeviceId)))
+            .ToArray();
+        var cpuDuplicates = cpuIdentities.Where(x => x.Id is not null)
+            .GroupBy(x => x.Id!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1).Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (cpuDuplicates.Count != 0) cpuPartial = true;
+        var cpuResult = new List<WindowsCpuSocket>();
+        foreach (var (raw, id) in cpuIdentities)
+        {
+            if (id is null || cpuDuplicates.Contains(id))
+            { cpuPartial = true; continue; }
+            ulong? cores = UInt(raw.NumberOfCores);
+            ulong? logicalCount = UInt(raw.NumberOfLogicalProcessors);
+            ulong? mhz = UInt(raw.CurrentClockSpeed);
+            if (cores is null or 0 or > 4096 ||
+                logicalCount is null or 0 or > 8192 ||
+                mhz is null or 0 or > 20_000)
+                cpuPartial = true;
+            cpuResult.Add(new(id, Identity(raw.Name),
+                cores is > 0 and <= 4096 ? (uint)cores.Value : null,
+                logicalCount is > 0 and <= 8192 ? (uint)logicalCount.Value : null,
+                mhz is >= 100 and <= 20_000
+                    ? MonitorReading<double>.Available(mhz.Value, Source + " Win32_Processor.CurrentClockSpeed (reportado)")
+                    : MonitorReading<double>.Unavailable(Source + " Win32_Processor.CurrentClockSpeed")));
+        }
+
+        var ramIdentities = rams.Take(MaxRamModules)
+            .Select(x => (Row: x, Bank: Identity(x.BankLabel),
+                Slot: Identity(x.DeviceLocator))).ToArray();
+        var duplicateSlots = ramIdentities
+            .Where(x => x.Bank is not null || x.Slot is not null)
+            .GroupBy(x => (x.Bank ?? "") + "\u001f" + (x.Slot ?? ""),
+                StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1).Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (duplicateSlots.Count != 0) memoryPartial = true;
+        var ramResult = new List<WindowsRamModule>();
+        foreach (var (raw, bank, slot) in ramIdentities)
+        {
+            if ((bank is null && slot is null) ||
+                duplicateSlots.Contains((bank ?? "") + "\u001f" + (slot ?? "")))
+            { memoryPartial = true; continue; }
+            ulong? capacity = UInt(raw.Capacity);
+            ulong? mhz = UInt(raw.ConfiguredClockSpeed);
+            ulong? memoryType = UInt(raw.SMBIOSMemoryType);
+            if (capacity is null or < 16_777_216 or > 4_398_046_511_104 ||
+                mhz is null or < 100 or > 20_000)
+                memoryPartial = true;
+            ramResult.Add(new(bank ?? "", slot ?? "",
+                capacity is >= 16_777_216 and <= 4_398_046_511_104
+                    ? MonitorReading<ulong>.Available(capacity.Value, Source + " Win32_PhysicalMemory.Capacity")
+                    : MonitorReading<ulong>.Unavailable(Source + " Win32_PhysicalMemory.Capacity"),
+                mhz is >= 100 and <= 20_000
+                    ? MonitorReading<double>.Available(mhz.Value, Source + " Win32_PhysicalMemory.ConfiguredClockSpeed")
+                    : MonitorReading<double>.Unavailable(Source + " Win32_PhysicalMemory.ConfiguredClockSpeed"),
+                memoryType is > 0 and <= ushort.MaxValue
+                    ? (uint)memoryType.Value : null));
+        }
+
+        var boardIdentities = baseboards.Take(MaxMotherboards)
+            .Select(x => (Row: x, Tag: Identity(x.Tag))).ToArray();
+        var duplicateTags = boardIdentities.Where(x => x.Tag is not null)
+            .GroupBy(x => x.Tag!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1).Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (duplicateTags.Count != 0) boardPartial = true;
+        var boardsResult = new List<WindowsMotherboard>();
+        foreach (var (raw, tag) in boardIdentities)
+        {
+            if (tag is null || duplicateTags.Contains(tag))
+            { boardPartial = true; continue; }
+            var maker = Identity(raw.Manufacturer);
+            var model = Identity(raw.Product);
+            if (maker is null || model is null) boardPartial = true;
+            boardsResult.Add(new(tag, maker, model, Identity(raw.Version)));
+        }
+
+        var validLoads = loads.Take(MaxRowsPerClass).Select(x =>
+            (Raw: x, Name: Identity(x.Name))).ToArray();
+        var duplicateInstances = validLoads
+            .Where(x => x.Name is not null && IsLogicalIndex(x.Name))
+            .GroupBy(x => x.Name!, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1).Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (duplicateInstances.Count != 0) loadPartial = true;
+        var loadResult = new List<WindowsLogicalCpuLoad>();
+        foreach (var (raw, name) in validLoads)
+        {
+            if (name == "_Total") continue;
+            if (name is null || !IsLogicalIndex(name) || duplicateInstances.Contains(name))
+            { loadPartial = true; continue; }
+            ulong? usage = UInt(raw.PercentProcessorTime);
+            if (usage is > 100 or null) loadPartial = true;
+            loadResult.Add(new(name,
+                usage is <= 100
+                    ? MonitorReading<double>.Available(usage.Value, Source + " Win32_PerfFormattedData_PerfOS_Processor.PercentProcessorTime (instância lógica)")
+                    : MonitorReading<double>.Unavailable(Source + " Win32_PerfFormattedData_PerfOS_Processor.PercentProcessorTime")));
+        }
+
+        return new(DateTimeOffset.UtcNow,
+            Section(socketsOk, cpuPartial, cpuResult.Count), cpuResult.AsReadOnly(),
+            Section(memoryOk, memoryPartial, ramResult.Count), ramResult.AsReadOnly(),
+            Section(boardsOk, boardPartial, boardsResult.Count), boardsResult.AsReadOnly(),
+            Section(logicalOk, loadPartial, loadResult.Count), loadResult.AsReadOnly());
+    }
+
+    private static bool IsLogicalIndex(string name) =>
+        name.Length is >= 1 and <= 4 && name.All(char.IsAsciiDigit) &&
+        ushort.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out ushort n) &&
+        n <= 4095;
+
+    internal static WindowsPlatformHardwareSnapshot Capture(CancellationToken token)
+    {
+        if (!OperatingSystem.IsWindows())
+            return Join([], [], [], [], false, false, false, false);
+        object? locator = null, service = null;
+        var cpus = new List<WmiCpuSocketRaw>();
+        var ram = new List<WmiRamModuleRaw>();
+        var boards = new List<WmiMotherboardRaw>();
+        var loads = new List<WmiLogicalCpuRaw>();
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            var type = Type.GetTypeFromProgID("WbemScripting.SWbemLocator");
+            if (type is null)
+                return Join([], [], [], [], false, false, false, false);
+            locator = Activator.CreateInstance(type);
+            service = ((dynamic)locator!).ConnectServer(".", @"root\cimv2");
+            var clock = Stopwatch.StartNew();
+            bool partial = false;
+
+            bool Query(string sql, Action<Func<string, object?>> use)
+            {
+                object? result = null;
+                try
+                {
+                    token.ThrowIfCancellationRequested();
+                    result = ((dynamic)service!).ExecQuery(sql, "WQL", 16);
+                    if (result is null) return false;
+                    int count = 0;
+                    foreach (object row in (IEnumerable)result)
+                    {
+                        try
+                        {
+                            if (++count > MaxRowsPerClass ||
+                                clock.Elapsed > TimeSpan.FromSeconds(12))
+                            { partial = true; break; }
+                            token.ThrowIfCancellationRequested();
+                            object? Get(string key)
+                            {
+                                object? props = null, prop = null;
+                                try
+                                {
+                                    props = ((dynamic)row).Properties_;
+                                    if (props is null) { partial = true; return null; }
+                                    prop = ((dynamic)props).Item(key);
+                                    if (prop is null) { partial = true; return null; }
+                                    return ((dynamic)prop).Value;
+                                }
+                                catch (Exception ex) when (ex is COMException or
+                                    Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or NullReferenceException)
+                                { partial = true; return null; }
+                                finally { Release(prop); Release(props); }
+                            }
+                            use(Get);
+                        }
+                        finally { Release(row); }
+                    }
+                    return true;
+                }
+                catch (Exception ex) when (ex is COMException or
+                    Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or
+                    UnauthorizedAccessException or InvalidCastException)
+                { partial = true; return false; }
+                finally { Release(result); }
+            }
+
+            bool cpuOk = Query("SELECT DeviceID, Name, NumberOfCores, " +
+                "NumberOfLogicalProcessors, CurrentClockSpeed FROM Win32_Processor",
+                get => cpus.Add(new(
+                    Convert.ToString(get("DeviceID"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("Name"), CultureInfo.InvariantCulture),
+                    get("NumberOfCores"), get("NumberOfLogicalProcessors"),
+                    get("CurrentClockSpeed"))));
+            bool ramOk = Query("SELECT BankLabel, DeviceLocator, Capacity, " +
+                "ConfiguredClockSpeed, SMBIOSMemoryType FROM Win32_PhysicalMemory",
+                get => ram.Add(new(
+                    Convert.ToString(get("BankLabel"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("DeviceLocator"), CultureInfo.InvariantCulture),
+                    get("Capacity"), get("ConfiguredClockSpeed"), get("SMBIOSMemoryType"))));
+            bool boardOk = Query("SELECT Tag, Manufacturer, Product, Version FROM Win32_BaseBoard",
+                get => boards.Add(new(
+                    Convert.ToString(get("Tag"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("Manufacturer"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("Product"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("Version"), CultureInfo.InvariantCulture))));
+            bool loadOk = Query("SELECT Name, PercentProcessorTime " +
+                "FROM Win32_PerfFormattedData_PerfOS_Processor",
+                get => loads.Add(new(
+                    Convert.ToString(get("Name"), CultureInfo.InvariantCulture),
+                    get("PercentProcessorTime"))));
+            return Join(cpus, ram, boards, loads,
+                cpuOk, ramOk, boardOk, loadOk, partial);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is COMException or
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or
+            UnauthorizedAccessException or InvalidCastException or
+            ArgumentException or System.Security.SecurityException)
+        { return Join([], [], [], [], false, false, false, false); }
+        finally { Release(service); Release(locator); }
+    }
+
+    private static void Release(object? obj)
+    {
+        if (obj is not null && Marshal.IsComObject(obj))
+            Marshal.FinalReleaseComObject(obj);
+    }
+}
