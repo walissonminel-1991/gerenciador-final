@@ -87,6 +87,16 @@ internal sealed record DriverMaintenanceReadOnlyOverview(
         ". Nenhuma atualização ou recuperação autorizada por este resumo.";
 }
 
+// Gate puramente consultivo. Leituras de hashes podem terminar fora de
+// ordem; apenas a seleção vigente pode receber o resultado na interface.
+internal sealed class DriverOverviewReadRevisionGate
+{
+    private int revision;
+    internal int NewSelection() => Interlocked.Increment(ref revision);
+    internal bool MayPublish(int selectedRevision) =>
+        selectedRevision > 0 && Volatile.Read(ref revision) == selectedRevision;
+}
+
 internal static class DriverRecoveryVault
 {
     private static int active;

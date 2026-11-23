@@ -8,6 +8,17 @@ internal static class DriverRecoveryVaultTests
 {
     internal static void Run(Action<bool, string> check)
     {
+        // Seleções sucessivas podem compartilhar leitura em segundo plano,
+        // mas um recibo antigo jamais substitui a seleção mais recente.
+        var revisionGate = new DriverOverviewReadRevisionGate();
+        int firstRequest = revisionGate.NewSelection();
+        check(revisionGate.MayPublish(firstRequest) &&
+            !revisionGate.MayPublish(0),
+            "Cofre consultivo: primeira leitura ativa, token vazio rejeitado");
+        int secondRequest = revisionGate.NewSelection();
+        check(!revisionGate.MayPublish(firstRequest) &&
+            revisionGate.MayPublish(secondRequest),
+            "Cofre consultivo: resultado atrasado não sobrescreve outra seleção");
         // Um backup manual, staging ou exclusão nunca é uma sessão WUA.
         check(!DriverG32RecoveryTicket.TryBeginOperation((DriverG32OperationKind)99),
             "Motor Drivers: espécie inválida não adquire trava");
