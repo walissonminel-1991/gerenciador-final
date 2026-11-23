@@ -40,6 +40,18 @@ internal sealed record DriverBackupCatalogSnapshot(
         DriverBackupCatalogState.PendingReconciliation);
 }
 
+// Recibo WUA é diferente do recibo manual. A contagem só comprova
+// coerência de hashes no instante da leitura, nunca assinatura, origem
+// autenticada, vinculação PnP ou autoridade para executar manutenção.
+internal sealed record DriverWuaExportReceipt(DriverUpdatePilotChoice Candidate,
+    string BackupSha256, string InfSha256, DateTimeOffset VerifiedAtUtc,
+    string? OriginalInf = null);
+internal sealed record DriverWuaExportCatalogSnapshot(
+    int VerifiedHashes, int Inconclusive, int Inspected, bool Partial)
+{
+    internal bool CanStageOrInstall => false;
+}
+
 // Visão consultiva agregada para a futura camada de detalhes do GF.
 // O cofre OEM e o diário WUA são fontes independentes: backup disponível
 // não prova atualização instalada, e journal Verified não autoriza restauração.
@@ -48,8 +60,11 @@ internal sealed record DriverMaintenanceReadOnlyOverview(
     DriverBackupCatalogSnapshot Backups,
     bool OtherDriverOperationActive)
 {
+    internal DriverWuaExportCatalogSnapshot WuaExports { get; init; } =
+        new(0, 0, 0, false);
     internal bool NeedsSupervisedReview =>
         UpdateJournal.RequiresSupervisedReview ||
+        WuaExports.Partial ||
         Backups.Partial ||
         Backups.Items.Any(x => x.State is DriverBackupCatalogState.Inconclusive
             or DriverBackupCatalogState.PendingReconciliation) ||
@@ -64,8 +79,10 @@ internal sealed record DriverMaintenanceReadOnlyOverview(
         "Diário WUA: " + UpdateJournal.Disposition +
         (UpdateJournal.OtherProcessHoldsLock ? " (outra sessão ativa)" : "") +
         ". Cópias OEM verificadas: " + Backups.VerifiedCount +
+        "; exportações WUA com hashes coerentes: " + WuaExports.VerifiedHashes +
+        "; recibos WUA inconclusivos: " + WuaExports.Inconclusive +
         "; recuperações pendentes: " + PendingRecoveries +
-        (Backups.Partial ? "; catálogo parcial/inconclusivo" : "") +
+        (Backups.Partial || WuaExports.Partial ? "; catálogo parcial/inconclusivo" : "") +
         (OtherDriverOperationActive ? "; operação de Drivers ativa" : "") +
         ". Nenhuma atualização ou recuperação autorizada por este resumo.";
 }
@@ -258,7 +275,118 @@ internal static class DriverRecoveryVault
         string journalPath, string backupRoot, bool driverOperationActive,
         int maximumBackups = 128) =>
         new(DriverUpdatePilotFileJournal.InspectReadOnly(journalPath),
-            BrowseBackupsForTest(backupRoot, maximumBackups), driverOperationActive);
+            BrowseBackupsForTest(backupRoot, maximumBackups), driverOperationActive)
+        {
+            WuaExports = BrowseWuaExportsForTest(backupRoot)
+        };
+
+    // Identificação de INF legado pela impressão exata, jamais por título,
+    // classe ou nome de fabricante. Limites e verificação de reparse são
+    // independentes da conferência posterior de todo o pacote.
+    private static string? FindLegacyWuaInf(string folder, string expectedHash)
+    {
+        var directories = new Queue<string>();
+        directories.Enqueue(folder);
+        string? matched = null;
+        int dirs = 0, entries = 0, infs = 0;
+        while (directories.Count > 0)
+        {
+            if (++dirs > 128) return null;
+            var current = directories.Dequeue();
+            if (File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
+                return null;
+            foreach (string path in Directory.EnumerateFileSystemEntries(current))
+            {
+                if (++entries > 256) return null;
+                var attributes = File.GetAttributes(path);
+                if (attributes.HasFlag(FileAttributes.ReparsePoint)) return null;
+                if (attributes.HasFlag(FileAttributes.Directory))
+                {
+                    directories.Enqueue(path);
+                    continue;
+                }
+                if (!InfFile.IsMatch(Path.GetFileName(path))) continue;
+                if (++infs > 32) return null;
+                var info = new FileInfo(path);
+                if (info.Length is < 1 or > 20_000_000) return null;
+                using var stream = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.Read);
+                if (!Convert.ToHexString(SHA256.HashData(stream))
+                    .Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (matched is not null) return null;
+                matched = Path.GetFileName(path);
+            }
+        }
+        return matched;
+    }
+
+    // Somente leitura: formatos WUA legados sem OriginalInf são associados
+    // pelo único INF cujo SHA corresponde ao recibo. Hash coerente não
+    // prova assinatura digital nem libera staging/restauração.
+    internal static DriverWuaExportCatalogSnapshot BrowseWuaExportsForTest(
+        string root, int maximum = 16)
+    {
+        int verified = 0, inconclusive = 0, inspected = 0;
+        bool partial = false;
+        try
+        {
+            if (maximum is < 1 or > 64) return new(0, 0, 0, true);
+            if (!Directory.Exists(root))
+                return new(0, 0, 0, !ExistingParentsAreOrdinary(root));
+            if (!ExistingParentsAreOrdinary(root)) return new(0, 0, 0, true);
+            var folders = Directory.EnumerateDirectories(root, "wua-*",
+                SearchOption.TopDirectoryOnly).Take(maximum + 1).ToArray();
+            if (folders.Length > maximum) partial = true;
+            foreach (var folder in folders.Take(maximum))
+            {
+                inspected++;
+                try
+                {
+                    if (!SafeChild(root, folder)) throw new InvalidDataException();
+                    string receiptPath = folder + ".json";
+                    if (!File.Exists(receiptPath)) throw new InvalidDataException();
+                    var info = new FileInfo(receiptPath);
+                    if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+                        info.Length is <= 2 or > 16384)
+                        throw new InvalidDataException();
+                    var receipt = JsonSerializer.Deserialize<DriverWuaExportReceipt>(
+                        File.ReadAllBytes(receiptPath));
+                    if (receipt?.Candidate is null ||
+                        !Guid.TryParseExact(receipt.Candidate.UpdateId, "D", out var id) ||
+                        id == Guid.Empty || receipt.Candidate.Revision < 1 ||
+                        string.IsNullOrWhiteSpace(receipt.Candidate.DeviceId) ||
+                        string.IsNullOrWhiteSpace(receipt.Candidate.HardwareId) ||
+                        !PublishedInf.IsMatch(receipt.Candidate.InfName ?? "") ||
+                        !DriverUpdatePilot.AllowedClass(receipt.Candidate.DriverClass) ||
+                        !Hash64(receipt.InfSha256) || !Hash64(receipt.BackupSha256) ||
+                        receipt.VerifiedAtUtc == default ||
+                        receipt.VerifiedAtUtc > DateTimeOffset.UtcNow.AddMinutes(5))
+                        throw new InvalidDataException();
+                    string? originalInf = receipt.OriginalInf;
+                    if (originalInf is null)
+                        originalInf = FindLegacyWuaInf(folder, receipt.InfSha256);
+                    if (!InfFile.IsMatch(originalInf ?? "") ||
+                        !DriverSilentUninstall.VerifyBackup(folder, originalInf!,
+                            receipt.InfSha256, out string actualPackageHash) ||
+                        !string.Equals(actualPackageHash, receipt.BackupSha256,
+                            StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException();
+                    verified++;
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    inconclusive++;
+                    partial = true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            partial = true;
+        }
+        return new(verified, inconclusive, inspected, partial);
+    }
 
     // Catálogo consultivo: não enumera Driver Store, não cria pastas,
     // não remove arquivos e nunca oculta recibos pendentes de recuperação.

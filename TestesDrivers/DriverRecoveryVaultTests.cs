@@ -85,6 +85,50 @@ internal static class DriverRecoveryVaultTests
                 !overview.NeedsSupervisedReview &&
                 !overview.GrantsMaintenancePermission,
                 "Visao WUA+cofre: uma copia valida nao concede instalacao");
+            // Mesmo cofre, formatos independentes: recibo manual não autoriza
+            // operação WUA; recibo WUA só conta hash de conteúdo confirmado.
+            string wua = Path.Combine(root, "wua-fixture");
+            Directory.CreateDirectory(wua);
+            File.WriteAllBytes(Path.Combine(wua, "sample.inf"), infBytes);
+            var wuaCandidate = new DriverUpdatePilotChoice(
+                "184805db-c606-48f8-987f-4502ea4c3a36", 1, id,
+                @"PCI\VEN_1111&DEV_2222", "OEM Sintético", "oem17.inf",
+                "1.0", "Printer", "Oferta de laboratório");
+            string wuaReceipt = wua + ".json";
+            object WuaReceipt(bool newFormat) => newFormat
+                ? new {
+                    Candidate = wuaCandidate, InfSha256 = infHash,
+                    BackupSha256 = packageHash, OriginalInf = "sample.inf",
+                    VerifiedAtUtc = DateTimeOffset.UtcNow
+                }
+                : new {
+                    Candidate = wuaCandidate, InfSha256 = infHash,
+                    BackupSha256 = packageHash, VerifiedAtUtc = DateTimeOffset.UtcNow
+                };
+            File.WriteAllText(wuaReceipt, JsonSerializer.Serialize(WuaReceipt(true)));
+            var wuaOverview = DriverRecoveryVault.CaptureOverviewReadOnlyForTest(
+                Path.Combine(root, "no-wua-journal.json"), root, false);
+            check(wuaOverview.WuaExports is {
+                    VerifiedHashes: 1, Inconclusive: 0, Inspected: 1, Partial: false,
+                    CanStageOrInstall: false } &&
+                wuaOverview.Backups.VerifiedCount == 1 &&
+                wuaOverview.StatusForDriverPilot.Contains(
+                    "exportações WUA com hashes coerentes: 1", StringComparison.Ordinal) &&
+                !wuaOverview.StatusForDriverPilot.Contains(root,
+                    StringComparison.OrdinalIgnoreCase),
+                "WUA: recibo validado apenas como cofre consultivo separado");
+            File.WriteAllText(wuaReceipt, JsonSerializer.Serialize(WuaReceipt(false)));
+            check(DriverRecoveryVault.BrowseWuaExportsForTest(root).VerifiedHashes == 1,
+                "WUA: recibo legado sem OriginalInf encontra hash INF único");
+            File.AppendAllText(Path.Combine(wua, "sample.inf"), "; adulterado");
+            var corruptedWua = DriverRecoveryVault.BrowseWuaExportsForTest(root);
+            check(corruptedWua is { VerifiedHashes: 0, Inconclusive: 1,
+                    Partial: true, CanStageOrInstall: false },
+                "WUA: pacote alterado é inconclusivo e nunca autoriza staging");
+            File.WriteAllBytes(Path.Combine(wua, "sample.inf"), infBytes);
+            File.WriteAllText(wuaReceipt, JsonSerializer.Serialize(WuaReceipt(true)));
+            check(DriverRecoveryVault.BrowseWuaExportsForTest(root, 0).Partial,
+                "WUA: limite de catálogo inválido falha fechado");
             var busyOverview = DriverRecoveryVault.CaptureOverviewReadOnlyForTest(
                 Path.Combine(root, "no-wua-journal.json"), root, true);
             check(busyOverview.NeedsSupervisedReview &&

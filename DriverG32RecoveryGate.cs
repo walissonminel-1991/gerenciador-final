@@ -182,7 +182,9 @@ internal sealed class DriverG32RecoveryTicket
             byte[] receipt = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 Candidate = candidate, BackupSha256 = digest,
-                InfSha256 = verification.Sha256, VerifiedAtUtc = DateTimeOffset.UtcNow,
+                InfSha256 = verification.Sha256,
+                OriginalInf = Path.GetFileName(mapped.StorePath),
+                VerifiedAtUtc = DateTimeOffset.UtcNow,
                 Recovery = "Backup OEM; restauração exclusivamente supervisionada."
             });
             // Recibo fora da pasta exportada: o hash do pacote permanece imutável.
