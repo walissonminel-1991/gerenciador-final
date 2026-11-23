@@ -67,17 +67,11 @@ internal static class NvidiaNvmlSensorProvider
             ? MonitorReading<double>.Available(milliwatts.Value / 1000d, Source + " potência GPU")
             : MonitorReading<double>.Unavailable(Source + " potência GPU");
 
-    internal static MonitorReading<ulong> Vram(MemoryInfo? memory) =>
-        memory is { } m && m.Total > 0 && m.Used <= m.Total &&
-        m.Free <= m.Total && m.Used <= m.Total - m.Free + 32UL * 1024 * 1024
-            ? MonitorReading<ulong>.Available(m.Used, Source + " memória framebuffer (WDDM)")
-            : MonitorReading<ulong>.Unavailable(Source + " memória framebuffer (WDDM)");
-
     // A memória de vídeo reportada pelo WDDM não representa alocação por jogo.
     // A margem de 32 MiB aceita variação do contador entre campos do driver.
     internal static bool IsPlausibleMemory(ulong total, ulong free, ulong used) =>
         total > 0 && used <= total && free <= total &&
-        used <= total - free + 32UL * 1024 * 1024;
+        (used <= total - free || used - (total - free) <= 32UL * 1024 * 1024);
 
     private static T? Export<T>(IntPtr library, string name) where T : Delegate =>
         NativeLibrary.TryGetExport(library, name, out var address)
