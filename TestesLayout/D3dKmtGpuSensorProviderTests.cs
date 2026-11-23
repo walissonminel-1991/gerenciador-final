@@ -55,6 +55,25 @@ internal static class D3dKmtGpuSensorProviderTests
               reject.Adapters.Single(x => x.Key == intel).MemoryFrequencyMhz.Value is null &&
               reject.State == HardwareDiscoveryState.Partial,
             "valores impossíveis ou driver que não responde não podem ser exibidos");
+        var poweredOff = D3dKmtGpuSensorProvider.Join([
+            rows[0] with { IsPoweredOn = false }
+        ]);
+        Check(poweredOff.State == HardwareDiscoveryState.Partial &&
+              poweredOff.Adapters.Count == 1 &&
+              poweredOff.Adapters[0].Key == amd &&
+              poweredOff.Adapters[0].TemperatureC.Value is null &&
+              poweredOff.Adapters[0].FanRpm.Value is null &&
+              poweredOff.Adapters[0].RelativePowerPercent.Value is null &&
+              poweredOff.Adapters[0].MemoryFrequencyMhz.Value is null,
+            "GPU que o driver informa desligada deve conservar identidade sem leituras ativas");
+        var poweredMixed = D3dKmtGpuSensorProvider.Join([
+            rows[0] with { IsPoweredOn = false }, rows[2]
+        ]);
+        Check(poweredMixed.State == HardwareDiscoveryState.Partial &&
+              poweredMixed.Adapters.Single(x => x.Key == nvidia).TemperatureC.Value == 53 &&
+              poweredMixed.Adapters.Single(x => x.Key == amd).TemperatureC.Value is null,
+            "GPU desligada não pode invalidar sensores de outro LUID");
+
         var duplicate = D3dKmtGpuSensorProvider.Join([rows[0], rows[0]]);
         Check(duplicate.State == HardwareDiscoveryState.Unavailable &&
               duplicate.Adapters.Count == 0,
