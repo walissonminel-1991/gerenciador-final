@@ -9,7 +9,8 @@ internal sealed record D3dKmtAdapterRaw(
     WddmGpuKey Key,
     ulong MemoryFrequencyHz, uint FanRpm, uint PowerTenthsPercent,
     uint TemperatureTenthsC, uint MaxFanRpm, uint TemperatureMaxTenthsC,
-    bool HasPerformanceData, bool HasCapabilities);
+    bool HasPerformanceData, bool HasCapabilities,
+    bool IsPoweredOn = true);
 
 internal sealed record D3dKmtGpuReading(
     WddmGpuKey Key,
@@ -128,7 +129,11 @@ internal static class D3dKmtGpuSensorProvider
         {
             if (row.Key.Physical >= MaxPhysicalAdapters || duplicateIds.Contains(row.Key))
             { partial = true; continue; }
-            if (!row.HasPerformanceData) partial = true;
+            // PowerStateOverride do driver indica 1 para GPU ligada.
+            // Conservar a identidade do adaptador, mas não aceitar telemetria
+            // de uma GPU que o próprio driver informa estar desligada.
+            bool active = row.HasPerformanceData && row.IsPoweredOn;
+            if (!active) partial = true;
 
             var unavailableTemp = MonitorReading<double>.Unavailable(Source + ".Temperature");
             var unavailableFan = MonitorReading<double>.Unavailable(Source + ".FanRPM");
@@ -139,15 +144,15 @@ internal static class D3dKmtGpuSensorProvider
             bool capTemperature = row.HasCapabilities &&
                 row.TemperatureMaxTenthsC is >= 200 and <= 2_000;
             bool capFan = row.HasCapabilities && row.MaxFanRpm is >= 300 and <= 40_000;
-            bool temperatureOk = row.HasPerformanceData && capTemperature &&
+            bool temperatureOk = active && capTemperature &&
                 row.TemperatureTenthsC is >= 100 and <= 1_500 &&
                 row.TemperatureTenthsC <= row.TemperatureMaxTenthsC;
-            bool fanOk = row.HasPerformanceData && capFan &&
+            bool fanOk = active && capFan &&
                 row.FanRpm <= row.MaxFanRpm;
             // Power não informa watts: é percentagem relativa (décimos).
-            bool powerOk = row.HasPerformanceData &&
+            bool powerOk = active &&
                 row.PowerTenthsPercent is >= 1 and <= 2_000;
-            bool clockOk = row.HasPerformanceData &&
+            bool clockOk = active &&
                 row.MemoryFrequencyHz is >= 10_000_000 and <= 50_000_000_000;
             result.Add(new(row.Key,
                 temperatureOk
@@ -221,7 +226,7 @@ internal static class D3dKmtGpuSensorProvider
                     result.Add(new(new WddmGpuKey(gpu.LuidHigh, gpu.LuidLow, i),
                         perf.MemoryFrequency, perf.FanRpm, perf.Power, perf.Temperature,
                         caps.MaxFanRpm, caps.TemperatureMax,
-                        perfOk, capOk));
+                        perfOk, capOk, perfOk && perf.PowerStateOverride == 1));
                 }
             }
             catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or
