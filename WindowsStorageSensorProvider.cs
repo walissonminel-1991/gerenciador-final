@@ -80,11 +80,19 @@ internal static class WindowsStorageSensorProvider
         var groups = sensorRows.Where(x => !string.IsNullOrWhiteSpace(x.DeviceId))
             .GroupBy(x => x.DeviceId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Key, x => x.ToArray(), StringComparer.OrdinalIgnoreCase);
+        var duplicatePhysicalIds = physicalRows
+            .Where(x => !string.IsNullOrWhiteSpace(x.DeviceId))
+            .GroupBy(x => x.DeviceId, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (duplicatePhysicalIds.Count > 0) partial = true;
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var devices = new List<StorageDeviceSensors>();
         foreach (var disk in physicalRows.Take(MaxRows))
         {
-            if (string.IsNullOrWhiteSpace(disk.DeviceId) || !ids.Add(disk.DeviceId))
+            if (string.IsNullOrWhiteSpace(disk.DeviceId) ||
+                duplicatePhysicalIds.Contains(disk.DeviceId) || !ids.Add(disk.DeviceId))
             {
                 partial = true; continue;
             }
