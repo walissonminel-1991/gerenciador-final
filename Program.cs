@@ -4050,6 +4050,18 @@ internal static class WorkerHost
             }
             case "windows-repair":
             {
+                // O check consultivo anterior não é autoridade permanente:
+                // repetir o estado de reboot no próprio processo elevado,
+                // imediatamente antes de qualquer DISM /RestoreHealth.
+                var reboot = WindowsIntegrityAssessment.InspectRebootReadOnly();
+                if (reboot != WindowsRepairRebootState.Clear)
+                {
+                    log(reboot == WindowsRepairRebootState.Pending
+                        ? "Há reinicialização pendente do Windows. Reparo não iniciado; conclua o reinício manual e refaça o diagnóstico."
+                        : "Não foi possível verificar a ausência de reinicialização pendente. Reparo não iniciado.");
+                    log(WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Inconclusive));
+                    return 2;
+                }
                 log("Etapa 1/2 — DISM: examinando e, se necessário, reparando a imagem do Windows.");
                 int dismCode = await Run("dism.exe", "/Online", "/Cleanup-Image", "/RestoreHealth");
                 if (dismCode != 0)
