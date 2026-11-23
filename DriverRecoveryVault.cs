@@ -260,17 +260,21 @@ internal static class DriverRecoveryVault
                     }
                     string marker = folder + ".restore-pending.json";
                     bool markerExists = File.Exists(marker);
-                    bool markerLink = markerExists &&
-                        File.GetAttributes(marker).HasFlag(FileAttributes.ReparsePoint);
-                    var state = markerExists ? DriverBackupCatalogState.PendingReconciliation :
+                    bool markerValid = !markerExists ||
+                        PendingMarkerMatches(marker, review.Receipt);
+                    var state = markerExists && !markerValid
+                        ? DriverBackupCatalogState.Inconclusive :
+                        markerExists ? DriverBackupCatalogState.PendingReconciliation :
                         review.CanStage ? DriverBackupCatalogState.Valid :
                         DriverBackupCatalogState.ProtectedClass;
-                    items.Add(new(folder, markerLink ? DriverBackupCatalogState.Inconclusive : state,
-                        markerLink ? "Marcador redirecionado; revisão manual necessária." :
-                        markerExists ? "Recuperação pendente de conciliação; não repetir." :
-                        review.Message, review.Receipt.PublishedInf, review.Receipt.DriverClass,
+                    items.Add(new(folder, state,
+                        markerExists && !markerValid
+                            ? "Marcador de recuperação inválido ou redirecionado; preservar para revisão."
+                            : markerExists ? "Recuperação pendente de conciliação; não repetir."
+                            : review.Message,
+                        review.Receipt.PublishedInf, review.Receipt.DriverClass,
                         review.Receipt.CreatedAtUtc));
-                    if (markerLink) partial = true;
+                    if (markerExists && !markerValid) partial = true;
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
@@ -390,6 +394,30 @@ internal static class DriverRecoveryVault
     private sealed record StagePendingReceipt(int Schema, string Action,
         DateTimeOffset AtUtc, string BackupHash, string State);
 
+    // Usado pelo catálogo e conciliação: um arquivo de nome esperado não
+    // comprova sozinho uma solicitação legítima de staging.
+    private static bool PendingMarkerMatches(string marker, DriverBackupReceipt receipt)
+    {
+        try
+        {
+            if (!File.Exists(marker)) return false;
+            var info = new FileInfo(marker);
+            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+                info.Length is <= 2 or > 4096)
+                return false;
+            var pending = JsonSerializer.Deserialize<StagePendingReceipt>(File.ReadAllBytes(marker));
+            return pending is not null && pending.Schema == 1 &&
+                pending.Action == "StageOnly" &&
+                pending.State == "PENDING_RECONCILIATION" &&
+                string.Equals(pending.BackupHash, receipt.PackageSha256,
+                    StringComparison.OrdinalIgnoreCase) &&
+                pending.AtUtc != default &&
+                pending.AtUtc <= DateTimeOffset.UtcNow.AddMinutes(5) &&
+                pending.AtUtc >= receipt.CreatedAtUtc;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
     // Esta observação é opcional e não bloqueia o lançamento do aplicativo.
     // Um INF já presente ANTES do comando também pode coincidir; portanto
     // jamais deduzir que o GF o adicionou, instalou ou restaurou um dispositivo.
@@ -434,18 +462,7 @@ internal static class DriverRecoveryVault
             if (!File.Exists(marker))
                 return new(DriverRestoreReconcileState.NoRequest,
                     "Backup íntegro, mas nenhuma recuperação foi solicitada.");
-            var info = new FileInfo(marker);
-            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
-                info.Length is <= 2 or > 4096)
-                return inconclusive;
-            var pending = JsonSerializer.Deserialize<StagePendingReceipt>(File.ReadAllBytes(marker));
-            if (pending is null || pending.Schema != 1 || pending.Action != "StageOnly" ||
-                pending.State != "PENDING_RECONCILIATION" ||
-                !string.Equals(pending.BackupHash, review.Receipt.PackageSha256,
-                    StringComparison.OrdinalIgnoreCase) ||
-                pending.AtUtc == default ||
-                pending.AtUtc > DateTimeOffset.UtcNow.AddMinutes(5) ||
-                pending.AtUtc < review.Receipt.CreatedAtUtc)
+            if (!PendingMarkerMatches(marker, review.Receipt))
                 return inconclusive;
             if (published.Partial || !published.EnumerationComplete ||
                 published.Packages.Count is < 1 or > 4096 ||
