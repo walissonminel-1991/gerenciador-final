@@ -4,9 +4,12 @@ namespace GerenciadorAplicativos;
 // terminado sem erro, nunca rede reparada, DNS resolvido ou reboot concluido.
 internal enum NetworkRepairWorkerState { NotConfirmed, CommandReturnedZero, CommandReturnedError }
 
-// Uma única resolução do nome de teste não comprova a correção de toda
-// a rede, mas permite comparar a evidência antes/depois do flush DNS.
-internal enum NetworkDnsVerification { NotEvaluated, TestRecovered, TestStillFailing, Inconclusive }
+// Duas resoluções de nomes independentes são observadas antes e depois.
+// Nem mesmo recuperação de ambas prova causalidade do flush ou rede íntegra.
+internal enum NetworkDnsVerification
+{
+    NotEvaluated, TestRecovered, PartiallyRecovered, TestStillFailing, Inconclusive
+}
 
 internal static class NetworkRepairOutcome
 {
@@ -29,18 +32,25 @@ internal static class NetworkRepairOutcome
             return NetworkDnsVerification.NotEvaluated;
         if (before is null || after is null)
             return NetworkDnsVerification.Inconclusive;
-        var prior = before.Checks.Where(x =>
-            x.Name == "DNS").ToArray();
-        var current = after.Checks.Where(x =>
-            x.Name == "DNS").ToArray();
-        if (prior.Length != 1 || current.Length != 1 ||
-            prior[0].State != "Atenção")
+        var prior = before.Checks.Where(x => x.Name == "DNS").ToArray();
+        var previousAlternate = before.Checks.Where(x =>
+            x.Name == "DNS alternativo").ToArray();
+        var current = after.Checks.Where(x => x.Name == "DNS").ToArray();
+        var currentAlternate = after.Checks.Where(x =>
+            x.Name == "DNS alternativo").ToArray();
+        if (prior.Length != 1 || previousAlternate.Length != 1 ||
+            current.Length != 1 || currentAlternate.Length != 1 ||
+            prior[0].State != "Atenção" ||
+            previousAlternate[0].State != "Atenção")
             return NetworkDnsVerification.Inconclusive;
-        return current[0].State switch
-        {
-            "OK" => NetworkDnsVerification.TestRecovered,
-            "Atenção" => NetworkDnsVerification.TestStillFailing,
-            _ => NetworkDnsVerification.Inconclusive
-        };
+        bool goodFirst = current[0].State == "OK";
+        bool goodSecond = currentAlternate[0].State == "OK";
+        bool badFirst = current[0].State == "Atenção";
+        bool badSecond = currentAlternate[0].State == "Atenção";
+        if (goodFirst && goodSecond) return NetworkDnsVerification.TestRecovered;
+        if (badFirst && badSecond) return NetworkDnsVerification.TestStillFailing;
+        if ((goodFirst && badSecond) || (badFirst && goodSecond))
+            return NetworkDnsVerification.PartiallyRecovered;
+        return NetworkDnsVerification.Inconclusive;
     }
 }

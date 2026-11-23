@@ -139,18 +139,33 @@ Check(NetworkRepairOutcome.FromWire("DONE|0") == NetworkRepairWorkerState.Comman
 Console.WriteLine("OK: desfechos de manutencao de rede sem falso sucesso em UAC ou falha.");
 var priorDns = new NetworkScan([
     new NetworkCheck("DNS", "Atenção", "Fixture sem resolução"),
+    new NetworkCheck("DNS alternativo", "Atenção", "Outro nome sem resolução"),
     new NetworkCheck("Gateway", "OK", "Fixture")], true);
 var afterResolved = new NetworkScan([
     new NetworkCheck("DNS", "OK", "Fixture de nome resolvido"),
+    new NetworkCheck("DNS alternativo", "OK", "Segundo nome resolvido"),
     new NetworkCheck("Conexão HTTPS", "Atenção", "Outros problemas persistem")], true);
 var afterProblem = new NetworkScan([
-    new NetworkCheck("DNS", "Atenção", "Fixture sem resolução")], true);
+    new NetworkCheck("DNS", "Atenção", "Fixture sem resolução"),
+    new NetworkCheck("DNS alternativo", "Atenção", "Outro nome sem resolução")], true);
+var afterPartial = new NetworkScan([
+    new NetworkCheck("DNS", "OK", "Primeiro nome resolveu"),
+    new NetworkCheck("DNS alternativo", "Atenção", "Segundo nome falhou")], true);
 Check(NetworkRepairOutcome.ReviewDnsAfterFlush(
         priorDns, afterResolved, NetworkRepairWorkerState.CommandReturnedZero) ==
             NetworkDnsVerification.TestRecovered &&
     NetworkRepairOutcome.ReviewDnsAfterFlush(
         priorDns, afterProblem, NetworkRepairWorkerState.CommandReturnedZero) ==
             NetworkDnsVerification.TestStillFailing &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterPartial, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.PartiallyRecovered &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, new NetworkScan([
+            new NetworkCheck("DNS", "Info", "Não foi possível consultar"),
+            new NetworkCheck("DNS alternativo", "OK", "Fixture")], true),
+        NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
     NetworkRepairOutcome.ReviewDnsAfterFlush(
         priorDns, null, NetworkRepairWorkerState.CommandReturnedZero) ==
             NetworkDnsVerification.Inconclusive &&
@@ -164,26 +179,36 @@ Check(NetworkRepairOutcome.ReviewDnsAfterFlush(
     NetworkRepairOutcome.ReviewDnsAfterFlush(
         priorDns, new NetworkScan([
             new NetworkCheck("DNS", "OK", "Duplicado"),
-            new NetworkCheck("DNS", "OK", "Duplicado")], false),
+            new NetworkCheck("DNS", "OK", "Duplicado"),
+            new NetworkCheck("DNS alternativo", "OK", "Fixture")], false),
+        NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, new NetworkScan([
+            new NetworkCheck("DNS", "OK", "Fixture")], false),
         NetworkRepairWorkerState.CommandReturnedZero) ==
             NetworkDnsVerification.Inconclusive,
-    "Pós-DNS: distinguir nome de teste recuperado, falha persistente, ausência e erro sem simular rede.");
+    "Pós-DNS: exigir dois nomes únicos, distinguir recuperação completa, parcial, persistente ou inconclusiva.");
 // Uma falha apenas em www.microsoft.com não autoriza sugerir Winsock.
 // Fixtures puras: nenhum teste de rede real é feito pelo runner.
-NetworkScan Probes(string dns, string first, string second) => new([
+NetworkScan Probes(string dns, string alternative, string first, string second) => new([
     new NetworkCheck("Adaptador", "OK", "fixture"),
     new NetworkCheck("Gateway", "OK", "fixture"),
     new NetworkCheck("DNS", dns, "fixture"),
+    new NetworkCheck("DNS alternativo", alternative, "fixture"),
     new NetworkCheck("Conexão HTTPS", first, "fixture"),
     new NetworkCheck("Conexão HTTPS alternativa", second, "fixture")],
     true);
-Check(NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "Atenção", "OK")) is null &&
-    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "Atenção")) is null &&
-    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "Atenção", "Atenção")) ==
+Check(NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "Atenção", "OK")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "OK", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "Atenção", "Atenção")) ==
         "network-repair-winsock" &&
-    NetworkDiagnostics.SuggestTargetedRepair(Probes("Atenção", "Atenção", "Atenção")) ==
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("Atenção", "Atenção", "Atenção", "Atenção")) ==
         "flush-dns" &&
-    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "OK")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("Atenção", "OK", "Atenção", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "Atenção", "Atenção", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("Info", "Atenção", "Atenção", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "OK", "OK")) is null &&
     NetworkDiagnostics.SuggestTargetedRepair(
         new NetworkScan([new NetworkCheck("DNS", "OK", "fixture"),
             new NetworkCheck("Conexão HTTPS", "Atenção", "fixture")], true)) is null &&
@@ -192,12 +217,27 @@ Check(NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "Atenção", "OK")) 
             new NetworkCheck("Adaptador", "OK", "fixture"),
             new NetworkCheck("Gateway", "OK", "fixture"),
             new NetworkCheck("DNS", "OK", "fixture"),
+            new NetworkCheck("DNS alternativo", "OK", "fixture"),
             new NetworkCheck("Conexão HTTPS", "Atenção", "fixture"),
             new NetworkCheck("Conexão HTTPS alternativa", "Atenção", "fixture"),
-            new NetworkCheck("DNS", "OK", "duplicado")], true)) is null,
-    "Diagnostico: sugestão Winsock exige dois destinos com falha e DNS único.");
-Console.WriteLine("OK: decisão consultiva de rede por duas provas HTTPS independentes.");
-Console.WriteLine("OK: rechecagem DNS do nome de teste preserva demais alertas da rede.");
+            new NetworkCheck("DNS", "OK", "duplicado")], true)) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([
+            new NetworkCheck("Adaptador", "OK", "fixture"),
+            new NetworkCheck("Adaptador", "Atenção", "contraditório"),
+            new NetworkCheck("Gateway", "OK", "fixture"),
+            new NetworkCheck("DNS", "Atenção", "fixture"),
+            new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([
+            new NetworkCheck("Adaptador", "OK", "fixture"),
+            new NetworkCheck("Gateway", "OK", "fixture"),
+            new NetworkCheck("DNS", "Atenção", "fixture"),
+            new NetworkCheck("DNS alternativo", "Atenção", "fixture"),
+            new NetworkCheck("DNS alternativo", "Atenção", "duplicado")], true)) is null,
+    "Diagnóstico: nenhum reparo com DNS isolado, evidência duplicada ou falha de um HTTPS.");
+Console.WriteLine("OK: decisão consultiva requer dois nomes DNS e dois destinos HTTPS independentes.");
+Console.WriteLine("OK: pós-flush diferencia duas resoluções, recuperação parcial e falha persistente.");
 var progressMonitor = new WindowsMaintenanceProgress();
 Check(!progressMonitor.Update("47.5%", out _) &&
     !progressMonitor.Update("Etapa 1/2 — DISM", out _) &&

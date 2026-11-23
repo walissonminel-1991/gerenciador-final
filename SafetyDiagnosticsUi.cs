@@ -101,8 +101,10 @@ internal sealed partial class MainForm
 
         bool dnsRepair = task == "flush-dns";
         string confirmation = dnsRepair
-            ? "O teste detectou uma falha na resolução DNS. Deseja limpar apenas o cache DNS do Windows? " +
-              "Isso não altera os servidores DNS configurados. O teste será repetido depois da operação."
+            ? "Dois nomes de teste independentes não resolveram. Isso pode ocorrer por rede indisponível, " +
+              "firewall ou DNS e NÃO comprova que o cache esteja corrompido.\n\n" +
+              "Deseja limpar apenas o cache DNS do Windows? Isso não altera os servidores DNS " +
+              "configurados nem reinicia o Windows. Ambos os nomes serão consultados novamente."
             : "O DNS respondeu, mas dois destinos TCP/443 independentes falharam. Isso pode ocorrer por proxy, firewall " +
               "ou bloqueio externo e não comprova defeito no catálogo Winsock.\n\n" +
               "Deseja tentar redefinir APENAS o catálogo Winsock? A rede pode ser interrompida e será necessário " +
@@ -138,9 +140,9 @@ internal sealed partial class MainForm
 
         if (dnsRepair)
         {
-            // O código de retorno comprova apenas o flush. A rechecagem do
-            // mesmo endpoint DNS fornece evidência separada; não provará
-            // que qualquer outra conexão ou site voltou a funcionar.
+            // Código zero comprova somente o flush, não recuperação.
+            // Reconsultar os mesmos dois nomes após a operação e preservar
+            // estados mistos como parciais, jamais sucesso pleno.
             var before = _lastNetworkScan;
             _lastNetworkScan = null; // impedir reutilização de consulta anterior
             await RunNetworkDiagnosticAsync();
@@ -149,11 +151,15 @@ internal sealed partial class MainForm
             switch (checkedDns)
             {
                 case NetworkDnsVerification.TestRecovered:
-                    Log("Pós-flush DNS: o nome de teste voltou a resolver; outras conexões não foram comprovadas.");
-                    Status("Pós-reparo: resolução DNS do nome de teste confirmada.");
+                    Log("Pós-flush DNS: os dois nomes resolveram na nova consulta; não prova que o flush foi a causa.");
+                    Status("Pós-reparo: resolução dos dois nomes de teste observada.");
+                    break;
+                case NetworkDnsVerification.PartiallyRecovered:
+                    Log("Pós-flush DNS: somente um dos dois nomes resolveu. Resultado parcial; não repetir automaticamente.");
+                    Status("Pós-reparo DNS parcial; confira os alertas sem inferir correção geral.");
                     break;
                 case NetworkDnsVerification.TestStillFailing:
-                    Log("Pós-flush DNS: o nome de teste continua sem resolução. Não repetir automaticamente.");
+                    Log("Pós-flush DNS: nenhum dos dois nomes resolveu. Não repetir automaticamente.");
                     Status("Pós-reparo: alerta DNS permanece; confira rede, proxy ou servidor.");
                     break;
                 default:

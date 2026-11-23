@@ -19,20 +19,58 @@ internal static class NetworkDiagnostics
     internal static string? SuggestTargetedRepair(NetworkScan? scan)
     {
         if (scan is null) return null;
-        bool localReady = scan.Checks.Count(c => c.Name == "Adaptador" &&
-            c.State == "OK") == 1 &&
-            scan.Checks.Count(c => c.Name == "Gateway" && c.State == "OK") == 1;
-        if (!localReady) return null;
+        // Uma linha OK não comprova unicidade se existir outra leitura
+        // contraditória. Dois nomes DNS distintos são necessários para
+        // evitar que um domínio isolado dispare limpeza do cache.
+        var adapters = scan.Checks.Where(c => c.Name == "Adaptador").ToArray();
+        var gateways = scan.Checks.Where(c => c.Name == "Gateway").ToArray();
+        if (adapters.Length != 1 || adapters[0].State != "OK" ||
+            gateways.Length != 1 || gateways[0].State != "OK")
+            return null;
         var dns = scan.Checks.Where(c => c.Name == "DNS").ToArray();
-        if (dns.Length != 1) return null;
-        if (dns[0].State == "Atenção") return "flush-dns";
-        if (dns[0].State != "OK") return null;
+        var alternateDns = scan.Checks.Where(c =>
+            c.Name == "DNS alternativo").ToArray();
+        if (dns.Length != 1 || alternateDns.Length != 1) return null;
+        if (dns[0].State == "Atenção" && alternateDns[0].State == "Atenção")
+            return "flush-dns";
+        if (dns[0].State != "OK" || alternateDns[0].State != "OK") return null;
         var primary = scan.Checks.Where(c => c.Name == "Conexão HTTPS").ToArray();
         var secondary = scan.Checks.Where(c =>
             c.Name == "Conexão HTTPS alternativa").ToArray();
         return primary.Length == 1 && secondary.Length == 1 &&
             primary[0].State == "Atenção" && secondary[0].State == "Atenção"
             ? "network-repair-winsock" : null;
+    }
+
+    // Resolver somente nomes oficiais de teste; nenhuma alteração em DNS,
+    // adaptadores ou cache. Dois nomes não equivalem a dois servidores DNS.
+    private static async Task<NetworkCheck> CheckDnsReadOnlyAsync(
+        string label, string host)
+    {
+        try
+        {
+            var addresses = await Dns.GetHostAddressesAsync(host)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            return addresses.Length > 0
+                ? new(label, "OK", "Nome de teste resolvido: " + host + ".")
+                : new(label, "Atenção", "Nenhum endereço retornado para " + host +
+                    "; não comprova falha do cache DNS.");
+        }
+        catch (TimeoutException)
+        {
+            return new(label, "Atenção", "Consulta de " + host +
+                " excedeu 5 segundos; rede ou servidor DNS podem estar indisponíveis.");
+        }
+        catch (SocketException)
+        {
+            return new(label, "Atenção", "O nome " + host +
+                " não resolveu; falha pode ser de rede, firewall ou DNS.");
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new(label, "Info", "Consulta DNS inconclusiva (" +
+                ex.GetType().Name + "); nenhuma manutenção indicada.");
+        }
     }
 
     public static async Task<NetworkScan> AnalyzeAsync()
@@ -93,23 +131,8 @@ internal static class NetworkDiagnostics
             checks.Add(new("Resposta do gateway", "Info", "Teste não realizado: gateway não identificado."));
         }
 
-        bool resolved = false;
-        try
-        {
-            var addresses = await Dns.GetHostAddressesAsync("www.microsoft.com")
-                .WaitAsync(TimeSpan.FromSeconds(5));
-            resolved = addresses.Length > 0;
-            checks.Add(new("DNS", resolved ? "OK" : "Atenção",
-                resolved ? "Nome de teste resolvido corretamente." : "O servidor DNS não retornou endereços."));
-        }
-        catch (TimeoutException)
-        {
-            checks.Add(new("DNS", "Atenção", "Consulta DNS excedeu 5 segundos."));
-        }
-        catch (Exception ex) when (ex is SocketException or System.Security.SecurityException)
-        {
-            checks.Add(new("DNS", "Atenção", "Não foi possível resolver o nome de teste (rede, firewall ou DNS)."));
-        }
+        checks.Add(await CheckDnsReadOnlyAsync("DNS", "www.microsoft.com"));
+        checks.Add(await CheckDnsReadOnlyAsync("DNS alternativo", "www.cloudflare.com"));
 
         try
         {
