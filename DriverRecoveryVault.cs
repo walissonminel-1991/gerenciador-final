@@ -24,6 +24,22 @@ internal sealed record DriverRestoreReconciliation(DriverRestoreReconcileState S
     internal bool MayClearPendingAutomatically => false;
 }
 
+internal enum DriverBackupCatalogState { Valid, ProtectedClass, PendingReconciliation, Inconclusive }
+internal sealed record DriverBackupCatalogItem(string Folder, DriverBackupCatalogState State,
+    string Message, string PublishedInf = "", string DriverClass = "",
+    DateTimeOffset CreatedAtUtc = default)
+{
+    // A listagem é somente informativa, nunca uma permissão de execução.
+    internal bool CanExecute => false;
+}
+internal sealed record DriverBackupCatalogSnapshot(
+    IReadOnlyList<DriverBackupCatalogItem> Items, bool Partial, int Inspected)
+{
+    internal int VerifiedCount => Items.Count(item => item.State is
+        DriverBackupCatalogState.Valid or DriverBackupCatalogState.ProtectedClass or
+        DriverBackupCatalogState.PendingReconciliation);
+}
+
 internal static class DriverRecoveryVault
 {
     private static int active;
@@ -199,6 +215,78 @@ internal static class DriverRecoveryVault
             }
         }
         return found;
+    }
+
+    // Catálogo consultivo: não enumera Driver Store, não cria pastas,
+    // não remove arquivos e nunca oculta recibos pendentes de recuperação.
+    internal static DriverBackupCatalogSnapshot BrowseBackups(int maximum = 128) =>
+        BrowseBackupsForTest(Root, maximum);
+
+    internal static DriverBackupCatalogSnapshot BrowseBackupsForTest(string root, int maximum = 128)
+    {
+        var items = new List<DriverBackupCatalogItem>();
+        int inspected = 0;
+        bool partial = false;
+        try
+        {
+            if (maximum is < 1 or > 512)
+                return new([], true, 0);
+            if (!Directory.Exists(root))
+                return new([], !ExistingParentsAreOrdinary(root), 0);
+            if (!ExistingParentsAreOrdinary(root))
+                return new([], true, 0);
+            var children = Directory.EnumerateDirectories(root, "manual-*",
+                SearchOption.TopDirectoryOnly).Take(maximum + 1).ToArray();
+            if (children.Length > maximum) partial = true;
+            foreach (var folder in children.Take(maximum))
+            {
+                inspected++;
+                try
+                {
+                    if (!SafeChild(root, folder))
+                    {
+                        items.Add(new(folder, DriverBackupCatalogState.Inconclusive,
+                            "Local não confiável; não usar esta cópia."));
+                        partial = true;
+                        continue;
+                    }
+                    var review = ReviewForTest(root, folder);
+                    if (!review.Verified || review.Receipt is null)
+                    {
+                        items.Add(new(folder, DriverBackupCatalogState.Inconclusive,
+                            review.Message));
+                        partial = true;
+                        continue;
+                    }
+                    string marker = folder + ".restore-pending.json";
+                    bool markerExists = File.Exists(marker);
+                    bool markerLink = markerExists &&
+                        File.GetAttributes(marker).HasFlag(FileAttributes.ReparsePoint);
+                    var state = markerExists ? DriverBackupCatalogState.PendingReconciliation :
+                        review.CanStage ? DriverBackupCatalogState.Valid :
+                        DriverBackupCatalogState.ProtectedClass;
+                    items.Add(new(folder, markerLink ? DriverBackupCatalogState.Inconclusive : state,
+                        markerLink ? "Marcador redirecionado; revisão manual necessária." :
+                        markerExists ? "Recuperação pendente de conciliação; não repetir." :
+                        review.Message, review.Receipt.PublishedInf, review.Receipt.DriverClass,
+                        review.Receipt.CreatedAtUtc));
+                    if (markerLink) partial = true;
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    items.Add(new(folder, DriverBackupCatalogState.Inconclusive,
+                        "Não foi possível ler o backup (" + ex.GetType().Name + ")."));
+                    partial = true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            partial = true;
+        }
+        return new(items.OrderByDescending(x => x.CreatedAtUtc)
+            .ThenBy(x => x.Folder, StringComparer.OrdinalIgnoreCase).ToArray(),
+            partial, inspected);
     }
 
     // Pode ser executado sem privilégios. Não abre processo nem altera o Windows.
