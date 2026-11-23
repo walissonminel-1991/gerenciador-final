@@ -91,9 +91,17 @@ internal static class V269ShellTests
 
         var columns = shell.Controls.Find("V269Columns", true)
             .OfType<TableLayoutPanel>().Single();
-        Check(columns.ColumnStyles[0].Width == V269VisualTokens.Scale(210, 110) &&
-            columns.ColumnStyles[2].Width == V269VisualTokens.Scale(310, 110),
-            "Escala de interface deve alterar o layout real do shell.");
+        // O runner Windows pode ter viewport menor que a dimensão solicitada
+        // ao formulário. Exigir a escala correta para a largura REAL do shell.
+        int compactWidth = shell.ClientSize.Width < 1040 ? 166 : 210;
+        int compactRight = shell.ClientSize.Width < 1040 ? 240 : 310;
+        int expectedLeft = V269VisualTokens.Scale(compactWidth, 110);
+        int expectedRight = V269VisualTokens.Scale(compactRight, 110);
+        Check(columns.ColumnStyles[0].Width == expectedLeft &&
+            columns.ColumnStyles[2].Width == expectedRight,
+            $"Escala precisa alterar as colunas na largura real. " +
+            $"shell={shell.ClientSize.Width}, esquerda={columns.ColumnStyles[0].Width}/{expectedLeft}, " +
+            $"direita={columns.ColumnStyles[2].Width}/{expectedRight}.");
 
         var progress = new V269PanelPresentation(V269PanelKind.Progress,
             "Em andamento", "Sem conclusão presumida.", 37);
