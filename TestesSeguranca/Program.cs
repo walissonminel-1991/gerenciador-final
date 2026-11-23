@@ -168,6 +168,35 @@ Check(NetworkRepairOutcome.ReviewDnsAfterFlush(
         NetworkRepairWorkerState.CommandReturnedZero) ==
             NetworkDnsVerification.Inconclusive,
     "Pós-DNS: distinguir nome de teste recuperado, falha persistente, ausência e erro sem simular rede.");
+// Uma falha apenas em www.microsoft.com não autoriza sugerir Winsock.
+// Fixtures puras: nenhum teste de rede real é feito pelo runner.
+NetworkScan Probes(string dns, string first, string second) => new([
+    new NetworkCheck("Adaptador", "OK", "fixture"),
+    new NetworkCheck("Gateway", "OK", "fixture"),
+    new NetworkCheck("DNS", dns, "fixture"),
+    new NetworkCheck("Conexão HTTPS", first, "fixture"),
+    new NetworkCheck("Conexão HTTPS alternativa", second, "fixture")],
+    true);
+Check(NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "Atenção", "OK")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "Atenção", "Atenção")) ==
+        "network-repair-winsock" &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("Atenção", "Atenção", "Atenção")) ==
+        "flush-dns" &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "OK")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([new NetworkCheck("DNS", "OK", "fixture"),
+            new NetworkCheck("Conexão HTTPS", "Atenção", "fixture")], true)) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([
+            new NetworkCheck("Adaptador", "OK", "fixture"),
+            new NetworkCheck("Gateway", "OK", "fixture"),
+            new NetworkCheck("DNS", "OK", "fixture"),
+            new NetworkCheck("Conexão HTTPS", "Atenção", "fixture"),
+            new NetworkCheck("Conexão HTTPS alternativa", "Atenção", "fixture"),
+            new NetworkCheck("DNS", "OK", "duplicado")], true)) is null,
+    "Diagnostico: sugestão Winsock exige dois destinos com falha e DNS único.");
+Console.WriteLine("OK: decisão consultiva de rede por duas provas HTTPS independentes.");
 Console.WriteLine("OK: rechecagem DNS do nome de teste preserva demais alertas da rede.");
 var progressMonitor = new WindowsMaintenanceProgress();
 Check(!progressMonitor.Update("47.5%", out _) &&
