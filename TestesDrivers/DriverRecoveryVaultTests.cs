@@ -74,6 +74,19 @@ internal static class DriverRecoveryVaultTests
             check(review.Verified && review.CanStage &&
                 review.InfPath == inf && review.Receipt?.PackageSha256 == packageHash,
                 "Restore: copia OEM, hash e recibo coerentes liberam apenas revisao");
+            var overview = DriverRecoveryVault.CaptureOverviewReadOnlyForTest(
+                Path.Combine(root, "no-wua-journal.json"), root, false);
+            check(overview.UpdateJournal.Disposition ==
+                    DriverWuaJournalDisposition.NeverStarted &&
+                overview.Backups.VerifiedCount == 1 &&
+                !overview.NeedsSupervisedReview &&
+                !overview.GrantsMaintenancePermission,
+                "Visao WUA+cofre: uma copia valida nao concede instalacao");
+            var busyOverview = DriverRecoveryVault.CaptureOverviewReadOnlyForTest(
+                Path.Combine(root, "no-wua-journal.json"), root, true);
+            check(busyOverview.NeedsSupervisedReview &&
+                !busyOverview.GrantsMaintenancePermission,
+                "Visao WUA+cofre: outra operacao ativa impede conclusao segura");
             var availableCatalog = DriverRecoveryVault.BrowseBackupsForTest(root);
             check(availableCatalog.Items.Count == 1 &&
                 availableCatalog.VerifiedCount == 1 &&
@@ -96,6 +109,12 @@ internal static class DriverRecoveryVaultTests
                 Schema = 1, Action = "StageOnly", AtUtc = DateTimeOffset.UtcNow,
                 BackupHash = packageHash, State = "PENDING_RECONCILIATION"
             }));
+            var pendingOverview = DriverRecoveryVault.CaptureOverviewReadOnlyForTest(
+                Path.Combine(root, "no-wua-journal.json"), root, false);
+            check(pendingOverview.PendingRecoveries == 1 &&
+                pendingOverview.NeedsSupervisedReview &&
+                !pendingOverview.GrantsMaintenancePermission,
+                "Visao WUA+cofre: staging pendente requer conciliacao humana");
             var pendingCatalog = DriverRecoveryVault.BrowseBackupsForTest(root);
             check(pendingCatalog.Items.Single().State ==
                 DriverBackupCatalogState.PendingReconciliation &&
