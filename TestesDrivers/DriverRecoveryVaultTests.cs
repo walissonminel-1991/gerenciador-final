@@ -101,6 +101,17 @@ internal static class DriverRecoveryVaultTests
                 DriverBackupCatalogState.PendingReconciliation &&
                 !pendingCatalog.Items[0].CanExecute,
                 "Cofre: marcador de staging preserva estado pendente sem repetir");
+            string pendingPath = folder + ".restore-pending.json";
+            byte[] validPending = File.ReadAllBytes(pendingPath);
+            File.WriteAllText(pendingPath, "{\"Schema\":1,\"State\":\"PENDING_RECONCILIATION\",\"BackupHash\":\"falso\"}");
+            var corruptedPending = DriverRecoveryVault.BrowseBackupsForTest(root);
+            check(corruptedPending.Partial &&
+                corruptedPending.Items.Single().State == DriverBackupCatalogState.Inconclusive &&
+                DriverRecoveryVault.ReconcileWithEvidence(root, folder,
+                    observedSet, Trusted, _ => "Printer").State ==
+                    DriverRestoreReconcileState.Inconclusive,
+                "Cofre: marcador adulterado não é apresentado como operação de staging verificada");
+            File.WriteAllBytes(pendingPath, validPending);
             var observed = DriverRecoveryVault.ReconcileWithEvidence(root, folder,
                 observedSet, Trusted, _ => "Printer");
             check(observed.State == DriverRestoreReconcileState.MatchingInfObserved &&
