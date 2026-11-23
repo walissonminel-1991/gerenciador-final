@@ -178,12 +178,46 @@ internal static class BundlewareReview
                     return new(false, "Pacote, dependências ou desinstalador mudaram; não executar.", []);
             }
             token.ThrowIfCancellationRequested();
+            // O executor também revisa relações do bundle no snapshot mais
+            // próximo do lançamento. Essa checagem cobre a janela entre a
+            // prévia ARP e a chamada ao desinstalador registrado.
+            bool BeforeNativeLaunch(UninstallRequest request, UninstallSnapshot snapshot)
+            {
+                if (!snapshot.Complete) return false;
+                var arp = snapshot.Items.Where(app =>
+                    app.InventorySource.StartsWith("Registro:", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (arp.Length == 0 ||
+                    arp.GroupBy(app => app.InventoryId, StringComparer.OrdinalIgnoreCase)
+                        .Any(g => g.Count() != 1))
+                    return false;
+                var scanAtLaunch = new RegistryInventoryScan(arp, arp.Length, 0, 0, 0, 0)
+                { IncludesHiddenEntries = true };
+                var matches = arp.Where(app => string.Equals(app.InventoryId,
+                    request.Original.InventoryId, StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (matches.Length != 1 || !UninstallBatch.SameRegistration(
+                    request.Original, matches[0]) ||
+                    !matches[0].BundleMetadataReliable ||
+                    !string.Equals(matches[0].BundleParentKeyName,
+                        request.Original.BundleParentKeyName, StringComparison.Ordinal) ||
+                    !string.Equals(matches[0].BundleProviderKey,
+                        request.Original.BundleProviderKey, StringComparison.Ordinal))
+                    return false;
+                var atLaunch = Evaluate(scanAtLaunch, matches[0]);
+                var expected = current.Evidence.SingleOrDefault(e =>
+                    string.Equals(e.InventoryId, request.Original.InventoryId,
+                        StringComparison.OrdinalIgnoreCase));
+                return expected is not null && atLaunch.State == expected.State &&
+                    atLaunch.CanProposeRegisteredUninstall &&
+                    atLaunch.RegisteredChildren.SequenceEqual(expected.RegisteredChildren,
+                        StringComparer.OrdinalIgnoreCase);
+            }
             var executor = new UninstallBatch();
             // Uma falha/cancelamento DEPOIS do handoff pode esconder efeitos
             // do instalador; não relatar que nenhuma remoção foi iniciada.
             dispatched = true;
             var outcomes = await executor.RunAsync(current.Requests, true,
-                freshFullInventory, registeredUninstaller, waitBetweenChecks, token);
+                freshFullInventory, registeredUninstaller, waitBetweenChecks,
+                token, preLaunchSafety: BeforeNativeLaunch);
             return new(true, "Solicitação encaminhada ao executor registrado com reconferência de identidade.",
                 outcomes);
         }
