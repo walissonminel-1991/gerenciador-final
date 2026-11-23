@@ -192,3 +192,14 @@ Testes `TestesLayout/D3dKmtGpuSensorProviderTests.cs`: tamanhos/offsets ABI nati
 Referências Microsoft: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3dkmthk/ns-d3dkmthk-_d3dkmt_adapter_perfdata ; https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3dkmthk/ns-d3dkmthk-_d3dkmt_adapter_perfdatacaps ; https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3dkmthk/nf-d3dkmthk-d3dkmtqueryadapterinfo ; https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3dkmthk/nf-d3dkmthk-d3dkmtopenadapterfromluid .
 
 **Aceite pendente:** CI Windows e integridade no novo SHA, sem homologação dos sensores físicos nos PCs FORTE/FRACO. Não declarar cobertura funcional plena para GPUs AMD/Intel/NVIDIA sem evidência de valores realmente lidos nos drivers correspondentes.
+## D3DKMT: estado de energia da GPU física — regressão fail-closed
+
+Após o gate integralmente aprovado no SHA `bbd0a090747acd9b36ac4243a82e5decae7e15e0` (Windows #45257794496 e integridade #45257794505, ambos SUCCESS), a revisão da estrutura Microsoft `D3DKMT_ADAPTER_PERFDATA` confirmou que `PowerStateOverride` indica GPU ligada quando igual a 1, ou desligada quando 0. Esse dado já era retornado pela consulta nativa, mas não participava da elegibilidade de sensores.
+
+O provedor agora registra `IsPoweredOn` no DTO raw, a partir da mesma instância `D3DKMT_ADAPTER_PERFDATA` e do mesmo LUID/índice físico. Caso o driver informe GPU desligada ou falhe a leitura de perfdata, o adaptador permanece no inventário com sua chave exata, porém temperatura, RPM, potência relativa (%) e frequência da memória ficam **indisponíveis**; o snapshot recebe estado parcial. Outro LUID com dados válidos continua íntegro. Não apresentar 0°C, 0W nem 0RPM de um adaptador desligado.
+
+`D3dKmtGpuSensorProviderTests` cobre GPU desligada em isolamento e GPU desligada ao lado de outra ligada. Não se modifica UI, drivers, workflows, serviços ou configurações gráficas. A sondagem real segue explicitamente opt-in (`--monitoramento-d3dkmt`), sem execução física neste chat.
+
+Fontes: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3dkmthk/ns-d3dkmthk-_d3dkmt_adapter_perfdata ; https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3dkmthk/ne-d3dkmthk-_kmtqueryadapterinfotype . A enumeração KMT usa os valores `PHYSICALADAPTERCOUNT = 30`, `ADAPTERPERFDATA = 62`, `ADAPTERPERFDATA_CAPS = 63` (verificados no cabeçalho e mantidos).
+
+**Status:** CI Windows e integridade no novo HEAD ainda precisam validar o caso adicional; não inferir homologação física AMD/Intel/NVIDIA nem temperaturas CPU/VRM/chipset a partir de testes sintéticos.
