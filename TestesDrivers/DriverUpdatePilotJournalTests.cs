@@ -27,7 +27,9 @@ internal static class DriverUpdatePilotJournalTests
                 var begun = DriverUpdatePilotFileJournal.InspectReadOnly(path);
                 Ensure(begun.Disposition == DriverWuaJournalDisposition.PendingReconciliation &&
                     begun.Phase == "InstallationStarted" &&
-                    begun.LastWrittenUtc.HasValue && !begun.AuthorizesInstallation,
+                    begun.OtherProcessHoldsLock &&
+                    begun.LastWrittenUtc.HasValue && !begun.AuthorizesInstallation && 
+                    !DriverUpdatePilotFileJournal.MayBeginReadOnly(path),
                     "intenção de instalação aberta continua pendente até confirmação");
                 using var concurrent = new DriverUpdatePilotFileJournal(path);
                 Ensure(!concurrent.TryBegin(choice),
@@ -56,7 +58,8 @@ internal static class DriverUpdatePilotJournalTests
             Ensure(DriverUpdatePilotFileJournal.ReadOnlyStatus(successPath).Contains("verificada"),
                 "status somente leitura deve reconhecer conclusão válida");
             var verifiedSnapshot = DriverUpdatePilotFileJournal.InspectReadOnly(successPath);
-            Ensure(verifiedSnapshot.Disposition == DriverWuaJournalDisposition.Verified &&
+            Ensure(!verifiedSnapshot.OtherProcessHoldsLock &&
+                verifiedSnapshot.Disposition == DriverWuaJournalDisposition.Verified &&
                 verifiedSnapshot.Phase == nameof(DriverUpdatePilotState.Verified) &&
                 !verifiedSnapshot.RequiresSupervisedReview &&
                 !verifiedSnapshot.AuthorizesInstallation,
@@ -65,6 +68,11 @@ internal static class DriverUpdatePilotJournalTests
             {
                 Ensure(next.TryBegin(choice),
                     "nova operacao apos verificacao valida nao foi aceita");
+                var during = DriverUpdatePilotFileJournal.InspectReadOnly(successPath);
+                Ensure(during.OtherProcessHoldsLock &&
+                    during.Disposition == DriverWuaJournalDisposition.PendingReconciliation &&
+                    !DriverUpdatePilotFileJournal.MayBeginReadOnly(successPath),
+                    "observação consultiva respeita exclusividade da intenção nativa");
                 next.Mark(choice, DriverUpdatePilotState.PendingReboot);
             }
             using (var pending = new DriverUpdatePilotFileJournal(successPath))
@@ -75,6 +83,24 @@ internal static class DriverUpdatePilotJournalTests
                      Phase: nameof(DriverUpdatePilotState.PendingReboot),
                      RequiresSupervisedReview: true },
                 "reinício pendente continua pendente, não é sucesso");
+            // Mesmo sem diário iniciado, uma sessão com lock exclusivo
+            // bloqueia preflight e não deve criar o arquivo da intenção.
+            string lockedMissing = Path.Combine(folder, "locked-missing.json");
+            using (var held = new FileStream(lockedMissing + ".lock",
+                FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
+            {
+                var withoutLedger = DriverUpdatePilotFileJournal.InspectReadOnly(lockedMissing);
+                Ensure(withoutLedger.Disposition ==
+                    DriverWuaJournalDisposition.PendingReconciliation &&
+                    withoutLedger.OtherProcessHoldsLock &&
+                    !DriverUpdatePilotFileJournal.MayBeginReadOnly(lockedMissing) &&
+                    !File.Exists(lockedMissing),
+                    "lock de outra sessão não vira diário ausente elegível");
+            }
+            Ensure(DriverUpdatePilotFileJournal.InspectReadOnly(lockedMissing)
+                is { Disposition: DriverWuaJournalDisposition.NeverStarted,
+                     OtherProcessHoldsLock: false },
+                "arquivo de lock ocioso não cria falsa intenção");
             string corrupt = Path.Combine(folder, "corrupt.json");
             File.WriteAllText(corrupt, "{\"Phase\":\"Verified\",\"Sha256\":\"fake\"}");
             var untouched = File.ReadAllBytes(corrupt);
