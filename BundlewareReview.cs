@@ -243,6 +243,38 @@ internal static class BundlewareReview
         }
     }
 
+    // Aviso textual limitado no diálogo de consentimento existente. A
+    // presença de filhos ARP não prova sua remoção efetiva pelo instalador;
+    // não altera o comando, a seleção ou os gates de segurança.
+    internal static string ExplainPotentialBundleImpact(ProgramEntry? selected,
+        UninstallSnapshot? snapshot)
+    {
+        if (selected is null || !RegistryIdentity(selected.InventoryId))
+            return "";
+        if (snapshot is null || !snapshot.Complete)
+            return "Relações de instalador não puderam ser conferidas nesta consulta.";
+        var arp = snapshot.Items.Where(app =>
+            app.InventorySource.StartsWith("Registro:", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var matching = arp.Where(app => string.Equals(app.InventoryId,
+            selected.InventoryId, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (matching.Length != 1 ||
+            !UninstallBatch.SameRegistration(selected, matching[0]))
+            return "Registro do pacote alterado: não presumir o alcance da desinstalação.";
+        var scan = new RegistryInventoryScan(arp, arp.Length, 0, 0, 0, 0)
+        { IncludesHiddenEntries = true };
+        var evidence = Evaluate(scan, matching[0]);
+        return evidence.State switch
+        {
+            BundleReviewState.BundleRoot when evidence.RegisteredChildren.Count > 0 =>
+                "Pacote OEM: " + evidence.RegisteredChildren.Count +
+                " componente(s) relacionado(s) no Registro. O desinstalador oficial pode afetá-los.",
+            BundleReviewState.BundleRoot =>
+                "Pacote OEM com metadados de bundle; outras dependências não foram comprovadas.",
+            BundleReviewState.Independent => "",
+            _ => "Relação de pacote incompleta ou componente protegido; nenhuma remoção isolada é segura."
+        };
+    }
+
     // Ligação com o fluxo de desinstalação já existente, sem comandos novos.
     // snapshots provêm de ScanAllInstalledAppsForSafety (inclusive ARP ocultos).
     // Verifica o vínculo antes de cada execução OEM, não só na prévia.
