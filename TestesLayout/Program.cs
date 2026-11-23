@@ -107,7 +107,9 @@ internal static class LayoutTests
         // Exercitar a ABI DXGI em runners Windows sem forçar consultas WMI
         // ou exigir GPU física no host de CI. Ausência é estado inconclusivo.
         DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows());
-        D3dKmtGpuSensorProviderTests.Run();
+        // Homologação consultiva nativa no runner Windows já autorizado pelo
+        // workflow existente. Apenas lê o driver e publica contagens, sem IDs.
+        D3dKmtGpuSensorProviderTests.Run(probeNative: OperatingSystem.IsWindows());
         HardwareMonitoringDiagnosticReportTests.Run();
         StorageAssociationLinkerTests.Run();
         StorageReliabilityCounterMapperTests.Run();
