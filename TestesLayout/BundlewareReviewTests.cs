@@ -28,7 +28,11 @@ internal static class BundlewareReviewTests
             InventoryId = "CurrentUser|Registry64|Standalone",
             InventorySource = "Registro: Usuário atual (64 bits)"
         };
-        var scan = new RegistryInventoryScan([parent, child, independent], 3, 0, 0, 0, 0);
+        var scan = new RegistryInventoryScan([parent, child, independent], 3, 0, 0, 0, 0) { IncludesHiddenEntries = true };
+        if (BundlewareReview.Evaluate(scan with { IncludesHiddenEntries = false }, parent).CanProposeRegisteredUninstall ||
+            BundlewareReview.PrepareUserSelection(scan with { IncludesHiddenEntries = false },
+                [parent.InventoryId]).Eligible)
+            throw new Exception("Bundleware: inventário sem componentes ocultos não pode preparar exclusão.");
         var parentReview = BundlewareReview.Evaluate(scan, parent);
         if (parentReview.State != BundleReviewState.BundleRoot ||
             parentReview.RegisteredChildren.Count != 1 ||
@@ -58,7 +62,7 @@ internal static class BundlewareReviewTests
             BundleParentKeyName = "UnregisteredParent",
             InventoryOnly = true
         };
-        var orphanScan = new RegistryInventoryScan([parent, orphan], 2, 0, 0, 0, 0);
+        var orphanScan = new RegistryInventoryScan([parent, orphan], 2, 0, 0, 0, 0) { IncludesHiddenEntries = true };
         if (BundlewareReview.Evaluate(orphanScan, orphan).State != BundleReviewState.UnresolvedParent ||
             BundlewareReview.PrepareUserSelection(orphanScan, [orphan.InventoryId]).Eligible)
             throw new Exception("Bundleware: pai ausente não foi bloqueado.");
@@ -70,7 +74,7 @@ internal static class BundlewareReviewTests
             BundleParentKeyName = @"..\outro", CanUninstall = true
         };
         if (BundlewareReview.CanLaunchIndividual(corrupt) ||
-            BundlewareReview.Evaluate(new RegistryInventoryScan([corrupt], 1, 0, 0, 0, 0),
+            BundlewareReview.Evaluate(new RegistryInventoryScan([corrupt], 1, 0, 0, 0, 0), { IncludesHiddenEntries = true },
                 corrupt).CanProposeRegisteredUninstall)
             throw new Exception("Bundleware: metadado inválido não bloqueou revisão.");
         Console.WriteLine("OK: bundleware por identidade ARP e seleção de bloatware explícita; nenhuma desinstalação.");
