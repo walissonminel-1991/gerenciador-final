@@ -24,7 +24,7 @@ Os campos de temperatura, potência e ventoinhas de CPU/GPU/placa-mãe; uso e VR
 
 Instanciar um `LiveHardwareMonitor` por sessão de janela; utilizar o timer já existente ou um orquestrador único. Exibir `MonitorReading<T>.Value` apenas se `Availability == Available`. Em `WarmingUp`, exibir “Medindo…”; em `Unavailable`, exibir “Indisponível”. Não indicar que `CpuFrequencyMhz` é frequência turbo instantânea.
 
-A memória da aba Sistema pode continuar usando a própria série `MemoryRamHistory`. Para evitar duas leituras redundantes de RAM, a integração posterior deverá compartilhar a mesma amostra entre os dois cartões quando estiverem ativos.
+A memória da aba Sistema pode continuar usando a própria série `MemoryRamHistory`. Para evitar duas leituras redundantes de RAM, a integração poderá chamar `Capture(amostraRamExistente)`; `Capture()` permanece disponível para quando o motor coletar sozinho.
 
 A interface visual não foi alterada nesta branch. Nenhum valor do protótipo apresentado em imagens foi usado como leitura real.
 
