@@ -114,6 +114,16 @@ internal static class BundlewareReviewTests
             routed.Outcomes.Count != 1 ||
             routed.Outcomes[0].State != UninstallState.RegistrationAbsent)
             throw new Exception("Bundleware: seleção não passou pelo executor real com dupla conferência.");
+        launchObserved = false;
+        Task<int?> UncertainLaunch(UninstallRequest _, CancellationToken __) =>
+            Task.FromException<int?>(new Exception("Falha sintética após iniciar executor"));
+        var uncertain = BundlewareReview.RunConfirmedSelectionAsync(
+            scan, [parent.InventoryId], true, FreshArp, FullScan,
+            UncertainLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
+        if (!uncertain.SentToExecutor ||
+            !uncertain.Reason.Contains("incerto", StringComparison.OrdinalIgnoreCase) ||
+            uncertain.Reason.Contains("nenhuma remoção iniciada", StringComparison.OrdinalIgnoreCase))
+            throw new Exception("Bundleware: falha após handoff foi tratada como nenhuma remoção.");
         Console.WriteLine("OK: bundleware por identidade ARP e seleção de bloatware explícita; nenhuma desinstalação.");
     }
 }
