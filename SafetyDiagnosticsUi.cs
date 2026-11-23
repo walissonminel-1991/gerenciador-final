@@ -151,8 +151,29 @@ internal sealed partial class MainForm
 
         if (dnsRepair)
         {
-            // Reexecutar os testes: não declarar sucesso apenas porque o comando terminou.
+            // O código de retorno comprova apenas o flush. A rechecagem do
+            // mesmo endpoint DNS fornece evidência separada; não provará
+            // que qualquer outra conexão ou site voltou a funcionar.
+            var before = _lastNetworkScan;
+            _lastNetworkScan = null; // impedir reutilização de consulta anterior
             await RunNetworkDiagnosticAsync();
+            var checkedDns = NetworkRepairOutcome.ReviewDnsAfterFlush(
+                before, _lastNetworkScan, workerResult);
+            switch (checkedDns)
+            {
+                case NetworkDnsVerification.TestRecovered:
+                    Log("Pós-flush DNS: o nome de teste voltou a resolver; outras conexões não foram comprovadas.");
+                    Status("Pós-reparo: resolução DNS do nome de teste confirmada.");
+                    break;
+                case NetworkDnsVerification.TestStillFailing:
+                    Log("Pós-flush DNS: o nome de teste continua sem resolução. Não repetir automaticamente.");
+                    Status("Pós-reparo: alerta DNS permanece; confira rede, proxy ou servidor.");
+                    break;
+                default:
+                    Log("Pós-flush DNS: observação incompleta. Não declarar correção.");
+                    Status("Pós-reparo DNS inconclusivo; consulte o registro.");
+                    break;
+            }
         }
         else
         {
