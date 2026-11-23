@@ -132,6 +132,15 @@ internal static class D3dKmtGpuSensorProviderTests
                       dxgiPhysical.Count(d => d.LuidHigh == x.Key.LuidHigh &&
                           d.LuidLow == x.Key.LuidLow) == 1 && x.Key.Physical < 16),
                 "D3DKMT nativo sem LUID DXGI inequívoco ou com índice físico inválido");
+            Check(native.WithoutPerformanceQuery <= native.Adapters.Count &&
+                  native.WithoutCapabilitiesQuery <= native.Adapters.Count &&
+                  native.ConfirmedPoweredOff <= native.Adapters.Count &&
+                  native.WithoutAnyValidMetric == native.Adapters.Count(x =>
+                      !x.TemperatureC.Value.HasValue &&
+                      !x.FanRpm.Value.HasValue &&
+                      !x.RelativePowerPercent.Value.HasValue &&
+                      !x.MemoryFrequencyMhz.Value.HasValue),
+                "contagens D3DKMT de ausência inconsistentes com os sensores reportados");
             Check(native.CapturedAtUtc.Offset == TimeSpan.Zero &&
                   native.Adapters.Count <= 512 &&
                   native.Adapters.All(x =>
@@ -140,7 +149,7 @@ internal static class D3dKmtGpuSensorProviderTests
                       x.RelativePowerPercent.Value is null or (>= 0 and <= 200)),
                 "GPU D3DKMT nativo fora dos limites ou identidade impossível");
             Console.WriteLine("D3DKMT_GPU estado=" + native.State +
-                "; dxgi_fisicos=" + dxgiPhysical.Length +
+                "; dxgi_nao_software=" + dxgiPhysical.Length +
                 "; dispositivos_consultados=" + native.Adapters.Count +
                 "; temperaturas=" + native.Adapters.Count(x => x.TemperatureC.Value.HasValue) +
                 "; ventoinhasRPM=" + native.Adapters.Count(x => x.FanRpm.Value.HasValue) +
