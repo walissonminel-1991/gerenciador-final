@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -17,6 +19,30 @@ internal sealed record DriverRestoreOutcome(bool Attempted, bool RequiresReconci
 internal static class DriverRecoveryVault
 {
     private static int active;
+
+    [DllImport("setupapi.dll", EntryPoint = "SetupDiGetINFClassW",
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetupDiGetINFClass(string infName, out Guid classGuid,
+        StringBuilder className, int classNameSize, out int requiredSize);
+
+    // Confirmar a classe real do INF assinado: o rótulo do recibo não
+    // concede permissão para restaurar pacotes de classes críticas.
+    internal static string ReadInfClass(string path)
+    {
+        if (!OperatingSystem.IsWindows()) return "";
+        try
+        {
+            if (!Path.IsPathFullyQualified(path) || !File.Exists(path) ||
+                File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint))
+                return "";
+            var buffer = new StringBuilder(64);
+            return SetupDiGetINFClass(path, out _, buffer, buffer.Capacity, out _)
+                ? DriverInventory.NormalizeDriverClass(buffer.ToString()) : "";
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return ""; }
+    }
+
     private static readonly Regex PublishedInf = new(@"^oem[0-9]{1,7}\.inf$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex InfFile = new(@"^[a-zA-Z0-9_.-]{1,180}\.inf$",
@@ -83,6 +109,11 @@ internal static class DriverRecoveryVault
             return new(false, "Backup não autorizado ou inventário incompleto; nenhuma exportação.");
         if (Interlocked.CompareExchange(ref active, 1, 0) != 0)
             return new(false, "Outra operação de recuperação ainda está ativa.");
+        if (!DriverG32RecoveryTicket.TryBeginOperation())
+        {
+            Interlocked.Exchange(ref active, 0);
+            return new(false, "Atualização WUA ou recuperação já está em andamento.");
+        }
         string? folder = null;
         try
         {
@@ -133,7 +164,7 @@ internal static class DriverRecoveryVault
             return new(false, "Backup inconclusivo (" + ex.GetType().Name +
                 "); não remover arquivos nem repetir automaticamente.", folder);
         }
-        finally { Interlocked.Exchange(ref active, 0); }
+        finally { DriverG32RecoveryTicket.EndOperation(); Interlocked.Exchange(ref active, 0); }
     }
 
     private static string? FindSingleInf(string folder, string infName)
@@ -208,6 +239,11 @@ internal static class DriverRecoveryVault
             return new(false, false, "Restauração não autorizada; nada solicitado.");
         if (Interlocked.CompareExchange(ref active, 1, 0) != 0)
             return new(false, false, "Outra recuperação em andamento.");
+        if (!DriverG32RecoveryTicket.TryBeginOperation())
+        {
+            Interlocked.Exchange(ref active, 0);
+            return new(false, false, "Atualização WUA ou recuperação já está em andamento.");
+        }
         bool markerWritten = false;
         try
         {
@@ -219,9 +255,12 @@ internal static class DriverRecoveryVault
                 return new(false, false, "Recuperação pendente ou seleção revogada; não repetir.");
             var signature = await Task.Run(() =>
                 DriverInfVerification.InspectInf(review.InfPath, token), token);
+            string actualClass = ReadInfClass(review.InfPath);
             if (signature.Trust != DriverInfTrust.VerifiedInf ||
                 !string.Equals(signature.Sha256, review.Receipt.InfSha256,
                     StringComparison.OrdinalIgnoreCase) ||
+                !DriverUpdatePilot.AllowedClass(actualClass) ||
+                !string.Equals(actualClass, review.Receipt.DriverClass, StringComparison.OrdinalIgnoreCase) ||
                 !stillCurrent() || token.IsCancellationRequested || !Review(folder).CanStage)
                 return new(false, false, "INF exportado não passou na reconfirmação de assinatura e hash.");
             await using (var output = new FileStream(marker, FileMode.CreateNew,
@@ -249,6 +288,6 @@ internal static class DriverRecoveryVault
                 "Recuperação " + (markerWritten ? "potencialmente iniciada" : "não iniciada") +
                 " (" + ex.GetType().Name + "); conciliar antes de repetir.");
         }
-        finally { Interlocked.Exchange(ref active, 0); }
+        finally { DriverG32RecoveryTicket.EndOperation(); Interlocked.Exchange(ref active, 0); }
     }
 }
