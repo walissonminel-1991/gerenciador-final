@@ -94,6 +94,14 @@ internal static class DriverSilentUninstall
         if (Interlocked.CompareExchange(ref active, 1, 0) != 0)
             return new(DriverSilentUninstallState.Blocked,
                 "Outra remoção está ativa; operação paralela bloqueada.");
+        // Exclusão, backup/restauração e atualização WUA compartilham a
+        // mesma fronteira de mutação do Driver Store em todo o processo.
+        if (!DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Uninstall))
+        {
+            Interlocked.Exchange(ref active, 0);
+            return new(DriverSilentUninstallState.Blocked,
+                "Outra operação de drivers está ativa. Nenhuma remoção iniciada.");
+        }
         string? backupPath = null;
         bool removalAttempted = false;
         try
@@ -236,7 +244,11 @@ internal static class DriverSilentUninstall
                 : new(DriverSilentUninstallState.Blocked,
                     "Falha de preparação: " + e.GetType().Name + ". Nenhuma remoção solicitada.", backupPath);
         }
-        finally { Interlocked.Exchange(ref active, 0); }
+        finally
+        {
+            DriverG32RecoveryTicket.EndOperation();
+            Interlocked.Exchange(ref active, 0);
+        }
     }
 
     private static bool SameIdentity(DriverInventoryEntry a, DriverInventoryEntry b) =>
