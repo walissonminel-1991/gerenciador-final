@@ -71,7 +71,10 @@ internal static class HardwareMonitoringDiagnosticReport
                     x.CapacityBytes.Value.HasValue) ?? 0) +
                 "; clocks configurados: " + (platform?.RamModules.Count(x =>
                     x.ConfiguredMhz.Value.HasValue) ?? 0) +
-                " (não são temperatura de DIMM)",
+                "; tensões SMBIOS configuradas em mV: " +
+                    (platform?.RamModules.Count(x =>
+                        x.ConfiguredMilliVolts.Value.HasValue) ?? 0) +
+                " (não são tensão instantânea nem temperatura de DIMM)",
             "Placa-mãe WMI: " + State(platform?.MotherboardsState ??
                 HardwareDiscoveryState.Unavailable) +
                 "; placas identificadas: " + (platform?.Motherboards.Count ?? 0) +
