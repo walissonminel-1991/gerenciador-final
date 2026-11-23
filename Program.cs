@@ -3679,6 +3679,8 @@ internal sealed partial class MainForm : Form
                 o.State == UninstallState.RegistrationAbsent &&
                 BundlewareReview.ObserveAfterUninstall(o, before, null).RelatedBefore > 0)
                 .ToArray();
+            var bundleObservations = new Dictionary<string, BundlePostRemovalReview>(
+                StringComparer.OrdinalIgnoreCase);
             if (bundleRoots.Length != 0)
             {
                 UninstallSnapshot? postBundle = null;
@@ -3692,6 +3694,7 @@ internal sealed partial class MainForm : Form
                 {
                     var review = BundlewareReview.ObserveAfterUninstall(
                         outcome, before, postBundle);
+                    bundleObservations[outcome.Request.Original.InventoryId] = review;
                     Log("Bundleware — " + outcome.Request.Original.Name + ": " + review.Message);
                 }
             }
@@ -3710,14 +3713,28 @@ internal sealed partial class MainForm : Form
                 { Log("O inventário não pôde ser atualizado. O resumo da desinstalação foi preservado."); }
             }
             string summary = UninstallResultSummary.Describe(outcomes, cleanup);
+            if (bundleObservations.Count != 0)
+            {
+                summary += Environment.NewLine + Environment.NewLine +
+                    "CONFERÊNCIA DE COMPONENTES OEM — somente registros do Windows" +
+                    Environment.NewLine +
+                    string.Join(Environment.NewLine, bundleRoots.Select(o =>
+                        o.Request.Original.Name + ": " +
+                        bundleObservations[o.Request.Original.InventoryId].Message));
+            }
             foreach (var outcome in outcomes.Where(o => o.State == UninstallState.RegistrationAbsent))
             {
                 string appId = ResidualAppIdentity.From(outcome.Request.Original).TechnicalId;
                 var inspection = cleanup?.Inspections?.SingleOrDefault(p => p.Context.App.TechnicalId == appId);
                 var cleaned = cleanup?.Results.SingleOrDefault(r => r.AppId == appId);
+                bundleObservations.TryGetValue(outcome.Request.Original.InventoryId,
+                    out var bundleObservation);
                 SetUninstallProgress(outcome.Request.Original, cleanup?.Cancelled == true ? "cancelled" :
+                    bundleObservation?.MustShowPartialResult == true ||
                     inspection is null || !inspection.Conclusive || cleaned is { Verified: false } && cleanup?.Declined != true ? "partial" : "finished",
-                    UninstallResultSummary.Describe([outcome], cleanup));
+                    UninstallResultSummary.Describe([outcome], cleanup) +
+                    (bundleObservation is null ? "" :
+                        Environment.NewLine + "Componentes OEM: " + bundleObservation.Message));
             }
             string result = UninstallResultSummary.Status(outcomes, cleanup, consent);
             Status(result); Log(result);
