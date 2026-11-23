@@ -63,9 +63,11 @@ internal static class LiveHardwareMonitoringTests
                 "tempo de atividade negativo");
             Thread.Sleep(60);
             var second = monitor.Capture();
-            Require(second.CpuUsagePercent.Value is not { } load || load is >= 0 and <= 100,
+            double? load = second.CpuUsagePercent.Value;
+            Require(!load.HasValue || load.Value is >= 0 and <= 100,
                 "uso da CPU deve estar no intervalo 0-100");
-            Require(second.CpuFrequencyMhz.Value is not { } mhz || mhz is >= 100 and <= 20_000,
+            double? mhz = second.CpuFrequencyMhz.Value;
+            Require(!mhz.HasValue || mhz.Value is >= 100 and <= 20_000,
                 "frequência informada pelo Windows está fora da faixa validada");
             var memoryAlreadyRead = new MemoryRamSample(DateTime.UtcNow, 1_048_576, 524_288);
             var shared = monitor.Capture(memoryAlreadyRead);
