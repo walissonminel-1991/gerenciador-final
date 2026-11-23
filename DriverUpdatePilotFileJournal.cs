@@ -19,6 +19,7 @@ internal sealed record DriverWuaJournalSnapshot(
         Disposition is DriverWuaJournalDisposition.PendingReconciliation or
             DriverWuaJournalDisposition.InvalidOrUnsafe;
     internal bool AuthorizesInstallation => false;
+    internal bool OtherProcessHoldsLock { get; init; }
 }
 
 // Journal experimental para impedir repeticao apos queda, timeout ou resultado
@@ -54,6 +55,26 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
         catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
     }
 
+    private enum LockObservation { Free, Held, Unsafe }
+
+    // FileMode.Open nunca cria o .lock. O executor real o mantém com
+    // FileShare.None até persistir o resultado; em caso de dúvida, falha fechado.
+    private static LockObservation ObserveLockReadOnly(string journalPath)
+    {
+        try
+        {
+            string lockPath = journalPath + ".lock";
+            if (Directory.Exists(lockPath)) return LockObservation.Unsafe;
+            if (!File.Exists(lockPath)) return LockObservation.Free;
+            using var probe = new FileStream(lockPath, FileMode.Open,
+                FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return LockObservation.Free;
+        }
+        catch (IOException) { return LockObservation.Held; }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        { return LockObservation.Unsafe; }
+    }
+
     // Novo contrato consultivo: snapshot tipado do diário local. Nunca
     // lista IDs de dispositivo, caminhos ou metadados de identificação.
     // Cuidado: "Verified" atesta só o registro guardado, não a situação
@@ -67,9 +88,17 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
         {
             if (!SafeStorage(journalPath))
                 return Invalid("Diário WUA inseguro ou inacessível; operação bloqueada.");
+            var lockObservation = ObserveLockReadOnly(journalPath);
+            if (lockObservation == LockObservation.Unsafe)
+                return Invalid("Trava do diário WUA indisponível; nenhuma operação autorizada.");
+            bool locked = lockObservation == LockObservation.Held;
             if (!File.Exists(journalPath))
-                return new(DriverWuaJournalDisposition.NeverStarted, "", null,
-                    "Nenhuma intenção WUA observada nesta localização.");
+                return locked
+                    ? new(DriverWuaJournalDisposition.PendingReconciliation, "", null,
+                        "Outra sessão WUA mantém o bloqueio; não iniciar nova operação.")
+                        { OtherProcessHoldsLock = true }
+                    : new(DriverWuaJournalDisposition.NeverStarted, "", null,
+                        "Nenhuma intenção WUA observada nesta localização.");
             using var input = new FileStream(journalPath, FileMode.Open, FileAccess.Read,
                 FileShare.Read);
             if (input.Length is <= 0 or > 4096)
@@ -84,11 +113,14 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
                 ledger.Timestamp > DateTimeOffset.UtcNow.AddMinutes(5))
                 return Invalid("Diário WUA inválido; não sobrescrever.");
             bool verified = ledger.Phase == nameof(DriverUpdatePilotState.Verified);
-            return new(verified ? DriverWuaJournalDisposition.Verified :
+            return new(!locked && verified ? DriverWuaJournalDisposition.Verified :
                 DriverWuaJournalDisposition.PendingReconciliation,
-                ledger.Phase, ledger.Timestamp, verified
-                    ? "Última operação registrada como verificada; nova operação ainda exige consulta e consentimento."
-                    : "Intenção WUA não verificada; conciliação supervisionada necessária.");
+                ledger.Phase, ledger.Timestamp, locked
+                    ? "Outra sessão WUA está ativa; não iniciar uma operação concorrente."
+                    : verified
+                        ? "Última operação registrada como verificada; nova operação ainda exige consulta e consentimento."
+                        : "Intenção WUA não verificada; conciliação supervisionada necessária.")
+                { OtherProcessHoldsLock = locked };
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -132,7 +164,9 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
     {
         try
         {
-            if (!SafeStorage(journalPath)) return false;
+            if (!SafeStorage(journalPath) ||
+                ObserveLockReadOnly(journalPath) != LockObservation.Free)
+                return false;
             if (!File.Exists(journalPath)) return true;
             var info = new FileInfo(journalPath);
             if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
