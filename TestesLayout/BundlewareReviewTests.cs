@@ -52,6 +52,16 @@ internal static class BundlewareReviewTests
             BundlewareReview.RelationsStillSafe(executable, initialSnapshot,
                 new UninstallSnapshot([parent, child, independent], false)))
             throw new Exception("Bundleware: ligação ao executor padrão não preserva o relacionamento completo.");
+        var brokenArpIdentity = new ProgramEntry
+        {
+            Name = "ARP com chave de identidade malformada",
+            InventoryId = "LocalMachine|Registry64|Other|Extra",
+            InventorySource = "Registro: Computador (64 bits)"
+        };
+        if (BundlewareReview.RelationsStillSafe(
+                new UninstallRequest(brokenArpIdentity, executable.Command),
+                initialSnapshot, initialSnapshot))
+            throw new Exception("Bundleware: identidade ARP malformada ignorou guarda.");
         var selected = BundlewareReview.PrepareUserSelection(scan, [parent.InventoryId]);
         if (!selected.Eligible || selected.Requests.Count != 1 ||
             selected.Requests[0].Original.InventoryId != parent.InventoryId)
