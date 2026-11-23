@@ -3640,7 +3640,9 @@ internal sealed partial class MainForm : Form
                 "• " + p.Request.Original.Name + "\n" + SilentUninstallPolicy.DescribeMode(p.Request) +
                 (p.UnsignedWarning ? "\nDesinstalador sem assinatura digital. Confira o aplicativo antes de continuar." :
                  p.PublisherWarning ? "\nAssinatura válida com editor diferente do cadastro. Confira o aplicativo." :
-                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : ""))), cancellation.Token);
+                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : "") +
+                (BundlewareReview.ExplainPotentialBundleImpact(p.Request.Original, before)
+                    is { Length: > 0 } impact ? "\n" + impact : ""))), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             foreach (var app in apps) SetUninstallProgress(app, "awaiting_consent");
             bool consent = DarkConfirmDialog.Confirm(this,
