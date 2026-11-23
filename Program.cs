@@ -98,6 +98,10 @@ internal sealed class ProgramEntry
     public string InventoryId { get; init; } = "";
     // Marcador consultivo da entrada ARP oculta; nunca concede permissao de remocao.
     public bool HiddenFromNormalView { get; init; }
+    // ARP: dependências explícitas do instalador; não são regras de desinstalação.
+    public string BundleParentKeyName { get; init; } = "";
+    public string BundleProviderKey { get; init; } = "";
+    public bool BundleMetadataReliable { get; init; } = true;
     // Evidência consultiva capturada junto ao inventário; não autoriza execução.
     internal string QueryArchitecture { get; set; } = "unknown";
     public string MsiProductCode { get; init; } = "";
@@ -139,7 +143,11 @@ internal sealed class ProgramEntry
 }
 
 internal sealed record RegistryInventoryScan(IReadOnlyList<ProgramEntry> Items,
-    int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates);
+    int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates)
+{
+    // Prévia de bundleware exige inclusive filhos SystemComponent ocultos.
+    internal bool IncludesHiddenEntries { get; init; }
+}
 internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
     RegistryInventoryScan Registry, LocalMsixResult Msix, int Added,
     GameLibraryReport Games, int GamesAdded)
@@ -376,6 +384,18 @@ internal static class AppServices
                         { hidden++; if (!includeHidden) continue; }
                         bool protectedApp = longName || updateRecord || ProtectedApplications.IsInventoryOnly(name, systemComponent);
                         string publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "";
+                        // ParentKeyName identifica componentes de um bundle. Um
+                        // valor inseguro jamais deve permitir desinstalação isolada.
+                        object? rawParent = child.GetValue("ParentKeyName");
+                        object? rawBundle = child.GetValue("BundleProviderKey");
+                        static bool SafeBundleValue(object? raw) => raw is null ||
+                            raw is string { Length: <= 180 } value &&
+                            value == value.Trim() && !value.Any(char.IsControl);
+                        string parent = rawParent as string ?? "";
+                        string bundle = rawBundle as string ?? "";
+                        bool bundleMetadataReliable = SafeBundleValue(rawParent) &&
+                            SafeBundleValue(rawBundle) &&
+                            !parent.Contains('\\') && !parent.Contains('/');
                         UnifiedAppRule? known = ApplicationIdentityCatalog.Resolve(name, publisher);
                         string scope = hive == RegistryHive.CurrentUser ? "Usuário atual" : "Computador";
                         string architecture = view == RegistryView.Registry32 ? "32 bits" : "64 bits";
@@ -393,6 +413,9 @@ internal static class AppServices
                             InventoryId = registryIdentity,
                             HiddenFromNormalView = systemComponent && !updateRecord && !longName &&
                                 !ProtectedApplications.IsProtectedName(name),
+                            BundleParentKeyName = bundleMetadataReliable ? parent : "",
+                            BundleProviderKey = bundleMetadataReliable ? bundle : "",
+                            BundleMetadataReliable = bundleMetadataReliable,
                             MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
                             UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
@@ -401,7 +424,9 @@ internal static class AppServices
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
                             InstallLocation = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
-                            InventoryOnly = protectedApp
+                            // A remoção de um filho pode quebrar o pacote pai.
+                            // Inventário e revisão continuam, ação isolada fica bloqueada.
+                            InventoryOnly = protectedApp || !bundleMetadataReliable || parent.Length != 0
                         };
                         entry.QueryArchitecture = InstalledUpdateIdentity.CaptureArchitecture(entry);
                         entries.Add(entry);
@@ -414,7 +439,8 @@ internal static class AppServices
         var distinct = InventoryReconciler.DistinctRegistryEntries(entries);
         return new RegistryInventoryScan(distinct.OrderBy(x => x.Name,
             StringComparer.CurrentCultureIgnoreCase).ToArray(),
-            inspected, hidden, updates, failures, entries.Count - distinct.Count);
+            inspected, hidden, updates, failures, entries.Count - distinct.Count)
+        { IncludesHiddenEntries = includeHidden };
     }
 
     public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
@@ -3614,7 +3640,9 @@ internal sealed partial class MainForm : Form
                 "• " + p.Request.Original.Name + "\n" + SilentUninstallPolicy.DescribeMode(p.Request) +
                 (p.UnsignedWarning ? "\nDesinstalador sem assinatura digital. Confira o aplicativo antes de continuar." :
                  p.PublisherWarning ? "\nAssinatura válida com editor diferente do cadastro. Confira o aplicativo." :
-                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : ""))), cancellation.Token);
+                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : "") +
+                (BundlewareReview.ExplainPotentialBundleImpact(p.Request.Original, before)
+                    is { Length: > 0 } impact ? "\n" + impact : ""))), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             foreach (var app in apps) SetUninstallProgress(app, "awaiting_consent");
             bool consent = DarkConfirmDialog.Confirm(this,
@@ -3628,7 +3656,9 @@ internal sealed partial class MainForm : Form
                         "launch", SilentUninstallPolicy.UsesSilentMode(request) ? "silent" : "interactive"));
                     return prepared.Single(p => p.Request == request).LaunchAsync(token);
                 }, token => Task.Delay(500, token), cancellation.Token,
-                (request, stage) => SetUninstallProgress(request.Original, stage)));
+                (request, stage) => SetUninstallProgress(request.Original, stage),
+                preLaunchSafety: (request, current) =>
+                    BundlewareReview.RelationsStillSafe(request, before, current)));
             foreach (var plan in prepared) plan.Dispose();
             prepared.Clear();
             foreach (var outcome in outcomes)
@@ -3642,11 +3672,48 @@ internal sealed partial class MainForm : Form
             }
             foreach (var app in apps.Where(app => !outcomes.Any(o => o.Request.Original.InventoryId == app.InventoryId)))
                 SetUninstallProgress(app, "cancelled");
+            // Um registro principal ausente não prova que os componentes do
+            // bundle OEM também saíram. Consultar uma vez após o executor,
+            // sem tentar remover filhos e sem promover ausência ARP a limpeza.
+            var bundleRoots = outcomes.Where(o =>
+                o.State == UninstallState.RegistrationAbsent &&
+                BundlewareReview.ObserveAfterUninstall(o, before, null).RelatedBefore > 0)
+                .ToArray();
+            var bundleObservations = new Dictionary<string, BundlePostRemovalReview>(
+                StringComparer.OrdinalIgnoreCase);
+            if (bundleRoots.Length != 0)
+            {
+                UninstallSnapshot? postBundle = null;
+                try { postBundle = await Inventory(); }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    Log("Bundleware: consulta posterior indisponível (" +
+                        ex.GetType().Name + "); não confirmar remoção dos componentes.");
+                }
+                foreach (var outcome in bundleRoots)
+                {
+                    var review = BundlewareReview.ObserveAfterUninstall(
+                        outcome, before, postBundle);
+                    bundleObservations[outcome.Request.Original.InventoryId] = review;
+                    Log("Bundleware — " + outcome.Request.Original.Name + ": " + review.Message);
+                }
+            }
+            // A limpeza integrada usa apenas os resultados sem dependências
+            // OEM remanescentes. Não altera o desfecho do desinstalador nem
+            // remove silenciosamente componentes do pacote.
+            var cleanupCandidates = BundlewareReview.SafeResidualCleanupCandidates(
+                outcomes, bundleObservations);
+            foreach (var held in outcomes.Where(o =>
+                !cleanupCandidates.Contains(o)))
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(
+                    ResidualAppIdentity.From(held.Request.Original),
+                    "bundle_cleanup", "preserved",
+                    reason: "bundle_components_remaining_or_inconclusive"));
             ResidualBatchResult? cleanup = null;
             if (consent)
             {
                 Status("Conferindo resíduos dos aplicativos removidos...");
-                cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(outcomes, contexts,
+                cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(cleanupCandidates, contexts,
                     Inventory, (plans, token) => OnUninstallUiAsync(() => ConfirmUninstallCleanupAsync(plans, token)),
                     (plans, token) => OnUninstallUiAsync(() => RunElevatedAsync(ResidualElevatedProtocol.TaskName, plans, token, RecordResidualEvent)),
                     RecordResidualEvent, cancellation.Token,
@@ -3657,14 +3724,28 @@ internal sealed partial class MainForm : Form
                 { Log("O inventário não pôde ser atualizado. O resumo da desinstalação foi preservado."); }
             }
             string summary = UninstallResultSummary.Describe(outcomes, cleanup);
+            if (bundleObservations.Count != 0)
+            {
+                summary += Environment.NewLine + Environment.NewLine +
+                    "CONFERÊNCIA DE COMPONENTES OEM — somente registros do Windows" +
+                    Environment.NewLine +
+                    string.Join(Environment.NewLine, bundleRoots.Select(o =>
+                        o.Request.Original.Name + ": " +
+                        bundleObservations[o.Request.Original.InventoryId].Message));
+            }
             foreach (var outcome in outcomes.Where(o => o.State == UninstallState.RegistrationAbsent))
             {
                 string appId = ResidualAppIdentity.From(outcome.Request.Original).TechnicalId;
                 var inspection = cleanup?.Inspections?.SingleOrDefault(p => p.Context.App.TechnicalId == appId);
                 var cleaned = cleanup?.Results.SingleOrDefault(r => r.AppId == appId);
+                bundleObservations.TryGetValue(outcome.Request.Original.InventoryId,
+                    out var bundleObservation);
                 SetUninstallProgress(outcome.Request.Original, cleanup?.Cancelled == true ? "cancelled" :
+                    bundleObservation?.MustShowPartialResult == true ||
                     inspection is null || !inspection.Conclusive || cleaned is { Verified: false } && cleanup?.Declined != true ? "partial" : "finished",
-                    UninstallResultSummary.Describe([outcome], cleanup));
+                    UninstallResultSummary.Describe([outcome], cleanup) +
+                    (bundleObservation is null ? "" :
+                        Environment.NewLine + "Componentes OEM: " + bundleObservation.Message));
             }
             string result = UninstallResultSummary.Status(outcomes, cleanup, consent);
             Status(result); Log(result);
