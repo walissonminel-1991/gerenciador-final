@@ -3654,7 +3654,9 @@ internal sealed partial class MainForm : Form
                         "launch", SilentUninstallPolicy.UsesSilentMode(request) ? "silent" : "interactive"));
                     return prepared.Single(p => p.Request == request).LaunchAsync(token);
                 }, token => Task.Delay(500, token), cancellation.Token,
-                (request, stage) => SetUninstallProgress(request.Original, stage)));
+                (request, stage) => SetUninstallProgress(request.Original, stage),
+                preLaunchSafety: (request, current) =>
+                    BundlewareReview.RelationsStillSafe(request, before, current)));
             foreach (var plan in prepared) plan.Dispose();
             prepared.Clear();
             foreach (var outcome in outcomes)
