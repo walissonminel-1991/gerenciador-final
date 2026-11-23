@@ -12,7 +12,8 @@ internal sealed record WmiCpuSocketRaw(
     object? NumberOfLogicalProcessors, object? CurrentClockSpeed);
 internal sealed record WmiRamModuleRaw(
     string? BankLabel, string? DeviceLocator, object? Capacity,
-    object? ConfiguredClockSpeed, object? SMBIOSMemoryType);
+    object? ConfiguredClockSpeed, object? SMBIOSMemoryType,
+    object? ConfiguredVoltage = null);
 internal sealed record WmiMotherboardRaw(
     string? Tag, string? Manufacturer, string? Product, string? Version);
 internal sealed record WmiLogicalCpuRaw(string? Name, object? PercentProcessorTime);
@@ -24,7 +25,12 @@ internal sealed record WindowsCpuSocket(
 internal sealed record WindowsRamModule(
     string BankLabel, string DeviceLocator,
     MonitorReading<ulong> CapacityBytes,
-    MonitorReading<double> ConfiguredMhz, uint? SmbiosMemoryType);
+    MonitorReading<double> ConfiguredMhz, uint? SmbiosMemoryType)
+{
+    // SMBIOS configurado, NÃO leitura elétrica instantânea nem sensor VRM.
+    internal MonitorReading<double> ConfiguredMilliVolts { get; init; } =
+        MonitorReading<double>.Unavailable("Windows WMI Win32_PhysicalMemory.ConfiguredVoltage");
+}
 internal sealed record WindowsMotherboard(
     string Tag, string? Manufacturer, string? Product, string? Version);
 internal sealed record WindowsLogicalCpuLoad(
@@ -155,8 +161,16 @@ internal static class WindowsPlatformHardwareProvider
             ulong? capacity = UInt(raw.Capacity);
             ulong? mhz = UInt(raw.ConfiguredClockSpeed);
             ulong? memoryType = UInt(raw.SMBIOSMemoryType);
+            ulong? millivolts = UInt(raw.ConfiguredVoltage);
+            // ConfiguredVoltage = 0 ou null significa "não informado"
+            // segundo Win32_PhysicalMemory; não tornar o módulo inválido.
+            // Valor presente mas impossível só afeta a confiabilidade da fonte.
+            bool voltageProvided = raw.ConfiguredVoltage is not null &&
+                raw.ConfiguredVoltage is not DBNull;
+            bool voltageValid = millivolts is >= 500 and <= 5_000;
             if (capacity is null or < 16_777_216 or > 4_398_046_511_104 ||
-                mhz is null or < 100 or > 20_000)
+                mhz is null or < 100 or > 20_000 ||
+                (voltageProvided && millivolts != 0 && !voltageValid))
                 memoryPartial = true;
             ramResult.Add(new(bank ?? "", slot ?? "",
                 capacity is >= 16_777_216 and <= 4_398_046_511_104
@@ -166,7 +180,14 @@ internal static class WindowsPlatformHardwareProvider
                     ? MonitorReading<double>.Available(mhz.Value, Source + " Win32_PhysicalMemory.ConfiguredClockSpeed")
                     : MonitorReading<double>.Unavailable(Source + " Win32_PhysicalMemory.ConfiguredClockSpeed"),
                 memoryType is > 0 and <= ushort.MaxValue
-                    ? (uint)memoryType.Value : null));
+                    ? (uint)memoryType.Value : null)
+            {
+                ConfiguredMilliVolts = voltageValid
+                    ? MonitorReading<double>.Available(millivolts!.Value,
+                        Source + " Win32_PhysicalMemory.ConfiguredVoltage (mV SMBIOS reportados, não medidos)")
+                    : MonitorReading<double>.Unavailable(
+                        Source + " Win32_PhysicalMemory.ConfiguredVoltage (0/nulo/fora da faixa)")
+            });
         }
 
         var boardIdentities = baseboards.Take(MaxMotherboards)
@@ -295,11 +316,12 @@ internal static class WindowsPlatformHardwareProvider
                     get("NumberOfCores"), get("NumberOfLogicalProcessors"),
                     get("CurrentClockSpeed"))));
             bool ramOk = Query("SELECT BankLabel, DeviceLocator, Capacity, " +
-                "ConfiguredClockSpeed, SMBIOSMemoryType FROM Win32_PhysicalMemory",
+                "ConfiguredClockSpeed, SMBIOSMemoryType, ConfiguredVoltage FROM Win32_PhysicalMemory",
                 get => ram.Add(new(
                     Convert.ToString(get("BankLabel"), CultureInfo.InvariantCulture),
                     Convert.ToString(get("DeviceLocator"), CultureInfo.InvariantCulture),
-                    get("Capacity"), get("ConfiguredClockSpeed"), get("SMBIOSMemoryType"))));
+                    get("Capacity"), get("ConfiguredClockSpeed"), get("SMBIOSMemoryType"),
+                    get("ConfiguredVoltage"))));
             bool boardOk = Query("SELECT Tag, Manufacturer, Product, Version FROM Win32_BaseBoard",
                 get => boards.Add(new(
                     Convert.ToString(get("Tag"), CultureInfo.InvariantCulture),
