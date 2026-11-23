@@ -67,7 +67,11 @@ internal static class LiveHardwareMonitoringTests
                 "uso da CPU deve estar no intervalo 0-100");
             Require(second.CpuFrequencyMhz.Value is not { } mhz || mhz is >= 100 and <= 20_000,
                 "frequência informada pelo Windows está fora da faixa validada");
-            Require(monitor.History.Count == 2 && !ReferenceEquals(monitor.History, monitor.History),
+            var memoryAlreadyRead = new MemoryRamSample(DateTime.UtcNow, 1_048_576, 524_288);
+            var shared = monitor.Capture(memoryAlreadyRead);
+            Require(ReferenceEquals(shared.Memory, memoryAlreadyRead),
+                "a aba Sistema deve poder reutilizar a amostra RAM sem nova coleta");
+            Require(monitor.History.Count == 3 && !ReferenceEquals(monitor.History, monitor.History),
                 "histórico precisa ser limitado à sessão e exposto por cópia");
         }
 
