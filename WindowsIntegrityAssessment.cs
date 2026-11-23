@@ -4,6 +4,8 @@ namespace GerenciadorAplicativos;
 // Idioma nao reconhecido deixa reparo bloqueado, nunca presume integridade.
 internal enum IntegrityState { Inconclusive, Healthy, Repairable }
 
+internal enum WindowsRepairRebootState { Clear, Pending, Inconclusive }
+
 // Diagnóstico separado de cada componente: um subsistema íntegro não
 // comprova o outro e saídas não reconhecidas continuam inconclusivas.
 internal sealed record WindowsIntegrityDetails(
@@ -22,6 +24,32 @@ internal sealed record WindowsIntegrityDetails(
 }
 internal static class WindowsIntegrityAssessment
 {
+    // Duas fontes oficiais de reinício; uma exceção de leitura nunca vira
+    // "liberado". Não interpreta o estado de serviços ou drivers.
+    internal static WindowsRepairRebootState AssessReboot(bool? servicing, bool? windowsUpdate) =>
+        servicing == true || windowsUpdate == true
+            ? WindowsRepairRebootState.Pending
+            : servicing == false && windowsUpdate == false
+                ? WindowsRepairRebootState.Clear
+                : WindowsRepairRebootState.Inconclusive;
+
+    internal static WindowsRepairRebootState InspectRebootReadOnly()
+    {
+        if (!OperatingSystem.IsWindows()) return WindowsRepairRebootState.Inconclusive;
+        try
+        {
+            using var cbs = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending");
+            using var wu = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired");
+            return AssessReboot(cbs is not null, wu is not null);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return WindowsRepairRebootState.Inconclusive;
+        }
+    }
+
     internal static IntegrityState Interpret(int dismExit, string dismOutput,
         int sfcExit, string sfcOutput)
     {
