@@ -40,6 +40,25 @@ internal sealed record DriverBackupCatalogSnapshot(
         DriverBackupCatalogState.PendingReconciliation);
 }
 
+// Visão consultiva agregada para a futura camada de detalhes do GF.
+// O cofre OEM e o diário WUA são fontes independentes: backup disponível
+// não prova atualização instalada, e journal Verified não autoriza restauração.
+internal sealed record DriverMaintenanceReadOnlyOverview(
+    DriverWuaJournalSnapshot UpdateJournal,
+    DriverBackupCatalogSnapshot Backups,
+    bool OtherDriverOperationActive)
+{
+    internal bool NeedsSupervisedReview =>
+        UpdateJournal.RequiresSupervisedReview ||
+        Backups.Partial ||
+        Backups.Items.Any(x => x.State is DriverBackupCatalogState.Inconclusive
+            or DriverBackupCatalogState.PendingReconciliation) ||
+        OtherDriverOperationActive;
+    internal int PendingRecoveries => Backups.Items.Count(x =>
+        x.State == DriverBackupCatalogState.PendingReconciliation);
+    internal bool GrantsMaintenancePermission => false;
+}
+
 internal static class DriverRecoveryVault
 {
     private static int active;
@@ -216,6 +235,19 @@ internal static class DriverRecoveryVault
         }
         return found;
     }
+
+    // Sem COM, PnPUtil, elevação ou alteração do sistema. O consumo desta
+    // fotografia nunca substitui as verificações de instante de execução.
+    internal static DriverMaintenanceReadOnlyOverview CaptureOverviewReadOnly(
+        int maximumBackups = 128) =>
+        CaptureOverviewReadOnlyForTest(DriverUpdatePilotFileJournal.SuggestedPath,
+            Root, DriverG32RecoveryTicket.HasActiveOperation, maximumBackups);
+
+    internal static DriverMaintenanceReadOnlyOverview CaptureOverviewReadOnlyForTest(
+        string journalPath, string backupRoot, bool driverOperationActive,
+        int maximumBackups = 128) =>
+        new(DriverUpdatePilotFileJournal.InspectReadOnly(journalPath),
+            BrowseBackupsForTest(backupRoot, maximumBackups), driverOperationActive);
 
     // Catálogo consultivo: não enumera Driver Store, não cria pastas,
     // não remove arquivos e nunca oculta recibos pendentes de recuperação.
