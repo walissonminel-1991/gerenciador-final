@@ -20,6 +20,10 @@ internal sealed record BundleUninstallPreview(
     bool Eligible, string Reason, IReadOnlyList<UninstallRequest> Requests,
     IReadOnlyList<BundleReview> Evidence);
 
+// Facade do motor existente: nenhuma permissão ou comando de remoção novo.
+internal sealed record BundleUninstallRunResult(bool SentToExecutor, string Reason,
+    IReadOnlyList<UninstallOutcome> Outcomes);
+
 internal static class BundlewareReview
 {
     internal static bool IsSafeMetadata(ProgramEntry? app) =>
@@ -126,6 +130,67 @@ internal static class BundlewareReview
         catch (Exception ex) when (ex is InvalidDataException or ArgumentException)
         {
             return new(false, "Registro não possui desinstalador validado; nenhuma execução.", [], reviews);
+        }
+    }
+
+    // Integração funcional: a escolha deve permanecer idêntica APÓS nova
+    // leitura ARP completa; a execução fica a cargo de UninstallBatch,
+    // que faz sua própria recaptura antes de lançar o uninstaller registrado.
+    // Nenhum script de "debloat" ou exclusão por fabricante é permitido.
+    internal static async Task<BundleUninstallRunResult> RunConfirmedSelectionAsync(
+        RegistryInventoryScan initial, IReadOnlyCollection<string> selectedIds,
+        bool confirmed, Func<Task<RegistryInventoryScan>> freshRegistryScan,
+        Func<Task<UninstallSnapshot>> freshFullInventory,
+        Func<UninstallRequest, CancellationToken, Task<int?>> registeredUninstaller,
+        Func<CancellationToken, Task> waitBetweenChecks,
+        CancellationToken token = default)
+    {
+        if (!confirmed || token.IsCancellationRequested)
+            return new(false, "Sem consentimento atual; nenhuma remoção.", []);
+        var before = PrepareUserSelection(initial, selectedIds);
+        if (!before.Eligible)
+            return new(false, before.Reason, []);
+        try
+        {
+            var fresh = await freshRegistryScan();
+            token.ThrowIfCancellationRequested();
+            var current = PrepareUserSelection(fresh, selectedIds);
+            if (!current.Eligible || before.Requests.Count != current.Requests.Count ||
+                before.Evidence.Count != current.Evidence.Count)
+                return new(false, "Inventário ou relações do pacote mudaram; refazer a prévia.", []);
+            for (int i = 0; i < before.Requests.Count; i++)
+            {
+                var old = before.Requests[i];
+                var now = current.Requests[i];
+                var oldReview = before.Evidence[i];
+                var currentReview = current.Evidence[i];
+                if (!UninstallBatch.SameRegistration(old.Original, now.Original) ||
+                    !string.Equals(old.Original.BundleProviderKey,
+                        now.Original.BundleProviderKey, StringComparison.Ordinal) ||
+                    !string.Equals(old.Original.BundleParentKeyName,
+                        now.Original.BundleParentKeyName, StringComparison.Ordinal) ||
+                    old.Original.BundleMetadataReliable != now.Original.BundleMetadataReliable ||
+                    oldReview.State != currentReview.State ||
+                    !oldReview.RegisteredChildren.SequenceEqual(currentReview.RegisteredChildren,
+                        StringComparer.OrdinalIgnoreCase) ||
+                    !Equals(old.Command, now.Command))
+                    return new(false, "Pacote, dependências ou desinstalador mudaram; não executar.", []);
+            }
+            token.ThrowIfCancellationRequested();
+            var executor = new UninstallBatch();
+            var outcomes = await executor.RunAsync(current.Requests, true,
+                freshFullInventory, registeredUninstaller, waitBetweenChecks, token);
+            return new(true, "Solicitação encaminhada ao executor registrado com reconferência de identidade.",
+                outcomes);
+        }
+        catch (OperationCanceledException)
+        {
+            return new(false, "Solicitação cancelada; não iniciar novas remoções.", []);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new(false, "Revalidação indisponível (" + ex.GetType().Name +
+                "); não iniciar remoção.", []);
         }
     }
 
