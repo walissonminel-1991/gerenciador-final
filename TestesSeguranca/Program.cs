@@ -76,6 +76,42 @@ Check(WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:HEALTHY", out 
     !WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:UNKNOWN", out _) &&
     !WindowsIntegrityAssessment.TryReadPostRepairWire("", out _),
     "Pós-reparo rejeita valores arbitrários, truncados ou adulterados.");
+var separateHealthy = WindowsIntegrityAssessment.Assess(0,
+    "No component store corruption detected.", 0,
+    "Windows Resource Protection did not find any integrity violations.");
+Check(separateHealthy.FullyVerified &&
+    separateHealthy.ComponentStore == IntegrityState.Healthy &&
+    separateHealthy.ProtectedFiles == IntegrityState.Healthy &&
+    separateHealthy.Overall == IntegrityState.Healthy,
+    "Diagnostico por componente: DISM e SFC saudaveis somente com duas evidencias.");
+var dismIssue = WindowsIntegrityAssessment.Assess(0,
+    "The component store is repairable.", 0,
+    "Windows Resource Protection did not find any integrity violations.");
+Check(!dismIssue.FullyVerified && dismIssue.HasConfirmedDamage &&
+    dismIssue.ComponentStore == IntegrityState.Repairable &&
+    dismIssue.ProtectedFiles == IntegrityState.Healthy &&
+    dismIssue.Overall == IntegrityState.Repairable,
+    "Diagnostico por componente: DISM reparavel nao equivale a arquivos SFC corrompidos.");
+var sfcIssue = WindowsIntegrityAssessment.Assess(0,
+    "No component store corruption detected.", 0,
+    "Windows Resource Protection found integrity violations.");
+Check(!sfcIssue.FullyVerified && sfcIssue.HasConfirmedDamage &&
+    sfcIssue.ComponentStore == IntegrityState.Healthy &&
+    sfcIssue.ProtectedFiles == IntegrityState.Repairable,
+    "Diagnostico por componente: violacao SFC nao falsifica corrupcao do Store.");
+var partialIntegrity = WindowsIntegrityAssessment.Assess(0,
+    "No component store corruption detected.", 0,
+    "Verification 100% complete.");
+var failedDism = WindowsIntegrityAssessment.Assess(5,
+    "The component store is repairable.", 0,
+    "Windows Resource Protection did not find any integrity violations.");
+Check(!partialIntegrity.FullyVerified &&
+    partialIntegrity.ProtectedFiles == IntegrityState.Inconclusive &&
+    partialIntegrity.Overall == IntegrityState.Inconclusive &&
+    !failedDism.FullyVerified &&
+    failedDism.ComponentStore == IntegrityState.Inconclusive &&
+    failedDism.Overall == IntegrityState.Inconclusive,
+    "Diagnostico por componente: texto vago e exit nao zero nunca comprovam integridade.");
 Console.WriteLine("OK: DISM e SFC consultivos com gating conservador.");
 Check(NetworkRepairOutcome.FromWire("DONE|0") == NetworkRepairWorkerState.CommandReturnedZero &&
     NetworkRepairOutcome.FromWire("DONE|5") == NetworkRepairWorkerState.CommandReturnedError &&
