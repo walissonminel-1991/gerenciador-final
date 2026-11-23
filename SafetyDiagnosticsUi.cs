@@ -81,23 +81,10 @@ internal sealed partial class MainForm
         });
     }
 
-    // Não confunde gateway/ICMP bloqueado com problema que precisa ser corrigido.
-    // Só sugere correções quando a interface e o gateway foram identificados.
-    private static string? GetSuggestedNetworkRepair(NetworkScan? scan)
-    {
-        if (scan is null) return null;
-        bool localReady = scan.Checks.Any(c => c.Name == "Adaptador" && c.State == "OK") &&
-                          scan.Checks.Any(c => c.Name == "Gateway" && c.State == "OK");
-        if (!localReady) return null;
-        if (scan.Checks.Any(c => c.Name == "DNS" && c.State == "Atenção"))
-            return "flush-dns";
-        // Somente quando DNS passou e a conectividade TCP/443 falhou; pode ser
-        // proxy/firewall e, portanto, a ação requer confirmação explícita.
-        if (scan.Checks.Any(c => c.Name == "DNS" && c.State == "OK") &&
-            scan.Checks.Any(c => c.Name == "Conexão HTTPS" && c.State == "Atenção"))
-            return "network-repair-winsock";
-        return null;
-    }
+    // Delegar a recomendação ao contrato testado de rede, mantendo a UI.
+    // Um único destino TCP/443 nunca justifica sugerir Winsock.
+    private static string? GetSuggestedNetworkRepair(NetworkScan? scan) =>
+        NetworkDiagnostics.SuggestTargetedRepair(scan);
 
     private async Task RepairNetworkAfterDiagnosisAsync()
     {
@@ -114,10 +101,12 @@ internal sealed partial class MainForm
 
         bool dnsRepair = task == "flush-dns";
         string confirmation = dnsRepair
-            ? "O teste detectou uma falha na resolução DNS. Deseja limpar apenas o cache DNS do Windows? " +
-              "Isso não altera os servidores DNS configurados. O teste será repetido depois da operação."
-            : "O DNS respondeu, mas a conexão TCP/443 ao endereço de teste falhou. Isso pode ocorrer por proxy, firewall " +
-              "ou bloqueio do servidor, e não comprova um defeito no Windows.\n\n" +
+            ? "Dois nomes de teste independentes não resolveram. Isso pode ocorrer por rede indisponível, " +
+              "firewall ou DNS e NÃO comprova que o cache esteja corrompido.\n\n" +
+              "Deseja limpar apenas o cache DNS do Windows? Isso não altera os servidores DNS " +
+              "configurados nem reinicia o Windows. Ambos os nomes serão consultados novamente."
+            : "O DNS respondeu, mas dois destinos TCP/443 independentes falharam. Isso pode ocorrer por proxy, firewall " +
+              "ou bloqueio externo e não comprova defeito no catálogo Winsock.\n\n" +
               "Deseja tentar redefinir APENAS o catálogo Winsock? A rede pode ser interrompida e será necessário " +
               "reiniciar o Windows para completar a alteração. Nenhum reinício automático será feito.";
         if (MessageBox.Show(this, confirmation, "Confirmar reparo orientado de rede",
@@ -128,13 +117,56 @@ internal sealed partial class MainForm
         }
 
         Log("Reparo orientado selecionado pelo diagnóstico: " + (dnsRepair ? "cache DNS" : "Winsock") + ".");
+        var workerResult = NetworkRepairWorkerState.NotConfirmed;
         await ExecuteAsync(dnsRepair ? "Limpando cache DNS..." : "Redefinindo catálogo Winsock...",
-            () => RunElevatedAsync(task));
+            () => RunElevatedAsync(task,
+                networkRepairCompletion: outcome => workerResult = outcome));
+
+        if (workerResult != NetworkRepairWorkerState.CommandReturnedZero)
+        {
+            // UAC recusado, conexão interrompida e exit code não zero não
+            // autorizam mostrar "reset solicitado" nem repetir às cegas.
+            _lastNetworkScan = null;
+            _networkSummary.ForeColor = Muted;
+            _networkSummary.Text = workerResult == NetworkRepairWorkerState.CommandReturnedError
+                ? "O Windows informou erro na operação. Nenhum reparo foi confirmado."
+                : "Operação sem retorno conclusivo. Confira o registro antes de repetir.";
+            _networkDetails.Text = "O GF não comprova qualquer mudança na rede. Refaça a análise antes de decidir outra operação.";
+            if (_repairNetworkButton is not null) _repairNetworkButton.Enabled = false;
+            Log("Resultado de manutenção de rede não confirmado (" + workerResult +
+                "); nenhuma repetição automática.");
+            return;
+        }
 
         if (dnsRepair)
         {
-            // Reexecutar os testes: não declarar sucesso apenas porque o comando terminou.
+            // Código zero comprova somente o flush, não recuperação.
+            // Reconsultar os mesmos dois nomes após a operação e preservar
+            // estados mistos como parciais, jamais sucesso pleno.
+            var before = _lastNetworkScan;
+            _lastNetworkScan = null; // impedir reutilização de consulta anterior
             await RunNetworkDiagnosticAsync();
+            var checkedDns = NetworkRepairOutcome.ReviewDnsAfterFlush(
+                before, _lastNetworkScan, workerResult);
+            switch (checkedDns)
+            {
+                case NetworkDnsVerification.TestRecovered:
+                    Log("Pós-flush DNS: os dois nomes resolveram na nova consulta; não prova que o flush foi a causa.");
+                    Status("Pós-reparo: resolução dos dois nomes de teste observada.");
+                    break;
+                case NetworkDnsVerification.PartiallyRecovered:
+                    Log("Pós-flush DNS: somente um dos dois nomes resolveu. Resultado parcial; não repetir automaticamente.");
+                    Status("Pós-reparo DNS parcial; confira os alertas sem inferir correção geral.");
+                    break;
+                case NetworkDnsVerification.TestStillFailing:
+                    Log("Pós-flush DNS: nenhum dos dois nomes resolveu. Não repetir automaticamente.");
+                    Status("Pós-reparo: alerta DNS permanece; confira rede, proxy ou servidor.");
+                    break;
+                default:
+                    Log("Pós-flush DNS: observação incompleta. Não declarar correção.");
+                    Status("Pós-reparo DNS inconclusivo; consulte o registro.");
+                    break;
+            }
         }
         else
         {
