@@ -24,6 +24,10 @@ internal static class V269ComponentTests
 
         foreach (V269Theme theme in Enum.GetValues<V269Theme>())
         {
+            // Contagens são acumuladas entre temas; medir contra o valor
+            // imediatamente anterior ao acionamento bloqueado.
+            int clicksBeforeUpdate = updateClicks;
+            int clicksBeforeRemove = removeClicks;
             update.ApplyState(false, theme);
             remove.ApplyState(false, theme);
             Check(!update.Enabled && !remove.Enabled &&
@@ -39,8 +43,11 @@ internal static class V269ComponentTests
                 remove.AccessibleName?.Contains("não pode", StringComparison.Ordinal) == true,
                 "Leitor de tela deve anunciar a indisponibilidade binária.");
             update.PerformClick(); remove.PerformClick();
-            Check(updateClicks == 0 && removeClicks == 0,
-                "Botão bloqueado não pode disparar Click.");
+            Check(updateClicks == clicksBeforeUpdate &&
+                removeClicks == clicksBeforeRemove,
+                $"Botão bloqueado não pode disparar Click ({theme}): " +
+                $"atualizar={updateClicks}/{clicksBeforeUpdate}, " +
+                $"remover={removeClicks}/{clicksBeforeRemove}.");
 
             update.ApplyState(true, theme);
             remove.ApplyState(true, theme);
