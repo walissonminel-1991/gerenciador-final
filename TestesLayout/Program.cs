@@ -113,7 +113,9 @@ internal static class LayoutTests
         HardwareMonitoringDiagnosticReportTests.Run();
         StorageAssociationLinkerTests.Run();
         StorageReliabilityCounterMapperTests.Run();
-        WindowsPlatformHardwareProviderTests.Run();
+        // Contadores e inventário WMI reais só no runner Windows. O teste
+        // registra contagens agregadas; chipset/VRM sem fonte física ficam sem leitura.
+        WindowsPlatformHardwareProviderTests.Run(probeNative: OperatingSystem.IsWindows());
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         WheelScrollTests.Run();
