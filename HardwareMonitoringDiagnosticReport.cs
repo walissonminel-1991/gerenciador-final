@@ -40,6 +40,7 @@ internal static class HardwareMonitoringDiagnosticReport
         var gpu = portfolio.NvidiaGpus.Devices;
         var storage = portfolio.Storage.Disks;
         var acpi = portfolio.AcpiPlatform.Zones;
+        var platform = portfolio.PlatformHardware;
         var matched = portfolio.MatchedGpuDevices;
 
         var lines = new List<string>
@@ -52,6 +53,30 @@ internal static class HardwareMonitoringDiagnosticReport
                 "; uptime: " + State(portfolio.WindowsCounters.SystemUptime.Availability),
             "RAM física: " + (portfolio.WindowsCounters.Memory is { TotalBytes: > 0 }
                 ? "disponível" : "indisponível"),
+            "CPU sockets WMI: " + State(platform?.CpuSocketsState ??
+                HardwareDiscoveryState.Unavailable) +
+                "; sockets identificados: " + (platform?.CpuSockets.Count ?? 0) +
+                "; frequências reportadas: " + (platform?.CpuSockets.Count(x =>
+                    x.ReportedCurrentMhz.Value.HasValue) ?? 0),
+            "CPU lógica WMI: " + State(platform?.LogicalCpuState ??
+                HardwareDiscoveryState.Unavailable) +
+                "; instâncias observadas: " + (platform?.LogicalCpuInstances.Count ?? 0) +
+                "; com uso reportado: " + (platform?.MeasuredLogicalCpuInstances ?? 0) +
+                " (não são núcleos físicos)",
+            "Módulos RAM SMBIOS: " + State(platform?.RamModulesState ??
+                HardwareDiscoveryState.Unavailable) +
+                "; módulos identificados: " + (platform?.RamModules.Count ?? 0) +
+                "; capacidades informadas: " + (platform?.RamModules.Count(x =>
+                    x.CapacityBytes.Value.HasValue) ?? 0) +
+                "; clocks configurados: " + (platform?.RamModules.Count(x =>
+                    x.ConfiguredMhz.Value.HasValue) ?? 0) +
+                " (não são temperatura de DIMM)",
+            "Placa-mãe WMI: " + State(platform?.MotherboardsState ??
+                HardwareDiscoveryState.Unavailable) +
+                "; placas identificadas: " + (platform?.Motherboards.Count ?? 0) +
+                "; fabricante/modelo informados: " + (platform?.Motherboards.Count(x =>
+                    x.Manufacturer is not null && x.Product is not null) ?? 0) +
+                " (não são sensores de chipset/VRM)",
             "Inventário PnP: " + State(portfolio.DeviceInventory.State) +
                 "; dispositivos observados: " + portfolio.DeviceInventory.DeviceCount,
             "DXGI: " + State(dxgi?.State ?? HardwareDiscoveryState.Unavailable) +
