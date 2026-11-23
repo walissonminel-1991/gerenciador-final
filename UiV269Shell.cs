@@ -381,7 +381,11 @@ internal sealed class V269Shell : UserControl
         {
             bool selected = page == SelectedPage;
             button.BackColor = selected ? palette.Selection : palette.Sidebar;
-            button.ForeColor = palette.Text;
+            // Como no HTML V2.6.9: texto claro ao selecionar fundo azul
+            // no tema Claro, e texto suave claro no Dark.
+            button.ForeColor = selected
+                ? Theme == V269Theme.Dark ? Color.FromArgb(242, 247, 251) : Color.White
+                : palette.Text;
             button.IconColor = page switch
             {
                 V269Page.Inicio => Color.FromArgb(77, 179, 236),

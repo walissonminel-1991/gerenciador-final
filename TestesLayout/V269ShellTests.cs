@@ -118,6 +118,19 @@ internal static class V269ShellTests
             shell.InterfaceScalePercent == 90 &&
             shell.TextScalePercent == 90,
             "Troca de temas e escalas precisa ser reversível.");
+        var selectedNav = shell.Controls.Find("V269NavConfiguracoes", true)
+            .OfType<Button>().Single();
+        var otherNav = shell.Controls.Find("V269NavAplicativos", true)
+            .OfType<Button>().Single();
+        Check(selectedNav.ForeColor == Color.White &&
+            selectedNav.BackColor == V269VisualTokens.ForTheme(V269Theme.Claro).Selection &&
+            selectedNav.AccessibleDescription == "Aba atual" &&
+            otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Claro).Text,
+            "Aba ativa do Claro precisa manter texto branco sobre azul e sinal acessível.");
+        shell.ApplyAppearance(V269Theme.Dark, 90, 90);
+        Check(selectedNav.ForeColor == Color.FromArgb(242, 247, 251) &&
+            otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Dark).Text,
+            "Aba ativa do Dark deve conservar contraste sem brancura excessiva.");
         shell.PresentPanel(null);
         Check(shell.RightPane.Current is null && !bar.Visible,
             "O painel deve limpar estado sem simular sucesso.");
