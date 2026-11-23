@@ -162,7 +162,9 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
     private static bool Valid(Ledger value) =>
         value is not null && value.Revision >= 1 &&
         (value.Phase == "InstallationStarted" ||
-         Enum.TryParse<DriverUpdatePilotState>(value.Phase, out _)) &&
+         Enum.TryParse<DriverUpdatePilotState>(value.Phase, out var phase) &&
+         Enum.IsDefined(phase) &&
+         string.Equals(value.Phase, phase.ToString(), StringComparison.Ordinal)) &&
         Guid.TryParseExact(value.UpdateId, "D", out _) &&
         !string.IsNullOrWhiteSpace(value.DeviceId) &&
         value.Sha256 == Hash(value.UpdateId, value.Revision, value.DeviceId,
