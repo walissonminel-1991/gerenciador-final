@@ -127,3 +127,16 @@ O ensaio corrigido [#45239911861](https://github.com/walissonminel-1991/gerencia
 Os runners não apresentaram GPUs físicas AMD, Intel ou NVIDIA homologáveis nem temperaturas de discos; por isso não demonstram leitura universal de sensores térmicos, RPM ou potência. A homologação física permanece dependente de autorização e de execução no PC FORTE/FRACO. O modo `--monitoramento-resumo-nativo` continua disponível **somente no projeto de testes**, acionado explicitamente. A CI geral Windows segue apenas com testes sintéticos e smoke DXGI de baixa interferência.
 
 **Nota de segurança:** nenhuma credencial ou dado de dispositivo foi enviado a receptor externo; não alterar a lista de workflows autorizados para aprovar a PR. Somente as CIs existentes devem conceder o aceite final.
+## Ampliação funcional dos motores WDDM por GPU — 23/11
+
+Gate de partida aprovado no HEAD `15bf6d91a69ad71bce4d865cc6ff1b8c4545b450`: integridade GitHub Actions #45240497798 SUCCESS; Windows #45240497984 SUCCESS, incluindo política, Drivers 2022/2025, BETA, regressões Windows, etapa Testes layout e RAM e compilação x64. Sem novos workflows, instalação de drivers ou merge.
+
+`WindowsWddmGpuProvider.Join` agora publica `WddmGpuAdapterSample.Engines` e `BusiestOfType` por adaptador e por **motor físico identificado**, preservando o índice e tipo reportados em cada contador WDDM e agregando somente processos do mesmo motor. A enumeração reconhece sufixos de engine como `Compute_0`, sem somar engines independentes e sem associar adaptadores por nomes. Não disponibiliza PID nem identidade privada no relatório.
+
+O motor genérico WDDM identifica atividades separadas de 3D, COPY, COMPUTE, VIDEODECODE e VIDEOENCODE, apenas quando a classe de contador WDDM do driver retorna medições válidas. Para uma família com várias engines, `BusiestOfType` apresenta o MAIOR motor medido daquela família, não soma as porcentagens. O `BusiestEnginePercent` geral também significa maior motor e **não representa utilização física total da GPU**. Uma engine com 0% efetivamente reportado é valor disponível 0; categoria não reportada é indisponível, sem inferir inatividade.
+
+Contadores inválidos (sem valor, fora de 0..100 ou contribuição de processos acima de 100% em um motor) ficam indisponíveis, com estado parcial, sem apagar engines distintas válidas. A disponibilidade por tipo no relatório de diagnóstico permanece agregada/sem identificadores.
+
+Testes `WindowsWddmGpuProviderTests` e `HardwareMonitoringDiagnosticReportTests`: 3D, Copy, Compute_0, VideoDecode, VideoEncode, categoria sem dados, 0% comprovado, motor inválido em coexistência com motor válido, mais de uma engine 3D e identidade por LUID/phys. Interface de UI não modificada; sensores de temperatura/RPM/potência de GPU AMD/Intel continuam indisponíveis sem fonte oficial.
+
+**Pendente:** CIs Windows e integridade do novo HEAD; nenhuma homologação física adicional em PC FORTE/FRACO foi executada.
