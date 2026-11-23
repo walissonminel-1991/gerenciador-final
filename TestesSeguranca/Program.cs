@@ -77,6 +77,16 @@ Check(WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:HEALTHY", out 
     !WindowsIntegrityAssessment.TryReadPostRepairWire("", out _),
     "Pós-reparo rejeita valores arbitrários, truncados ou adulterados.");
 Console.WriteLine("OK: DISM e SFC consultivos com gating conservador.");
+Check(NetworkRepairOutcome.FromWire("DONE|0") == NetworkRepairWorkerState.CommandReturnedZero &&
+    NetworkRepairOutcome.FromWire("DONE|5") == NetworkRepairWorkerState.CommandReturnedError &&
+    NetworkRepairOutcome.FromWire("DONE|1223") == NetworkRepairWorkerState.CommandReturnedError &&
+    NetworkRepairOutcome.FromWire("DONE|") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire("DONE|-1") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire("DONE|0\nDONE|0") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire("LOG|0") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire(null) == NetworkRepairWorkerState.NotConfirmed,
+    "Reparo de rede: somente DONE|0 exato prova encerramento sem erro do comando.");
+Console.WriteLine("OK: desfechos de manutencao de rede sem falso sucesso em UAC ou falha.");
 var progressMonitor = new WindowsMaintenanceProgress();
 Check(!progressMonitor.Update("47.5%", out _) &&
     !progressMonitor.Update("Etapa 1/2 — DISM", out _) &&
