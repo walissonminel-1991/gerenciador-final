@@ -35,7 +35,9 @@ internal sealed partial class MainForm
         }
         token.ThrowIfCancellationRequested();
         if (IsDisposed || Disposing) throw new OperationCanceledException(token);
-        return UninstallCleanupDialog.Confirm(this, plans);
+        return await ConfirmV269Async("Concluir desinstalação",
+            "Deseja excluir permanentemente os resíduos comprovados? Dados pessoais e compartilhados serão preservados.\r\n\r\n" +
+            UninstallCleanupDialog.Describe(plans), token);
     }
     private void ResumeUninstallCleanupConfirmation()
     { uninstallRestore?.TrySetResult(true); ResumeUninstallResult(); }

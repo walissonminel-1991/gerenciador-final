@@ -565,7 +565,7 @@ internal sealed partial class MainForm
         // foi selecionado; nenhuma ação usa índice antigo nem nome do dispositivo.
         async Task RunDriverUninstall(DriverInventoryEntry requested)
         {
-            if (uninstallBusy || readForTest is not null ||
+            if (_busy || _v269Confirming || uninstallBusy || readForTest is not null ||
                 publishedSnapshotGeneration != inventoryGeneration ||
                 lastResult is not { } captured || list.SelectedItem is not { } selected ||
                 !ReferenceEquals(selected, requested))
@@ -577,9 +577,7 @@ internal sealed partial class MainForm
                     Environment.NewLine + assessment.Reason + Environment.NewLine +
                     Environment.NewLine + "Abrir o Gerenciador de Dispositivos do Windows para " +
                     "você decidir se deseja desinstalá-lo? Nenhum driver será removido pelo GF.";
-                if (MessageBox.Show(this, explanation, "GF — desinstalação manual de driver",
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
-                        MessageBoxDefaultButton.Button2) == DialogResult.Yes)
+                if (await ConfirmV269Async("Abrir Gerenciador de Dispositivos", explanation))
                 {
                     try
                     {
@@ -598,6 +596,11 @@ internal sealed partial class MainForm
             }
             if (!DriverSilentUninstall.IsElevated())
             {
+                if (!await ConfirmV269Async("Solicitar autorização para remoção OEM",
+                    $"Dispositivo: {selected.DeviceName}\r\nPacote: {selected.InfName}\r\n" +
+                    "O trabalhador elevado verificará o dispositivo e pedirá confirmação antes de exportar o pacote e removê-lo.") ||
+                    publishedSnapshotGeneration != inventoryGeneration || !ReferenceEquals(list.SelectedItem, selected))
+                    return;
                 // Solicitar UAC somente para esta remoção. O trabalhador
                 // recaptura todo o inventário e pede confirmação explícita;
                 // nenhum snapshot da interface vira autoridade administrativa.
@@ -610,7 +613,11 @@ internal sealed partial class MainForm
                 {
                     var elevation = await DriverElevatedUninstall.RequestAsync(selected);
                     started = elevation.Started;
-                    if (!root.IsDisposed) SetDriverStatus(elevation.Message);
+                    if (!root.IsDisposed)
+                    {
+                        SetDriverStatus(elevation.Message);
+                        _nav.PresentPanel(new(V269PanelKind.Result, "Solicitação administrativa de Drivers", elevation.Message));
+                    }
                 }
                 finally
                 {
@@ -634,14 +641,14 @@ internal sealed partial class MainForm
                 "Fornecedor: " + selected.Provider + Environment.NewLine + Environment.NewLine +
                 "O GF exportará um backup antes de remover. O Windows poderá exigir reinício." +
                 Environment.NewLine + "Nenhum outro pacote será removido deliberadamente.";
-            if (MessageBox.Show(this, question, "GF — confirmar desinstalação",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2)
-                != DialogResult.Yes) return;
+            if (!await ConfirmV269Async("Confirmar remoção OEM", question) ||
+                publishedSnapshotGeneration != inventoryGeneration || !ReferenceEquals(list.SelectedItem, selected)) return;
             uninstallBusy = true;
             bool refreshAfter = false;
             refresh.Enabled = false;
             SyncDriverActions();
             SetDriverStatus("Preparando backup e revalidação do driver...");
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Remoção OEM", "Preparando backup e revalidação do driver."));
             try
             {
                 var outcome = await DriverSilentUninstall.Execute(captured, selected, true,
@@ -663,11 +670,9 @@ internal sealed partial class MainForm
                     refreshAfter = true;
                 }
                 SetDriverStatus(outcome.Message);
-                MessageBox.Show(this, outcome.Message + (outcome.BackupPath is null ? "" :
-                    Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath),
-                    "GF — desinstalação " + outcome.State, MessageBoxButtons.OK,
-                    outcome.State == DriverSilentUninstallState.Verified ?
-                        MessageBoxIcon.Information : MessageBoxIcon.Warning);
+                _nav.PresentPanel(new(V269PanelKind.Result, "Remoção OEM · " + outcome.State,
+                    outcome.Message + (outcome.BackupPath is null ? "" :
+                        Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath)));
                 if (DriverResidualReviewPolicy.MayInspect(outcome.State))
                     SetDriverStatus("INF removido; resíduos protegidos, sem limpeza genérica.");
             }

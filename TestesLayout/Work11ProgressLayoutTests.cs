@@ -28,7 +28,8 @@ internal static class Work11ProgressLayoutTests
         var store=(UpdateOperationStore)typeof(MainForm).GetField("_updateOperations",Private)!.GetValue(form)!;
         var render=typeof(MainForm).GetMethod("RenderPrograms",Private)!;
         var search=(TextBox)typeof(MainForm).GetField("_search",Private)!.GetValue(form)!;
-        var nav=(DarkTabHost)typeof(MainForm).GetField("_nav",Private)!.GetValue(form)!;
+        var nav=(V269Shell)typeof(MainForm).GetField("_nav",Private)!.GetValue(form)!;
+        nav.SelectPage(V269Page.Aplicativos);Application.DoEvents();
         var app=App("HKLM|Registry64|Fixture","Primeiro aplicativo");
         var second=App("HKCU|Registry64|Fixture","Segundo aplicativo");
         inventory.Clear();inventory.AddRange([app,second]);
@@ -38,7 +39,7 @@ internal static class Work11ProgressLayoutTests
         inventory.Clear();var reconstructed=App(app.InventoryId,app.Name,"2.0");inventory.AddRange([second,reconstructed]);
         render.Invoke(form,[]);search.Text="Segundo";Application.DoEvents();
         Require(list.Items.Count==1 && list.OperationFor(list.Items[0]) is null,"pesquisa nao transfere progresso para outro aplicativo");
-        search.Text="Primeiro";nav.SelectTab(5);Application.DoEvents();nav.SelectTab(0);Application.DoEvents();
+        search.Text="Primeiro";nav.SelectPage(V269Page.Sistema);Application.DoEvents();nav.SelectPage(V269Page.Aplicativos);Application.DoEvents();
         Require(list.Items.Count==1 && list.OperationFor(list.Items[0])!.Id==operation.Snapshot.Id,"reconstrucao ordenacao pesquisa e navegacao preservam identidade");
         operation.Complete(new(UpdateAttemptState.Confirmed));list.RefreshOperations();
         Require(!list.OperationTimerRunning && list.OperationFor(reconstructed)!.Progress.Percent==100,"conclusao rapida persiste sem timer ocioso");

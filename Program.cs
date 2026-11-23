@@ -660,7 +660,7 @@ internal sealed partial class MainForm : Form
     private readonly Label _listTitle = new();
     private readonly Label _itemHint = new();
     private readonly ProgressBar _progress = new();
-    private readonly DarkTabHost _nav = new();
+    private readonly V269Shell _nav = new();
     private readonly List<ProgramEntry> _installed = new();
     private readonly List<ProgramEntry> _available = new();
     private readonly List<Control> _actionControls = new();
@@ -743,10 +743,9 @@ internal sealed partial class MainForm : Form
         MaximumSize = StartupWindowSizing.MaximumSizeFor(display);
         Bounds = opening;
 
-        var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 3, Padding = new Padding(12, 7, 12, 7), BackColor = AppServices.Background };
+        var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 2, Padding = new Padding(8, 4, 8, 4), BackColor = AppServices.Background };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 130));
         Controls.Add(root);
         // A superficie interna acompanha toda a janela calculada. O limite
         // antigo de 875x745 encolhia TAMBEM o conteudo mesmo em 2560x1440,
@@ -766,35 +765,36 @@ internal sealed partial class MainForm : Form
         CenterWorkspace();
         root.Controls.Add(BuildHeader(), 0, 0);
 
-        _nav.Dock = DockStyle.Fill;
-        _nav.AddTab("Aplicativos", BuildProgramsPanel());
-        _nav.AddTab("DRIVERS", BuildDriversPlaceholder());
+        _nav.SetPageContent(V269Page.Inicio, BuildV269Home());
+        _nav.SetPageContent(V269Page.Aplicativos, BuildProgramsPanel());
+        _nav.SetPageContent(V269Page.Drivers, BuildDriversPlaceholder());
         AddToolsPages();
-        _nav.SelectedIndexChanged += async (_, _) =>
+        _nav.SetPageContent(V269Page.Inicializacao, BuildV269StartupPage());
+        _nav.SetPageContent(V269Page.Configuracoes, BuildV269Settings(startServices));
+        _nav.SetOperationContent(BuildOperationsPanel());
+        _nav.NavigationChanged += async (_, e) =>
         {
-            ++_systemViewGeneration; // sair e voltar invalida consultas da visita anterior
-            if (!startServices) return;
-            // Navegação: Aplicativos, DRIVERS, Limpeza, Reparo, Energia, Sistema.
-            if (_nav.SelectedIndex == 2)
-                await RefreshDiskUsageAsync();
-            if (_nav.SelectedIndex == 4)
-                await RefreshEnergyInfoAsync();
+            ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
-            if (_nav.SelectedIndex == 5 && _activeSystemView == "memory")
-                _ = RefreshMemoryRamAsync();
+            if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
+            if (!startServices) return;
+            if (e.Page == V269Page.Limpeza) await RefreshDiskUsageAsync();
+            if (e.Page == V269Page.Inicializacao) await RefreshStartupEntriesAsync();
+            if (e.Page == V269Page.Sistema && _activeSystemView == "memory")
+                await RefreshMemoryRamAsync();
+            if (e.Page == V269Page.Sistema && _activeSystemView == "update")
+                DrawWindowsUpdates();
+            if (e.Page == V269Page.Inicio && !_v269HardwareLoaded)
+                await RefreshV269HardwareAsync();
         };
         root.Controls.Add(_nav, 0, 1);
-        root.Controls.Add(BuildOperationsPanel(), 0, 2);
+        ApplyV269ContentAppearance(root);
         void FitWorkspace()
         {
-            // A area do registro nao pode virar uma unica linha quando a
-            // janela e reduzida ou quando o Windows altera o DPI.
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
             if (Math.Abs(root.RowStyles[0].Height - rows.Header) > 1)
                 root.RowStyles[0].Height = rows.Header;
-            if (Math.Abs(root.RowStyles[2].Height - rows.Log) > 1)
-                root.RowStyles[2].Height = rows.Log;
         }
         void RestoreWithinMonitor(bool recomputeForDisplay = false)
         {
@@ -842,6 +842,8 @@ internal sealed partial class MainForm : Form
             SystemEvents.DisplaySettingsChanged -= monitorChanged;
             displayUpdate.Stop();
             displayUpdate.Dispose();
+            _v269HardwareQuery?.Cancel();
+            _nav.RightPane.ResolveConfirmation(false);
             _log.FlushPending();
             AnonymousTelemetryContext.Current?.CancelRemoteSend();
             // Windows Shutdown nao inicia rede. Em fechamento normal remoto o
@@ -871,6 +873,7 @@ internal sealed partial class MainForm : Form
                 "BETA: somente contagens técnicas são elegíveis a envio com consentimento.");
             // Nao abrir dialogos na sessao que iniciou oculta na bandeja.
             if (!startInTray) OfferAnonymousDiagnosticConsent(firstRun: true);
+            if (!startInTray && _nav.SelectedPage == V269Page.Inicio) _ = RefreshV269HardwareAsync();
             // Na abertura, a lista ainda esta vazia: nao animar barra de
             // progresso nem alternar Enabled/Visible de dezenas de controles.
             // P5: Startup termina ao abrir a janela; a primeira lista ainda
@@ -1236,7 +1239,7 @@ internal sealed partial class MainForm : Form
             "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
-            if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
+            if (_busy || _batchUpdatesActive || _v269Confirming || _betaClose.IsClosing || !_installed.Contains(item)) return;
             if (action == "uninstall" && item.CanUninstall)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "uninstall-manual" && !item.CanUninstall)
@@ -1270,6 +1273,10 @@ internal sealed partial class MainForm : Form
         {
             _itemHint.Text = _programList.SelectedItem is ProgramEntry entry
                 ? "Selecionado: " + entry.Name : "Selecione um aplicativo";
+            if (_programList.SelectedItem is { } selected)
+                PresentV269Details(selected.Name, $"Versão: {DisplayAppVersion(selected.Version)}\r\n" +
+                    (selected.Publisher.Length > 0 ? "Fornecedor: " + selected.Publisher + "\r\n" : "") +
+                    "Pressione Enter na lista para abrir as ações do item.");
         };
         var host = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
         _emptyState.Dock = DockStyle.Fill;
@@ -1432,11 +1439,12 @@ internal sealed partial class MainForm : Form
         if (e.Index < 0 || e.Index >= _programList.Items.Count) return;
         ProgramEntry item = _programList.Items[e.Index];
         bool selected = (e.State & DrawItemState.Selected) != 0;
+        var palette = V269Palette;
         var card = new Rectangle(e.Bounds.X + 4, e.Bounds.Y + 3, e.Bounds.Width - 9, e.Bounds.Height - 6);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using (var round = ModernButton.RoundRect(card, 8))
-        using (var brush = new SolidBrush(selected ? SelectionBackground : Color.FromArgb(37, 48, 61)))
-        using (var pen = new Pen(selected ? Accent : LightBorder, selected ? 1.8F : 0.9F))
+        using (var brush = new SolidBrush(selected ? palette.Selection : palette.Card))
+        using (var pen = new Pen(selected ? palette.Accent : palette.Border, selected ? 1.8F : 0.9F))
         {
             e.Graphics.FillPath(brush, round);
             e.Graphics.DrawPath(pen, round);
@@ -1463,7 +1471,7 @@ internal sealed partial class MainForm : Form
         using (var markBrush = new SolidBrush(item.IsUpdate ? Color.FromArgb(23, 97, 151) : Color.FromArgb(54, 67, 81)))
             e.Graphics.FillEllipse(markBrush, mark);
         string initial = string.IsNullOrWhiteSpace(item.Name) ? "?" : item.Name.Trim()[0].ToString().ToUpperInvariant();
-        TextRenderer.DrawText(e.Graphics, initial, _rowMark, mark, item.IsUpdate ? Accent : Ink,
+        TextRenderer.DrawText(e.Graphics, initial, _rowMark, mark, item.IsUpdate ? palette.Accent : palette.Text,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
         int left = e.Bounds.Left + 58 + prefix;
@@ -1471,14 +1479,14 @@ internal sealed partial class MainForm : Form
         var uninstall = _uninstallOperations.Find(item);
         bool hasOperation = operation is not null || uninstall is not null;
         Rectangle operationArea = AppRowGeometry.OperationArea(e.Bounds, prefix);
-        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 328);
+        int width = Math.Max(18, AppRowGeometry.UpdateButton(e.Bounds).Left - left - 10);
         if (hasOperation && e.Bounds.Width >= 940) width = Math.Max(18, operationArea.Left - left - 12);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
-            new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
+            new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Color.White : palette.Text,
             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         string? updateAction=item.IsUpdate?VerifiedUpdaters.GetPrimaryAction(item):null;
         string details = item.UpdateRequiresReview
-            ? "Fontes ou identidade exigem revisão · detalhes ao apontar o mouse"
+            ? "Fontes ou identidade exigem revisão · Enter para ações"
             : item.IsUpdate
             ? $"{DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} · {VerifiedUpdaters.UpdateAvailabilityText(item,item.Capabilities?.Update.Reason??"")}"
             : item.ComparisonState == MatchState.SupersededRegistration
@@ -1501,42 +1509,33 @@ internal sealed partial class MainForm : Form
         if (!hasOperation || e.Bounds.Width >= 940)
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
             new Rectangle(left, e.Bounds.Top + 34, width, 28),
-            item.IsUpdate ? updateAction is "update" or "terminal" ? Color.FromArgb(133, 221, 176) : Color.FromArgb(231, 199, 135) : Muted,
+            selected ? Color.White : palette.SecondaryText,
             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
 
         if (uninstall is not null) DrawUninstallOperation(e.Graphics, operationArea, uninstall);
         else if (operation is not null) DrawUpdateOperation(e.Graphics, operationArea, operation);
         if (!multiselect)
         {
-            if (item.IsUpdate)
-            {
-                string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
-                if (primaryAction is not null)
-                {
-                    string label = VerifiedUpdaters.PrimaryActionLabel(item);
-                    if (operation?.PreventRetry == true) label = operation.Active ? "Em andamento" :
-                        operation.Progress.Stage == UpdateStage.Confirmed ? "Concluído" : "Pendente";
-                    Color color = operation?.PreventRetry == true ? AppServices.Gray :
-                        primaryAction is "update" or "terminal" ? AppServices.Green : AppServices.Gray;
-                    DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), label, color,
-                        _programList.ActionVisual(item, primaryAction));
-                }
-                if (primaryAction is "update" or "terminal" && VerifiedUpdaters.GetOfficialPage(item) is not null)
-                    DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
-                        _programList.ActionVisual(item, "site"));
-            }
-            // A opção existe em TODOS os cartões, como solicitado. O motor
-            // interno só executa quando o desinstalador é confiável e vinculado.
-            // Nos demais casos, abre o gerenciador manual, sem burlar proteções.
-            bool msixAllowed = CanRemoveMsix(item);
-            DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
-                uninstall?.PreventRetry == true
-                    ? uninstall.Active ? "Em andamento" : "Pendente"
-                    : "Desinstalar",
-                uninstall?.PreventRetry == true ? AppServices.Gray :
-                    item.CanUninstall || msixAllowed ? AppServices.Red : AppServices.Gray,
-                _programList.ActionVisual(item, item.UninstallAction));
+            bool canUpdate = _programList.AllowsUpdate(item);
+            bool canRemove = _programList.AllowsRemoval(item);
+            DrawV269RowAction(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar",
+                V269ActionKind.Atualizar, canUpdate, _programList.ActionVisual(item, updateAction ?? ""));
+            DrawV269RowAction(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Remover",
+                V269ActionKind.Remover, canRemove, _programList.ActionVisual(item, item.UninstallAction));
+            if (canUpdate && VerifiedUpdaters.GetOfficialPage(item) is not null)
+                DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
+                    _programList.ActionVisual(item, "site"));
         }
+    }
+
+    private void DrawV269RowAction(Graphics graphics, Rectangle area, string label, V269ActionKind kind,
+        bool allowed, (bool Hovered, bool Pressed, float Pulse) visual)
+    {
+        var theme = _v269Appearance.Theme;
+        var foreground = V269VisualTokens.ActionColor(theme, kind, allowed);
+        if (theme == V269Theme.Claro) foreground = allowed ? Color.White : V269Palette.SecondaryText;
+        DrawRowButton(graphics, area, label, V269VisualTokens.ActionBackground(theme, kind, allowed),
+            allowed ? visual : default, foreground, V269VisualTokens.ActionBorder(theme, kind, allowed));
     }
 
     private void DrawUpdateOperation(Graphics graphics, Rectangle area, UpdateOperationSnapshot state)
@@ -1598,7 +1597,7 @@ internal sealed partial class MainForm : Form
             ? "não informada" : version;
 
     private static void DrawRowButton(Graphics graphics, Rectangle rect, string text, Color color,
-        (bool Hovered, bool Pressed, float Pulse) visual)
+        (bool Hovered, bool Pressed, float Pulse) visual, Color? textColor = null, Color? border = null)
     {
         if (rect.Width <= 0 || rect.Height <= 0) return;
         // O relevo de 2 px e a mudança de tonalidade representam um clique real.
@@ -1617,6 +1616,11 @@ internal sealed partial class MainForm : Form
         if (pulse > 0) fill = Mix(fill, Color.White, pulse * 0.08F);
         using var path = ModernButton.RoundRect(drawRect, 7);
         using (var bg = new SolidBrush(fill)) graphics.FillPath(bg, path);
+        if (border is Color borderColor)
+        {
+            using var outline = new Pen(borderColor);
+            graphics.DrawPath(outline, path);
+        }
         if (visual.Hovered || visual.Pulse > 0)
         {
             using var outline = new Pen(Color.FromArgb(
@@ -1625,7 +1629,7 @@ internal sealed partial class MainForm : Form
         }
         using var font = new Font("Segoe UI", 8.4F, FontStyle.Bold);
         TextRenderer.DrawText(graphics, text, font, drawRect,
-            Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+            textColor ?? Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
             TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
     }
 
@@ -1633,12 +1637,8 @@ internal sealed partial class MainForm : Form
     {
         var cleaning = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
         var repair = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
-        var performance = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
         var system = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
-        _nav.AddTab("Limpeza e desempenho", cleaning);
-        _nav.AddTab("Reparo e rede", repair);
-        _nav.AddTab("Planos de energia", performance);
-        _nav.AddTab("Inicialização e sistema", system);
+
         // Cores de impacto: azul = rotina, cinza = baixo impacto/inspeção,
         // âmbar = atenção, vermelho = interrupção sensível ou remoção definitiva.
         var cleaningActions = CreateToolsFlow(new[]
@@ -1754,12 +1754,13 @@ internal sealed partial class MainForm : Form
             repairLayout.RowStyles[2].Height = resultHeight;
             return cardsHeight + resultHeight + diagnosticHeight;
         }, trackRepair: true));
-        performance.Controls.Add(ScrollablePage(BuildEnergyPanel(),
-            _ => (int)Math.Ceiling(405 * DeviceDpi / 96d)));
         // Painéis nativos do gerenciador: nenhum atalho para Task Manager,
         // MSConfig, Configurações, Windows Update ou MSInfo32.
         system.Controls.Add(ScrollablePage(BuildIntegratedSystemPanel(),
             _ => (int)Math.Ceiling(365 * DeviceDpi / 96d)));
+        _nav.SetPageContent(V269Page.Limpeza, cleaning);
+        _nav.SetPageContent(V269Page.Reparo, repair);
+        _nav.SetPageContent(V269Page.Sistema, system);
     }
 
     private sealed record ToolInfo(string Name, string Description, Color Color, Func<Task> Action);
@@ -2195,22 +2196,21 @@ internal sealed partial class MainForm : Form
     {
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1,
             Padding = new Padding(0, 2, 0, 0), BackColor = AppServices.Background };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 4));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 12));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+        var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        // Rótulo curto e íntegro: a descrição preserva o significado completo.
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
-        top.Controls.Add(new Label { Text = "REGISTRO", Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 94));
+        top.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
+        top.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
         _status.Text = "Pronto";
         _status.Dock = DockStyle.Fill;
-        _status.AutoEllipsis = false;
+        _status.AutoEllipsis = true;
         _status.ForeColor = Muted;
-        _status.TextAlign = ContentAlignment.MiddleRight;
-        top.Controls.Add(_status, 1, 0);
+        _status.TextAlign = ContentAlignment.MiddleLeft;
+        top.Controls.Add(_status, 0, 1);
         var localReport = CreateSecondaryButton("Histórico");
         localReport.Name = "LocalReliabilityReportButton";
         localReport.AccessibleName = "Abrir histórico e relatório local";
@@ -2221,7 +2221,13 @@ internal sealed partial class MainForm : Form
         localReport.Click += (_, _) => ShowLocalReliabilityReport();
         _toolTips.SetToolTip(localReport, "Histórico técnico local e comparação de inventários; não executa operações.");
         top.Controls.Add(localReport, 2, 0);
+        var export = CreateSecondaryButton("Exportar");
+        export.Dock = DockStyle.Left;
+        export.AccessibleName = "Exportar histórico local em texto";
+        export.Click += (_, _) => SaveLocalReliabilityReport();
+        top.Controls.Add(export, 0, 0);
         AddUninstallCancelButton(top);
+        top.SetColumnSpan(_status, 4);
         root.Controls.Add(top, 0, 0);
         _progress.Dock = DockStyle.Fill;
         _progress.Margin = new Padding(0, 0, 0, 2);
@@ -2237,6 +2243,13 @@ internal sealed partial class MainForm : Form
     }
 
     private void ShowLocalReliabilityReport()
+    {
+        if (_busy || _nav.RightPane.Current?.Kind == V269PanelKind.Confirmation) return;
+        _nav.PresentPanel(new(V269PanelKind.History, "Histórico local",
+            _reliability.Report(_installed, _inventoryIncomplete)));
+    }
+
+    private void SaveLocalReliabilityReport()
     {
         string report = _reliability.Report(_installed, _inventoryIncomplete);
         using var dialog = new Form
@@ -2357,6 +2370,8 @@ internal sealed partial class MainForm : Form
         }
         _operationResult = text;
         _status.Text = text;
+        if (_busy && _nav.RightPane.Current is not { Kind: V269PanelKind.Result })
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text));
         _toolTips.SetToolTip(_status, text);
     }
 
@@ -2380,10 +2395,12 @@ internal sealed partial class MainForm : Form
             // Somente operações explícitas exibem o progresso animado.
             // Pesquisa local continua acessivel durante manutencao longa.
             _progress.Visible = true;
-            _progress.Style = ProgressBarStyle.Marquee;
-            _progress.MarqueeAnimationSpeed = 24;
+            _progress.Style = CanAnimateV269 ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
+            _progress.MarqueeAnimationSpeed = CanAnimateV269 ? 24 : 0;
         }
         _status.Text = description;
+        if (!quietStartup)
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", description));
         try { await work(); }
         catch (Exception ex) { if (!IsDisposed && !Disposing && !_betaClose.IsShutdown) ReportError(ex); }
         finally
@@ -2400,6 +2417,8 @@ internal sealed partial class MainForm : Form
                     _programList.ActionsEnabled = !_batchUpdatesActive;
                 }
                 _status.Text = _operationResult;
+                if (!quietStartup && _nav.RightPane.Current?.Kind == V269PanelKind.Progress)
+                    _nav.PresentPanel(new(V269PanelKind.Details, "Último estado", _operationResult));
                 UpdateBulkButtons();
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
                     _checkUpdatesButton.Enabled = !_batchUpdatesActive;
@@ -2407,9 +2426,9 @@ internal sealed partial class MainForm : Form
                     _repairNetworkButton.Enabled = NetworkDiagnostics.SuggestTargetedRepair(_lastNetworkScan) is not null;
                 RefreshWindowsRepairButton();
                 RefreshWindowsUpdateInstallButton();
-                if (_nav.SelectedIndex == 2)
+                if (_nav.SelectedPage == V269Page.Limpeza)
                     _ = RefreshDiskUsageAsync();
-                if (_nav.SelectedIndex == 4)
+                if (_nav.SelectedPage == V269Page.Sistema && _activeSystemView == "energy")
                     _ = RefreshEnergyInfoAsync();
                 if (!_batchUpdatesActive) ExitAfterCurrentOperation();
             }
@@ -2939,12 +2958,14 @@ internal sealed partial class MainForm : Form
         }
         int suggested = _installed.Count(item => item.IsUpdate);
         string preview = AppBatchUpdateRun.Preview(candidates, suggested);
-        if (DarkConfirmDialog.Confirm(this, preview, "Confirmar Atualizar todos") != DialogResult.Yes)
+        if (!await ConfirmV269Async("Confirmar Atualizar todos", preview))
         {
             Log("Atualização em lote cancelada antes de qualquer download.");
             return;
         }
 
+        if (_busy || _batchUpdatesActive || _betaClose.IsClosing || _consultaCatalogoCts is not null ||
+            _inventoryIncomplete || !_catalogoVerificado) return;
         _batchUpdatesActive = true;
         _batchStopRequested = false;
         _programList.ActionsEnabled = false;
@@ -3113,14 +3134,13 @@ internal sealed partial class MainForm : Form
             return;
         }
         SetUninstallProgress(entry, "awaiting_consent");
-        bool consent = DarkConfirmDialog.Confirm(this,
+        bool consent = await ConfirmV269Async("Confirmar desinstalação MSIX",
             "Remover o aplicativo MSIX da sua conta do Windows?\n\n" +
             entry.Name + "\nVersão: " + entry.Version + "\nEditor: " + entry.Publisher +
             "\nFamília do pacote: " + request.PackageFamilyName +
             "\n\nO Windows pode remover dependências sem uso e dados do aplicativo. " +
             "Esta ação não possui desfazer automático e não pode ser interrompida " +
-            "com segurança após iniciar.\n\nDeseja continuar?",
-            "Confirmar desinstalação MSIX", defaultNo: true) == DialogResult.Yes;
+            "com segurança após iniciar.\n\nDeseja continuar?");
         if (!consent)
         {
             SetUninstallProgress(entry, "cancelled");
@@ -3291,6 +3311,9 @@ internal sealed partial class MainForm : Form
             Status("Esta versao do Windows Terminal nao possui pacote GitHub validado.");
             return;
         }
+        if (!await ConfirmV269Async("Atualizar Windows Terminal",
+            $"Preparar Windows Terminal {recipe.Version} a partir da fonte oficial? O GF verificará a identidade do pacote e o Windows poderá solicitar autorização.") ||
+            !_installed.Contains(entry) || WindowsTerminalUpdater.Resolve(entry) != recipe) return;
         string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualizacao oficial do Windows Terminal...", async () =>
         {
@@ -3417,8 +3440,10 @@ internal sealed partial class MainForm : Form
             Status("Atualização automática indisponível para este programa.");
             return;
         }
-        // O clique explícito em "Atualizar" autoriza preparar a atualização escolhida.
-        // Sem caixa de diálogo redundante. UAC e janelas legítimas dos instaladores continuam.
+        if (!fromApprovedBatch && (!await ConfirmV269Async("Confirmar atualização",
+            $"Atualizar {recipe.ProductName} para {recipe.Version}? O GF verificará a origem, o hash e a assinatura aplicável.") ||
+            !_installed.Contains(entry) || VerifiedUpdaters.Resolve(entry)?.Version != recipe.Version))
+            return;
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
         Log("Atualização solicitada diretamente na lista: " + recipe.ProductName +
             " (" + recipe.Identifier + "). Origem e SHA-256 serão conferidos; assinatura digital exigida quando aplicável.");
@@ -3664,9 +3689,9 @@ internal sealed partial class MainForm : Form
                     is { Length: > 0 } impact ? "\n" + impact : ""))), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             foreach (var app in apps) SetUninstallProgress(app, "awaiting_consent");
-            bool consent = DarkConfirmDialog.Confirm(this,
+            bool consent = await ConfirmV269Async("Confirmar desinstalação",
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
-                "Confirmar desinstalação") == DialogResult.Yes;
+                cancellation.Token);
             var outcomes = await Task.Run(() => new UninstallBatch().RunAsync(requests, consent, Inventory,
                 (request, token) =>
                 {
@@ -3936,14 +3961,13 @@ internal sealed partial class MainForm : Form
             "A operação pode demorar e alterar arquivos do sistema. Após o reparo, o SFC verificará os arquivos protegidos novamente.");
     }
 
-    private Task ChooseRestorePointAsync()
+    private async Task ChooseRestorePointAsync()
     {
-        if (_busy || _betaClose.IsClosing) return Task.CompletedTask;
-        if (DarkConfirmDialog.Confirm(this,
+        if (_busy || _betaClose.IsClosing) return;
+        if (!await ConfirmV269Async("Escolher ponto de restauração",
             "Abrir o assistente oficial de Restauração do Sistema? Você poderá escolher e " +
             "confirmar um ponto no próprio Windows. Aplicativos e atualizações posteriores " +
-            "podem ser removidos e pode ser necessário reiniciar. Não substitui backup.",
-            "Escolher ponto de restauração") != DialogResult.Yes) return Task.CompletedTask;
+            "podem ser removidos e pode ser necessário reiniciar. Não substitui backup.")) return;
         try
         {
             string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
@@ -3955,7 +3979,6 @@ internal sealed partial class MainForm : Form
             Log("Assistente oficial aberto; nenhuma restauração foi iniciada pelo Gerenciador.");
         }
         catch (Exception ex) { Log("Assistente de restauração indisponível: " + ex.Message); }
-        return Task.CompletedTask;
     }
 
     private static string SimpleConfirmation(string task)
@@ -3981,7 +4004,7 @@ internal sealed partial class MainForm : Form
     {
         if (_busy || _betaClose.IsClosing) return;
         string confirmation = task == "windows-repair" ? question : SimpleConfirmation(task);
-        if (DarkConfirmDialog.Confirm(this, confirmation, "Confirmar operação") != DialogResult.Yes)
+        if (!await ConfirmV269Async("Confirmar operação", confirmation))
         {
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
                 DiagnosticTrace.Write(audit);
@@ -4169,6 +4192,8 @@ internal sealed partial class MainForm : Form
                         _progress.MarqueeAnimationSpeed = 0;
                         _progress.Style = ProgressBarStyle.Continuous;
                         _progress.Value = percentage;
+                        _nav.PresentPanel(new(V269PanelKind.Progress, "Manutenção do Windows",
+                            _status.Text, percentage));
                         Status("Manutenção Windows — progresso: " +
                             percentage.ToString() + "%");
                     }

@@ -206,6 +206,7 @@ internal sealed partial class MainForm
         _relayoutRepair?.Invoke();
         Log(report);
         Status(summary);
+        _nav.PresentPanel(new(V269PanelKind.Result, summary, report));
     }
 
     private int RepairDiagnosticHeight(int pageWidth)
@@ -239,8 +240,7 @@ internal sealed partial class MainForm
               "ou bloqueio externo e não comprova defeito no catálogo Winsock.\n\n" +
               "Deseja tentar redefinir APENAS o catálogo Winsock? A rede pode ser interrompida e será necessário " +
               "reiniciar o Windows para completar a alteração. Nenhum reinício automático será feito.";
-        if (MessageBox.Show(this, confirmation, "Confirmar reparo orientado de rede",
-            MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+        if (!await ConfirmV269Async("Confirmar reparo orientado de rede", confirmation))
         {
             Log("Reparo de rede orientado cancelado pelo usuário.");
             return;
@@ -534,8 +534,8 @@ internal sealed partial class MainForm
     private async Task EmptyRecycleBinAsync()
     {
         if (_busy || _betaClose.IsClosing) return;
-        if (DarkConfirmDialog.Confirm(this, "Esvaziar a Lixeira de todas as unidades deste usuário? A exclusão é permanente.",
-            "Esvaziar Lixeira") != DialogResult.Yes)
+        if (!await ConfirmV269Async("Esvaziar Lixeira",
+            "Esvaziar a Lixeira de todas as unidades deste usuário? A exclusão é permanente."))
         {
             Status("Operação cancelada");
             return;

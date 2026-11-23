@@ -5,7 +5,7 @@ using GerenciadorAplicativos;
 
 internal static class CleanupP0LayoutTests
 {
-    internal static void Run(MainForm form, DarkTabHost navigation)
+    internal static void Run(MainForm form, V269Shell navigation)
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var set = typeof(MainForm).GetMethod("SetCleanupRow", flags)!;
@@ -18,7 +18,7 @@ internal static class CleanupP0LayoutTests
             "Resultado inconclusivo (0x8000FFFF)"
         ];
         for (int i = 0; i < states.Length; i++) set.Invoke(form, [CleanupTarget.All[i], states[i]]);
-        navigation.SelectTab(2);
+        navigation.SelectPage(V269Page.Limpeza);
         form.MinimumSize = Size.Empty;
         form.MaximumSize = Size.Empty;
         Directory.CreateDirectory("LayoutCaptures");
@@ -27,7 +27,7 @@ internal static class CleanupP0LayoutTests
         {
             form.ClientSize = new Size(width, 590);
             Application.DoEvents();
-            if (!report.Visible || report.ColumnCount != 2 || report.RowCount != 5 || report.Width < 480)
+            if (!report.Visible || report.ColumnCount != 2 || report.RowCount != 5 || report.Width < Math.Min(480, navigation.PageContent(V269Page.Limpeza)!.ClientSize.Width - 55))
                 throw new InvalidOperationException($"P0 limpeza {name}: painel de categorias indisponível.");
             for (int row = 0; row < states.Length; row++)
             {

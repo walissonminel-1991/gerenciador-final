@@ -177,15 +177,20 @@ internal static class AppRowGeometry
             : new Rectangle(left, bounds.Top + 33, Math.Max(1, right - left), 28);
     }
     public static Rectangle Checkbox(Rectangle bounds) => new(bounds.Left + 17, bounds.Top + 23, 18, 18);
-    public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 318, bounds.Top + 16, 112, 33);
-    public static Rectangle SiteButton(Rectangle bounds) => new(bounds.Right - 200, bounds.Top + 16, 80, 33);
-    public static Rectangle UninstallButton(Rectangle bounds) => new(bounds.Right - 115, bounds.Top + 16, 103, 33);
+    public static Rectangle UpdateButton(Rectangle bounds) => bounds.Width < 510
+        ? new(bounds.Right - 170, bounds.Top + 16, 76, 33)
+        : new(bounds.Right - 318, bounds.Top + 16, 112, 33);
+    public static Rectangle SiteButton(Rectangle bounds) => bounds.Width < 510
+        ? Rectangle.Empty : new(bounds.Right - 200, bounds.Top + 16, 80, 33);
+    public static Rectangle UninstallButton(Rectangle bounds) => bounds.Width < 510
+        ? new(bounds.Right - 89, bounds.Top + 16, 80, 33)
+        : new(bounds.Right - 115, bounds.Top + 16, 103, 33);
 }
 
 internal sealed class DarkProgramList : Control
 {
     private readonly List<ProgramEntry> _items = new();
-    private readonly ToolTip _itemTips = new() { InitialDelay = 450, AutoPopDelay = 12000 };
+    private readonly ToolTip _itemTips = new() { Active = false, InitialDelay = 450, AutoPopDelay = 12000 };
     private int _tipRow = -1;
     private readonly Dictionary<int, UpdateOperationSnapshot?> _paintedOperations = new();
     private readonly Dictionary<int, UninstallOperationSnapshot?> _paintedUninstalls = new();
@@ -310,6 +315,19 @@ internal sealed class DarkProgramList : Control
         return (hover, down || (pulse && _pulseProgress < 0.75F), pulse ? _pulseProgress : 0F);
     }
 
+    internal bool AnimateButtonFeedback = true;
+    private readonly ContextMenuStrip _appActionsMenu = new();
+
+    internal bool AllowsUpdate(ProgramEntry item) => _actionsEnabled &&
+        !_multiSelectMode && UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
+        OperationFor?.Invoke(item)?.PreventRetry != true &&
+        VerifiedUpdaters.GetPrimaryAction(item) is "update" or "terminal";
+
+    internal bool AllowsRemoval(ProgramEntry item) => _actionsEnabled &&
+        !_multiSelectMode && UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
+        OperationFor?.Invoke(item)?.Active != true &&
+        item.UninstallAction is "uninstall" or "msix-uninstall";
+
     private (ProgramEntry? Item, string Action) HitAction(Point point)
     {
         int contentWidth = ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0);
@@ -320,24 +338,42 @@ internal sealed class DarkProgramList : Control
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
-        // Todos os cartões expõem Desinstalar. O caminho sem desinstalador
-        // validado nunca tenta executar comandos: oferece gerenciamento manual.
-        if (AppRowGeometry.UninstallButton(bounds).Contains(point) &&
-            UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
-            OperationFor?.Invoke(item)?.Active != true)
+        if (AllowsRemoval(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
             return (item, item.UninstallAction);
-        if (item.IsUpdate && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.PreventRetry != true &&
-            AppRowGeometry.UpdateButton(bounds).Contains(point))
-        {
-            string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
-            if (primaryAction is not null) return (item, primaryAction);
-        }
-        // O botao secundario Site so aparece quando Atualizar e seguro e direto.
-        if (item.IsUpdate &&
-            (VerifiedUpdaters.Resolve(item) is not null || WindowsTerminalUpdater.Resolve(item) is not null) &&
-            VerifiedUpdaters.GetOfficialPage(item) is not null &&
+        if (AllowsUpdate(item) && AppRowGeometry.UpdateButton(bounds).Contains(point))
+            return (item, VerifiedUpdaters.GetPrimaryAction(item)!);
+        if (AllowsUpdate(item) && VerifiedUpdaters.GetOfficialPage(item) is not null &&
             AppRowGeometry.SiteButton(bounds).Contains(point)) return (item, "site");
         return (null, "");
+    }
+
+    private void OpenAppActions(Point position)
+    {
+        if (SelectedItem is not { } item || !_actionsEnabled || _multiSelectMode) return;
+        foreach (ToolStripItem previous in _appActionsMenu.Items.Cast<ToolStripItem>().ToArray())
+            previous.Dispose();
+        var update = VerifiedUpdaters.GetPrimaryAction(item);
+        Add("Atualizar", update, () => AllowsUpdate(item));
+        Add("Desinstalar", item.UninstallAction, () => AllowsRemoval(item));
+        if (update is not null and not ("update" or "terminal"))
+            Add(VerifiedUpdaters.PrimaryActionLabel(item), update, () => true);
+        else if (VerifiedUpdaters.GetOfficialPage(item) is not null)
+            Add("Site oficial", "site", () => true);
+        if (!AllowsRemoval(item) && item.UninstallAction == "uninstall-manual")
+            Add("Gerenciar no Windows", "uninstall-manual", () =>
+                UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.Active != true);
+        _appActionsMenu.Show(this, position);
+
+        void Add(string title, string? action, Func<bool> allowed)
+        {
+            var command = new ToolStripMenuItem(title) { Enabled = action is not null && allowed() };
+            command.Click += (_, _) =>
+            {
+                if (_actionsEnabled && !_multiSelectMode && ReferenceEquals(SelectedItem, item) &&
+                    action is not null && allowed()) ItemActionClicked?.Invoke(item, action);
+            };
+            _appActionsMenu.Items.Add(command);
+        }
     }
 
     private void AdvanceButtonAnimation()
@@ -360,7 +396,7 @@ internal sealed class DarkProgramList : Control
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); }
+        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); _appActionsMenu.Dispose(); }
         base.Dispose(disposing);
     }
 
@@ -487,11 +523,17 @@ internal sealed class DarkProgramList : Control
     {
         base.OnMouseDown(e);
         int contentWidth = ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0);
-        if (e.Button != MouseButtons.Left || e.X >= contentWidth || !_actionsEnabled) return;
+        if (e.Button is not (MouseButtons.Left or MouseButtons.Right) || e.X >= contentWidth || !_actionsEnabled) return;
         int index = (e.Y + _scrollOffset) / _itemHeight;
         if (index < 0 || index >= _items.Count) return;
         var item = _items[index];
         Focus();
+        if (e.Button == MouseButtons.Right)
+        {
+            SelectIndex(index);
+            OpenAppActions(e.Location);
+            return;
+        }
         if (_multiSelectMode)
         {
             SelectIndex(index);
@@ -519,7 +561,8 @@ internal sealed class DarkProgramList : Control
         bool click = hit is not null && ReferenceEquals(hit, _downItem) && action == _downAction;
         _downItem = null;
         _downAction = "";
-        if (click)
+        if (click && !AnimateButtonFeedback) ItemActionClicked?.Invoke(hit!, action);
+        else if (click)
         {
             // Feedback perceptível mesmo para a ação que abre o navegador instantaneamente.
             _pulseItem = hit;
@@ -548,6 +591,13 @@ internal sealed class DarkProgramList : Control
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (e.KeyCode is Keys.Enter or Keys.Apps || e.KeyCode == Keys.F10 && e.Shift)
+        {
+            OpenAppActions(new Point(30, Math.Clamp(_selectedIndex * _itemHeight - _scrollOffset + 18,
+                0, Math.Max(0, ClientSize.Height - 1))));
+            e.Handled = true;
+            return;
+        }
         if (_multiSelectMode && _actionsEnabled && e.KeyCode == Keys.Space && SelectedItem is ProgramEntry current)
         {
             if (current.CanUninstall) ItemCheckboxClicked?.Invoke(current);

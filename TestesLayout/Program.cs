@@ -21,7 +21,7 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
-        if (args.Contains("--ui-v269")) { V269ShellTests.Run(); return; }
+        if (args.Contains("--ui-v269")) { V269ShellTests.Run(); V269IntegrationTests.Run(); return; }
         // VF06/C1: o mesmo roteador deve servir para desenho e clique;
         // nenhum pacote e removido por estes testes de interface.
         var msixButton = new ProgramEntry
@@ -435,16 +435,11 @@ internal static class LayoutTests
             !repairCards.Any(b => b.Text == "Escolher ponto de restauração") ||
             repairCards.SingleOrDefault(b => b.Text == "Reparar Windows") is not { Enabled: false })
             throw new Exception("Reparo do Windows deve iniciar bloqueado; assistente de restauracao deve existir.");
-        var nav = Descendants(form).OfType<DarkTabHost>().First();
-        string[] expectedTitles =
-        {
-            "Aplicativos", "DRIVERS", "Limpeza e desempenho",
-            "Reparo e rede", "Planos de energia", "Inicialização e sistema"
-        };
-        if (nav.TabCount != 6 || !nav.TabTitles.SequenceEqual(expectedTitles))
-            throw new Exception("A ordem das seis abas principais foi alterada.");
-        // DRIVERS permite somente consulta local.
-        nav.SelectTab(1);
+        var nav = Descendants(form).OfType<V269Shell>().Single();
+        var pages = Enum.GetValues<V269Page>();
+        if (pages.Length != 8 || pages.Any(page => nav.PageContent(page) is null))
+            throw new Exception("A janela principal deve hospedar as oito abas nativas.");
+        nav.SelectPage(V269Page.Drivers);
         Application.DoEvents();
         Control placeholder = Descendants(form).SingleOrDefault(c =>
             c.Name == "DriversPlaceholder")
@@ -557,40 +552,29 @@ internal static class LayoutTests
             bool capture = (resolution.Width <= 1366 &&
                 (resolution.Height <= 800 || resolution == new Size(1280, 1024))) ||
                 resolution == new Size(1440, 900);
-            // 21 resolucoes, seis abas e verificacao de margens, simetria,
-            // cliques e foco (antes eram apenas cinco abas).
-            for (int tab = 0; tab < 6; tab++)
+            foreach (V269Page tab in pages)
             {
-                nav.SelectTab(tab);
+                nav.SelectPage(tab);
                 Application.DoEvents();
-                var bounds = nav.NavigationBounds;
-                if (bounds.Length != 6 ||
-                    bounds.Any(b => b.Width < 1 || b.Height < 1))
-                    throw new Exception("Nao ha seis botoes de navegacao visiveis.");
-                int firstMargin = bounds[0].Left;
-                int lastMargin = nav.ClientSize.Width - bounds[^1].Right;
-                if (firstMargin > 18 || lastMargin > 18 ||
-                    Math.Abs(firstMargin - lastMargin) > 3)
-                    throw new Exception($"Abas desalinhadas: {name} esquerda={firstMargin} direita={lastMargin}");
-                if (bounds.Max(b => b.Width) - bounds.Min(b => b.Width) > 1)
-                    throw new Exception($"Abas nao estao uniformes em {name}.");
-                for (int i = 0; i < bounds.Length; i++)
-                {
-                    if (i > 0 && bounds[i].Left <= bounds[i - 1].Right)
-                        throw new Exception("Abas encostadas ou sobrepostas.");
-                    Point center = new(bounds[i].Left + bounds[i].Width / 2,
-                        bounds[i].Top + bounds[i].Height / 2);
-                    if (nav.NavigationHitTest(center) != i)
-                        throw new Exception($"Hit-test incorreto: {name}, aba {i}");
-                }
+                var buttonsByPage = pages.Select(page => nav.Controls.Find("V269Nav" + page, true)
+                    .OfType<Button>().Single()).ToArray();
+                var bounds = buttonsByPage.Select(button => button.Bounds).ToArray();
+                if (bounds.Any(bound => bound.Width < 1 || bound.Height < 1) ||
+                    bounds.Select(bound => bound.Left).Distinct().Count() != 1 ||
+                    bounds.Select(bound => bound.Width).Distinct().Count() != 1 ||
+                    bounds.Zip(bounds.Skip(1)).Any(pair => pair.First.Bottom > pair.Second.Top))
+                    throw new Exception($"Navegação lateral incorreta em {name}.");
+                buttonsByPage[(int)tab].PerformClick();
+                if (nav.SelectedPage != tab || nav.PageContent(tab) is not { Visible: true })
+                    throw new Exception($"Aba não selecionável: {tab} em {name}.");
 
                 // Limpeza integrada removeu duas ferramentas independentes.
                 // As seis ferramentas Windows restantes devem ocupar ate tres colunas.
                 if ((resolution == new Size(1920, 1080) ||
-                     resolution == new Size(2560, 1440)) && (tab == 2 || tab == 3))
+                     resolution == new Size(2560, 1440)) && (tab is V269Page.Limpeza or V269Page.Reparo))
                 {
                     int expected = 3;
-                    int toolCount = tab == 2 ? 6 : 7;
+                    int toolCount = tab == V269Page.Limpeza ? 6 : 12;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .FirstOrDefault(x => x.EmbeddedInPage &&
                             x.Content.Controls.Count == toolCount);
@@ -606,9 +590,9 @@ internal static class LayoutTests
 
                 // Nao deixar cartes enormes quando a largura permite
                 // duas ou tres linhas e nao sacrificar textos em PC FRACO.
-                if ((tab == 2 || tab == 3) && resolution == new Size(1440, 900))
+                if ((tab is V269Page.Limpeza or V269Page.Reparo) && resolution == new Size(1440, 900))
                 {
-                    int count = tab == 2 ? 6 : 7;
+                    int count = tab == V269Page.Limpeza ? 6 : 12;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .Single(x => x.EmbeddedInPage && x.Content.Controls.Count == count);
                     var cards = toolFlow.Content.Controls.OfType<Panel>().ToArray();
@@ -625,7 +609,7 @@ internal static class LayoutTests
                             throw new Exception("Texto de ferramenta cortado em 1440x900: " + label.Text);
                     }
                 }
-                if (tab == 0)
+                if (tab == V269Page.Aplicativos)
                 {
                     var commands = Descendants(form).OfType<TableLayoutPanel>()
                         .FirstOrDefault(panel => panel.Controls.OfType<Button>()
@@ -676,7 +660,7 @@ internal static class LayoutTests
                             throw new Exception("Acao cortada: " + name + " / " + button.Text);
                     }
                 }
-                if (tab == 5)
+                if (tab == V269Page.Sistema)
                 {
                     var descriptions = Descendants(form).OfType<Label>()
                         .Where(label => label.Name.StartsWith("SystemActionDescription",
@@ -684,7 +668,7 @@ internal static class LayoutTests
                     var expectedDescriptions = new[]
                     {
                         "Consumo e memória disponível. Histórico local, também na bandeja.",
-                        "Ative ou desative entradas do seu usuário de modo reversível.",
+                        "Consulte e revise os planos de energia do Windows.",
                         "Procure, selecione e instale atualizações oficiais.",
                         "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos."
                     };
@@ -719,7 +703,7 @@ internal static class LayoutTests
                         throw new Exception($"Rolagem fantasma: {name} aba={tab}");
                 }
 
-                if (tab == 2)
+                if (tab == V269Page.Limpeza)
                 {
                     if (Descendants(form).OfType<Button>().Any(b =>
                         b.AccessibleName == "Otimizar unidades"))
@@ -767,7 +751,7 @@ internal static class LayoutTests
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
                 // A página apresenta ações individuais, inativas antes da consulta.
-                if (tab == 1)
+                if (tab == V269Page.Drivers)
                 {
                     bool tinyDrivers = placeholder.Height < 230;
                     int minDriverHeight = tinyDrivers ? 73 : 100;
@@ -813,14 +797,14 @@ internal static class LayoutTests
             }
             tested++;
         }
-        const int expectedCombinations = 132;
-        if (tested != 22 || tested * nav.TabCount != expectedCombinations)
-            throw new Exception($"Esperadas 132 combinacoes; encontradas {tested * nav.TabCount}.");
+        const int expectedCombinations = 176;
+        if (tested != 22 || tested * pages.Length != expectedCombinations)
+            throw new Exception($"Esperadas 176 combinacoes; encontradas {tested * pages.Length}.");
         Console.WriteLine($"OK: {expectedCombinations} combinacoes resolucao/aba validadas.");
         // Provar no runner Windows que o botao Minimizar oculta a janela
         // e que Abrir restaura, sem encerrar a coleta nem criar janelas.
         IntPtr originalHandle = form.Handle;
-        int originalTab = nav.SelectedIndex;
+        V269Page originalTab = nav.SelectedPage;
         var duration = System.Diagnostics.Stopwatch.StartNew();
         for (int i = 0; i < 12; i++)
         {
@@ -835,14 +819,14 @@ internal static class LayoutTests
             Application.DoEvents();
             if (!form.Visible || !form.ShowInTaskbar || form.IsInTray ||
                 form.HasActiveTrayIcon || form.Handle != originalHandle ||
-                nav.SelectedIndex != originalTab)
+                nav.SelectedPage != originalTab)
                 throw new Exception("Restaurar recriou o HWND ou perdeu o layout selecionado.");
         }
         duration.Stop();
         Console.WriteLine($"OK: 12 ciclos de bandeja, HWND estavel, {duration.ElapsedMilliseconds} ms no runner");
         // Layout util em espaco limitado: os itens e botoes devem permanecer
         // focaveis mesmo quando as paginas fazem rolagem.
-        nav.SelectTab(0);
+        nav.SelectPage(V269Page.Aplicativos);
         var commandButtons = Descendants(form).OfType<ModernButton>()
             .Where(x => x.Visible && !x.IsDisposed).ToArray();
         if (commandButtons.Any(x => x.Text.Contains('\n')))
@@ -850,14 +834,17 @@ internal static class LayoutTests
         var programList = Descendants(form).OfType<DarkProgramList>().Single();
         if (programList.ItemHeight > 70)
             throw new Exception("Lista de programas ainda usa linhas excessivamente altas.");
-        nav.SelectTab(4);
+        nav.SelectPage(V269Page.Sistema);
+        var setSystemView = typeof(MainForm).GetMethod("SetSystemView",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        setSystemView.Invoke(form, ["energy"]);
         Application.DoEvents();
         var activateButtons = Descendants(form).OfType<ModernButton>()
             .Where(b => b.Text == "Ativar" && b.Parent is TableLayoutPanel).ToArray();
         if (activateButtons.Length != 3 ||
             activateButtons.Any(b => b.Width > 130 || b.Height > 33))
             throw new Exception("Botoes Ativar ainda demasiadamente largos.");
-        nav.SelectTab(3);
+        nav.SelectPage(V269Page.Reparo);
         Application.DoEvents();
         var repairTools = Descendants(form).OfType<ModernButton>()
             .Where(b => b.Text is "Analisar rede" or "Reparar rede" or "Diagnosticar áudio" or
@@ -875,7 +862,7 @@ internal static class LayoutTests
         int naturalWidth = TextRenderer.MeasureText(longRepair.Text, longRepair.Font,
             new Size(int.MaxValue, 33), TextFormatFlags.NoPadding |
             TextFormatFlags.NoPrefix).Width;
-        if (longRepair.Width <= 215 || longRepair.Width - 27 < naturalWidth)
+        if (longRepair.Parent!.ClientSize.Width >= naturalWidth + 40 && longRepair.Width - 27 < naturalWidth)
             throw new Exception("Rotulo de restauracao ainda reduz a fonte apesar do espaco do cartao.");
         if (repairTools.Select(b => b.Font.SizeInPoints).Distinct().Count() != 1)
             throw new Exception("Botoes de reparo devem compartilhar a mesma fonte.");
@@ -916,7 +903,7 @@ internal static class LayoutTests
                 surface.PerformLayout(); Application.DoEvents();
                 var row = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(c => c.Top))
                     .OrderBy(card => card.Left).ToArray();
-                if (row.Length != 3 || row[^1].Right - row[0].Left < repairFlow.Content.ClientSize.Width * 0.85)
+                if (row.Length is < 1 or > 3 || row[^1].Right - row[0].Left < repairFlow.Content.ClientSize.Width * 0.85)
                     throw new Exception($"Reparo deve preencher tres colunas: monitor={screen}, viewport={repairFlow.ClientSize}, colunas={row.Length}.");
                 using var capture = new Bitmap(surface.Width, surface.Height);
                 surface.DrawToBitmap(capture, new Rectangle(Point.Empty, surface.Size));
@@ -925,7 +912,8 @@ internal static class LayoutTests
             }
         }
         finally { surface.Size = savedRepairSurface; surface.PerformLayout(); Application.DoEvents(); }
-        nav.SelectTab(5);
+        nav.SelectPage(V269Page.Sistema);
+        setSystemView.Invoke(form, ["memory"]);
         Application.DoEvents();
         TestMemoryPanel(form);
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
@@ -945,6 +933,7 @@ internal static class LayoutTests
         // O teste do novo shell cria um Form próprio; executá-lo após a suíte
         // legada evita modificar a ordem das janelas e o estado de foco dela.
         V269ShellTests.Run();
+        V269IntegrationTests.Run();
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]

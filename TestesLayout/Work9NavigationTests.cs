@@ -9,11 +9,11 @@ internal static class Work9NavigationTests
     {
         using var form = new MainForm(startServices: false);
         form.Show(); Application.DoEvents();
-        var nav = (DarkTabHost)typeof(MainForm).GetField("_nav", Private)!.GetValue(form)!;
-        var title = (Label)typeof(MainForm).GetField("_systemPanelTitle", Private)!.GetValue(form)!;
+        var nav = (V269Shell)typeof(MainForm).GetField("_nav", Private)!.GetValue(form)!;
+        var title = (Label)typeof(MainForm).GetField("_v269StartupTitle", Private)!.GetValue(form)!;
         var setView = typeof(MainForm).GetMethod("SetSystemView", Private)!;
         var refresh = typeof(MainForm).GetMethod("RefreshStartupEntriesAsync", Private)!;
-        nav.SelectTab(5);
+        nav.SelectPage(V269Page.Sistema);
         var tooltip = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!.GetValue(form)!;
         check(!tooltip.Active, "WU-UI1 nenhum tooltip flutuante na janela principal");
         setView.Invoke(form, ["update"]);
@@ -28,12 +28,12 @@ internal static class Work9NavigationTests
             "WU-UI2 visualização sem consulta e botão de busca explícito");
         foreach (bool leaveMainTab in new[] { false, true })
         {
-            setView.Invoke(form, ["startup"]);
+            nav.SelectPage(V269Page.Inicializacao);
             var pending = new TaskCompletionSource<IReadOnlyList<StartupItem>>();
             var task = (Task)refresh.Invoke(form,
                 [(Func<Task<IReadOnlyList<StartupItem>>>)(() => pending.Task)])!;
-            if (leaveMainTab) { nav.SelectTab(0); nav.SelectTab(5); }
-            else { setView.Invoke(form, ["update"]); setView.Invoke(form, ["startup"]); }
+            nav.SelectPage(leaveMainTab ? V269Page.Aplicativos : V269Page.Sistema);
+            nav.SelectPage(V269Page.Inicializacao);
             title.Text = "RESULTADO DA NAVEGACAO MAIS NOVA";
             pending.SetResult([new StartupItem("GF W9 OLD", "synthetic", "registry", "synthetic", true, false)]);
             Pump(task);
@@ -41,7 +41,7 @@ internal static class Work9NavigationTests
                 leaveMainTab ? "W9-UI2 sair e voltar a aba principal ignora consulta antiga" :
                     "W9-UI1 Inicializacao Update Inicializacao ignora conclusao antiga");
         }
-        setView.Invoke(form, ["startup"]);
+        nav.SelectPage(V269Page.Inicializacao);
         var current = (Task)refresh.Invoke(form,
             [(Func<Task<IReadOnlyList<StartupItem>>>)(() => Task.FromResult<IReadOnlyList<StartupItem>>([]))])!;
         Pump(current);
