@@ -143,7 +143,11 @@ internal sealed class ProgramEntry
 }
 
 internal sealed record RegistryInventoryScan(IReadOnlyList<ProgramEntry> Items,
-    int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates);
+    int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates)
+{
+    // Prévia de bundleware exige inclusive filhos SystemComponent ocultos.
+    internal bool IncludesHiddenEntries { get; init; }
+}
 internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
     RegistryInventoryScan Registry, LocalMsixResult Msix, int Added,
     GameLibraryReport Games, int GamesAdded)
@@ -435,7 +439,8 @@ internal static class AppServices
         var distinct = InventoryReconciler.DistinctRegistryEntries(entries);
         return new RegistryInventoryScan(distinct.OrderBy(x => x.Name,
             StringComparer.CurrentCultureIgnoreCase).ToArray(),
-            inspected, hidden, updates, failures, entries.Count - distinct.Count);
+            inspected, hidden, updates, failures, entries.Count - distinct.Count)
+        { IncludesHiddenEntries = includeHidden };
     }
 
     public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
