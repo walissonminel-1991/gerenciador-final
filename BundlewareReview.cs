@@ -40,6 +40,11 @@ internal sealed record BundlePostRemovalReview(BundlePostRemovalState State,
 {
     internal bool ConfirmsCleanUninstall => false;
     internal bool MayRemoveRemainingComponents => false;
+    internal bool MustShowPartialResult => State is
+        BundlePostRemovalState.ParentStillRegistered or
+        BundlePostRemovalState.ComponentsStillRegistered or
+        BundlePostRemovalState.PendingObservation or
+        BundlePostRemovalState.Inconclusive;
 }
 
 internal static class BundlewareReview
