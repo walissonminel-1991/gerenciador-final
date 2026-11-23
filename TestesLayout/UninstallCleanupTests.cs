@@ -74,36 +74,52 @@ internal static class UninstallCleanupTests
                 "Executores antigos devem permanecer somente nas regressões, sem duplicar o motor distribuído");
             Require(Children(host).Any(c => c.Text == "Limpeza avançada") && Children(host).Any(c => c.Text == "Esvaziar Lixeira"),
                 "Remoção da investigação não pode eliminar ferramentas de limpeza do Windows");
-            var shell = Children(host).OfType<V269Shell>().Single();
-            host.MinimizeToTray();
-            var task = host.ConfirmUninstallCleanupAsync(plans, default);
-            Require(host.HasPendingUninstallConfirmation &&
-                shell.RightPane.Current?.Kind != V269PanelKind.Confirmation,
-                "Operação na bandeja não pode abrir confirmação inesperada");
-            host.RestoreFromTray();
-            Until(() => shell.RightPane.Current?.Kind == V269PanelKind.Confirmation,
-                "Restauração não apresentou a decisão pendente no painel");
-            Require(shell.RightPane.Current?.Description.Contains("Primeiro aplicativo") == true &&
-                shell.RightPane.Current?.Description.Contains("Segundo aplicativo") == true &&
-                !Application.OpenForms.OfType<UninstallCleanupDialog>().Any(),
-                "O painel conserva a prévia completa sem janela auxiliar");
-            var decline = shell.RightPane.Controls.Find("V269CancelConfirmation", true).OfType<Button>().Single();
-            Require(decline.Visible && decline.Enabled, "Recusa deve estar disponível após restaurar");
-            decline.PerformClick();
-            Until(() => task.IsCompleted, "Recusa no painel não concluiu a operação");
-            Require(!task.GetAwaiter().GetResult() && !host.HasPendingUninstallConfirmation &&
-                shell.RightPane.Current?.Kind != V269PanelKind.Confirmation,
-                "Uma única decisão deve consumir a confirmação pendente");
-            host.MinimizeToTray(); using var cancel = new CancellationTokenSource();
-            var cancelled = host.ConfirmUninstallCleanupAsync(plans, cancel.Token); cancel.Cancel();
-            Until(() => cancelled.IsCompleted, "Cancelamento na bandeja não concluiu");
-            Require(cancelled.IsCanceled && !host.HasPendingUninstallConfirmation, "Cancelamento deve descartar confirmação sem apagar");
-            host.RestoreFromTray(); Application.DoEvents();
-            Require(shell.RightPane.Current?.Kind != V269PanelKind.Confirmation &&
-                !Application.OpenForms.OfType<UninstallCleanupDialog>().Any(),
-                "Pergunta cancelada foi repetida após restauração");
+            VerifyTrayConfirmation(host, plans);
             host.Close();
         }
         Console.WriteLine("OK WORK10 UI: 44 combinações, SIM/NÃO, privacidade visual, botões antigos removidos, bandeja e cancelamento");
     }
+
+    internal static void VerifyTrayConfirmation()
+    {
+        using var host = new MainForm(startServices: false);
+        host.Show();
+        Application.DoEvents();
+        VerifyTrayConfirmation(host, [Plan("Primeiro aplicativo"), Plan("Segundo aplicativo")]);
+        host.Close();
+    }
+
+    private static void VerifyTrayConfirmation(MainForm host, IntegratedResidualPlan[] plans)
+    {
+        var shell = Children(host).OfType<V269Shell>().Single();
+        host.MinimizeToTray();
+        var task = host.ConfirmUninstallCleanupAsync(plans, default);
+        Require(host.HasPendingUninstallConfirmation &&
+            shell.RightPane.Current?.Kind != V269PanelKind.Confirmation,
+            "Operação na bandeja não pode abrir confirmação inesperada");
+        host.RestoreFromTray();
+        var decline = shell.RightPane.Controls.Find("V269CancelConfirmation", true).OfType<Button>().Single();
+        Until(() => shell.RightPane.Current?.Kind == V269PanelKind.Confirmation &&
+            decline.Visible && decline.Enabled && decline.CanSelect,
+            $"Recusa indisponível ao restaurar (janela={host.Visible}, painel={shell.RightPane.Visible}, " +
+            $"botão visível={decline.Visible}, habilitado={decline.Enabled})");
+        Require(shell.RightPane.Current?.Description.Contains("Primeiro aplicativo") == true &&
+            shell.RightPane.Current?.Description.Contains("Segundo aplicativo") == true &&
+            !Application.OpenForms.OfType<UninstallCleanupDialog>().Any(),
+            "O painel conserva a prévia completa sem janela auxiliar");
+        decline.PerformClick();
+        Until(() => task.IsCompleted, "Recusa no painel não concluiu a operação");
+        Require(!task.GetAwaiter().GetResult() && !host.HasPendingUninstallConfirmation &&
+            shell.RightPane.Current?.Kind != V269PanelKind.Confirmation,
+            "Uma única decisão deve consumir a confirmação pendente");
+        host.MinimizeToTray(); using var cancel = new CancellationTokenSource();
+        var cancelled = host.ConfirmUninstallCleanupAsync(plans, cancel.Token); cancel.Cancel();
+        Until(() => cancelled.IsCompleted, "Cancelamento na bandeja não concluiu");
+        Require(cancelled.IsCanceled && !host.HasPendingUninstallConfirmation, "Cancelamento deve descartar confirmação sem apagar");
+        host.RestoreFromTray(); Application.DoEvents();
+        Require(shell.RightPane.Current?.Kind != V269PanelKind.Confirmation &&
+            !Application.OpenForms.OfType<UninstallCleanupDialog>().Any(),
+            "Pergunta cancelada foi repetida após restauração");
+    }
+
 }

@@ -111,7 +111,13 @@ internal static class LayoutTests
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
         if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
-        if (args.Contains("--work18")) { Work18UpdateUiTests.Run(); Stage3UpdateQueryTests.Run(); return; }
+        if (args.Contains("--work18"))
+        {
+            Work18UpdateUiTests.Run();
+            Stage3UpdateQueryTests.Run();
+            UninstallCleanupTests.VerifyTrayConfirmation();
+            return;
+        }
         if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
         if (args.Contains("--lote3")) { Lote3LayoutTests.Run(); return; }
         if (args.Contains("--drivers-readonly"))

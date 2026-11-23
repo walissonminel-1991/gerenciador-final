@@ -132,11 +132,15 @@ internal sealed class V269RightPane : UserControl
         var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var previous = Current;
         _confirmation = pending;
-        PresentCore(new(V269PanelKind.Confirmation, title, description));
-        _layout.RowStyles[3].Height = 38;
-        _choices.Visible = true;
-        _choices.Controls[0].Focus();
-        try { return await pending.Task.WaitAsync(token); }
+        try
+        {
+            _layout.RowStyles[3].Height = 38;
+            _choices.Visible = true;
+            PresentCore(new(V269PanelKind.Confirmation, title, description));
+            _layout.PerformLayout();
+            _choices.Controls[0].Focus();
+            return await pending.Task.WaitAsync(token);
+        }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return false; }
         finally
         {
@@ -462,13 +466,13 @@ internal sealed class V269Shell : UserControl
             bool confirmation = _rightPane.Current?.Kind == V269PanelKind.Confirmation;
             toggle.Enabled = !confirmation;
             bool showRight = !compact || _compactPaneOpen || confirmation;
-            _rightPane.Visible = showRight;
             toggle.Text = showRight ? "Fechar painel" : "Abrir painel";
             if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
             if (!showRight) right = 0;
         }
         _columns.ColumnStyles[0].Width = sidebar;
         _columns.ColumnStyles[2].Width = right;
+        if (_paneToggle is not null) _rightPane.Visible = right > 0;
         int navHeight = _paneToggle is null ? 48 :
             Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
         for (int i = 0; i < Pages.Length; i++)
