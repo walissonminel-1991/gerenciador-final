@@ -74,6 +74,12 @@ internal static class DriverRecoveryVaultTests
             check(review.Verified && review.CanStage &&
                 review.InfPath == inf && review.Receipt?.PackageSha256 == packageHash,
                 "Restore: copia OEM, hash e recibo coerentes liberam apenas revisao");
+            var availableCatalog = DriverRecoveryVault.BrowseBackupsForTest(root);
+            check(availableCatalog.Items.Count == 1 &&
+                availableCatalog.VerifiedCount == 1 &&
+                availableCatalog.Items[0].State == DriverBackupCatalogState.Valid &&
+                !availableCatalog.Items[0].CanExecute,
+                "Cofre: lista read-only somente cópia íntegra, sem permissão de instalação");
             var evidence = new DriverStoreEvidence("oem900.inf", DriverStoreState.Mapped,
                 inf, inf);
             var observedSet = new DriverPublishedAuditResult(
@@ -90,6 +96,11 @@ internal static class DriverRecoveryVaultTests
                 Schema = 1, Action = "StageOnly", AtUtc = DateTimeOffset.UtcNow,
                 BackupHash = packageHash, State = "PENDING_RECONCILIATION"
             }));
+            var pendingCatalog = DriverRecoveryVault.BrowseBackupsForTest(root);
+            check(pendingCatalog.Items.Single().State ==
+                DriverBackupCatalogState.PendingReconciliation &&
+                !pendingCatalog.Items[0].CanExecute,
+                "Cofre: marcador de staging preserva estado pendente sem repetir");
             var observed = DriverRecoveryVault.ReconcileWithEvidence(root, folder,
                 observedSet, Trusted, _ => "Printer");
             check(observed.State == DriverRestoreReconcileState.MatchingInfObserved &&
@@ -110,11 +121,19 @@ internal static class DriverRecoveryVaultTests
                 "Restore: enumeração parcial, classe conflitante e duplicidade não comprovam recuperação");
             File.Delete(folder + ".restore-pending.json");
             File.WriteAllText(receiptPath, JsonSerializer.Serialize(receipt with { DriverClass = "Display" }));
+            var displayCatalog = DriverRecoveryVault.BrowseBackupsForTest(root);
+            check(displayCatalog.Items.Single().State == DriverBackupCatalogState.ProtectedClass &&
+                !displayCatalog.Items[0].CanExecute,
+                "Cofre: backup Display aparece mas nunca oferece execução");
             var display = DriverRecoveryVault.ReviewForTest(root, folder);
             check(display.Verified && !display.CanStage,
                 "Restore: backup Display valido permanece protegido para staging");
             File.WriteAllText(receiptPath, JsonSerializer.Serialize(receipt));
             File.AppendAllText(inf, "; arquivo alterado");
+            var damagedCatalog = DriverRecoveryVault.BrowseBackupsForTest(root);
+            check(damagedCatalog.Partial &&
+                damagedCatalog.Items.Single().State == DriverBackupCatalogState.Inconclusive,
+                "Cofre: arquivo alterado não aparece como cópia confiável");
             check(!DriverRecoveryVault.ReviewForTest(root, folder).Verified,
                 "Restore: modificacao de arquivo invalida backup");
             File.WriteAllBytes(inf, infBytes);
@@ -129,6 +148,11 @@ internal static class DriverRecoveryVaultTests
             check(!DriverRecoveryVault.ReviewForTest(root, Path.Combine(root, "elsewhere", "child")).Verified &&
                 !DriverRecoveryVault.ReviewForTest(root, root).Verified,
                 "Restore: so aceita pasta filha direta do cofre local");
+            Directory.CreateDirectory(Path.Combine(root, "manual-incomplete"));
+            var bounded = DriverRecoveryVault.BrowseBackupsForTest(root, maximum: 1);
+            check(bounded.Partial && bounded.Inspected == 1 &&
+                bounded.Items.Count == 1 && bounded.Items.All(item => !item.CanExecute),
+                "Cofre: enumeração limitada sinaliza parcial sem oferecer ações");
             var blocked = DriverRecoveryVault.StageAsync(folder, false, () => true,
                 CancellationToken.None).GetAwaiter().GetResult();
             check(!blocked.Attempted && !blocked.RequiresReconciliation &&
