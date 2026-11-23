@@ -189,6 +189,17 @@ Check(NetworkRepairOutcome.ReviewDnsAfterFlush(
         NetworkRepairWorkerState.CommandReturnedZero) ==
             NetworkDnsVerification.Inconclusive,
     "Pós-DNS: exigir dois nomes únicos, distinguir recuperação completa, parcial, persistente ou inconclusiva.");
+// Um adaptador UP com IPv4 ausente, APIPA, loopback ou multicast não
+// comprova rota local; não deve liberar sugestão de manutenção de rede.
+Check(!NetworkDiagnostics.HasUsableIpv4(null) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("::1")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("0.0.0.0")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("127.0.0.1")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("169.254.10.24")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("224.0.0.1")) &&
+    NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("192.0.2.24")) &&
+    NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("10.0.0.24")),
+    "Diagnóstico de rede: UP sem IPv4 útil não equivale a adaptador OK.");
 // Uma falha apenas em www.microsoft.com não autoriza sugerir Winsock.
 // Fixtures puras: nenhum teste de rede real é feito pelo runner.
 NetworkScan Probes(string dns, string alternative, string first, string second) => new([
