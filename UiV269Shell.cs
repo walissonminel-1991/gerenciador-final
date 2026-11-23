@@ -111,6 +111,7 @@ internal sealed class V269RightPane : UserControl
     internal void ApplyPalette(V269Palette palette)
     {
         BackColor = palette.RightPanel;
+        _layout.BackColor = palette.RightPanel;
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
         _description.ForeColor = palette.SecondaryText;
@@ -319,6 +320,9 @@ internal sealed class V269Shell : UserControl
         _navigationLayout.BackColor = palette.Sidebar;
         _content.BackColor = palette.Content;
         _bodyHost.BackColor = palette.Content;
+        foreach (var name in new[] { "V269MainLayout", "V269Heading" })
+            foreach (Control layout in _content.Controls.Find(name, true))
+                layout.BackColor = palette.Content;
         _rightPane.ApplyPalette(palette);
         _pageTitle.ForeColor = palette.Text;
         _pageSubtitle.ForeColor = palette.SecondaryText;
