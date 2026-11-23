@@ -120,6 +120,19 @@ internal static class HardwareMonitoringDiagnosticReportTests
               !joined.Contains("luid_0x", StringComparison.OrdinalIgnoreCase),
             "relatório D3DKMT deve revelar somente contagens, sem LUID nem valores individuais");
 
+        var noResponse = D3dKmtGpuSensorProvider.Join([
+            new D3dKmtAdapterRaw(new WddmGpuKey(1, 1234, 0),
+                0, 0, 0, 0, 0, 0, false, false, false)
+        ]);
+        string diagnostic = HardwareMonitoringDiagnosticReport.Format(measured with
+        {
+            D3dKmtGpuSensors = noResponse
+        });
+        Check(diagnostic.Contains("consulta desempenho ausente: 1; capacidades ausentes: 1; GPUs desligadas confirmadas: 0; adaptadores sem métrica válida: 1", StringComparison.Ordinal) &&
+              !diagnostic.Contains("luid_0x", StringComparison.OrdinalIgnoreCase) &&
+              !diagnostic.Contains("GPU-UUID-test", StringComparison.Ordinal),
+            "sem resposta D3DKMT não pode ser classificada como GPU desligada nem revelar identificador");
+
         Check(confirmed.Contains("não é RPM", StringComparison.Ordinal) &&
               confirmed.Contains("latências máximas leitura: 0", StringComparison.Ordinal) &&
               confirmed.Contains("CPU/chipset/VRM: indisponíveis", StringComparison.Ordinal),
