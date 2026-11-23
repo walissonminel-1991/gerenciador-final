@@ -263,6 +263,51 @@ try
     string baseline = File.ReadAllText(file);
     Check(!baseline.Contains(a.DeviceId) && !baseline.Contains(a.DeviceName) && !baseline.Contains(a.Provider) &&
         !baseline.Contains(a.InfName), "Arquivo nao contem nomes nem IDs brutos");
+    // F03-E: instância WMI != HardwareID de matching. Não filtrar linhas
+    // sem PnP correspondente: o histórico v1 compara associações WMI inteiras.
+    // Ausência posterior significa "não observada", nunca driver removido.
+    var legacyWmi = a with { DeviceId = "LEGACY_INSTANCE_01", Present = null };
+    var unusualPresent = b with { DeviceId = @"SWD\VIRTUAL\INSTANCE?A", Present = true };
+    var unusualUnknown = c with { DeviceId = @"SWD\VIRTUAL\INSTANCE?B", Present = null };
+    var legacyPresent = b with { DeviceId = "LEGACY_INSTANCE_02", Present = true };
+    var unusualInventory = Complete(legacyWmi, unusualPresent, unusualUnknown, legacyPresent);
+    Check(unusualInventory.Items.All(x => !DriverInventory.ValidHardwareId(x.DeviceId)) &&
+        DriverHistory.Snapshot(unusualInventory).Count == 4,
+        "F03: quatro associacoes WMI opacas integram a fotografia sem servir como HardwareIDs");
+    string unusualPath = Path.Combine(folder, "history-wmi.json");
+    var unusualBaseline = DriverHistory.Record(unusualPath, unusualInventory, now);
+    string unusualBytes = File.ReadAllText(unusualPath);
+    Check(unusualBaseline.Saved && unusualBaseline.Baseline &&
+        unusualInventory.Items.All(x => !unusualBytes.Contains(x.DeviceId, StringComparison.Ordinal)) &&
+        System.Text.Json.JsonSerializer.Deserialize<DriverHistoryState>(unusualBytes)!.Devices.Count == 4,
+        "F03: base WMI integral registrada com hashes sem identificadores em claro");
+    var unusualChanged = DriverHistory.Record(unusualPath,
+        Complete(legacyWmi, unusualPresent with { Version = "2.0" }, unusualUnknown, legacyPresent),
+        now.AddSeconds(1));
+    Check(unusualChanged.Saved && !unusualChanged.Baseline &&
+        unusualChanged.Added == 0 && unusualChanged.Missing == 0 && unusualChanged.Changed == 1,
+        "F03: variacao WMI comparavel sem perder associacoes sem PnP");
+    var unusualMissing = DriverHistory.Record(unusualPath,
+        Complete(legacyWmi, unusualPresent with { Version = "2.0" }, legacyPresent),
+        now.AddSeconds(2));
+    Check(unusualMissing.Saved && unusualMissing.Missing == 1 &&
+        unusualMissing.Message.Contains("não observados", StringComparison.Ordinal) &&
+        unusualMissing.Message.Contains("Não comprova remoção", StringComparison.Ordinal),
+        "F03: associacao nao observada nao e anunciada como remocao de driver");
+    string untouchedWmi = File.ReadAllText(unusualPath);
+    bool InvalidWmiId(string id)
+    {
+        try { DriverHistory.Snapshot(Complete(a with { DeviceId = id })); return false; }
+        catch (InvalidDataException) { return true; }
+    }
+    Check(InvalidWmiId("") && InvalidWmiId("  ") &&
+        InvalidWmiId("INSTANCE ") && InvalidWmiId("INSTANCE\nLINE") &&
+        InvalidWmiId(new string('X', 4001)) &&
+        File.ReadAllText(unusualPath) == untouchedWmi,
+        "F03: chaves vazias, controles, espacos perifericos e limites nao alteram historico");
+    Check(!DriverHistory.Record(unusualPath, Complete(legacyWmi, legacyWmi), now.AddSeconds(3)).Saved &&
+        File.ReadAllText(unusualPath) == untouchedWmi,
+        "F03: duplicata WMI mesmo identica continua bloqueada sem sobrescrever a base");
     var duplicateAttempt = DriverHistory.Record(file, Complete(b, a, a), now.AddSeconds(1));
     Check(!duplicateAttempt.Saved && File.ReadAllText(file) == baseline,
         "G1.19: duplicata identica preserva historico valido em vez de criar mudanca");
