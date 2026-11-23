@@ -41,6 +41,7 @@ internal static class HardwareMonitoringDiagnosticReport
         var storage = portfolio.Storage.Disks;
         var acpi = portfolio.AcpiPlatform.Zones;
         var platform = portfolio.PlatformHardware;
+        var d3dkmt = portfolio.D3dKmtGpuSensors;
         var matched = portfolio.MatchedGpuDevices;
 
         var lines = new List<string>
@@ -101,6 +102,18 @@ internal static class HardwareMonitoringDiagnosticReport
                     WithValue(wddm?.Adapters.Select(x => x.BusiestOfType("VIDEOENCODE")) ?? []) +
                 "; DXGI inequívocos: " + matched.Count(x => x.DxgiDescription is not null) +
                 "; PnP inequívocos: " + matched.Count(x => x.PnpInstanceId is not null),
+            "GPU D3DKMT (LUID + índice físico): " +
+                State(d3dkmt?.State ?? HardwareDiscoveryState.Unavailable) +
+                "; adaptadores consultados: " + (d3dkmt?.Adapters.Count ?? 0) +
+                "; temperaturas reais: " +
+                    WithValue(d3dkmt?.Adapters.Select(x => x.TemperatureC) ?? []) +
+                "; ventoinhas em RPM: " +
+                    WithValue(d3dkmt?.Adapters.Select(x => x.FanRpm) ?? []) +
+                "; potência relativa em %: " +
+                    WithValue(d3dkmt?.Adapters.Select(x => x.RelativePowerPercent) ?? []) +
+                " (não são watts)" +
+                "; frequências memória MHz: " +
+                    WithValue(d3dkmt?.Adapters.Select(x => x.MemoryFrequencyMhz) ?? []),
             "NVIDIA NVML: " + (portfolio.NvidiaGpus.ProviderAvailable ? "disponível" : "indisponível") +
                 "; GPUs: " + gpu.Count +
                 "; uso: " + WithValue(gpu.Select(x => x.UsagePercent)) +
