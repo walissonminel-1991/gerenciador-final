@@ -128,8 +128,26 @@ internal sealed partial class MainForm
         }
 
         Log("Reparo orientado selecionado pelo diagnóstico: " + (dnsRepair ? "cache DNS" : "Winsock") + ".");
+        var workerResult = NetworkRepairWorkerState.NotConfirmed;
         await ExecuteAsync(dnsRepair ? "Limpando cache DNS..." : "Redefinindo catálogo Winsock...",
-            () => RunElevatedAsync(task));
+            () => RunElevatedAsync(task,
+                networkRepairCompletion: outcome => workerResult = outcome));
+
+        if (workerResult != NetworkRepairWorkerState.CommandReturnedZero)
+        {
+            // UAC recusado, conexão interrompida e exit code não zero não
+            // autorizam mostrar "reset solicitado" nem repetir às cegas.
+            _lastNetworkScan = null;
+            _networkSummary.ForeColor = Muted;
+            _networkSummary.Text = workerResult == NetworkRepairWorkerState.CommandReturnedError
+                ? "O Windows informou erro na operação. Nenhum reparo foi confirmado."
+                : "Operação sem retorno conclusivo. Confira o registro antes de repetir.";
+            _networkDetails.Text = "O GF não comprova qualquer mudança na rede. Refaça a análise antes de decidir outra operação.";
+            if (_repairNetworkButton is not null) _repairNetworkButton.Enabled = false;
+            Log("Resultado de manutenção de rede não confirmado (" + workerResult +
+                "); nenhuma repetição automática.");
+            return;
+        }
 
         if (dnsRepair)
         {
