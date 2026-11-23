@@ -31,8 +31,18 @@ internal static class StorageAssociationLinker
         if (separator <= 0 || !value.StartsWith(@"\\", StringComparison.Ordinal))
             return null;
         string prefix = value[..separator];
-        return prefix.EndsWith(StorageNamespace, StringComparison.OrdinalIgnoreCase)
-            ? value[(separator + 1)..] : null;
+        if (!prefix.EndsWith(StorageNamespace, StringComparison.OrdinalIgnoreCase))
+            return null;
+        string serverPart = prefix[..^StorageNamespace.Length];
+        if (!serverPart.StartsWith(@"\\", StringComparison.Ordinal))
+            return null;
+        string host = serverPart[2..];
+        if (host.Length == 0 || host.Contains('\\') ||
+            !(host.Equals(".", StringComparison.OrdinalIgnoreCase) ||
+              host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+              host.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase)))
+            return null;
+        return value[(separator + 1)..];
     }
 
     internal static StorageSensorsSnapshot Join(
