@@ -156,6 +156,7 @@ internal static class NativeHardwareDiscovery
                 }
 
                 string instance = ReadInstanceId(set, ref data);
+                if (instance.Length == 0) partial = true; // identidade sem evidência
                 string name = ReadProperty(set, ref data, SpdrpFriendlyName);
                 if (name.Length == 0) name = ReadProperty(set, ref data, SpdrpDevicedesc);
                 if (name.Length == 0) name = "Dispositivo sem nome informado";
@@ -168,14 +169,14 @@ internal static class NativeHardwareDiscovery
 
             return new(DateTimeOffset.UtcNow,
                 partial ? HardwareDiscoveryState.Partial : HardwareDiscoveryState.Complete,
-                result.ToArray(), "Windows SetupAPI (dispositivos presentes)",
+                result.AsReadOnly(), "Windows SetupAPI (dispositivos presentes)",
                 partial ? "Inventário PnP parcial: limite ou falha de enumeração" : null);
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or
             System.Security.SecurityException or ArgumentException)
         {
             return new(DateTimeOffset.UtcNow, HardwareDiscoveryState.Unavailable,
-                result.ToArray(), "Windows SetupAPI", "Consulta nativa indisponível");
+                result.AsReadOnly(), "Windows SetupAPI", "Consulta nativa indisponível");
         }
         finally
         {
