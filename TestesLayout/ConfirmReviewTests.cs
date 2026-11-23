@@ -19,7 +19,29 @@ internal static class ConfirmReviewTests
         using var bitmap=new Bitmap(form.Width,form.Height);
         form.DrawToBitmap(bitmap,new Rectangle(Point.Empty,form.Size));
         bitmap.Save("LayoutCaptures/Residuos-Confirmacao-Lote.png");
+        if (form.AcceptButton?.DialogResult != DialogResult.Yes ||
+            form.CancelButton?.DialogResult != DialogResult.No)
+            throw new Exception("VF06/C1: rota legada de confirmação foi alterada.");
         form.Close();
+
+        // VF06/C1: Enter e Esc devem recusar por padrao a remocao de MSIX,
+        // enquanto os demais dialogos conservam o comportamento legado.
+        using var msixConfirm = (Form)Activator.CreateInstance(typeof(DarkConfirmDialog),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            ["Leitor de teste\nFamília do pacote: Contoso.Reader_pub",
+             "Confirmar desinstalação MSIX", true], null)!;
+        msixConfirm.Show(); msixConfirm.PerformLayout(); Application.DoEvents();
+        if (msixConfirm.AcceptButton?.DialogResult != DialogResult.No ||
+            msixConfirm.CancelButton?.DialogResult != DialogResult.No ||
+            !msixConfirm.Controls.OfType<TableLayoutPanel>().Any())
+            throw new Exception("VF06/C1: confirmação MSIX deve negar por Enter/Esc.");
+        var msixLabel = (Label)typeof(DarkConfirmDialog)
+            .GetField("_message", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(msixConfirm)!;
+        if (!msixLabel.Text.Contains("Contoso.Reader_pub", StringComparison.Ordinal))
+            throw new Exception("VF06/C1: confirmação não exibiu identidade da família MSIX.");
+        msixConfirm.Close();
+        Console.WriteLine("OK confirmação MSIX nega Enter/Esc, preserva família e contrato legado.");
         Console.WriteLine("OK confirmação dark mantém lista integral e rolagem para lote longo, sem executar ações");
     }
 }

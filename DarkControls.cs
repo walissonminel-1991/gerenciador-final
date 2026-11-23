@@ -325,7 +325,7 @@ internal sealed class DarkProgramList : Control
         if (AppRowGeometry.UninstallButton(bounds).Contains(point) &&
             UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
             OperationFor?.Invoke(item)?.Active != true)
-            return (item, item.CanUninstall ? "uninstall" : "uninstall-manual");
+            return (item, item.UninstallAction);
         if (item.IsUpdate && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.PreventRetry != true &&
             AppRowGeometry.UpdateButton(bounds).Contains(point))
         {

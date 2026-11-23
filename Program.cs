@@ -96,10 +96,31 @@ internal sealed class ProgramEntry
     public string CatalogDisplayName { get; set; } = "";
     public string InventorySource { get; init; } = "";
     public string InventoryId { get; init; } = "";
+    // Marcador consultivo da entrada ARP oculta; nunca concede permissao de remocao.
+    public bool HiddenFromNormalView { get; init; }
     // Evidência consultiva capturada junto ao inventário; não autoriza execução.
     internal string QueryArchitecture { get; set; } = "unknown";
     public string MsiProductCode { get; init; } = "";
     public string MsixPackageFamilyName { get; init; } = "";
+    public string MsixPackageFullName { get; init; } = "";
+    public string MsixPublisherId { get; init; } = "";
+    public string MsixPackageName { get; init; } = "";
+    public bool? MsixSystemSigned { get; init; }
+    // Somente inventário MSIX completo e atual permite remoção direta.
+    public bool MsixInventoryComplete { get; init; }
+    // A mesma elegibilidade rege aparencia e clique: nunca exibir acao
+    // executavel que o hit-test encaminhe para o gerenciador manual.
+    internal MsixRemovalRequest MsixRemovalIdentity =>
+        new(MsixPackageFullName, MsixPackageFamilyName, MsixPackageName,
+            MsixPublisherId, Version, Name, InventoryId, MsixSystemSigned);
+    internal bool CanUninstallMsix =>
+        InventoryOnly && !CanUninstall && MsixInventoryComplete &&
+        InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase) &&
+        MsixUninstall.CanOffer(MsixRemovalIdentity);
+    // Contrato unico entre hit-test e desenho sem depender do controle visual.
+    internal string UninstallAction =>
+        CanUninstall ? "uninstall" :
+        CanUninstallMsix ? "msix-uninstall" : "uninstall-manual";
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     private bool _inventoryOnly;
@@ -270,6 +291,11 @@ internal static class AppServices
                 InventoryId = LocalMsixInventory.InventoryId(app),
                 VerifiedMsixIdentity = app.RecipeEligible,
                 MsixPackageFamilyName = app.PackageFamilyName,
+                MsixPackageFullName = app.PackageFullName,
+                MsixPublisherId = app.PublisherId,
+                MsixPackageName = app.PackageName,
+                MsixSystemSigned = app.SystemSigned,
+                MsixInventoryComplete = msix.Status == "ok" && msix.Failures == 0 && !app.Stale,
                 CatalogIdentity = verified?.Id ?? "",
                 CatalogDisplayName = verified?.Name ?? ""
             });
@@ -297,6 +323,15 @@ internal static class AppServices
     // ARP x64/x86 para máquina e usuário atual. Usa nomes reais do Windows,
     // INDEPENDENTE do catálogo de atualizações. Nunca executa uninstallers.
     internal static RegistryInventoryScan ScanInstalledPrograms() => ScanInstalledPrograms(includeHidden: false);
+
+    // Analisa entradas ARP explicitamente ocultas, apenas para revisao visual.
+    // Historico de updates, entradas de nome invalido e componentes protegidos
+    // nao se tornam elegiveis a desinstalacao por aparecerem nesta lista.
+    internal static RegistryInventoryScan ScanHiddenWindowsProgramsForReview()
+    {
+        var scan = ScanInstalledPrograms(includeHidden: true);
+        return scan with { Items = scan.Items.Where(item => item.HiddenFromNormalView).ToArray() };
+    }
 
     private static RegistryInventoryScan ScanInstalledPrograms(bool includeHidden)
     {
@@ -356,6 +391,8 @@ internal static class AppServices
                             CatalogDisplayName = known?.Name ?? "",
                             InventorySource = $"Registro: {scope} ({architecture})",
                             InventoryId = registryIdentity,
+                            HiddenFromNormalView = systemComponent && !updateRecord && !longName &&
+                                !ProtectedApplications.IsProtectedName(name),
                             MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
                             UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
@@ -984,12 +1021,13 @@ internal sealed partial class MainForm : Form
 
         var searchBar = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty,
+            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102));
         searchBar.Controls.Add(new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -1009,8 +1047,23 @@ internal sealed partial class MainForm : Form
         clear.Click += (_, _) => _search.Clear();
         _toolTips.SetToolTip(clear, "Apaga apenas o texto da pesquisa.");
         searchBar.Controls.Add(clear, 2, 0);
-        // A pesquisa contém apenas o campo e Limpar; recarregar o catálogo é
-        // uma operação de gerenciamento e fica junto das demais ações.
+        var hiddenReview = CreateSecondaryButton("Ocultos");
+        hiddenReview.Dock = DockStyle.Fill;
+        hiddenReview.Margin = new Padding(0, 3, 0, 3);
+        hiddenReview.AccessibleName = "Consultar aplicativos ocultos";
+        _toolTips.SetToolTip(hiddenReview,
+            "Consulta separada dos registros marcados pelo Windows como ocultos. " +
+            "Somente leitura; não habilita desinstalação nem modifica componentes.");
+        hiddenReview.Click += async (_, _) =>
+        {
+            if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
+            hiddenReview.Enabled = false;
+            try { await ShowHiddenAppsReviewAsync(); }
+            catch (Exception ex) { ReportError(ex); }
+            finally { if (!hiddenReview.IsDisposed) hiddenReview.Enabled = true; }
+        };
+        searchBar.Controls.Add(hiddenReview, 3, 0);
+        // A consulta de ocultos nao altera a lista principal nem a fila de acoes.
         root.Controls.Add(searchBar, 0, 0);
 
         var actions = new TableLayoutPanel
@@ -1162,6 +1215,8 @@ internal sealed partial class MainForm : Form
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "uninstall-manual" && !item.CanUninstall)
                 OpenManualAppUninstall(item);
+            else if (action == "msix-uninstall")
+                _ = ExecuteAsync("Conferindo aplicativo MSIX...", () => UninstallMsixAsync(item));
             else if (action == "update")
                 _ = UpdateThirdPartyAsync(item);
             else if (action == "terminal")
@@ -1204,6 +1259,79 @@ internal sealed partial class MainForm : Form
         UpdateBulkButtons();
         RenderTitle();
         return root;
+    }
+
+
+    private async Task ShowHiddenAppsReviewAsync()
+    {
+        var scan = await Task.Run(AppServices.ScanHiddenWindowsProgramsForReview);
+        if (IsDisposed || _betaClose.IsClosing) return;
+
+        using var dialog = new Form
+        {
+            Text = "Aplicativos ocultos — consulta",
+            StartPosition = FormStartPosition.CenterParent,
+            Width = 710,
+            Height = 475,
+            MinimumSize = new Size(480, 310),
+            BackColor = PanelBackground,
+            ForeColor = Ink,
+            ShowInTaskbar = false
+        };
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(12),
+            BackColor = PanelBackground
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
+        var info = new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = Muted,
+            Font = new Font("Segoe UI", 9F),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = $"{scan.Items.Count} entrada(s) marcadas como ocultas no Registro. " +
+                "Não são necessariamente aplicativos removíveis. Nenhuma ação é oferecida." +
+                (scan.ReadFailures > 0
+                    ? $" ATENÇÃO: {scan.ReadFailures} falha(s) de leitura; resultado parcial."
+                    : "")
+        };
+        layout.Controls.Add(info, 0, 0);
+        static string DisplayValue(string value) =>
+            new string((value ?? "").Where(c => !char.IsControl(c)).Take(160).ToArray());
+        string[] entries = scan.Items.OrderBy(item => item.Name,
+            StringComparer.CurrentCultureIgnoreCase)
+            .Select(item => $"{DisplayValue(item.Name)}  |  Versão: {DisplayValue(item.Version)}  |  " +
+                $"Editor: {DisplayValue(item.Publisher)}")
+            .ToArray();
+        var result = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            WordWrap = true,
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = AppServices.Background,
+            ForeColor = Ink,
+            Font = new Font("Consolas", 9F),
+            Text = entries.Length > 0
+                ? string.Join(Environment.NewLine + Environment.NewLine, entries)
+                : "Nenhum componente oculto identificado nesta consulta."
+        };
+        layout.Controls.Add(result, 0, 1);
+        var close = CreateSecondaryButton("Fechar");
+        close.Dock = DockStyle.Right;
+        close.Width = 105;
+        close.Click += (_, _) => dialog.Close();
+        layout.Controls.Add(close, 0, 2);
+        dialog.Controls.Add(layout);
+        dialog.ShowDialog(this);
     }
 
     private async Task CheckUpdatesFromButtonAsync()
@@ -1338,7 +1466,9 @@ internal sealed partial class MainForm : Form
             : item.InventoryOnly && item.InventorySource.StartsWith("Biblioteca de jogos:", StringComparison.Ordinal)
             ? $"Jogo da {item.InventorySource["Biblioteca de jogos:".Length..].Trim()} (somente leitura)"
             : item.InventoryOnly && item.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase)
-            ? $"Versão: {DisplayAppVersion(item.Version)} · Microsoft Store/MSIX · somente leitura"
+            ? $"Versão: {DisplayAppVersion(item.Version)} · Microsoft Store/MSIX · " +
+                (!item.MsixInventoryComplete ? "inventário parcial ou anterior (somente leitura)" :
+                 CanRemoveMsix(item) ? "remoção por API do Windows" : "gerenciar pelo Windows")
             : item.InventoryOnly
             ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
@@ -1372,14 +1502,14 @@ internal sealed partial class MainForm : Form
             // A opção existe em TODOS os cartões, como solicitado. O motor
             // interno só executa quando o desinstalador é confiável e vinculado.
             // Nos demais casos, abre o gerenciador manual, sem burlar proteções.
+            bool msixAllowed = CanRemoveMsix(item);
             DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
                 uninstall?.PreventRetry == true
                     ? uninstall.Active ? "Em andamento" : "Pendente"
                     : "Desinstalar",
                 uninstall?.PreventRetry == true ? AppServices.Gray :
-                    item.CanUninstall ? AppServices.Red : AppServices.Gray,
-                _programList.ActionVisual(item,
-                    item.CanUninstall ? "uninstall" : "uninstall-manual"));
+                    item.CanUninstall || msixAllowed ? AppServices.Red : AppServices.Gray,
+                _programList.ActionVisual(item, item.UninstallAction));
         }
     }
 
@@ -2905,6 +3035,83 @@ internal sealed partial class MainForm : Form
             Log("Gerenciamento do Windows indisponível: " + ex.GetType().Name);
             Status("Abra Configurações > Aplicativos instalados manualmente.");
         }
+    }
+
+    private static MsixRemovalRequest MsixRequest(ProgramEntry entry) =>
+        entry.MsixRemovalIdentity;
+
+    private static bool CanRemoveMsix(ProgramEntry entry) =>
+        entry.CanUninstallMsix;
+
+    // C1: somente aplicativos MSIX do usuario atual, nunca Microsoft/frameworks
+    // ou entradas com identidade parcial. Executar no mesmo fluxo serial do GF.
+    private async Task UninstallMsixAsync(ProgramEntry entry)
+    {
+        // Falhas de Registro/jogos não revogam uma fonte MSIX íntegra;
+        // seguem obrigatórias duas consultas frescas da família exata.
+        if (_betaClose.IsClosing || !_installed.Contains(entry) ||
+            !CanRemoveMsix(entry) ||
+            _uninstallOperations.Find(entry)?.PreventRetry == true)
+        {
+            Status("MSIX: operação indisponível ou inventário incompleto.");
+            return;
+        }
+        var request = MsixRequest(entry);
+        LocalMsixResult ReadFreshInventory() =>
+            LocalMsixInventory.ReadCurrentUserFamilyFresh(request.PackageFamilyName);
+        SetUninstallProgress(entry, "preparing");
+        var initial = await Task.Run(ReadFreshInventory);
+        if (!MsixUninstall.CanStart(request, initial))
+        {
+            SetUninstallProgress(entry, "failed", "Identidade ou leitura alterada; remoção não iniciada.");
+            Status("MSIX: pacote alterado ou consulta parcial. Atualize a lista antes de tentar novamente.");
+            return;
+        }
+        SetUninstallProgress(entry, "awaiting_consent");
+        bool consent = DarkConfirmDialog.Confirm(this,
+            "Remover o aplicativo MSIX da sua conta do Windows?\n\n" +
+            entry.Name + "\nVersão: " + entry.Version + "\nEditor: " + entry.Publisher +
+            "\nFamília do pacote: " + request.PackageFamilyName +
+            "\n\nO Windows pode remover dependências sem uso e dados do aplicativo. " +
+            "Esta ação não possui desfazer automático e não pode ser interrompida " +
+            "com segurança após iniciar.\n\nDeseja continuar?",
+            "Confirmar desinstalação MSIX", defaultNo: true) == DialogResult.Yes;
+        if (!consent)
+        {
+            SetUninstallProgress(entry, "cancelled");
+            Status("MSIX: remoção cancelada antes de iniciar.");
+            return;
+        }
+        if (!DiagnosticTrace.Write("MSIX.REMOCAO etapa=consentimento estado=confirmado"))
+        {
+            SetUninstallProgress(entry, "failed", "Diário indisponível; remoção não iniciada.");
+            Status("MSIX: diário indisponível. Nenhuma remoção iniciada.");
+            return;
+        }
+        SetUninstallProgress(entry, "working");
+        Status("MSIX: aguardando o Windows remover o aplicativo selecionado...");
+        var outcome = await Task.Run(() => MsixUninstall.ExecuteAsync(request,
+            ReadFreshInventory,
+            MsixUninstall.RemoveCurrentUserAsync));
+        string code = outcome.ErrorCode is int error ? " codigo=" + error : "";
+        bool audited = DiagnosticTrace.Write("MSIX.REMOCAO etapa=resultado estado=" +
+            outcome.State.ToString().ToLowerInvariant() +
+            " motivo=" + outcome.Reason + code);
+        var feedback = MsixUninstall.DescribeForUi(outcome, audited);
+        SetUninstallProgress(entry, feedback.Stage, feedback.Explanation);
+        Status(feedback.Explanation);
+        Log(feedback.Explanation);
+        if (feedback.RefreshInventory)
+        {
+            try { await RefreshCatalogAsync(); }
+            catch (Exception ex)
+            {
+                DiagnosticTrace.Failure("MSIX.RECARREGAR_FALHA", ex);
+                Log("MSIX: não foi possível renovar a lista após a confirmação.");
+            }
+        }
+        ShowUninstallResult(entry.Name + "\n" + feedback.Explanation +
+            "\nNenhuma limpeza residual ou remoção de outros usuários foi executada pelo GF.");
     }
 
     private void OpenWindowsInstalledApps(ProgramEntry entry)

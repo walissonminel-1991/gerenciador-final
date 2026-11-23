@@ -10,7 +10,11 @@ internal sealed class DarkConfirmDialog : Form
 {
     private readonly Label _message;
 
+    // Preserva o contrato legado de duas strings, usado por dialogos e testes.
     private DarkConfirmDialog(string question, string caption)
+        : this(question, caption, defaultNo: false) { }
+
+    private DarkConfirmDialog(string question, string caption, bool defaultNo)
     {
         Text = caption;
         StartPosition = FormStartPosition.CenterParent;
@@ -91,7 +95,11 @@ internal sealed class DarkConfirmDialog : Form
         actions.Controls.Add(no);
         root.Controls.Add(actions, 0, 1);
         Controls.Add(root);
-        AcceptButton = yes;
+        // Apenas operacoes explicitamente destrutivas podem pedir "Nao"
+        // como escolha padrao; todos os outros dialogos mantem o legado.
+        yes.TabIndex = defaultNo ? 1 : 0;
+        no.TabIndex = defaultNo ? 0 : 1;
+        AcceptButton = defaultNo ? no : yes;
         CancelButton = no;
 
         int wrappedHeight = TextRenderer.MeasureText(question, _message.Font, new Size(440, int.MaxValue),
@@ -115,9 +123,10 @@ internal sealed class DarkConfirmDialog : Form
     [DllImport("dwmapi.dll", ExactSpelling = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
-    internal static DialogResult Confirm(IWin32Window owner, string question, string title = "Confirmar ação")
+    internal static DialogResult Confirm(IWin32Window owner, string question,
+        string title = "Confirmar ação", bool defaultNo = false)
     {
-        using var dialog = new DarkConfirmDialog(question, title);
+        using var dialog = new DarkConfirmDialog(question, title, defaultNo);
         return dialog.ShowDialog(owner);
     }
 }
