@@ -87,6 +87,38 @@ Check(NetworkRepairOutcome.FromWire("DONE|0") == NetworkRepairWorkerState.Comman
     NetworkRepairOutcome.FromWire(null) == NetworkRepairWorkerState.NotConfirmed,
     "Reparo de rede: somente DONE|0 exato prova encerramento sem erro do comando.");
 Console.WriteLine("OK: desfechos de manutencao de rede sem falso sucesso em UAC ou falha.");
+var priorDns = new NetworkScan([
+    new NetworkCheck("DNS", "Atenção", "Fixture sem resolução"),
+    new NetworkCheck("Gateway", "OK", "Fixture")], true);
+var afterResolved = new NetworkScan([
+    new NetworkCheck("DNS", "OK", "Fixture de nome resolvido"),
+    new NetworkCheck("Conexão HTTPS", "Atenção", "Outros problemas persistem")], true);
+var afterProblem = new NetworkScan([
+    new NetworkCheck("DNS", "Atenção", "Fixture sem resolução")], true);
+Check(NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterResolved, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.TestRecovered &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterProblem, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.TestStillFailing &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, null, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterResolved, NetworkRepairWorkerState.NotConfirmed) ==
+            NetworkDnsVerification.NotEvaluated &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        new NetworkScan([new NetworkCheck("DNS", "OK", "Fixture")], false),
+        afterResolved, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, new NetworkScan([
+            new NetworkCheck("DNS", "OK", "Duplicado"),
+            new NetworkCheck("DNS", "OK", "Duplicado")], false),
+        NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive,
+    "Pós-DNS: distinguir nome de teste recuperado, falha persistente, ausência e erro sem simular rede.");
+Console.WriteLine("OK: rechecagem DNS do nome de teste preserva demais alertas da rede.");
 var progressMonitor = new WindowsMaintenanceProgress();
 Check(!progressMonitor.Update("47.5%", out _) &&
     !progressMonitor.Update("Etapa 1/2 — DISM", out _) &&
