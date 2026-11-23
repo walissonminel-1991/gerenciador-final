@@ -98,6 +98,10 @@ internal sealed class ProgramEntry
     public string InventoryId { get; init; } = "";
     // Marcador consultivo da entrada ARP oculta; nunca concede permissao de remocao.
     public bool HiddenFromNormalView { get; init; }
+    // ARP: dependências explícitas do instalador; não são regras de desinstalação.
+    public string BundleParentKeyName { get; init; } = "";
+    public string BundleProviderKey { get; init; } = "";
+    public bool BundleMetadataReliable { get; init; } = true;
     // Evidência consultiva capturada junto ao inventário; não autoriza execução.
     internal string QueryArchitecture { get; set; } = "unknown";
     public string MsiProductCode { get; init; } = "";
@@ -376,6 +380,18 @@ internal static class AppServices
                         { hidden++; if (!includeHidden) continue; }
                         bool protectedApp = longName || updateRecord || ProtectedApplications.IsInventoryOnly(name, systemComponent);
                         string publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "";
+                        // ParentKeyName identifica componentes de um bundle. Um
+                        // valor inseguro jamais deve permitir desinstalação isolada.
+                        object? rawParent = child.GetValue("ParentKeyName");
+                        object? rawBundle = child.GetValue("BundleProviderKey");
+                        static bool SafeBundleValue(object? raw) => raw is null ||
+                            raw is string { Length: <= 180 } value &&
+                            value == value.Trim() && !value.Any(char.IsControl);
+                        string parent = rawParent as string ?? "";
+                        string bundle = rawBundle as string ?? "";
+                        bool bundleMetadataReliable = SafeBundleValue(rawParent) &&
+                            SafeBundleValue(rawBundle) &&
+                            !parent.Contains('\\') && !parent.Contains('/');
                         UnifiedAppRule? known = ApplicationIdentityCatalog.Resolve(name, publisher);
                         string scope = hive == RegistryHive.CurrentUser ? "Usuário atual" : "Computador";
                         string architecture = view == RegistryView.Registry32 ? "32 bits" : "64 bits";
@@ -393,6 +409,9 @@ internal static class AppServices
                             InventoryId = registryIdentity,
                             HiddenFromNormalView = systemComponent && !updateRecord && !longName &&
                                 !ProtectedApplications.IsProtectedName(name),
+                            BundleParentKeyName = bundleMetadataReliable ? parent : "",
+                            BundleProviderKey = bundleMetadataReliable ? bundle : "",
+                            BundleMetadataReliable = bundleMetadataReliable,
                             MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
                             UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
@@ -401,7 +420,9 @@ internal static class AppServices
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
                             InstallLocation = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
-                            InventoryOnly = protectedApp
+                            // A remoção de um filho pode quebrar o pacote pai.
+                            // Inventário e revisão continuam, ação isolada fica bloqueada.
+                            InventoryOnly = protectedApp || !bundleMetadataReliable || parent.Length != 0
                         };
                         entry.QueryArchitecture = InstalledUpdateIdentity.CaptureArchitecture(entry);
                         entries.Add(entry);
