@@ -17,11 +17,38 @@ internal readonly record struct WddmGpuKey(uint LuidHigh, uint LuidLow, uint Phy
 
 internal sealed record WddmEngineCounterRow(string Name, object? UtilizationPercentage);
 internal sealed record WddmMemoryCounterRow(string Name, object? DedicatedUsage, object? SharedUsage);
+// Atividade dos motores físicos: 3D, COPY, COMPUTE e vídeo são
+// domínios diferentes. Não somar seus percentuais, nem chamar um deles
+// de "uso total" da GPU.
+internal sealed record WddmEngineSample(
+    string EngineIndex, string EngineType,
+    MonitorReading<double> UsagePercent);
+
 internal sealed record WddmGpuAdapterSample(
     WddmGpuKey Key,
     MonitorReading<double> BusiestEnginePercent,
     MonitorReading<ulong> DedicatedUsedBytes,
-    MonitorReading<ulong> SharedUsedBytes);
+    MonitorReading<ulong> SharedUsedBytes)
+{
+    internal IReadOnlyList<WddmEngineSample> Engines { get; init; } = [];
+
+    internal MonitorReading<double> BusiestOfType(string engineType)
+    {
+        string source = "Windows WDDM engine " + engineType;
+        if (string.IsNullOrWhiteSpace(engineType))
+            return MonitorReading<double>.Unavailable(source);
+        var observed = Engines
+            .Where(x => string.Equals(x.EngineType, engineType,
+                StringComparison.OrdinalIgnoreCase) &&
+                x.UsagePercent.Availability == MonitorAvailability.Available &&
+                x.UsagePercent.Value.HasValue)
+            .Select(x => x.UsagePercent.Value!.Value).ToArray();
+        return observed.Length > 0
+            ? MonitorReading<double>.Available(observed.Max(),
+                source + " (motor mais ocupado, não uso total)")
+            : MonitorReading<double>.Unavailable(source);
+    }
+}
 internal sealed record WddmGpuSnapshot(
     DateTimeOffset CapturedAtUtc, HardwareDiscoveryState State,
     IReadOnlyList<WddmGpuAdapterSample> Adapters, string? Limitation);
@@ -31,7 +58,7 @@ internal static class WindowsWddmGpuProvider
     private const string Source = "Windows WDDM GPU Performance Counters";
     private const int MaxRows = 4096;
     private static readonly Regex EnginePattern = new(
-        @"^pid_\d+_luid_0x([0-9A-Fa-f]{1,8})_0x([0-9A-Fa-f]{1,8})_phys_(\d+)_eng_(\d+)_engtype_([A-Za-z0-9]+)$",
+        @"^pid_\d+_luid_0x([0-9A-Fa-f]{1,8})_0x([0-9A-Fa-f]{1,8})_phys_(\d+)_eng_(\d+)_engtype_([A-Za-z0-9_]+)$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
     private static readonly Regex MemoryPattern = new(
         @"^luid_0x([0-9A-Fa-f]{1,8})_0x([0-9A-Fa-f]{1,8})_phys_(\d+)$",
@@ -125,21 +152,37 @@ internal static class WindowsWddmGpuProvider
         foreach (var key in keys)
         {
             var busy = MonitorReading<double>.Unavailable(Source + " busiest-engine");
+            var engineDetails = new List<WddmEngineSample>();
             if (byKey.TryGetValue(key, out var groups))
             {
-                // Do not add engine percentages together (e.g. 3D and copy).
-                // Sum process contributions *within* one engine; reject overflow.
-                var percentages = new List<double>();
-                foreach (var values in groups.Values)
+                // Somar somente processos do mesmo engine. Outra engine de
+                // mesma classe NÃO é somada: selecionar o maior motor.
+                foreach (var group in groups.OrderBy(g => g.Key, StringComparer.Ordinal))
                 {
+                    int split = group.Key.IndexOf(':');
+                    string engineIndex = group.Key[..split];
+                    string engineType = group.Key[(split + 1)..];
+                    var values = group.Value;
                     if (values.Contains(ulong.MaxValue) ||
                         values.Sum(v => (double)v) > 100)
-                    { partial = true; continue; }
-                    percentages.Add(values.Sum(v => (double)v));
+                    {
+                        partial = true;
+                        engineDetails.Add(new(engineIndex, engineType,
+                            MonitorReading<double>.Unavailable(Source + " engine " + engineType)));
+                        continue;
+                    }
+                    engineDetails.Add(new(engineIndex, engineType,
+                        MonitorReading<double>.Available(
+                            values.Sum(v => (double)v),
+                            Source + " engine " + engineType)));
                 }
-                if (percentages.Count > 0)
-                    busy = MonitorReading<double>.Available(
-                        percentages.Max(), Source + " busiest-engine (not total GPU)");
+                var valid = engineDetails
+                    .Where(e => e.UsagePercent.Availability == MonitorAvailability.Available &&
+                        e.UsagePercent.Value.HasValue)
+                    .Select(e => e.UsagePercent.Value!.Value).ToArray();
+                if (valid.Length > 0)
+                    busy = MonitorReading<double>.Available(valid.Max(),
+                        Source + " busiest-engine (not total GPU)");
             }
 
             var dedicated = MonitorReading<ulong>.Unavailable(Source + " dedicated-usage");
@@ -156,7 +199,10 @@ internal static class WindowsWddmGpuProvider
                 else partial = true;
             }
             else if (rows is { Count: > 1 }) partial = true;
-            adapters.Add(new(key, busy, dedicated, shared));
+            adapters.Add(new(key, busy, dedicated, shared)
+            {
+                Engines = engineDetails.AsReadOnly()
+            });
         }
         return new(DateTimeOffset.UtcNow,
             keys.Length == 0 ? HardwareDiscoveryState.Unavailable :
