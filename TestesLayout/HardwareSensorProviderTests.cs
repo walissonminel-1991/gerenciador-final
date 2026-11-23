@@ -82,6 +82,24 @@ internal static class HardwareSensorProviderTests
         Check(orphan.State == HardwareDiscoveryState.Partial,
             "telemetria sem dispositivo correspondente não é inventário completo");
 
+        // Falha reproduzida em Windows Server 2025 na sonda real: WMI
+        // retornou objeto de propriedade nulo e o binder lançou exceção.
+        Check(AcpiThermalZoneProvider.ReadWmiValueOrNull(null, "InstanceName",
+                out bool absentRow) is null && absentRow,
+            "linha ACPI nula não pode derrubar o monitoramento");
+        dynamic absentProperties = new System.Dynamic.ExpandoObject();
+        absentProperties.Properties_ = null;
+        Check(AcpiThermalZoneProvider.ReadWmiValueOrNull(
+                (object)absentProperties, "CurrentTemperature",
+                out bool absentCollection) is null && absentCollection,
+            "coleção de propriedades WMI nula não pode derrubar o monitoramento");
+        dynamic emptyPropertyCollection = new System.Dynamic.ExpandoObject();
+        emptyPropertyCollection.Properties_ = new System.Dynamic.ExpandoObject();
+        Check(AcpiThermalZoneProvider.ReadWmiValueOrNull(
+                (object)emptyPropertyCollection, "CurrentTemperature",
+                out bool unreadableProperty) is null && unreadableProperty,
+            "propriedade ACPI inexistente deve ser inconclusiva");
+
         Check(AcpiThermalZoneProvider.ConvertTenthsKelvin(null).Value is null &&
               AcpiThermalZoneProvider.ConvertTenthsKelvin(0).Value is null &&
               AcpiThermalZoneProvider.ConvertTenthsKelvin(3001u).Value is { } degrees &&
