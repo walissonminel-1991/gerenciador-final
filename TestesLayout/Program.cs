@@ -20,6 +20,7 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--ui-v269")) { V269ShellTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
@@ -832,6 +833,9 @@ internal static class LayoutTests
             throw new Exception("Cartoes do sistema extrapolam layout compacto.");
         form.Close();
         Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
+        // O teste do novo shell cria um Form próprio; executá-lo após a suíte
+        // legada evita modificar a ordem das janelas e o estado de foco dela.
+        V269ShellTests.Run();
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
