@@ -113,3 +113,10 @@ Sonda local **explicitamente solicitada**: `dotnet run --project TestesLayout/Te
 **Homologação:** testes sintéticos não equivalem a prova física em SSD/HDD/SATA/NVMe, nem asseguram que todos oferecem sensores. O hardware do PC FORTE/FRACO precisa ser observado para homologar temperatura e desgaste nativos; valores ausentes continuam indisponíveis. A UI e as demais frentes permanecem intocadas.
 
 Referências oficiais: https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-physicaldisktostoragereliabilitycounter ; https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagereliabilitycounter ; https://learn.microsoft.com/en-us/windows/win32/wmisdk/swbemobject-path-
+## CI isolada de homologação consultiva (somente leitura)
+
+Workflow isolado `.github/workflows/monitoramento-consultivo-windows.yml`, limitado à PR Draft #106 e a arquivos exclusivos desta frente, com `permissions: contents: read` e checkout do SHA exato. Runners Windows Server 2022/2025 com .NET 10.0.402, sem segredos, drivers, privilégios extras, download de sensores, execução administrativa ou upload de artefatos.
+
+Em cada runner compila apenas o projeto de testes e executa: 1) contratos sintéticos `--monitoramento`; 2) smoke nativo DXGI `--monitoramento-dxgi` (nenhuma GPU física exigida); 3) uma rodada `--monitoramento-resumo-nativo` (PnP, CPU, RAM, NVML, WDDM, DXGI, Storage e ACPI), imprimindo **somente resumo sem identificadores**. Ausência de fonte/driver deve ser explicitamente inconclusiva; não significa falha na máquina nem ausência de dispositivo. O runner sem GPUs físicas não prova funcionamento de temperatura, energia ou ventoinhas AMD/Intel/NVIDIA. Não usar logs da CI como autorização para manutenção.
+
+Essa CI é complementar às regressões Windows anteriores: não altera os arquivos dos workflows de Drivers, de release, de integridade nem a interface. A homologação física efetiva permanece reservada às máquinas Windows autorizadas, respeitando AVG e leitura somente consultiva.
