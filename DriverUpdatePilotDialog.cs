@@ -198,11 +198,19 @@ internal static class DriverUpdatePilotDialog
                             ? "Consulta WUA anterior ainda ativa; aguarde o fim da operação nativa."
                             : "Selecione uma oferta válida para consultar o WUA."
                         : "Selecione uma oferta para visualizar um plano textual sem executar.";
+            // A leitura tipada informa a elegibilidade documental. Nenhuma
+            // fase do diário concede autorização: manter gate transacional
+            // original e a prova OEM antes de qualquer operação física.
+            var journalSnapshot = nativeWua
+                ? DriverUpdatePilotFileJournal.InspectReadOnly(
+                    DriverUpdatePilotFileJournal.SuggestedPath) : null;
+            bool journalConsultable = journalSnapshot?.Disposition is
+                DriverWuaJournalDisposition.NeverStarted or DriverWuaJournalDisposition.Verified;
             bool physicalEligible = nativeWua && choices.SelectedItem is ChoiceRow selectedRow &&
                 DriverG32RecoveryTicket.CanOffer(inventory, selected, selectedRow.Choice) &&
                 OperatingSystem.IsWindows() && DriverSilentUninstall.IsElevated() &&
                 !DriverG32RecoveryTicket.HasActiveOperation &&
-                !nativeReadGate.HasPendingWork &&
+                !nativeReadGate.HasPendingWork && journalConsultable &&
                 DriverUpdatePilotFileJournal.MayBeginReadOnly(
                     DriverUpdatePilotFileJournal.SuggestedPath);
             start.Enabled = !invalidated && !busy && validChoice &&
@@ -213,8 +221,7 @@ internal static class DriverUpdatePilotDialog
                 ? "Fotografia revogada; reabra a investigação."
                 : nativeWua
                     ? "G3.2: administrador, OEM individual não crítico, assinatura, backup e diário obrigatórios. " +
-                      DriverUpdatePilotFileJournal.ReadOnlyStatus(
-                          DriverUpdatePilotFileJournal.SuggestedPath)
+                      (journalSnapshot?.Message ?? "Diário indisponível; nenhuma operação autorizada.")
                     : backendForTest is null || journalForTest is null
                         ? "Nenhuma instalação habilitada na versão pessoal."
                         : "Ação sintética de laboratório. Não chama o Windows Update real.";
