@@ -22,7 +22,11 @@ internal sealed record BundleUninstallPreview(
 
 // Facade do motor existente: nenhuma permissão ou comando de remoção novo.
 internal sealed record BundleUninstallRunResult(bool SentToExecutor, string Reason,
-    IReadOnlyList<UninstallOutcome> Outcomes);
+    IReadOnlyList<UninstallOutcome> Outcomes)
+{
+    // Leitura de Registro independente do resultado do uninstaller.
+    internal IReadOnlyList<BundlePostRemovalReview> PostRemovalReviews { get; init; } = [];
+}
 
 // Conferência pós-desinstalação somente por identidade de registro.
 // Ausência ARP não comprova remoção de arquivos, serviços ou dependências.
@@ -238,8 +242,25 @@ internal static class BundlewareReview
             var outcomes = await executor.RunAsync(current.Requests, true,
                 freshFullInventory, registeredUninstaller, waitBetweenChecks,
                 token, preLaunchSafety: BeforeNativeLaunch);
+            // O resultado do executor é preservado mesmo se a observação
+            // posterior falhar; jamais repetir remoção por erro de consulta.
+            var initialSnapshot = new UninstallSnapshot(fresh.Items,
+                fresh.IncludesHiddenEntries && fresh.ReadFailures == 0 &&
+                fresh.Duplicates == 0);
+            var candidates = outcomes.Where(o =>
+                o.State == UninstallState.RegistrationAbsent &&
+                ObserveAfterUninstall(o, initialSnapshot, null).RelatedBefore > 0).ToArray();
+            var postReviews = new List<BundlePostRemovalReview>();
+            if (candidates.Length > 0)
+            {
+                UninstallSnapshot? after = null;
+                try { after = await freshFullInventory(); }
+                catch (Exception ex) when (ex is not OutOfMemoryException) { }
+                foreach (var outcome in candidates)
+                    postReviews.Add(ObserveAfterUninstall(outcome, initialSnapshot, after));
+            }
             return new(true, "Solicitação encaminhada ao executor registrado com reconferência de identidade.",
-                outcomes);
+                outcomes) { PostRemovalReviews = postReviews };
         }
         catch (OperationCanceledException)
         {
