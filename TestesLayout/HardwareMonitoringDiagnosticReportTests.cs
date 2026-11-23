@@ -28,6 +28,10 @@ internal static class HardwareMonitoringDiagnosticReportTests
         string summary = HardwareMonitoringDiagnosticReport.Format(unavailable);
         Check(summary.Contains("CPU uso: indisponível", StringComparison.Ordinal) &&
               summary.Contains("RAM física: indisponível", StringComparison.Ordinal) &&
+              summary.Contains("CPU sockets WMI: indisponível", StringComparison.Ordinal) &&
+              summary.Contains("CPU lógica WMI: indisponível", StringComparison.Ordinal) &&
+              summary.Contains("Módulos RAM SMBIOS: indisponível", StringComparison.Ordinal) &&
+              summary.Contains("Placa-mãe WMI: indisponível", StringComparison.Ordinal) &&
               summary.Contains("DXGI: indisponível", StringComparison.Ordinal) &&
               summary.Contains("GPU WDDM: indisponível", StringComparison.Ordinal) &&
               summary.Contains("NVIDIA NVML: indisponível", StringComparison.Ordinal) &&
@@ -74,6 +78,31 @@ internal static class HardwareMonitoringDiagnosticReportTests
               !confirmed.Contains("GPU Intel de exemplo", StringComparison.Ordinal) &&
               !confirmed.Contains("NVIDIA de exemplo", StringComparison.Ordinal),
             "saída de diagnóstico vazou nomes ou UUID de GPUs");
+        var modules = WindowsPlatformHardwareProvider.Join(
+            [new WmiCpuSocketRaw("CPU0", "CPU pessoal secreto", 8U, 16U, 3950U)],
+            [new WmiRamModuleRaw("BANK0", "DIMM-SECRETO-1",
+                8_589_934_592UL, 3600U, 26U)],
+            [new WmiMotherboardRaw("Base Board", "Fabricante confidencial",
+                "Modelo placa pessoal 123", "Rev 1")],
+            [new WmiLogicalCpuRaw("0", 17UL), new WmiLogicalCpuRaw("_Total", 40UL)]);
+        var extended = HardwareMonitoringDiagnosticReport.Format(measured with
+        {
+            PlatformHardware = modules
+        });
+        Check(extended.Contains("CPU sockets WMI: completo; sockets identificados: 1; frequências reportadas: 1",
+                  StringComparison.Ordinal) &&
+              extended.Contains("CPU lógica WMI: completo; instâncias observadas: 1; com uso reportado: 1",
+                  StringComparison.Ordinal) &&
+              extended.Contains("Módulos RAM SMBIOS: completo; módulos identificados: 1; capacidades informadas: 1; clocks configurados: 1",
+                  StringComparison.Ordinal) &&
+              extended.Contains("Placa-mãe WMI: completo; placas identificadas: 1; fabricante/modelo informados: 1",
+                  StringComparison.Ordinal) &&
+              !extended.Contains("CPU pessoal secreto", StringComparison.Ordinal) &&
+              !extended.Contains("DIMM-SECRETO-1", StringComparison.Ordinal) &&
+              !extended.Contains("Fabricante confidencial", StringComparison.Ordinal) &&
+              !extended.Contains("Modelo placa pessoal 123", StringComparison.Ordinal),
+            "relatório SMBIOS deve expor somente contagens, não identidades físicas");
+
         Check(confirmed.Contains("não é RPM", StringComparison.Ordinal) &&
               confirmed.Contains("latências máximas leitura: 0", StringComparison.Ordinal) &&
               confirmed.Contains("CPU/chipset/VRM: indisponíveis", StringComparison.Ordinal),
