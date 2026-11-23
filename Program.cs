@@ -3672,6 +3672,29 @@ internal sealed partial class MainForm : Form
             }
             foreach (var app in apps.Where(app => !outcomes.Any(o => o.Request.Original.InventoryId == app.InventoryId)))
                 SetUninstallProgress(app, "cancelled");
+            // Um registro principal ausente não prova que os componentes do
+            // bundle OEM também saíram. Consultar uma vez após o executor,
+            // sem tentar remover filhos e sem promover ausência ARP a limpeza.
+            var bundleRoots = outcomes.Where(o =>
+                o.State == UninstallState.RegistrationAbsent &&
+                BundlewareReview.ObserveAfterUninstall(o, before, null).RelatedBefore > 0)
+                .ToArray();
+            if (bundleRoots.Length != 0)
+            {
+                UninstallSnapshot? postBundle = null;
+                try { postBundle = await Inventory(); }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    Log("Bundleware: consulta posterior indisponível (" +
+                        ex.GetType().Name + "); não confirmar remoção dos componentes.");
+                }
+                foreach (var outcome in bundleRoots)
+                {
+                    var review = BundlewareReview.ObserveAfterUninstall(
+                        outcome, before, postBundle);
+                    Log("Bundleware — " + outcome.Request.Original.Name + ": " + review.Message);
+                }
+            }
             ResidualBatchResult? cleanup = null;
             if (consent)
             {
