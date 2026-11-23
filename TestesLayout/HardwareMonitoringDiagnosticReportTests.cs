@@ -33,6 +33,7 @@ internal static class HardwareMonitoringDiagnosticReportTests
               summary.Contains("Módulos RAM SMBIOS: indisponível", StringComparison.Ordinal) &&
               summary.Contains("Placa-mãe WMI: indisponível", StringComparison.Ordinal) &&
               summary.Contains("DXGI: indisponível", StringComparison.Ordinal) &&
+              summary.Contains("GPU D3DKMT (LUID + índice físico): indisponível", StringComparison.Ordinal) &&
               summary.Contains("GPU WDDM: indisponível", StringComparison.Ordinal) &&
               summary.Contains("NVIDIA NVML: indisponível", StringComparison.Ordinal) &&
               summary.Contains("Armazenamento WMI: completo", StringComparison.Ordinal) &&
@@ -102,6 +103,22 @@ internal static class HardwareMonitoringDiagnosticReportTests
               !extended.Contains("Fabricante confidencial", StringComparison.Ordinal) &&
               !extended.Contains("Modelo placa pessoal 123", StringComparison.Ordinal),
             "relatório SMBIOS deve expor somente contagens, não identidades físicas");
+
+        var sensors = D3dKmtGpuSensorProvider.Join([
+            new D3dKmtAdapterRaw(new WddmGpuKey(1, 1234, 0),
+                1_750_000_000UL, 1500, 825, 680, 2900, 1060, true, true)
+        ]);
+        string joined = HardwareMonitoringDiagnosticReport.Format(measured with
+        {
+            D3dKmtGpuSensors = sensors
+        });
+        Check(joined.Contains("GPU D3DKMT (LUID + índice físico): completo; adaptadores consultados: 1; temperaturas reais: 1; ventoinhas em RPM: 1; potência relativa em %: 1 (não são watts); frequências memória MHz: 1", StringComparison.Ordinal) &&
+              !joined.Contains("1750", StringComparison.Ordinal) &&
+              !joined.Contains("1500", StringComparison.Ordinal) &&
+              !joined.Contains("825", StringComparison.Ordinal) &&
+              !joined.Contains("680", StringComparison.Ordinal) &&
+              !joined.Contains("luid_0x", StringComparison.OrdinalIgnoreCase),
+            "relatório D3DKMT deve revelar somente contagens, sem LUID nem valores individuais");
 
         Check(confirmed.Contains("não é RPM", StringComparison.Ordinal) &&
               confirmed.Contains("latências máximas leitura: 0", StringComparison.Ordinal) &&
