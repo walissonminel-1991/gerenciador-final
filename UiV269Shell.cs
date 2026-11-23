@@ -71,14 +71,14 @@ internal sealed class V269RightPane : UserControl
 
         _title = new Label
         {
-            Name = "V269PanelTitle", Dock = DockStyle.Fill,
+            Name = "V269PanelTitle", AccessibleName = "Título do painel", Dock = DockStyle.Fill,
             AutoEllipsis = true, Text = "Detalhes",
             TextAlign = ContentAlignment.MiddleLeft,
             Margin = Padding.Empty
         };
         _progress = new ProgressBar
         {
-            Name = "V269PanelProgress", Dock = DockStyle.Fill,
+            Name = "V269PanelProgress", AccessibleName = "Progresso da operação", Dock = DockStyle.Fill,
             Minimum = 0, Maximum = 100, Visible = false,
             Margin = new Padding(0, 3, 0, 10),
             Style = ProgressBarStyle.Continuous
@@ -105,6 +105,7 @@ internal sealed class V269RightPane : UserControl
         _progress.Visible = inProgress;
         _layout.RowStyles[1].Height = inProgress ? 34 : 0;
         _progress.Value = Math.Clamp(presentation?.ProgressPercent ?? 0, 0, 100);
+        _progress.AccessibleDescription = inProgress ? _progress.Value + "%" : string.Empty;
         AccessibleDescription = _description.Text;
     }
 
@@ -393,6 +394,7 @@ internal sealed class V269Shell : UserControl
                 _ => Color.FromArgb(175, 133, 229)
             };
             button.IsSelected = selected;
+            button.AccessibleDescription = selected ? "Aba atual" : "Abrir aba";
             button.Invalidate();
         }
     }

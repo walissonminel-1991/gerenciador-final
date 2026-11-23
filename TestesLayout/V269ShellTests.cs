@@ -133,6 +133,8 @@ internal static class V269ShellTests
             b.Name.Contains("Uninstall", StringComparison.OrdinalIgnoreCase)),
             "O shell da etapa A não deve oferecer ações administrativas fictícias.");
 
+        // Os controles de ação/aparência são testados isoladamente, sem motores.
+        V269ComponentTests.Run(host);
         host.Close();
         Console.WriteLine("PASS UI-V269: tokens, três temas, oito abas, view estável, teclado-base, painel e escala.");
     }

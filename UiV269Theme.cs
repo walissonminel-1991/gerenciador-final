@@ -48,21 +48,21 @@ internal static class V269VisualTokens
     private static readonly V269Palette Azul = new(
         Hex("#06111e"), Hex("#091a2a"), Hex("#091d30"), Hex("#0e2334"),
         Hex("#0b2033"), Hex("#25445f"), Hex("#e4edf6"), Hex("#9ab0c2"),
-        Hex("#15578d"), Hex("#2d9cdb"), Hex("#abcfe6"),
+        Hex("#155fa6"), Hex("#2d9cdb"), Hex("#abcfe6"),
         Hex("#49ce81"), Hex("#f36c82"));
 
     // Dark deliberadamente neutro: preto/grafite, texto suavizado.
     private static readonly V269Palette Grafite = new(
-        Hex("#14181d"), Hex("#1f252c"), Hex("#1a2128"), Hex("#252d35"),
-        Hex("#242c34"), Hex("#4c5b67"), Hex("#d5dee6"), Hex("#aebbc7"),
-        Hex("#3b4957"), Hex("#8fa6b9"), Hex("#9aa4ac"),
+        Hex("#14181d"), Hex("#1c252d"), Hex("#202a33"), Hex("#2b3640"),
+        Hex("#242c34"), Hex("#4c5b67"), Hex("#d5dee6"), Hex("#b9c3ce"),
+        Hex("#4c6173"), Hex("#8fa6b9"), Hex("#9aa4ac"),
         Hex("#54cb8b"), Hex("#fa788d"));
 
     // Claro: fundo de gelo, texto escuro e ação desabilitada azul muito suave.
     private static readonly V269Palette Claro = new(
-        Hex("#dbeaf6"), Hex("#d9e9f6"), Hex("#e6f1fa"), Hex("#edf5fb"),
-        Hex("#f2f8fd"), Hex("#8db1ca"), Hex("#17374c"), Hex("#3f627a"),
-        Hex("#cce3f4"), Hex("#2374ab"), Hex("#8fb9d5"),
+        Hex("#dbeaf6"), Hex("#d5eaf9"), Hex("#e4f3ff"), Hex("#eaf4fc"),
+        Hex("#eef8ff"), Hex("#8db1ca"), Hex("#17374c"), Hex("#3f627a"),
+        Hex("#2a7cb7"), Hex("#2374ab"), Hex("#8fb9d5"),
         Hex("#278f5d"), Hex("#e25971"));
 
     internal static V269Palette ForTheme(V269Theme theme) => theme switch
@@ -81,6 +81,30 @@ internal static class V269VisualTokens
     internal static int Scale(int logicalPixels, int interfacePercent) =>
         (int)Math.Round(logicalPixels * InterfacePercent(interfacePercent) / 100.0,
             MidpointRounding.AwayFromZero);
+
+    // Superfícies dos botões de ação na V2.6.9. Estado sem permissão é
+    // neutro, e não há terceiro sinal visual para consulta/ausência/bloqueio.
+    internal static Color ActionBackground(V269Theme theme, V269ActionKind kind, bool allowed) =>
+        theme switch
+        {
+            V269Theme.Dark => Hex(!allowed ? "#2f343a" :
+                kind == V269ActionKind.Atualizar ? "#24684a" : "#5f2731"),
+            V269Theme.Claro => Hex(!allowed ? "#eaf4fb" :
+                kind == V269ActionKind.Atualizar ? "#237d4c" : "#cf5368"),
+            _ => Hex(!allowed ? "#132c40" :
+                kind == V269ActionKind.Atualizar ? "#164f35" : "#491d27")
+        };
+
+    internal static Color ActionBorder(V269Theme theme, V269ActionKind kind, bool allowed) =>
+        theme switch
+        {
+            V269Theme.Dark => Hex(!allowed ? "#707880" :
+                kind == V269ActionKind.Atualizar ? "#57bf8c" : "#ef788c"),
+            V269Theme.Claro => Hex(!allowed ? "#9fc1d8" :
+                kind == V269ActionKind.Atualizar ? "#3cb070" : "#d9546a"),
+            _ => Hex(!allowed ? "#537ea0" :
+                kind == V269ActionKind.Atualizar ? "#4fc37f" : "#ff6f89")
+        };
 
     internal static Color ActionColor(V269Theme theme, V269ActionKind action, bool allowed)
     {
