@@ -64,6 +64,18 @@ Check(WindowsIntegrityAssessment.Interpret(0, "Completed successfully.", 0,
     WindowsIntegrityAssessment.Interpret(0, "No component store corruption detected.", 1,
         "Windows Resource Protection did not find any integrity violations.") == IntegrityState.Inconclusive,
     "Saida desconhecida ou erro nao autoriza reparo.");
+Check(WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Healthy) == "WINREPAIR:HEALTHY" &&
+    WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Repairable) == "WINREPAIR:REPAIRABLE" &&
+    WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Inconclusive) == "WINREPAIR:INCONCLUSIVE",
+    "Pós-reparo transmite estado explícito, nunca o exit code como prova.");
+Check(WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:HEALTHY", out var repairedState) &&
+    repairedState == IntegrityState.Healthy &&
+    WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:REPAIRABLE", out var persisting) &&
+    persisting == IntegrityState.Repairable &&
+    !WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:HEALTHY|INCONCLUSIVE", out _) &&
+    !WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:UNKNOWN", out _) &&
+    !WindowsIntegrityAssessment.TryReadPostRepairWire("", out _),
+    "Pós-reparo rejeita valores arbitrários, truncados ou adulterados.");
 Console.WriteLine("OK: DISM e SFC consultivos com gating conservador.");
 var progressMonitor = new WindowsMaintenanceProgress();
 Check(!progressMonitor.Update("47.5%", out _) &&
