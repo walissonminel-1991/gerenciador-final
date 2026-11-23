@@ -27,6 +27,26 @@ internal static class WindowsIntegrityAssessment
             return IntegrityState.Healthy;
         return IntegrityState.Inconclusive;
     }
+    // Resultado de verificacao POS-REPARO, distinto de exit code do DISM/SFC.
+    // Apenas Healthy permite relatar integridade comprovada pela dupla consulta.
+    internal static string PostRepairWire(IntegrityState state) => state switch
+    {
+        IntegrityState.Healthy => "WINREPAIR:HEALTHY",
+        IntegrityState.Repairable => "WINREPAIR:REPAIRABLE",
+        _ => "WINREPAIR:INCONCLUSIVE"
+    };
+
+    internal static bool TryReadPostRepairWire(string? value, out IntegrityState state)
+    {
+        state = value switch
+        {
+            "WINREPAIR:HEALTHY" => IntegrityState.Healthy,
+            "WINREPAIR:REPAIRABLE" => IntegrityState.Repairable,
+            _ => IntegrityState.Inconclusive
+        };
+        return value is "WINREPAIR:HEALTHY" or "WINREPAIR:REPAIRABLE" or "WINREPAIR:INCONCLUSIVE";
+    }
+
     private static bool HasAny(string s, params string[] a) => a.Any(s.Contains);
     private static string Normalize(string? text)
     {
