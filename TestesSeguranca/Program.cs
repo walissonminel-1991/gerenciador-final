@@ -200,6 +200,26 @@ Check(!NetworkDiagnostics.HasUsableIpv4(null) &&
     NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("192.0.2.24")) &&
     NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("10.0.0.24")),
     "Diagnóstico de rede: UP sem IPv4 útil não equivale a adaptador OK.");
+// Gateway configurado não equivale a gateway utilizável: validar
+// APIPA, endereço zero, loopback, IPv6 e unicast válido sem rede real.
+var invalidGateway = NetworkDiagnostics.ClassifyIpv4Gateway(
+    System.Net.IPAddress.Parse("0.0.0.0"));
+Check(invalidGateway.Name == "Gateway" && invalidGateway.State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("169.254.1.1")).State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("127.0.0.1")).State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("::1")).State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("192.168.1.1")).State == "OK" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(null).State == "Atenção" &&
+    NetworkDiagnostics.SuggestTargetedRepair(new NetworkScan([
+        new NetworkCheck("Adaptador", "OK", "fixture"),
+        invalidGateway,
+        new NetworkCheck("DNS", "Atenção", "fixture"),
+        new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null,
+    "Diagnóstico: gateway inválido não pode liberar reparo DNS.");
 // Uma falha apenas em www.microsoft.com não autoriza sugerir Winsock.
 // Fixtures puras: nenhum teste de rede real é feito pelo runner.
 NetworkScan Probes(string dns, string alternative, string first, string second) => new([

@@ -27,6 +27,15 @@ internal static class NetworkDiagnostics
             !(bytes[0] == 169 && bytes[1] == 254);
     }
 
+    // Um gateway informado pelo Windows só comprova configuração IPv4
+    // utilizável quando não é zero, loopback, multicast ou APIPA.
+    // Nenhuma classificação autoriza correção automática.
+    internal static NetworkCheck ClassifyIpv4Gateway(IPAddress? address) =>
+        HasUsableIpv4(address)
+            ? new("Gateway", "OK", "Gateway configurado: " + address)
+            : new("Gateway", "Atenção",
+                "Gateway IPv4 utilizável não identificado; não inferir rota válida.");
+
     // Falha de um único endereço HTTPS não identifica defeito Winsock.
     // A decisão é somente uma sugestão e exige autorização posterior.
     internal static string? SuggestTargetedRepair(NetworkScan? scan)
@@ -99,7 +108,7 @@ internal static class NetworkDiagnostics
                     n.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
                 .ToArray();
             mainAdapter = available.FirstOrDefault(n => n.GetIPProperties().GatewayAddresses.Any(
-                g => g.Address.AddressFamily == AddressFamily.InterNetwork))
+                g => HasUsableIpv4(g.Address)))
                 ?? available.FirstOrDefault();
             if (mainAdapter is null)
             {
@@ -110,14 +119,13 @@ internal static class NetworkDiagnostics
                 var props = mainAdapter.GetIPProperties();
                 var localIP = props.UnicastAddresses.Select(a => a.Address)
                     .FirstOrDefault(HasUsableIpv4);
-                gateway = props.GatewayAddresses.FirstOrDefault(g =>
-                    g.Address.AddressFamily == AddressFamily.InterNetwork)?.Address;
+                gateway = props.GatewayAddresses.Select(g => g.Address)
+                    .FirstOrDefault(HasUsableIpv4);
                 checks.Add(new("Adaptador", localIP is null ? "Atenção" : "OK",
                     mainAdapter.Name + (localIP is null
                         ? " · sem IPv4 utilizável; uma rede IPv6 pode funcionar"
                         : " · IPv4 " + localIP)));
-                checks.Add(new("Gateway", gateway is null ? "Atenção" : "OK",
-                    gateway is null ? "Gateway IPv4 não identificado." : "Gateway configurado: " + gateway));
+                checks.Add(ClassifyIpv4Gateway(gateway));
             }
         }
         catch (Exception ex)
