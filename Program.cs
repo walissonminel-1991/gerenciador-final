@@ -3609,6 +3609,19 @@ internal sealed partial class MainForm : Form
             Status("Nova verificação necessária antes de reparar.");
             return;
         }
+        // Evitar solicitar UAC se o Windows já apresenta reinício pendente.
+        // O worker elevado repete essa prova para fechar a janela de tempo.
+        var rebootBeforeConsent = WindowsIntegrityAssessment.InspectRebootReadOnly();
+        if (rebootBeforeConsent != WindowsRepairRebootState.Clear)
+        {
+            _windowsRepairable = false;
+            _windowsScannedAt = default;
+            RefreshWindowsRepairButton();
+            Status(rebootBeforeConsent == WindowsRepairRebootState.Pending
+                ? "Reinicialização pendente. Conclua o reinício e refaça a verificação antes de reparar."
+                : "Não foi possível conferir reinício pendente. Reparo bloqueado; refaça o diagnóstico.");
+            return;
+        }
         _windowsRepairable = false; // Uma autorizacao por diagnostico.
         RefreshWindowsRepairButton();
         await ConfirmThenRun("windows-repair",
