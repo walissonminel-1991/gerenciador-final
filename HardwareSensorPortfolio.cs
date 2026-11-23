@@ -9,7 +9,8 @@ internal sealed record HardwareSensorPortfolio(
     HardwareDiscoverySnapshot DeviceInventory,
     NvidiaGpuSensorSnapshot NvidiaGpus,
     StorageSensorsSnapshot Storage,
-    AcpiThermalZoneSnapshot AcpiPlatform)
+    AcpiThermalZoneSnapshot AcpiPlatform,
+    WddmGpuSnapshot? WindowsGpuCounters = null)
 {
     internal bool HasMeasuredGpu => NvidiaGpus.Devices.Any(x =>
         x.UsagePercent.Availability == MonitorAvailability.Available ||
@@ -17,6 +18,9 @@ internal sealed record HardwareSensorPortfolio(
         x.VramUsedBytes.Availability == MonitorAvailability.Available);
     internal bool HasMeasuredStorage => Storage.Disks.Any(x =>
         x.TemperatureC.Availability == MonitorAvailability.Available);
+    internal bool HasMeasuredWddmGpu => WindowsGpuCounters?.Adapters.Any(x =>
+        x.BusiestEnginePercent.Availability == MonitorAvailability.Available ||
+        x.DedicatedUsedBytes.Availability == MonitorAvailability.Available) == true;
 }
 
 // Somente consulta manual/explicitamente solicitada. A chamada tem WMI,
@@ -39,10 +43,12 @@ internal static class HardwareSensorPortfolioReader
         token.ThrowIfCancellationRequested();
         var gpu = NvidiaNvmlSensorProvider.Capture();
         token.ThrowIfCancellationRequested();
+        var wddm = WindowsWddmGpuProvider.Capture(token);
+        token.ThrowIfCancellationRequested();
         var storage = WindowsStorageSensorProvider.Capture(token);
         token.ThrowIfCancellationRequested();
         var acpi = AcpiThermalZoneProvider.Capture(token);
         token.ThrowIfCancellationRequested();
-        return new(DateTimeOffset.UtcNow, baseSample, inventory, gpu, storage, acpi);
+        return new(DateTimeOffset.UtcNow, baseSample, inventory, gpu, storage, acpi, wddm);
     }
 }
