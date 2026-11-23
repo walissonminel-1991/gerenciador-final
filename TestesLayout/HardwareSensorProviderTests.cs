@@ -70,6 +70,13 @@ internal static class HardwareSensorProviderTests
               duplicated.Disks[0].TemperatureC.Value is null &&
               duplicated.Disks[1].TemperatureC.Value == 37,
               "DeviceId duplicado não pode ser escolhido arbitrariamente");
+        var duplicatePhysical = WindowsStorageSensorProvider.Join(
+            physical.Append(new StorageIdentity("disk-A", "Outro SSD")),
+            values);
+        Check(duplicatePhysical.State == HardwareDiscoveryState.Partial &&
+              duplicatePhysical.Disks.All(d => d.DeviceId != "disk-A") &&
+              duplicatePhysical.Disks.Any(d => d.DeviceId == "disk-B"),
+              "DeviceId físico duplicado não pode atribuir sensores a um dos discos");
         var orphan = WindowsStorageSensorProvider.Join(physical,
             values.Append(new StorageReliabilityRaw("outro", 99, 1, 1)));
         Check(orphan.State == HardwareDiscoveryState.Partial,
