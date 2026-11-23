@@ -220,6 +220,31 @@ Check(invalidGateway.Name == "Gateway" && invalidGateway.State == "Atenção" &&
         new NetworkCheck("DNS", "Atenção", "fixture"),
         new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null,
     "Diagnóstico: gateway inválido não pode liberar reparo DNS.");
+// Rotas locais simuladas: enumeração não indica prioridade do Windows.
+// VPN/Ethernet/Wi-Fi concorrentes devem deixar sugestão inconclusiva.
+Check(NetworkDiagnostics.FindUniqueIpv4Route([]) == -1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("169.254.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1"))]) == -1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("192.168.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1"))]) == 0 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("169.254.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1")),
+        (System.Net.IPAddress.Parse("10.0.0.10"),
+         System.Net.IPAddress.Parse("10.0.0.1"))]) == 1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("10.0.0.10"),
+         System.Net.IPAddress.Parse("10.0.0.1")),
+        (System.Net.IPAddress.Parse("192.168.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1"))]) == -2 &&
+    NetworkDiagnostics.SuggestTargetedRepair(new NetworkScan([
+        new NetworkCheck("Adaptador", "Atenção", "Duas rotas elegíveis"),
+        new NetworkCheck("Gateway", "Atenção", "Rota indefinida"),
+        new NetworkCheck("DNS", "Atenção", "fixture"),
+        new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null,
+    "Rede: múltiplas rotas elegíveis ou nenhuma rota não permitem reparo orientado.");
 // Uma falha apenas em www.microsoft.com não autoriza sugerir Winsock.
 // Fixtures puras: nenhum teste de rede real é feito pelo runner.
 NetworkScan Probes(string dns, string alternative, string first, string second) => new([

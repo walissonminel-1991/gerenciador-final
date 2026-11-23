@@ -36,6 +36,24 @@ internal static class NetworkDiagnostics
             : new("Gateway", "Atenção",
                 "Gateway IPv4 utilizável não identificado; não inferir rota válida.");
 
+    // Escolher a rota só quando existe UMA interface com IPv4 local e
+    // gateway válidos. Em máquinas multihomed sem métrica de rota consultada,
+    // a primeira interface enumerada não prova ser o caminho da Internet.
+    // -1 = nenhuma, -2 = múltiplas (ambíguo), >= 0 = índice único.
+    internal static int FindUniqueIpv4Route(
+        IReadOnlyList<(IPAddress? Local, IPAddress? Gateway)> interfaces)
+    {
+        int selected = -1;
+        for (int i = 0; i < interfaces.Count; i++)
+        {
+            if (!HasUsableIpv4(interfaces[i].Local) ||
+                !HasUsableIpv4(interfaces[i].Gateway)) continue;
+            if (selected >= 0) return -2;
+            selected = i;
+        }
+        return selected;
+    }
+
     // Falha de um único endereço HTTPS não identifica defeito Winsock.
     // A decisão é somente uma sugestão e exige autorização posterior.
     internal static string? SuggestTargetedRepair(NetworkScan? scan)
@@ -99,33 +117,52 @@ internal static class NetworkDiagnostics
     {
         var checks = new List<NetworkCheck>();
         IPAddress? gateway = null;
-        NetworkInterface? mainAdapter = null;
         try
         {
-            var available = NetworkInterface.GetAllNetworkInterfaces()
+            var configured = NetworkInterface.GetAllNetworkInterfaces()
                 .Where(n => n.OperationalStatus == OperationalStatus.Up &&
                     n.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
                     n.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
+                .Select(n =>
+                {
+                    var props = n.GetIPProperties();
+                    return (Adapter: n,
+                        Local: props.UnicastAddresses.Select(a => a.Address)
+                            .FirstOrDefault(HasUsableIpv4),
+                        Gateway: props.GatewayAddresses.Select(g => g.Address)
+                            .FirstOrDefault(HasUsableIpv4));
+                })
                 .ToArray();
-            mainAdapter = available.FirstOrDefault(n => n.GetIPProperties().GatewayAddresses.Any(
-                g => HasUsableIpv4(g.Address)))
-                ?? available.FirstOrDefault();
-            if (mainAdapter is null)
+            int route = FindUniqueIpv4Route(configured.Select(x =>
+                (x.Local, x.Gateway)).ToArray());
+            if (route == -2)
             {
-                checks.Add(new("Adaptador", "Atenção", "Nenhuma conexão ativa identificada."));
+                // DNS/TCP permanecem observáveis, mas não inferem uma rota
+                // local única nem habilitam os comandos de reparo.
+                checks.Add(new("Adaptador", "Atenção",
+                    "Múltiplas interfaces IPv4 com gateway; origem da rota não determinada."));
+                checks.Add(new("Gateway", "Atenção",
+                    "Mais de uma rota local elegível; nenhuma escolhida por ordem de enumeração."));
             }
             else
             {
-                var props = mainAdapter.GetIPProperties();
-                var localIP = props.UnicastAddresses.Select(a => a.Address)
-                    .FirstOrDefault(HasUsableIpv4);
-                gateway = props.GatewayAddresses.Select(g => g.Address)
-                    .FirstOrDefault(HasUsableIpv4);
-                checks.Add(new("Adaptador", localIP is null ? "Atenção" : "OK",
-                    mainAdapter.Name + (localIP is null
-                        ? " · sem IPv4 utilizável; uma rede IPv6 pode funcionar"
-                        : " · IPv4 " + localIP)));
-                checks.Add(ClassifyIpv4Gateway(gateway));
+                var current = route >= 0 ? configured[route] :
+                    configured.FirstOrDefault(x => HasUsableIpv4(x.Gateway));
+                if (current.Adapter is null) current = configured.FirstOrDefault();
+                if (current.Adapter is null)
+                {
+                    checks.Add(new("Adaptador", "Atenção",
+                        "Nenhuma conexão ativa identificada."));
+                }
+                else
+                {
+                    gateway = current.Gateway;
+                    checks.Add(new("Adaptador", current.Local is null ? "Atenção" : "OK",
+                        current.Adapter.Name + (current.Local is null
+                            ? " · sem IPv4 utilizável; uma rede IPv6 pode funcionar"
+                            : " · IPv4 " + current.Local)));
+                    checks.Add(ClassifyIpv4Gateway(gateway));
+                }
             }
         }
         catch (Exception ex)
