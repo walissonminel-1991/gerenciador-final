@@ -84,11 +84,16 @@ internal static class BundlewareReviewTests
             new UninstallSnapshot([independent], true));
         if (childSurvived.State != BundlePostRemovalState.ComponentsStillRegistered ||
             childSurvived.RelatedBefore != 1 || childSurvived.RelatedRemaining != 1 ||
+            !childSurvived.MustShowPartialResult ||
             allArpGone.State != BundlePostRemovalState.RegistrationsAbsent ||
             allArpGone.ConfirmsCleanUninstall || allArpGone.MayRemoveRemainingComponents ||
+            allArpGone.MustShowPartialResult ||
             parentReturned.State != BundlePostRemovalState.ParentStillRegistered ||
+            !parentReturned.MustShowPartialResult ||
             uncertainAfter.State != BundlePostRemovalState.Inconclusive ||
-            incompleteUninstall.State != BundlePostRemovalState.PendingObservation)
+            !uncertainAfter.MustShowPartialResult ||
+            incompleteUninstall.State != BundlePostRemovalState.PendingObservation ||
+            !incompleteUninstall.MustShowPartialResult)
             throw new Exception("Bundleware: conciliação posterior de registros ARP promoveu conclusão ou perdeu dependências.");
         var independentRequest = new UninstallRequest(independent, executable.Command);
         var independentOutcome = new UninstallOutcome(independentRequest,
