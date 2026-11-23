@@ -53,3 +53,21 @@ A interface visual não foi alterada nesta branch. Nenhum valor do protótipo ap
 - [CallNtPowerInformation](https://learn.microsoft.com/en-us/windows/win32/api/powerbase/nf-powerbase-callntpowerinformation)
 - [PROCESSOR_POWER_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/power/processor-power-information-str)
 - [GetTickCount64](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount64)
+
+## Evolução dos provedores de sensores — 23/11/2026
+
+**CPU e RAM:** permanecem os contadores nativos GetSystemTimes, frequência reportada pelo Windows, GlobalMemoryStatusEx e histórico limitado por sessão. Temperatura CPU Package indisponível sem fonte confiável; não inventar usando temperatura ACPI.
+
+**GPU NVIDIA (NvidiaNvmlSensorProvider.cs):** lê NVML local apenas de caminhos controlados pelo sistema (System32 e Program Files/NVIDIA Corporation/NVSMI), sem carga por PATH/pasta atual. Enumera até 16 GPUs e preserva nome, UUID, índice e medições por placa, sem associar GPU 0 arbitrariamente a qualquer dispositivo PnP. Funções consultivas: uso, temperatura, potência mW convertida em W, memória framebuffer em bytes e porcentagem de ventoinha. Porcentagem NVML NÃO é RPM. Em NVIDIA sem NVML ou placas AMD/Intel sem outro provedor, a leitura permanece indisponível, ainda que o dispositivo apareça no inventário PnP. O WDDM pode afetar a semântica da memória VRAM reportada.
+Fontes: https://developer.nvidia.com/management-library-nvml ; https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceQueries.html
+
+**Discos (WindowsStorageSensorProvider.cs):** WMI Windows Storage com duas consultas SELECT às classes MSFT_PhysicalDisk e MSFT_StorageReliabilityCounter. A temperatura, o desgaste e as horas de uso só são anexados ao dispositivo pelo mesmo DeviceId; em caso de duplicidade, ausência ou contradição, métrica indisponível e estado parcial. Wear não significa vida útil restante. Zero sem prova de suporte não é interpretado como leitura 0%. Consulta sob demanda e em thread STA, nunca no timer de 2 s. Não aciona comando ATA/NVMe nem escreve em disco.
+Fonte: https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagereliabilitycounter
+
+**Plataforma/placa-mãe (AcpiThermalZoneProvider.cs):** consulta as zonas de calor MSAcpi_ThermalZoneTemperature expostas pelo firmware, convertendo décimos de Kelvin para °C. A zona NÃO é automaticamente CPU, chipset nem VRM; sem vínculo explícito, temperatura desses componentes continua indisponível. Identificação estática de placa-mãe/BIOS continua pelo DetailedHardware existente. Sem instalar driver de kernel nem executar SMBus/EC.
+
+**Carteira de provedores (HardwareSensorPortfolio.cs):** contrato consultivo que reúne CPU/RAM, PnP, GPUs NVIDIA, discos e zonas ACPI. Reutiliza inventário existente quando fornecido. Exige chamada explícita via worker STA e token de cancelamento; não modifica a nova interface, não cria novo timer, não envia dados e não faz alterações no sistema.
+
+**Testes:** HardwareSensorProviderTests valida limites NVML/Storage/ACPI, associação estrita por DeviceId e indisponibilidade de sensores; teste sintético na suíte geral. O argumento --monitoramento-provedores permite rodar as sondas nativas consultivas em Windows, mas não é acionado automaticamente no CI de layout.
+
+**CI histórica:** no SHA 0961bba665bfc7c667118d8980e0017ec3a9e996, integridade PASS; Windows FAIL somente no teste Drivers em Windows Server 2025 devido a TaskCanceledException em TestesDrivers/Program.cs:357, timeout de 25 s na consulta WMI. Política, BETA, regressões Windows e Drivers Server 2022 aprovados. Não foi alterada a frente Drivers para tentar mascarar a falha. Toda nova versão exige CI no HEAD exato.
