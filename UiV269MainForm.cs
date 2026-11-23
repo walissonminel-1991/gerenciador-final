@@ -345,7 +345,12 @@ internal sealed partial class MainForm
         }
         else
         {
-            if (original.Background == AppServices.Background) root.BackColor = palette.Content;
+            if (original.Background == AppServices.Background ||
+                original.Background == Color.FromArgb(17, 24, 32) ||
+                original.Background == Color.FromArgb(37, 48, 61))
+                root.BackColor = palette.Content;
+            else if (original.Background == Color.FromArgb(61, 73, 86))
+                root.BackColor = palette.Border;
             else if (original.Background == PanelBackground || original.Background == Color.FromArgb(38, 50, 63))
                 root.BackColor = palette.Card;
             if (original.Foreground == Ink) root.ForeColor = palette.Text;

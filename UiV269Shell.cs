@@ -103,7 +103,11 @@ internal sealed class V269RightPane : UserControl
         _choices = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false, Visible = false };
         foreach (var (caption, accepted) in new[] { ("Cancelar", false), ("Confirmar", true) })
         {
-            var button = new Button { Text = caption, AutoSize = true, MinimumSize = new Size(70, 26) };
+            var button = new Button
+            {
+                Name = accepted ? "V269AcceptConfirmation" : "V269CancelConfirmation",
+                Text = caption, AutoSize = true, MinimumSize = new Size(70, 26)
+            };
             button.Click += (_, _) => ResolveConfirmation(accepted);
             _choices.Controls.Add(button);
         }

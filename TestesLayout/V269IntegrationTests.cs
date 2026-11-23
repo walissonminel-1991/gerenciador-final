@@ -45,6 +45,14 @@ internal static class V269IntegrationTests
         }
         var appearance = Find<V269AppearancePanel>(views[(int)V269Page.Configuracoes]);
         Require(appearance is not null, "Configurações usa o painel de aparência real");
+        var theme = appearance!.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        theme.SelectedIndex = (int)V269Theme.Claro;
+        Application.DoEvents();
+        var log = Find<DarkLogView>(shell.RightPane);
+        var editor = log is null ? null : Find<TextBox>(log);
+        Require(editor is not null && editor.BackColor.GetBrightness() > editor.ForeColor.GetBrightness() &&
+            shell.RightPane.Current?.Description == "Resultado preservado",
+            "tema Claro preserva contraste do registro e o resultado publicado");
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
