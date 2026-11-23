@@ -141,7 +141,13 @@ internal sealed class DarkDriverList : Control
         _detailsMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Details);
         _updateMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Update);
         _uninstallMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Uninstall);
-        _actionsMenu.Closed += (_, _) => _menuDevice = null;
+        _actionsMenu.Closed += (_, e) =>
+        {
+            // O WinForms fecha o menu antes de entregar Click ao item.
+            // A seleção é consumida uma única vez em RequestMenuAction.
+            if (e.CloseReason != ToolStripDropDownCloseReason.ItemClicked)
+                _menuDevice = null;
+        };
         _actionsMenu.Items.AddRange([_detailsMenu, _updateMenu, _uninstallMenu]);
         Resize += (_, _) => UpdateMetrics();
         DpiChangedAfterParent += (_, _) => UpdateMetrics();
@@ -152,7 +158,11 @@ internal sealed class DarkDriverList : Control
     {
         _actionsCurrent = current;
         _evaluateRemoval = removalDecision;
-        if (!current && _actionsMenu.Visible) _actionsMenu.Close();
+        if (!current)
+        {
+            _menuDevice = null;
+            if (_actionsMenu.Visible) _actionsMenu.Close();
+        }
         UpdateAccessibleSelection();
         Invalidate();
     }
@@ -400,7 +410,10 @@ internal sealed class DarkDriverList : Control
     private void RequestMenuAction(DriverCardAction action)
     {
         // Menu aberto para dispositivo anterior não pode agir em nova seleção.
-        if (_menuDevice is not null && ReferenceEquals(SelectedItem, _menuDevice))
+        var item = _menuDevice;
+        _menuDevice = null;
+        if (item is not null && ReferenceEquals(SelectedItem, item) &&
+            (action != DriverCardAction.Update || CanUpdate(item)))
             RequestSelected(action);
     }
 
