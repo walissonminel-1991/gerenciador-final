@@ -20,6 +20,15 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--monitoramento-storage-relacao"))
+        {
+            StorageAssociationLinkerTests.Run();
+            var live = WindowsStorageSensorProvider.Capture(CancellationToken.None);
+            Console.WriteLine("STORAGE_RELACAO estado=" + live.State +
+                "; discos=" + live.Disks.Count +
+                "; temperaturas=" + live.Disks.Count(x => x.TemperatureC.Value.HasValue));
+            return;
+        }
         if (args.Contains("--monitoramento-resumo-nativo"))
         {
             // Diagnóstico explícito sem identificadores; COM WMI em STA.
@@ -48,7 +57,7 @@ internal static class LayoutTests
         if (args.Contains("--monitoramento-wddm")) { WindowsWddmGpuProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-provedores")) { HardwareSensorProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-descoberta")) { NativeHardwareDiscoveryTests.Run(includeRealWindowsScan: true); return; }
-        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); return; }
+        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
@@ -96,6 +105,7 @@ internal static class LayoutTests
         // ou exigir GPU física no host de CI. Ausência é estado inconclusivo.
         DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows());
         HardwareMonitoringDiagnosticReportTests.Run();
+        StorageAssociationLinkerTests.Run();
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         WheelScrollTests.Run();
