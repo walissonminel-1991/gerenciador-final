@@ -96,7 +96,7 @@ internal static class DriverSilentUninstall
                 "Outra remoção está ativa; operação paralela bloqueada.");
         // Exclusão, backup/restauração e atualização WUA compartilham a
         // mesma fronteira de mutação do Driver Store em todo o processo.
-        if (!DriverG32RecoveryTicket.TryBeginOperation())
+        if (!DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Uninstall))
         {
             Interlocked.Exchange(ref active, 0);
             return new(DriverSilentUninstallState.Blocked,
