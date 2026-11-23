@@ -1,0 +1,82 @@
+name: GF - monitoramento consultivo (somente leitura)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'LiveHardwareMonitoring.cs'
+      - 'NativeHardwareDiscovery.cs'
+      - 'NvidiaNvmlSensorProvider.cs'
+      - 'WindowsWddmGpuProvider.cs'
+      - 'DxgiGpuIdentityProvider.cs'
+      - 'WindowsStorageSensorProvider.cs'
+      - 'StorageAssociationLinker.cs'
+      - 'AcpiThermalZoneProvider.cs'
+      - 'HardwareSensorPortfolio.cs'
+      - 'HardwareMonitoringDiagnosticReport.cs'
+      - 'TestesLayout/*Monitoring*'
+      - 'TestesLayout/*Hardware*'
+      - 'TestesLayout/*Storage*'
+      - 'TestesLayout/*Dxgi*'
+      - 'TestesLayout/*Wddm*'
+      - 'TestesLayout/Program.cs'
+      - 'docs/MONITORAMENTO-NATIVO-20261123.md'
+      - '.github/workflows/monitoramento-consultivo-windows.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gf-mon-readonly-${{ github.event.pull_request.number }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  somente-leitura:
+    if: github.event.pull_request.number == 106
+    name: Leitura de sensores sem hardware exigido (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout do SHA exato, sem credenciais persistidas
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: SDK .NET 10 fixo
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Confirmar commit e compilar somente projeto de testes
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}") {
+            throw 'GF_MONITORAMENTO_SHA_DIVERGENTE'
+          }
+          dotnet build TestesLayout/TestesLayout.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verificar contratos e invariantes sem consultar hardware
+        shell: pwsh
+        run: |
+          dotnet run --no-build --project TestesLayout/TestesLayout.csproj -c Release -- --monitoramento
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Sonda DXGI nativa sem GPU obrigatoria
+        shell: pwsh
+        run: |
+          dotnet run --no-build --project TestesLayout/TestesLayout.csproj -c Release -- --monitoramento-dxgi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Resumo consultivo nativo sem identificadores
+        shell: pwsh
+        run: |
+          dotnet run --no-build --project TestesLayout/TestesLayout.csproj -c Release -- --monitoramento-resumo-nativo | Tee-Object -Variable output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not ($output -match '^GERENCIADOR FINAL — MONITORAMENTO — (DIAGNÓSTICO LOCAL SEM IDENTIFICADORES|CONSULTA INCONCLUSIVA)')) {
+            throw 'GF_MONITORAMENTO_NAO_EXECUTOU_SONDA'
+          }
+          # O log contém apenas agregados, sem dispositivo, serial ou DeviceId.
