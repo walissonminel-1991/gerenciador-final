@@ -28,8 +28,8 @@ internal static class WindowsPlatformHardwareProviderTests
             new WmiCpuSocketRaw("CPU1", "Intel teste", 4U, 8U, 2600U)
         };
         var memory = new[] {
-            new WmiRamModuleRaw("BANK0", "DIMM_A2", "8589934592", 3200U, 26U),
-            new WmiRamModuleRaw("BANK1", "DIMM_B2", 8_589_934_592UL, 3200U, 26U)
+            new WmiRamModuleRaw("BANK0", "DIMM_A2", "8589934592", 3200U, 26U, 1_200U),
+            new WmiRamModuleRaw("BANK1", "DIMM_B2", 8_589_934_592UL, 3200U, 26U, 0U)
         };
         var motherboards = new[] {
             new WmiMotherboardRaw("Base Board", "Fabricante exemplo", "Modelo A", "Rev 2")
@@ -55,6 +55,9 @@ internal static class WindowsPlatformHardwareProviderTests
               complete.RamModules[0].CapacityBytes.Value == 8_589_934_592 &&
               complete.RamModules[0].ConfiguredMhz.Value == 3200 &&
               complete.RamModules[0].SmbiosMemoryType == 26 &&
+              complete.RamModules[0].ConfiguredMilliVolts.Value == 1200 &&
+              complete.RamModules[0].ConfiguredMilliVolts.Source.Contains("SMBIOS", StringComparison.Ordinal) &&
+              complete.RamModules[1].ConfiguredMilliVolts.Value is null &&
               complete.Motherboards.Count == 1 &&
               complete.Motherboards[0].Tag == "Base Board" &&
               complete.MeasuredLogicalCpuInstances == 2 &&
@@ -75,6 +78,22 @@ internal static class WindowsPlatformHardwareProviderTests
         Check(duplicateSocket.CpuSocketsState == HardwareDiscoveryState.Partial &&
               duplicateSocket.CpuSockets.Single().DeviceId == "CPU1",
             "CPU WMI duplicada não pode ser atribuída arbitrariamente");
+
+        var invalidVoltage = WindowsPlatformHardwareProvider.Join(sockets,
+            [
+                memory[0] with { ConfiguredVoltage = "25000" },
+                memory[1] with { ConfiguredVoltage = -1L }
+            ], motherboards, loads);
+        Check(invalidVoltage.RamModulesState == HardwareDiscoveryState.Partial &&
+              invalidVoltage.RamModules.All(x => x.ConfiguredMilliVolts.Value is null) &&
+              invalidVoltage.RamModules.All(x => x.CapacityBytes.Value.HasValue),
+            "tensão SMBIOS impossível ou negativa não pode apagar capacidade válida");
+        var noVoltage = WindowsPlatformHardwareProvider.Join(sockets,
+            [memory[0] with { ConfiguredVoltage = null },
+             memory[1] with { ConfiguredVoltage = 0U }], motherboards, loads);
+        Check(noVoltage.RamModulesState == HardwareDiscoveryState.Complete &&
+              noVoltage.RamModules.All(x => x.ConfiguredMilliVolts.Value is null),
+            "0 e null em ConfiguredVoltage indicam desconhecido, não 0 mV medidos");
 
         var duplicateRam = WindowsPlatformHardwareProvider.Join(sockets,
             memory.Append(memory[0] with { Capacity = 16_000_000_000UL }),
@@ -131,6 +150,8 @@ internal static class WindowsPlatformHardwareProviderTests
                 "sonda Windows WMI produziu contagens ou valores impossíveis");
             Console.WriteLine("PLATAFORMA consulta cpu_sockets=" + native.CpuSockets.Count +
                 " dimms=" + native.RamModules.Count +
+                " dimms_voltagem_configurada=" +
+                    native.RamModules.Count(x => x.ConfiguredMilliVolts.Value.HasValue) +
                 " boards=" + native.Motherboards.Count +
                 " cpu_instances=" + native.MeasuredLogicalCpuInstances);
         }
