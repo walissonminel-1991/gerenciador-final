@@ -22,10 +22,16 @@ internal static class WindowsWddmGpuProviderTests
             "GPU Engine", "pid_X_" + gpuA + "_eng_0_engtype_3D",
             "pid_1_luid_0x01_0x02_phys_64_eng_0_engtype_3D",
             "pid_1_luid_0x01_0x02_phys_0_eng_-1_engtype_3D",
-            "pid_1_luid_0x01_0x02_phys_0_eng_0_engtype_3D_suffix"
+            "pid_1_luid_0x01_0x02_phys_0_eng_0_engtype_3D-suffix"
         })
             Check(!WindowsWddmGpuProvider.TryEngineKey(invalid, out _, out _),
                 "nome inválido aceito: " + invalid);
+        Check(WindowsWddmGpuProvider.TryEngineKey(
+                "pid_1_luid_0x01_0x02_phys_0_eng_0_engtype_3D_suffix",
+                out var suffixKey, out var suffixType) &&
+              suffixKey == new WddmGpuKey(1, 2, 0) &&
+              suffixType == "0:3D_SUFFIX",
+            "nome com sufixo alfanumérico deve ser reconhecido sem perder a identidade");
         Check(!WindowsWddmGpuProvider.TryMemoryKey("luid_0x01_0x02_phys_64", out _) &&
               !WindowsWddmGpuProvider.TryMemoryKey("luid_0x01_0x02", out _),
             "memória sem phys válido foi aceita");
