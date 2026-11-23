@@ -157,3 +157,21 @@ Testes `StorageReliabilityCounterMapperTests.cs` cobrem conversão UInt64/string
 Referências oficiais: https://learn.microsoft.com/pt-br/windows-hardware/drivers/storage/msft-storagereliabilitycounter ; https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-physicaldisktostoragereliabilitycounter .
 
 **Pendente:** revalidar CI Windows e integridade no novo SHA, e homologar medições de sensores físicos no PC FORTE/PC FRACO autorizado. Não atribuir a GPU AMD/Intel temperatura, potência ou RPM sem fonte oficial comprovada; CPU, GPU, RAM e ACPI seguem isolados e inalterados.
+## CPU, RAM e placa-mãe por APIs WMI oficiais — checkpoint 23/11
+
+Gate de partida na PR Draft #106, SHA `78c67221843681d46fc63648a87d12fa02462170`: Windows #45246912467 SUCCESS e integridade #45246912434 SUCCESS, incluindo compilação Windows x64, regressões, testes layout/RAM e política de segurança. Nenhuma alteração em main, G5, BETA, Drivers ou workflows.
+
+Novo `WindowsPlatformHardwareProvider.cs`: coleta sob demanda, somente leitura, no namespace WMI local `root\cimv2`, usando classes **oficiais** `Win32_Processor`, `Win32_PhysicalMemory`, `Win32_BaseBoard`, `Win32_PerfFormattedData_PerfOS_Processor`. Identifica sockets pelo `DeviceID` WMI, módulos RAM por par `BankLabel` + `DeviceLocator`, placa-mãe pela chave `Tag`, e instâncias de uso de CPU lógica pelo nome numérico do contador (exclui `_Total`). Identidades duplicadas/ausentes, propriedades nulas, valores fora de faixa e classes indisponíveis são estados parciais/inconclusivos, não uma atribuição arbitrária ao dispositivo.
+
+- CPU: quantidade de sockets, núcleos/lógicos **reportados pelo WMI** e `CurrentClockSpeed` em MHz reportados. Não equivale a frequência física instantânea nem a temperatura/potência do pacote da CPU. Utilização por **instância lógica** do contador Windows `PercentProcessorTime`, sem declarar que o número de instância comprova correspondência a núcleo físico ou socket.
+- RAM: número de módulos SMBIOS individualizados, `Capacity` em bytes, `ConfiguredClockSpeed` reportado em MHz, código `SMBIOSMemoryType` se publicado. O código não consulta SPD privilegiado, não deduz temperatura DIMM, não presume que soma de módulos seja igual à memória utilizável pelo sistema (reserva de hardware).
+- Placa-mãe: identificação `Tag`, fabricante, modelo, revisão quando publicados; não equiparar `Win32_BaseBoard` a sensor de temperatura do chipset ou VRM. Para chipset/VRM, só publicar leitura quando houver provedor dedicado com identidade inequívoca.
+- GPU AMD/Intel/NVIDIA: continua no WDDM/DXGI com `LUID` e índice `phys` separados, e NVML apenas NVIDIA quando driver compatível expõe API. WDDM não oferece temperatura, potência nem RPM por si só; DXGI `QueryVideoMemoryInfo` descreve consumo e orçamento **do processo**, não VRAM total do sistema, então não é usado como métrica global de GPU.
+
+O portfólio `HardwareSensorPortfolioReader.CaptureOnDemand` agrega essa nova fotografia depois dos sensores ACPI, sob cancelamento. O diagnóstico sem identificadores expõe somente contagens por fonte, sem DeviceID de CPU, BankLabel/DeviceLocator, Tag, nomes ou fabricante/modelo do usuário. Temperaturas CPU, memória, chipset e VRM permanecem indisponíveis. Não adiciona timer, serviço, software terceiro, rede ou instalação de driver.
+
+`WindowsPlatformHardwareProviderTests.cs` cobre identidade única, duplicatas CPU/slot/placa/contador, unidades, valores ausentes, placeholders OEM, percentuais fora de 0–100, 0% reportado, e isolamento entre fontes WMI. Integrado à suíte `TestesLayout` e ao modo `--monitoramento` como testes sintéticos; sonda local explícita `--monitoramento-plataforma` executa a coleta nativa apenas se solicitada. Não foi executada nos PCs FORTE/FRACO.
+
+Referências oficiais: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-physicalmemory ; https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-baseboard ; https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-tasks--performance-monitoring ; https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-processor .
+
+**Gates pendentes:** CI Windows e integridade no novo HEAD; nenhuma homologação física de sensores térmicos, potência ou ventoinhas de AMD/Intel/NVIDIA, CPU, RAM, chipset ou VRM foi declarada.
