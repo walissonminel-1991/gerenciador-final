@@ -24,6 +24,20 @@ internal sealed record BundleUninstallPreview(
 internal sealed record BundleUninstallRunResult(bool SentToExecutor, string Reason,
     IReadOnlyList<UninstallOutcome> Outcomes);
 
+// Conferência pós-desinstalação somente por identidade de registro.
+// Ausência ARP não comprova remoção de arquivos, serviços ou dependências.
+internal enum BundlePostRemovalState
+{
+    NotApplicable, PendingObservation, ParentStillRegistered,
+    ComponentsStillRegistered, RegistrationsAbsent, Inconclusive
+}
+internal sealed record BundlePostRemovalReview(BundlePostRemovalState State,
+    int RelatedBefore, int RelatedRemaining, string Message)
+{
+    internal bool ConfirmsCleanUninstall => false;
+    internal bool MayRemoveRemainingComponents => false;
+}
+
 internal static class BundlewareReview
 {
     internal static bool IsSafeMetadata(ProgramEntry? app) =>
@@ -241,6 +255,69 @@ internal static class BundlewareReview
                 : "Revalidação indisponível (" + ex.GetType().Name +
                   "); nenhuma remoção iniciada.", []);
         }
+    }
+
+    // Uma segunda fotografia completa após o executor valida separadamente
+    // o destino dos filhos vinculados ao pai. O executor não chama remoção
+    // adicional e o resultado nunca certifica limpeza de arquivos/serviços.
+    internal static BundlePostRemovalReview ObserveAfterUninstall(
+        UninstallOutcome? outcome, UninstallSnapshot? before,
+        UninstallSnapshot? after)
+    {
+        BundlePostRemovalReview Inconclusive(string reason) =>
+            new(BundlePostRemovalState.Inconclusive, 0, 0, reason);
+        if (outcome is null || before is null || !before.Complete)
+            return Inconclusive("Inventário anterior indisponível; não inferir componentes removidos.");
+        var original = outcome.Request.Original;
+        if (!RegistryIdentity(original.InventoryId))
+            return new(BundlePostRemovalState.NotApplicable, 0, 0,
+                "O pedido não corresponde a uma raiz ARP verificável.");
+        var oldArp = before.Items.Where(app =>
+            app.InventorySource.StartsWith("Registro:", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var previous = oldArp.Where(app => string.Equals(app.InventoryId,
+            original.InventoryId, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (previous.Length != 1 || !UninstallBatch.SameRegistration(original, previous[0]))
+            return Inconclusive("Identidade do registro inicial não confirmada.");
+        var scanBefore = new RegistryInventoryScan(oldArp, oldArp.Length, 0, 0, 0, 0)
+        { IncludesHiddenEntries = true };
+        var relationship = Evaluate(scanBefore, previous[0]);
+        if (relationship.State == BundleReviewState.Independent ||
+            relationship.State == BundleReviewState.NotRegistryInstallation ||
+            relationship.State == BundleReviewState.BundleRoot &&
+                relationship.RegisteredChildren.Count == 0)
+            return new(BundlePostRemovalState.NotApplicable, 0, 0,
+                "Nenhum componente relacionado foi confirmado no inventário inicial.");
+        if (relationship.State != BundleReviewState.BundleRoot ||
+            relationship.RegisteredChildren.Count == 0)
+            return Inconclusive("Vínculo inicial incompleto; não confirmar remoção de componentes.");
+        int total = relationship.RegisteredChildren.Count;
+        if (outcome.State != UninstallState.RegistrationAbsent)
+            return new(BundlePostRemovalState.PendingObservation, total, total,
+                "Execução não comprovou ausência do registro principal; preservar pendência.");
+        if (after is null || !after.Complete)
+            return new(BundlePostRemovalState.Inconclusive, total, total,
+                "Consulta posterior parcial; preservar resultado sem declarar componentes removidos.");
+        var present = after.Items.Where(app =>
+            app.InventorySource.StartsWith("Registro:", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (present.GroupBy(x => x.InventoryId, StringComparer.OrdinalIgnoreCase)
+            .Any(group => group.Count() != 1))
+            return new(BundlePostRemovalState.Inconclusive, total, total,
+                "Registro posterior ambíguo; comparação não confiável.");
+        if (present.Any(x => string.Equals(x.InventoryId,
+            original.InventoryId, StringComparison.OrdinalIgnoreCase)))
+            return new(BundlePostRemovalState.ParentStillRegistered, total, total,
+                "O programa principal voltou a aparecer no Registro; nenhuma conclusão de conjunto.");
+        int remaining = relationship.RegisteredChildren.Count(id =>
+            present.Any(app => string.Equals(app.InventoryId, id,
+                StringComparison.OrdinalIgnoreCase)));
+        return remaining > 0
+            ? new(BundlePostRemovalState.ComponentsStillRegistered, total, remaining,
+                "Registro principal ausente, mas " + remaining + " de " + total +
+                " componente(s) relacionado(s) continuam registrados. Não remover automaticamente.")
+            : new(BundlePostRemovalState.RegistrationsAbsent, total, 0,
+                "Registro principal e " + total +
+                " componente(s) relacionado(s) não foram encontrados na nova consulta ARP. " +
+                "Arquivos e serviços não foram verificados.");
     }
 
     // Aviso textual limitado no diálogo de consentimento existente. A
