@@ -55,11 +55,12 @@ internal static class LayoutTests
             return;
         }
         if (args.Contains("--monitoramento-plataforma")) { WindowsPlatformHardwareProviderTests.Run(probeNative: true); return; }
+        if (args.Contains("--monitoramento-d3dkmt")) { D3dKmtGpuSensorProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-dxgi")) { DxgiGpuIdentityProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-wddm")) { WindowsWddmGpuProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-provedores")) { HardwareSensorProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-descoberta")) { NativeHardwareDiscoveryTests.Run(includeRealWindowsScan: true); return; }
-        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); StorageReliabilityCounterMapperTests.Run(); WindowsPlatformHardwareProviderTests.Run(); return; }
+        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); D3dKmtGpuSensorProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); StorageReliabilityCounterMapperTests.Run(); WindowsPlatformHardwareProviderTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
@@ -106,6 +107,7 @@ internal static class LayoutTests
         // Exercitar a ABI DXGI em runners Windows sem forçar consultas WMI
         // ou exigir GPU física no host de CI. Ausência é estado inconclusivo.
         DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        D3dKmtGpuSensorProviderTests.Run();
         HardwareMonitoringDiagnosticReportTests.Run();
         StorageAssociationLinkerTests.Run();
         StorageReliabilityCounterMapperTests.Run();
