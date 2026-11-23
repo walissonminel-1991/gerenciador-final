@@ -3609,6 +3609,19 @@ internal sealed partial class MainForm : Form
             Status("Nova verificação necessária antes de reparar.");
             return;
         }
+        // Evitar solicitar UAC se o Windows já apresenta reinício pendente.
+        // O worker elevado repete essa prova para fechar a janela de tempo.
+        var rebootBeforeConsent = WindowsIntegrityAssessment.InspectRebootReadOnly();
+        if (rebootBeforeConsent != WindowsRepairRebootState.Clear)
+        {
+            _windowsRepairable = false;
+            _windowsScannedAt = default;
+            RefreshWindowsRepairButton();
+            Status(rebootBeforeConsent == WindowsRepairRebootState.Pending
+                ? "Reinicialização pendente. Conclua o reinício e refaça a verificação antes de reparar."
+                : "Não foi possível conferir reinício pendente. Reparo bloqueado; refaça o diagnóstico.");
+            return;
+        }
         _windowsRepairable = false; // Uma autorizacao por diagnostico.
         RefreshWindowsRepairButton();
         await ConfirmThenRun("windows-repair",
@@ -3681,7 +3694,8 @@ internal sealed partial class MainForm : Form
     private async Task<ResidualElevationResponse?> RunElevatedAsync(string task,
         IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default,
         Action<string>? residualAudit = null, Action<string>? windowsUpdateMessage = null,
-        ElevatedCleanupProtocol? cleanup = null)
+        ElevatedCleanupProtocol? cleanup = null,
+        Action<NetworkRepairWorkerState>? networkRepairCompletion = null)
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
@@ -3799,6 +3813,7 @@ internal sealed partial class MainForm : Form
                 return null;
             }
             bool gotResult = false;
+            IntegrityState? postRepair = null;
             while (await reader.ReadLineAsync() is { } line)
             {
                 if (task == "windows-check" &&
@@ -3817,6 +3832,20 @@ internal sealed partial class MainForm : Form
                 {
                     _windowsRepairable = false;
                     Log("Verificação inconclusiva. Reparo não liberado automaticamente.");
+                }
+                else if (task == "windows-repair" && line.StartsWith("RESULT|WINREPAIR:", StringComparison.Ordinal))
+                {
+                    if (WindowsIntegrityAssessment.TryReadPostRepairWire(
+                        line["RESULT|".Length..], out var observed))
+                    {
+                        postRepair = observed;
+                        Log(observed switch
+                        {
+                            IntegrityState.Healthy => "Pós-reparo: DISM e SFC não detectaram corrupção.",
+                            IntegrityState.Repairable => "Pós-reparo: persistem violações ou armazenamento reparável.",
+                            _ => "Pós-reparo: verificação inconclusiva; não declarar sucesso."
+                        });
+                    }
                 }
                 else if (windowsUpdateMessage is not null && line.StartsWith("RESULT|WU", StringComparison.Ordinal))
                 {
@@ -3840,11 +3869,20 @@ internal sealed partial class MainForm : Form
                 else if (line.StartsWith("DONE|", StringComparison.Ordinal))
                 {
                     string code = line[5..];
+                    if (networkRepairCompletion is not null &&
+                        task is "flush-dns" or "network-repair-winsock")
+                        networkRepairCompletion(NetworkRepairOutcome.FromWire(line));
                     if (task == "windows-check" && code != "0") _windowsRepairable = false;
                     if (SafeMaintenanceAudit.ElevatedExit(task, code) is { } audit)
                         DiagnosticTrace.Write(audit);
                     if (windowsUpdateMessage is not null)
                         windowsUpdateMessage(line);
+                    else if (task == "windows-repair")
+                        Status(code == "0" && postRepair == IntegrityState.Healthy
+                            ? "Reparo: integridade confirmada pela verificação posterior."
+                            : postRepair == IntegrityState.Repairable
+                                ? "Reparo: problemas persistem; confira o diagnóstico, sem repetir automaticamente."
+                                : "Reparo: estado inconclusivo; confira o log antes de nova ação.");
                     else if (task == "cleanmgr-auto" && code == "0")
                         Status("Limpeza de Disco encerrada · consulte o espaço livre e a prévia.");
                     else Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
@@ -3920,7 +3958,8 @@ internal static class WorkerHost
                 {
                     exit = await ExecuteAsync(task, line =>
                     {
-                        if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal))
+                        if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal) ||
+                            task == "windows-repair" && line.StartsWith("WINREPAIR:", StringComparison.Ordinal))
                             Send("RESULT", line);
                         else Send("LOG", line);
                     });
@@ -4015,14 +4054,27 @@ internal static class WorkerHost
                 var sfc = await AppServices.RunCommandAsync("sfc.exe",
                     new[] { "/verifyonly" },
                     line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
-                var result = WindowsIntegrityAssessment.Interpret(
+                var detail = WindowsIntegrityAssessment.Assess(
                     dism.ExitCode, dism.StandardOutput + dism.StandardError,
                     sfc.ExitCode, sfc.StandardOutput + sfc.StandardError);
-                log("WINCHECK:" + result.ToString().ToUpperInvariant());
+                log("Resultado consultivo: " + detail.Summary);
+                log("WINCHECK:" + detail.Overall.ToString().ToUpperInvariant());
                 return 0; // inconclusivo nao libera reparo.
             }
             case "windows-repair":
             {
+                // O check consultivo anterior não é autoridade permanente:
+                // repetir o estado de reboot no próprio processo elevado,
+                // imediatamente antes de qualquer DISM /RestoreHealth.
+                var reboot = WindowsIntegrityAssessment.InspectRebootReadOnly();
+                if (reboot != WindowsRepairRebootState.Clear)
+                {
+                    log(reboot == WindowsRepairRebootState.Pending
+                        ? "Há reinicialização pendente do Windows. Reparo não iniciado; conclua o reinício manual e refaça o diagnóstico."
+                        : "Não foi possível verificar a ausência de reinicialização pendente. Reparo não iniciado.");
+                    log(WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Inconclusive));
+                    return 2;
+                }
                 log("Etapa 1/2 — DISM: examinando e, se necessário, reparando a imagem do Windows.");
                 int dismCode = await Run("dism.exe", "/Online", "/Cleanup-Image", "/RestoreHealth");
                 if (dismCode != 0)
@@ -4032,10 +4084,28 @@ internal static class WorkerHost
                 }
                 log("Etapa 2/2 — SFC: verificando e tentando reparar os arquivos protegidos do Windows.");
                 int sfcCode = await Run("sfc.exe", "/scannow");
-                log(sfcCode == 0
-                    ? "SFC terminou sem erro de execução. Confira o resultado textual acima para saber se houve reparos."
-                    : "SFC terminou com avisos/erro. Consulte o resultado acima; pode ser necessária outra ação.");
-                return sfcCode;
+                if (sfcCode != 0)
+                {
+                    log("SFC não concluiu normalmente; integridade não comprovada.");
+                    log(WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Inconclusive));
+                    return sfcCode;
+                }
+                // Não promover código zero de /RestoreHealth ou /scannow a
+                // confirmação de integridade. Reexecutar apenas consultas.
+                log("Pós-reparo 1/2: DISM /ScanHealth (somente leitura).");
+                var dismAfter = await AppServices.RunCommandAsync("dism.exe",
+                    new[] { "/Online", "/Cleanup-Image", "/ScanHealth" },
+                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
+                log("Pós-reparo 2/2: SFC /verifyonly (somente leitura).");
+                var sfcAfter = await AppServices.RunCommandAsync("sfc.exe",
+                    new[] { "/verifyonly" },
+                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
+                var verified = WindowsIntegrityAssessment.Assess(
+                    dismAfter.ExitCode, dismAfter.StandardOutput + dismAfter.StandardError,
+                    sfcAfter.ExitCode, sfcAfter.StandardOutput + sfcAfter.StandardError);
+                log("Pós-reparo consultivo: " + verified.Summary);
+                log(WindowsIntegrityAssessment.PostRepairWire(verified.Overall));
+                return verified.FullyVerified ? 0 : 1;
             }
             case "flush-dns": return await Run("ipconfig.exe", "/flushdns");
             case "network-repair-winsock":
