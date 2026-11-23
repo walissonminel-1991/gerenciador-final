@@ -54,11 +54,12 @@ internal static class LayoutTests
             }
             return;
         }
+        if (args.Contains("--monitoramento-plataforma")) { WindowsPlatformHardwareProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-dxgi")) { DxgiGpuIdentityProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-wddm")) { WindowsWddmGpuProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-provedores")) { HardwareSensorProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-descoberta")) { NativeHardwareDiscoveryTests.Run(includeRealWindowsScan: true); return; }
-        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); StorageReliabilityCounterMapperTests.Run(); return; }
+        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); StorageReliabilityCounterMapperTests.Run(); WindowsPlatformHardwareProviderTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
@@ -108,6 +109,7 @@ internal static class LayoutTests
         HardwareMonitoringDiagnosticReportTests.Run();
         StorageAssociationLinkerTests.Run();
         StorageReliabilityCounterMapperTests.Run();
+        WindowsPlatformHardwareProviderTests.Run();
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         WheelScrollTests.Run();
