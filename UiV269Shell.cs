@@ -62,7 +62,7 @@ internal sealed class V269RightPane : UserControl
             ColumnCount = 1,
             RowCount = 3,
             Margin = Padding.Empty,
-            BackColor = Color.Transparent
+            BackColor = SystemColors.Control
         };
         _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
@@ -416,7 +416,7 @@ internal sealed class V269Shell : UserControl
             foreach (var font in _ownedFonts) font.Dispose();
             _ownedFonts.Clear();
         }
-        base.Dispose(disposing);
+        base.Dispose(disposing: disposing);
     }
 
     private sealed class V269NavButton : Button
