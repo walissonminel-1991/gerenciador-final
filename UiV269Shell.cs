@@ -183,7 +183,8 @@ internal sealed class V269Shell : UserControl
         _sidebar = new Panel { Name = "V269Sidebar", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 7, 0) };
         _navigationLayout = new TableLayoutPanel
         {
-            Name = "V269Navigation", Dock = DockStyle.Fill,
+            Name = "V269Navigation", AccessibleName = "Navegação principal",
+            AccessibleRole = AccessibleRole.Grouping, Dock = DockStyle.Fill,
             ColumnCount = 1, RowCount = Pages.Length + 1,
             Margin = Padding.Empty, Padding = new Padding(6)
         };

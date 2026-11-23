@@ -61,6 +61,11 @@ internal static class V269ShellTests
             "As três regiões estruturais precisam existir.");
         Check(shell.Controls.Find("V269NavConfiguracoes", true).Length == 1,
             "As oito abas devem ser acessíveis no menu lateral.");
+        var navigation = shell.Controls.Find("V269Navigation", true)
+            .OfType<TableLayoutPanel>().Single();
+        Check(navigation.AccessibleName == "Navegação principal" &&
+            navigation.AccessibleRole == AccessibleRole.Grouping,
+            "Menu lateral precisa identificar o agrupamento acessível.");
 
         using var apps = new Panel { Name = "AppsVistaNativa" };
         using var drivers = new Panel { Name = "DriversVistaNativa" };
@@ -147,7 +152,7 @@ internal static class V269ShellTests
             "O shell da etapa A não deve oferecer ações administrativas fictícias.");
 
         // Os controles de ação/aparência são testados isoladamente, sem motores.
-        V269ComponentTests.Run(host);
+        V269ComponentTests.Run(host, shell);
         host.Close();
         Console.WriteLine("PASS UI-V269: tokens, três temas, oito abas, view estável, teclado-base, painel e escala.");
     }

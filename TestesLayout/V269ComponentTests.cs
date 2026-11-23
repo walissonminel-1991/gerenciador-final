@@ -8,7 +8,7 @@ using GerenciadorAplicativos;
 /// </summary>
 internal static class V269ComponentTests
 {
-    internal static void Run(Form host)
+    internal static void Run(Form host, V269Shell shell)
     {
         using var update = new V269ActionButton(V269ActionKind.Atualizar);
         using var remove = new V269ActionButton(V269ActionKind.Remover);
@@ -115,6 +115,42 @@ internal static class V269ComponentTests
         Check(uiScale.AccessibleName == "Tamanho da interface" &&
             appearance.Controls.Find("V269TextScale", true).Single().AccessibleName == "Tamanho dos textos",
             "As escalas devem ter nomes acessíveis.");
+        // Vinculação apenas visual: muda tema/escalas do shell ao editar
+        // controles de aparência, sem reconstruir views ou mexer no painel.
+        var pageBeforeBinding = shell.SelectedPage;
+        var panelBeforeBinding = shell.RightPane.Current;
+        using (var binder = new V269AppearanceBinder(shell, appearance))
+        {
+            Check(shell.Theme == V269Theme.AzulGf && shell.InterfaceScalePercent == 96 &&
+                shell.TextScalePercent == 115,
+                "Conexão inicial deve refletir o estado real dos controles.");
+            binder.SetOptions(new V269AppearanceOptions(V269Theme.Dark, 110, 114, false));
+            Check(shell.Theme == V269Theme.Dark && shell.InterfaceScalePercent == 110 &&
+                shell.TextScalePercent == 114 &&
+                appearance.GetOptions().AnimationsEnabled == false,
+                "Alteração programática deve sincronizar os dois controles nativos.");
+            themeChoice.SelectedIndex = 2;
+            Check(shell.Theme == V269Theme.Claro &&
+                shell.SelectedPage == pageBeforeBinding &&
+                ReferenceEquals(shell.RightPane.Current, panelBeforeBinding),
+                "Trocar tema no controle deve preservar página e estado do painel.");
+            uiScale.Value = 103;
+            Check(shell.InterfaceScalePercent == 103 && shell.TextScalePercent == 114,
+                "Slider de interface deve atualizar o shell sem alterar a escala de texto.");
+            var textSlider = appearance.Controls.Find("V269TextScale", true)
+                .OfType<TrackBar>().Single();
+            textSlider.Value = 94;
+            Check(shell.TextScalePercent == 94 && shell.InterfaceScalePercent == 103,
+                "Slider de texto deve atualizar o shell sem alterar a geometria.");
+        }
+        var themeAfterDispose = shell.Theme;
+        var uiAfterDispose = shell.InterfaceScalePercent;
+        // Após Dispose, alterar controles de verdade, não só SetOptions
+        // (que suprime eventos por definição).
+        themeChoice.SelectedIndex = 0;
+        uiScale.Value = 100;
+        Check(shell.Theme == themeAfterDispose && shell.InterfaceScalePercent == uiAfterDispose,
+            "Dispose deve desconectar eventos reais sem assinaturas penduradas.");
         host.Controls.Remove(appearance);
 
         Check(V269VisualTokens.ForTheme(V269Theme.Dark).Sidebar == ColorTranslator.FromHtml("#1c252d") &&
