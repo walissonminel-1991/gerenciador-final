@@ -62,6 +62,9 @@ internal static class HardwareMonitoringDiagnosticReportTests
         string confirmed = HardwareMonitoringDiagnosticReport.Format(measured);
         Check(confirmed.Contains("Intel 1", StringComparison.Ordinal) &&
               confirmed.Contains("com engine observado: 1", StringComparison.Ordinal) &&
+              confirmed.Contains("motores 3D: 1", StringComparison.Ordinal) &&
+              confirmed.Contains("motores de cópia: 0", StringComparison.Ordinal) &&
+              confirmed.Contains("motores decode de vídeo: 0", StringComparison.Ordinal) &&
               confirmed.Contains("DXGI inequívocos: 1", StringComparison.Ordinal) &&
               confirmed.Contains("PnP inequívocos: 1", StringComparison.Ordinal) &&
               confirmed.Contains("temperatura: 1; potência: 0; VRAM: 1", StringComparison.Ordinal),
