@@ -13,6 +13,7 @@ internal sealed record MsixRemovalRequest(
 internal enum MsixRemovalState { Blocked, Confirmed, Pending }
 internal sealed record MsixNativeRemoval(bool Completed, bool Started, int? ErrorCode = null);
 internal sealed record MsixRemovalResult(MsixRemovalState State, string Reason, int? ErrorCode = null);
+internal sealed record MsixUserFeedback(string Stage, string Explanation, bool RefreshInventory);
 
 internal static class MsixUninstall
 {
@@ -83,6 +84,10 @@ internal static class MsixUninstall
             return new(MsixRemovalState.Pending, "postcheck_partial", native.ErrorCode);
 
         bool sameFamilyPresent = observedPackages.Count > 0;
+        // Início nativo não confirmado e família ainda presente são distintos
+        // de uma operação iniciada e inconclusiva; não presumir zero efeitos.
+        if (!native.Started && sameFamilyPresent)
+            return new(MsixRemovalState.Blocked, "native_start_not_observed_family_present", native.ErrorCode);
         if (native.Completed && native.Started && !sameFamilyPresent)
             return new(MsixRemovalState.Confirmed, "native_completed_and_family_absent");
 
@@ -91,6 +96,32 @@ internal static class MsixUninstall
         return new(MsixRemovalState.Pending,
             sameFamilyPresent ? "family_still_present" : "native_result_uncertain",
             native.ErrorCode);
+    }
+
+    // Fonte única do estado e da mensagem: falha no diário final nunca
+    // anuncia uma conclusão auditável nem permite recarga automática.
+    internal static MsixUserFeedback DescribeForUi(MsixRemovalResult outcome, bool resultRecorded)
+    {
+        if (!resultRecorded)
+            return new("pending",
+                "MSIX: não foi possível registrar o resultado no diário. " +
+                (outcome.State == MsixRemovalState.Confirmed
+                    ? "O Windows informou conclusão e a consulta não encontrou a família, porém a confirmação auditável ficou pendente. "
+                    : "O resultado operacional permanece sem registro auditável. ") +
+                "Confira a situação nas Configurações antes de tentar novamente.", false);
+        return outcome.State switch
+        {
+            MsixRemovalState.Confirmed => new("finished",
+                "MSIX removido. Nenhum pacote principal da família permanece no usuário atual.", true),
+            MsixRemovalState.Blocked when outcome.Reason == "native_start_not_observed_family_present" =>
+                new("failed",
+                    "MSIX: o início da remoção não foi confirmado pelo Windows; a família continua presente. " +
+                    "Confira nas Configurações antes de qualquer nova tentativa.", false),
+            MsixRemovalState.Blocked => new("failed",
+                "MSIX não enviado: identidade ou inventário alterado.", false),
+            _ => new("pending",
+                "Resultado MSIX inconclusivo; não repita até confirmar nas Configurações.", false)
+        };
     }
 
     internal static async Task<MsixNativeRemoval> RemoveCurrentUserAsync(string fullName)

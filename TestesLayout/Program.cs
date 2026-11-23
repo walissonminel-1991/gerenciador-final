@@ -31,11 +31,26 @@ internal static class LayoutTests
             MsixPackageFamilyName = "Contoso.Reader_contosopub",
             MsixPackageFullName = "Contoso.Reader_3.2.1.0_x64__contosopub",
             MsixPublisherId = "contosopub",
-            MsixSystemSigned = false
+            MsixSystemSigned = false,
+            MsixInventoryComplete = true
         };
         if (!msixButton.CanUninstallMsix ||
             msixButton.UninstallAction != "msix-uninstall")
             throw new Exception("VF06: botao MSIX elegivel nao aponta para o novo executor.");
+        var msixStale = new ProgramEntry
+        {
+            Name = msixButton.Name, Publisher = msixButton.Publisher, Version = msixButton.Version,
+            InventoryOnly = true, InventorySource = "MSIX — leitura anterior, presença não confirmada",
+            InventoryId = msixButton.InventoryId,
+            MsixPackageName = msixButton.MsixPackageName,
+            MsixPackageFamilyName = msixButton.MsixPackageFamilyName,
+            MsixPackageFullName = msixButton.MsixPackageFullName,
+            MsixPublisherId = msixButton.MsixPublisherId,
+            MsixSystemSigned = false,
+            MsixInventoryComplete = false
+        };
+        if (msixStale.CanUninstallMsix || msixStale.UninstallAction != "uninstall-manual")
+            throw new Exception("VF06/C1: snapshot MSIX antigo ou parcial expôs remoção direta.");
         var msixWithoutFullName = new ProgramEntry
         {
             Name = "Leitor MSIX", Version = "1.0.0.0",

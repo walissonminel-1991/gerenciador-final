@@ -348,3 +348,30 @@ var msixNativeFailure = await MsixUninstall.ExecuteAsync(msixRequest,
 Check(msixNativeFailure.State == MsixRemovalState.Pending &&
       msixNativeFailure.ErrorCode == unchecked((int)0x80070005),
     "C1: retorno nativo de erro com ausência posterior mantém estado inconclusivo");
+
+msixReads = 0;
+var noStartStillPresent = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => { msixReads++; return msixPresent; },
+    _ => Task.FromResult(new MsixNativeRemoval(false, false, unchecked((int)0x80070005))));
+Check(noStartStillPresent is { State: MsixRemovalState.Blocked,
+        Reason: "native_start_not_observed_family_present" } && msixReads == 2 &&
+      MsixUninstall.DescribeForUi(noStartStillPresent, true) is
+        { Stage: "failed", RefreshInventory: false },
+    "C1: início nativo não confirmado e família presente recebem diagnóstico distinto");
+
+msixReads = 0;
+var noStartNowAbsent = await MsixUninstall.ExecuteAsync(msixRequest,
+    () => ++msixReads == 1 ? msixPresent : msixEmpty,
+    _ => Task.FromResult(new MsixNativeRemoval(false, false, unchecked((int)0x80070005))));
+Check(noStartNowAbsent.State == MsixRemovalState.Pending,
+    "C1: início não confirmado e ausência posterior não provam remoção nem ausência de efeitos");
+
+var auditMissing = MsixUninstall.DescribeForUi(msixSuccess, false);
+Check(auditMissing.Stage == "pending" && !auditMissing.RefreshInventory &&
+      !auditMissing.Explanation.Contains("MSIX removido", StringComparison.Ordinal) &&
+      auditMissing.Explanation.Contains("diário", StringComparison.Ordinal),
+    "C1: diário final falhou, mensagem não declara conclusão auditável nem recarrega");
+
+var auditSuccess = MsixUninstall.DescribeForUi(msixSuccess, true);
+Check(auditSuccess is { Stage: "finished", RefreshInventory: true },
+    "C1: sucesso nativo, ausência integral e diário válido permitem conclusão e recarga");
