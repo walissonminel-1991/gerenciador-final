@@ -12,7 +12,8 @@ internal sealed record HardwareSensorPortfolio(
     AcpiThermalZoneSnapshot AcpiPlatform,
     WddmGpuSnapshot? WindowsGpuCounters = null,
     DxgiGpuSnapshot? DxgiAdapters = null,
-    WindowsPlatformHardwareSnapshot? PlatformHardware = null)
+    WindowsPlatformHardwareSnapshot? PlatformHardware = null,
+    D3dKmtGpuSnapshot? D3dKmtGpuSensors = null)
 {
     internal bool HasMeasuredGpu => NvidiaGpus.Devices.Any(x =>
         x.UsagePercent.Availability == MonitorAvailability.Available ||
@@ -53,6 +54,10 @@ internal static class HardwareSensorPortfolioReader
         token.ThrowIfCancellationRequested();
         var dxgi = DxgiGpuIdentityProvider.Capture();
         token.ThrowIfCancellationRequested();
+        // D3DKMT query reporta sensor pela chave {LUID, phys}; não
+        // pressupor identidade via índice DXGI ou nome do adaptador.
+        var d3dkmt = D3dKmtGpuSensorProvider.Capture(dxgi, token);
+        token.ThrowIfCancellationRequested();
         var storage = WindowsStorageSensorProvider.Capture(token);
         token.ThrowIfCancellationRequested();
         var acpi = AcpiThermalZoneProvider.Capture(token);
@@ -61,6 +66,6 @@ internal static class HardwareSensorPortfolioReader
         // associa esses dados a temperatura de pacote, VRM ou DIMM.
         var platform = WindowsPlatformHardwareProvider.Capture(token);
         token.ThrowIfCancellationRequested();
-        return new(DateTimeOffset.UtcNow, baseSample, inventory, gpu, storage, acpi, wddm, dxgi, platform);
+        return new(DateTimeOffset.UtcNow, baseSample, inventory, gpu, storage, acpi, wddm, dxgi, platform, d3dkmt);
     }
 }
