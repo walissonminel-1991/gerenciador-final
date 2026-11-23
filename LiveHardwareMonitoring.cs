@@ -172,7 +172,14 @@ internal sealed class LiveHardwareMonitor
     internal int RecommendedIntervalMs(bool panelVisible, bool inTray) =>
         ProcessSamplingPolicy.IntervalMs(panelVisible, inTray);
 
-    internal LiveHardwareSample Capture()
+    internal LiveHardwareSample Capture() => CaptureCore(null, useSharedMemory: false);
+
+    // A aba Sistema já possui a amostra de RAM. Reutilizá-la impede
+    // duas chamadas ao GlobalMemoryStatusEx em uma única atualização visual.
+    internal LiveHardwareSample Capture(MemoryRamSample? sharedMemory) =>
+        CaptureCore(sharedMemory, useSharedMemory: true);
+
+    private LiveHardwareSample CaptureCore(MemoryRamSample? sharedMemory, bool useSharedMemory)
     {
         lock (_gate)
         {
@@ -188,7 +195,8 @@ internal sealed class LiveHardwareMonitor
             double? frequency = NativeHardwareCounters.ReadReportedCpuMhz();
             TimeSpan? uptime = NativeHardwareCounters.ReadUptime();
             // Reutiliza o mesmo leitor de RAM já empregado pela aba Sistema.
-            MemoryRamSample? memory = OperatingSystem.IsWindows() ? MemoryRamReader.Capture() : null;
+            MemoryRamSample? memory = useSharedMemory ? sharedMemory :
+                OperatingSystem.IsWindows() ? MemoryRamReader.Capture() : null;
 
             var sample = new LiveHardwareSample(
                 DateTimeOffset.UtcNow,
