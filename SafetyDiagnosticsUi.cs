@@ -81,23 +81,10 @@ internal sealed partial class MainForm
         });
     }
 
-    // Não confunde gateway/ICMP bloqueado com problema que precisa ser corrigido.
-    // Só sugere correções quando a interface e o gateway foram identificados.
-    private static string? GetSuggestedNetworkRepair(NetworkScan? scan)
-    {
-        if (scan is null) return null;
-        bool localReady = scan.Checks.Any(c => c.Name == "Adaptador" && c.State == "OK") &&
-                          scan.Checks.Any(c => c.Name == "Gateway" && c.State == "OK");
-        if (!localReady) return null;
-        if (scan.Checks.Any(c => c.Name == "DNS" && c.State == "Atenção"))
-            return "flush-dns";
-        // Somente quando DNS passou e a conectividade TCP/443 falhou; pode ser
-        // proxy/firewall e, portanto, a ação requer confirmação explícita.
-        if (scan.Checks.Any(c => c.Name == "DNS" && c.State == "OK") &&
-            scan.Checks.Any(c => c.Name == "Conexão HTTPS" && c.State == "Atenção"))
-            return "network-repair-winsock";
-        return null;
-    }
+    // Delegar a recomendação ao contrato testado de rede, mantendo a UI.
+    // Um único destino TCP/443 nunca justifica sugerir Winsock.
+    private static string? GetSuggestedNetworkRepair(NetworkScan? scan) =>
+        NetworkDiagnostics.SuggestTargetedRepair(scan);
 
     private async Task RepairNetworkAfterDiagnosisAsync()
     {
@@ -116,8 +103,8 @@ internal sealed partial class MainForm
         string confirmation = dnsRepair
             ? "O teste detectou uma falha na resolução DNS. Deseja limpar apenas o cache DNS do Windows? " +
               "Isso não altera os servidores DNS configurados. O teste será repetido depois da operação."
-            : "O DNS respondeu, mas a conexão TCP/443 ao endereço de teste falhou. Isso pode ocorrer por proxy, firewall " +
-              "ou bloqueio do servidor, e não comprova um defeito no Windows.\n\n" +
+            : "O DNS respondeu, mas dois destinos TCP/443 independentes falharam. Isso pode ocorrer por proxy, firewall " +
+              "ou bloqueio externo e não comprova defeito no catálogo Winsock.\n\n" +
               "Deseja tentar redefinir APENAS o catálogo Winsock? A rede pode ser interrompida e será necessário " +
               "reiniciar o Windows para completar a alteração. Nenhum reinício automático será feito.";
         if (MessageBox.Show(this, confirmation, "Confirmar reparo orientado de rede",
