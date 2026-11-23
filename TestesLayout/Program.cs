@@ -60,7 +60,6 @@ internal static class LayoutTests
             if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
             return;
         }
-        V269ShellTests.Run();
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         WheelScrollTests.Run();
@@ -834,6 +833,9 @@ internal static class LayoutTests
             throw new Exception("Cartoes do sistema extrapolam layout compacto.");
         form.Close();
         Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
+        // O teste do novo shell cria um Form próprio; executá-lo após a suíte
+        // legada evita modificar a ordem das janelas e o estado de foco dela.
+        V269ShellTests.Run();
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
