@@ -53,7 +53,8 @@ internal sealed class UninstallBatch
         bool consent, Func<Task<UninstallSnapshot>> scan,
         Func<UninstallRequest,CancellationToken,Task<int?>> launch,
         Func<CancellationToken,Task> betweenChecks, CancellationToken token=default,
-        Action<UninstallRequest, string>? progress = null)
+        Action<UninstallRequest, string>? progress = null,
+        Func<UninstallRequest, UninstallSnapshot, bool>? preLaunchSafety = null)
     {
         var requests=selected.ToArray(); // seleção confirmada não é coleção viva da UI
         var results=new List<UninstallOutcome>();
@@ -107,6 +108,21 @@ internal sealed class UninstallBatch
                 {
                     results.Add(new(request,UninstallState.Blocked,DiagnosticReason: "shared_uninstaller", Reason:
                         "Mais de um registro aponta para o mesmo desinstalador. Não é possível remover só a entrada selecionada com segurança; confira o aplicativo pelo Windows."));
+                    continue;
+                }
+                token.ThrowIfCancellationRequested();
+                // Última validação opcional de dependências do pacote ANTES
+                // de permitir que o uninstaller registrado seja iniciado.
+                // Sem callback, manter exatamente o contrato anterior.
+                bool extraSafe;
+                try { extraSafe = preLaunchSafety?.Invoke(request, before) ?? true; }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                { extraSafe = false; }
+                if (!extraSafe)
+                {
+                    results.Add(new(request, UninstallState.Blocked,
+                        DiagnosticReason: "bundle_relationship_changed",
+                        Reason: "Relações ARP do pacote mudaram; nenhuma remoção iniciada."));
                     continue;
                 }
                 token.ThrowIfCancellationRequested();
