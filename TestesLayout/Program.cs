@@ -116,6 +116,7 @@ internal static class LayoutTests
             Work18UpdateUiTests.Run();
             Stage3UpdateQueryTests.Run();
             UninstallCleanupTests.VerifyTrayConfirmation();
+            V269IntegrationTests.VerifyCompactRepairFocus();
             return;
         }
         if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
@@ -1195,7 +1196,7 @@ internal static class LayoutTests
         Console.WriteLine("OK: proporcoes de registro/cabecalho em 100%, 125%, 150% e 200%.");
     }
 
-    static bool FullyVisible(Control control)
+    internal static bool FullyVisible(Control control)
     {
         Rectangle bounds = control.RectangleToScreen(control.ClientRectangle);
         for (Control? parent = control.Parent; parent != null && parent is not Form; parent = parent.Parent)

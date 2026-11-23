@@ -56,7 +56,11 @@ internal sealed partial class MainForm
                 // mas nao desativa a rolagem quando o conteudo ultrapassa.
                 int scrollbar = (int)Math.Ceiling(14d * host.DeviceDpi / 96d);
                 int width = Math.Max(1, host.ClientSize.Width - scrollbar);
-                content.Size = new Size(width, Math.Max(host.ClientSize.Height, minimumHeight(width)));
+                // O conteúdo redimensiona os cartões e recalcula a quebra
+                // das descrições ao receber a nova largura. Medir depois.
+                content.Width = width;
+                content.PerformLayout();
+                content.Height = Math.Max(host.ClientSize.Height, minimumHeight(width));
                 host.Reflow();
             }
             finally { arranging = false; }
