@@ -198,11 +198,19 @@ internal static class DriverUpdatePilotDialog
                             ? "Consulta WUA anterior ainda ativa; aguarde o fim da operação nativa."
                             : "Selecione uma oferta válida para consultar o WUA."
                         : "Selecione uma oferta para visualizar um plano textual sem executar.";
+            // A leitura tipada informa a elegibilidade documental. Nenhuma
+            // fase do diário concede autorização: manter gate transacional
+            // original e a prova OEM antes de qualquer operação física.
+            var journalSnapshot = nativeWua
+                ? DriverUpdatePilotFileJournal.InspectReadOnly(
+                    DriverUpdatePilotFileJournal.SuggestedPath) : null;
+            bool journalConsultable = journalSnapshot?.Disposition is
+                DriverWuaJournalDisposition.NeverStarted or DriverWuaJournalDisposition.Verified;
             bool physicalEligible = nativeWua && choices.SelectedItem is ChoiceRow selectedRow &&
                 DriverG32RecoveryTicket.CanOffer(inventory, selected, selectedRow.Choice) &&
                 OperatingSystem.IsWindows() && DriverSilentUninstall.IsElevated() &&
                 !DriverG32RecoveryTicket.HasActiveOperation &&
-                !nativeReadGate.HasPendingWork &&
+                !nativeReadGate.HasPendingWork && journalConsultable &&
                 DriverUpdatePilotFileJournal.MayBeginReadOnly(
                     DriverUpdatePilotFileJournal.SuggestedPath);
             start.Enabled = !invalidated && !busy && validChoice &&
@@ -213,8 +221,7 @@ internal static class DriverUpdatePilotDialog
                 ? "Fotografia revogada; reabra a investigação."
                 : nativeWua
                     ? "G3.2: administrador, OEM individual não crítico, assinatura, backup e diário obrigatórios. " +
-                      DriverUpdatePilotFileJournal.ReadOnlyStatus(
-                          DriverUpdatePilotFileJournal.SuggestedPath)
+                      (journalSnapshot?.Message ?? "Diário indisponível; nenhuma operação autorizada.")
                     : backendForTest is null || journalForTest is null
                         ? "Nenhuma instalação habilitada na versão pessoal."
                         : "Ação sintética de laboratório. Não chama o Windows Update real.";
@@ -246,11 +253,25 @@ internal static class DriverUpdatePilotDialog
             UpdateEligibility();
         }
         search.TextChanged += (_, _) => Filter();
-        choices.SelectedIndexChanged += (_, _) =>
+        // Hashes OEM podem exigir leitura extensa do disco. Nunca ler o
+        // catálogo completo na thread WinForms, nem permitir resultado
+        // atrasado sobrepor seleção, consulta WUA ou operação nativa.
+        var overviewRevision = new DriverOverviewReadRevisionGate();
+        Task<string>? overviewInFlight = null;
+        Task<string> ReadOverviewAsync()
         {
+            if (overviewInFlight is null || overviewInFlight.IsCompleted)
+                overviewInFlight = Task.Run(() =>
+                    DriverRecoveryVault.CaptureOverviewReadOnly().StatusForDriverPilot);
+            return overviewInFlight;
+        }
+        choices.SelectedIndexChanged += async (_, _) =>
+        {
+            int revision = overviewRevision.NewSelection();
             confirm.Checked = false;
             isolated.Checked = false;
-            detail.Text = choices.SelectedItem is not ChoiceRow row
+            var row = choices.SelectedItem as ChoiceRow;
+            string baseDetail = row is null
                 ? "Nenhuma oferta selecionada."
                 : "Título: " + row.Choice.Title + Environment.NewLine +
                     "UpdateID: " + row.Choice.UpdateId + " / revisão: " + row.Choice.Revision +
@@ -261,10 +282,33 @@ internal static class DriverUpdatePilotDialog
                     Environment.NewLine + "Versão instalada: " + row.Choice.InstalledVersion +
                     Environment.NewLine + "VERSÃO OFERTADA: NÃO COMPROVADA. " +
                     "Esta oferta consultiva não prova atualização numericamente superior." +
-                    Environment.NewLine + (nativeWua ?
-                        "G3.2: revalidação consultiva disponível. Instalação somente com backup e consentimento." :
-                        "Nenhuma instalação nesta compilação normal.");
+                    Environment.NewLine + (nativeWua
+                        ? "G3.2: revalidação consultiva disponível. Instalação somente com backup e consentimento."
+                        : "Nenhuma instalação nesta compilação normal.");
+            string pending = baseDetail + Environment.NewLine +
+                "Conferindo cofre OEM em segundo plano (somente leitura)...";
+            detail.Text = nativeWua && row is not null ? pending : baseDetail;
             UpdateEligibility();
+            if (!nativeWua || row is null || !CanReview()) return;
+            try
+            {
+                string summary = await ReadOverviewAsync();
+                if (!form.IsDisposed && !busy && CanReview() &&
+                    overviewRevision.MayPublish(revision) &&
+                    ReferenceEquals(choices.SelectedItem, row) &&
+                    detail.Text == pending)
+                    detail.Text = baseDetail + Environment.NewLine + summary;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                if (!form.IsDisposed && !busy && CanReview() &&
+                    overviewRevision.MayPublish(revision) &&
+                    ReferenceEquals(choices.SelectedItem, row) &&
+                    detail.Text == pending)
+                    detail.Text = baseDetail + Environment.NewLine +
+                        "Cofre OEM não pôde ser consultado (" +
+                        ex.GetType().Name + "); nenhuma conclusão ou permissão de manutenção.";
+            }
         };
         confirm.CheckedChanged += (_, _) => UpdateEligibility();
         isolated.CheckedChanged += (_, _) => UpdateEligibility();

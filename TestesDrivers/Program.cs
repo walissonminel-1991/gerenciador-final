@@ -219,6 +219,7 @@ DriverWuaPnpMatchingTests.Run(Check);
 DriverGamingCatalogTests.Run(Check);
 DriverHardwareSupportTests.Run(Check);
 Stage2DriverTests.Run(Check);
+DriverRecoveryVaultTests.Run(Check);
 G1EvidenceTests.Run(Check);
 G15CaptureTests.Run(Check);
 G16SessionTests.Run(Check);
