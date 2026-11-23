@@ -150,7 +150,8 @@ internal static class DriverUpdatePilot
         // Exigir prova G3.2 real antes mesmo da primeira consulta WUA.
         if (backend is DriverWuaNativeBackend)
         {
-            if (!approval.PhysicalWindowsApproved || approval.DisposableWindows ||
+            if (!DriverG32RecoveryTicket.HasUpdateOperation ||
+                !approval.PhysicalWindowsApproved || approval.DisposableWindows ||
                 recovery is null || !recovery.Matches(choice) ||
                 journal is not DriverUpdatePilotFileJournal)
                 return new(DriverUpdatePilotState.Blocked,
