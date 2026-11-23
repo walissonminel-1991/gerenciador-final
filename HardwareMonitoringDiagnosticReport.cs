@@ -113,7 +113,12 @@ internal static class HardwareMonitoringDiagnosticReport
                     WithValue(d3dkmt?.Adapters.Select(x => x.RelativePowerPercent) ?? []) +
                 " (não são watts)" +
                 "; frequências memória MHz: " +
-                    WithValue(d3dkmt?.Adapters.Select(x => x.MemoryFrequencyMhz) ?? []),
+                    WithValue(d3dkmt?.Adapters.Select(x => x.MemoryFrequencyMhz) ?? []) +
+                "; consulta desempenho ausente: " + (d3dkmt?.WithoutPerformanceQuery ?? 0) +
+                "; capacidades ausentes: " + (d3dkmt?.WithoutCapabilitiesQuery ?? 0) +
+                "; GPUs desligadas confirmadas: " + (d3dkmt?.ConfirmedPoweredOff ?? 0) +
+                "; adaptadores sem métrica válida: " + (d3dkmt?.WithoutAnyValidMetric ?? 0) +
+                " (categorias podem se sobrepor)",
             "NVIDIA NVML: " + (portfolio.NvidiaGpus.ProviderAvailable ? "disponível" : "indisponível") +
                 "; GPUs: " + gpu.Count +
                 "; uso: " + WithValue(gpu.Select(x => x.UsagePercent)) +
