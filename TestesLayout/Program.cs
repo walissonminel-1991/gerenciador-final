@@ -27,8 +27,14 @@ internal static class LayoutTests
             using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(40));
             try
             {
+                // CPU % usa delta temporal; a primeira leitura é somente base,
+                // e não pode ser mostrada como zero nem como uso instantâneo.
+                var monitor = new LiveHardwareMonitor();
+                monitor.Capture();
+                Thread.Sleep(300); // única espera curta desta sonda explícita
+                ct.Token.ThrowIfCancellationRequested();
                 var result = HardwareSensorPortfolioReader.CaptureOnDemand(
-                    new LiveHardwareMonitor(), ct.Token);
+                    monitor, ct.Token);
                 Console.WriteLine(HardwareMonitoringDiagnosticReport.Format(result));
             }
             catch (OperationCanceledException)
