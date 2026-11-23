@@ -62,6 +62,14 @@ internal static class BundlewareReviewTests
                 new UninstallRequest(brokenArpIdentity, executable.Command),
                 initialSnapshot, initialSnapshot))
             throw new Exception("Bundleware: identidade ARP malformada ignorou guarda.");
+        var impact = BundlewareReview.ExplainPotentialBundleImpact(parent, initialSnapshot);
+        if (!impact.Contains("1 componente(s)", StringComparison.Ordinal) ||
+            !impact.Contains("pode afetá-los", StringComparison.Ordinal) ||
+            BundlewareReview.ExplainPotentialBundleImpact(independent, initialSnapshot) != "" ||
+            !BundlewareReview.ExplainPotentialBundleImpact(parent,
+                new UninstallSnapshot(initialSnapshot.Items, false))
+                .Contains("não puderam ser conferidas", StringComparison.Ordinal))
+            throw new Exception("Bundleware: aviso de impacto do pacote incorreto ou exagerado.");
         var selected = BundlewareReview.PrepareUserSelection(scan, [parent.InventoryId]);
         if (!selected.Eligible || selected.Requests.Count != 1 ||
             selected.Requests[0].Original.InventoryId != parent.InventoryId)
