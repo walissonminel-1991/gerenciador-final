@@ -151,8 +151,22 @@ internal static class DxgiGpuIdentityProvider
         HardwareDiscoverySnapshot inventory)
     {
         var result = new List<ResolvedWddmGpu>();
+        // Um LUID pode ter vários índices "phys" (adaptadores vinculados).
+        // Nesse caso um único GetDesc1 não prova a identidade de CADA
+        // instância física do contador; preservar ambas sem associação.
+        var ambiguousLuids = counters.Adapters
+            .GroupBy(x => (x.Key.LuidHigh, x.Key.LuidLow))
+            .Where(group => group.Count() != 1)
+            .Select(group => group.Key)
+            .ToHashSet();
         foreach (var item in counters.Adapters)
         {
+            if (ambiguousLuids.Contains((item.Key.LuidHigh, item.Key.LuidLow)))
+            {
+                result.Add(new(item, null, null,
+                    "LUID WDDM compartilhado por múltiplos índices físicos"));
+                continue;
+            }
             var matches = dxgi.Adapters.Where(x =>
                 x.LuidHigh == item.Key.LuidHigh &&
                 x.LuidLow == item.Key.LuidLow).Take(2).ToArray();
