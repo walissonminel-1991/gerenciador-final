@@ -2,11 +2,16 @@ using System.Text.Json;
 
 namespace GerenciadorAplicativos;
 
+internal enum DriverG32OperationKind { Update, Export, Stage, Uninstall }
+
 // G3.2: uma autorizacao concreta depende de backup OEM verificavel.
 // A construcao privada impede promover um checkbox ou uma fixture a prova.
 internal sealed class DriverG32RecoveryTicket
 {
     private static int active;
+    private static int activeKind;
+    private static long generation;
+    private readonly long leaseGeneration;
     private readonly DriverUpdatePilotChoice choice;
     private readonly DriverInventoryEntry before;
     private readonly DriverStoreEvidence package;
@@ -16,8 +21,9 @@ internal sealed class DriverG32RecoveryTicket
 
     private DriverG32RecoveryTicket(DriverUpdatePilotChoice choice,
         DriverInventoryEntry before, DriverStoreEvidence package,
-        DriverInfVerificationResult trust, string folder, string digest)
+        DriverInfVerificationResult trust, string folder, string digest, long leaseGeneration)
     {
+        this.leaseGeneration = leaseGeneration;
         this.choice = choice;
         this.before = before;
         this.package = package;
@@ -49,11 +55,26 @@ internal sealed class DriverG32RecoveryTicket
     internal string BackupFolder => folder;
 
     internal static bool HasActiveOperation => Volatile.Read(ref active) != 0;
-    internal static bool TryBeginOperation() =>
-        Interlocked.CompareExchange(ref active, 1, 0) == 0;
-    internal static void EndOperation() => Interlocked.Exchange(ref active, 0);
+    internal static bool HasUpdateOperation =>
+        HasActiveOperation && Volatile.Read(ref activeKind) == (int)DriverG32OperationKind.Update + 1;
+
+    internal static bool TryBeginOperation(DriverG32OperationKind kind = DriverG32OperationKind.Update)
+    {
+        if (!Enum.IsDefined(kind) || Interlocked.CompareExchange(ref active, 1, 0) != 0)
+            return false;
+        Volatile.Write(ref activeKind, (int)kind + 1);
+        Interlocked.Increment(ref generation);
+        return true;
+    }
+
+    internal static void EndOperation()
+    {
+        Volatile.Write(ref activeKind, 0);
+        Interlocked.Exchange(ref active, 0);
+    }
 
     internal bool Matches(DriverUpdatePilotChoice candidate) =>
+        HasUpdateOperation && leaseGeneration == Volatile.Read(ref generation) &&
         Equals(choice, candidate) && !string.IsNullOrWhiteSpace(digest);
 
     internal static bool CanOffer(DriverInventoryResult? inventory,
@@ -98,6 +119,9 @@ internal sealed class DriverG32RecoveryTicket
         DriverInventoryResult snapshot, DriverInventoryEntry selected,
         DriverUpdatePilotChoice candidate, Func<bool> stillCurrent, CancellationToken token)
     {
+        if (!HasUpdateOperation)
+            return (null, "Nenhuma sessão de atualização WUA exclusiva está ativa.");
+        long capturedLease = Volatile.Read(ref generation);
         if (!OperatingSystem.IsWindows() || !DriverSilentUninstall.IsElevated())
             return (null, "Execute o GF como administrador; nenhuma atualização iniciada.");
         if (!CanOffer(snapshot, selected, candidate) || !stillCurrent() ||
@@ -169,10 +193,11 @@ internal sealed class DriverG32RecoveryTicket
                 stream.Write(receipt);
                 stream.Flush(flushToDisk: true);
             }
-            if (!stillCurrent() || token.IsCancellationRequested)
-                return (null, "Seleção revogada após exportação; backup preservado sem download.");
+            if (!stillCurrent() || token.IsCancellationRequested ||
+                !HasUpdateOperation || capturedLease != Volatile.Read(ref generation))
+                return (null, "Sessão WUA ou seleção revogada após exportação; backup preservado sem download.");
             return (new DriverG32RecoveryTicket(candidate, device,
-                mapped, verification, destination, digest),
+                mapped, verification, destination, digest, capturedLease),
                 "Backup OEM exportado, assinatura e hash verificados.");
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
