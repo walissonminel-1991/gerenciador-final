@@ -89,6 +89,34 @@ internal static class HardwareMonitoringDiagnosticReport
                 "; temperatura: " + WithValue(storage.Select(x => x.TemperatureC)) +
                 "; desgaste: " + WithValue(storage.Select(x => x.WearPercent)) +
                 "; horas: " + WithValue(storage.Select(x => x.PowerOnHours)),
+            "Confiabilidade Storage (contadores reportados, não saúde geral):" +
+                " erros leitura totais: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.ReadErrorsTotal ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; erros leitura não corrigidos: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.ReadErrorsUncorrected ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; erros gravação totais: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.WriteErrorsTotal ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; erros gravação não corrigidos: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.WriteErrorsUncorrected ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; latências máximas leitura: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.ReadLatencyMaxMs ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; latências máximas gravação: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.WriteLatencyMaxMs ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; latências máximas flush: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.FlushLatencyMaxMs ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; ciclos iniciar/parar: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.StartStopCycles ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))) +
+                "; ciclos carregar/descarregar: " +
+                    WithValue(storage.Select(x => x.Diagnostics?.LoadUnloadCycles ??
+                        MonitorReading<ulong>.Unavailable("Sem associação"))),
             "Zonas térmicas ACPI: " + State(portfolio.AcpiPlatform.State) +
                 "; zonas: " + acpi.Count +
                 "; temperaturas válidas: " + WithValue(acpi.Select(x => x.TemperatureC)),
