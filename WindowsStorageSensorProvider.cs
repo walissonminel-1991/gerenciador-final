@@ -12,7 +12,11 @@ internal sealed record StorageDeviceSensors(
     string Name,
     MonitorReading<double> TemperatureC,
     MonitorReading<double> WearPercent,
-    MonitorReading<ulong> PowerOnHours);
+    MonitorReading<ulong> PowerOnHours)
+{
+    // Somente preenchido quando o vínculo REF WMI foi comprovado.
+    internal StorageReliabilityCounters? Diagnostics { get; init; }
+}
 
 internal sealed record StorageSensorsSnapshot(
     DateTimeOffset CapturedAtUtc,
@@ -22,7 +26,10 @@ internal sealed record StorageSensorsSnapshot(
 
 internal sealed record StorageIdentity(string DeviceId, string FriendlyName);
 internal sealed record StorageReliabilityRaw(string DeviceId, object? Temperature,
-    object? Wear, object? PowerOnHours);
+    object? Wear, object? PowerOnHours)
+{
+    internal StorageReliabilityCounterRaw? Diagnostics { get; init; }
+}
 
 internal static class WindowsStorageSensorProvider
 {
@@ -101,8 +108,14 @@ internal static class WindowsStorageSensorProvider
             if (groups.TryGetValue(disk.DeviceId, out var rows) && rows.Length == 1)
             {
                 var r = rows[0];
+                var diagnostics = StorageReliabilityCounterMapper.Map(
+                    r.Diagnostics, out bool contradictory);
+                if (contradictory) partial = true;
                 devices.Add(new(disk.DeviceId, name, Temperature(r.Temperature),
-                    Wear(r.Wear), Hours(r.PowerOnHours)));
+                    Wear(r.Wear), Hours(r.PowerOnHours))
+                {
+                    Diagnostics = diagnostics
+                });
             }
             else
             {
@@ -162,10 +175,18 @@ internal static class WindowsStorageSensorProvider
                                 try
                                 {
                                     properties = ((dynamic)row).Properties_;
+                                    if (properties is null) { partial = true; return null; }
                                     property = ((dynamic)properties).Item(key);
+                                    if (property is null) { partial = true; return null; }
                                     return ((dynamic)property).Value;
                                 }
-                                catch (COMException) { partial = true; return null; }
+                                catch (Exception ex) when (ex is COMException or
+                                    Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or
+                                    NullReferenceException)
+                                {
+                                    partial = true;
+                                    return null;
+                                }
                                 finally { Release(property); Release(properties); }
                             }
                             // RelPath da PRÓPRIA instância WMI é comparado às
@@ -187,13 +208,26 @@ internal static class WindowsStorageSensorProvider
                 physical.Add(new(new StorageIdentity(id,
                     Convert.ToString(get("FriendlyName"), CultureInfo.InvariantCulture) ?? ""), path));
             });
-            Query("SELECT DeviceId, Temperature, Wear, PowerOnHours FROM MSFT_StorageReliabilityCounter",
+            Query("SELECT DeviceId, Temperature, Wear, PowerOnHours, " +
+                "ReadErrorsTotal, ReadErrorsUncorrected, WriteErrorsTotal, " +
+                "WriteErrorsUncorrected, ReadLatencyMax, WriteLatencyMax, " +
+                "FlushLatencyMax, StartStopCycleCount, LoadUnloadCycleCount " +
+                "FROM MSFT_StorageReliabilityCounter",
                 (get, path) =>
             {
                 string id = Convert.ToString(get("DeviceId"), CultureInfo.InvariantCulture)?.Trim() ?? "";
                 if (id.Length == 0) { partial = true; return; }
-                reliability.Add(new(new StorageReliabilityRaw(id, get("Temperature"),
-                    get("Wear"), get("PowerOnHours")), path));
+                var raw = new StorageReliabilityRaw(id, get("Temperature"),
+                    get("Wear"), get("PowerOnHours"))
+                {
+                    Diagnostics = new StorageReliabilityCounterRaw(
+                        get("ReadErrorsTotal"), get("ReadErrorsUncorrected"),
+                        get("WriteErrorsTotal"), get("WriteErrorsUncorrected"),
+                        get("ReadLatencyMax"), get("WriteLatencyMax"),
+                        get("FlushLatencyMax"), get("StartStopCycleCount"),
+                        get("LoadUnloadCycleCount"))
+                };
+                reliability.Add(new(raw, path));
             });
             // REF é a evidência oficial de associação, mais forte que DeviceId
             // coincidente. Falha na classe de associação NÃO libera fallback.
