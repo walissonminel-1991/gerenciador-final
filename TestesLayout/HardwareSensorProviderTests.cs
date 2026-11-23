@@ -82,12 +82,44 @@ internal static class HardwareSensorProviderTests
               AcpiThermalZoneProvider.ConvertTenthsKelvin(5000u).Value is null,
               "temperatura ACPI deve converter décimos Kelvin sem atribuir a CPU");
 
+        var nil = MonitorReading<double>.Unavailable("Nenhum sensor");
+        var nilTime = MonitorReading<TimeSpan>.Unavailable("Nenhum contador");
+        var gpuIdentity = new NvidiaGpuSensorSample(0, "GPU de teste", null,
+            nil, nil, nil, nil, MonitorReading<ulong>.Unavailable("VRAM ausente"));
+        var gpuValue = gpuIdentity with
+        {
+            TemperatureC = MonitorReading<double>.Available(48, "GPU teste")
+        };
+        var sample = new LiveHardwareSample(DateTimeOffset.UtcNow,
+            nil, nil, null, nilTime, LiveHardwareSensors.Unavailable);
+        var inventory = new HardwareDiscoverySnapshot(DateTimeOffset.UtcNow,
+            HardwareDiscoveryState.Complete, [], "PnP teste", null);
+        var emptyGpu = new NvidiaGpuSensorSnapshot(DateTimeOffset.UtcNow, false, [], "Sem NVML");
+        var emptyStorage = WindowsStorageSensorProvider.Join(
+            [new StorageIdentity("disk-Q", "SSD teste")], []);
+        var emptyAcpi = new AcpiThermalZoneSnapshot(DateTimeOffset.UtcNow,
+            HardwareDiscoveryState.Unavailable, [], "Sem zonas");
+        var portfolio = new HardwareSensorPortfolio(DateTimeOffset.UtcNow, sample,
+            inventory, emptyGpu, emptyStorage, emptyAcpi);
+        Check(!portfolio.HasMeasuredGpu && !portfolio.HasMeasuredStorage,
+            "sensores ausentes não podem gerar monitor disponível");
+        var measured = portfolio with
+        {
+            NvidiaGpus = new NvidiaGpuSensorSnapshot(DateTimeOffset.UtcNow, true, [gpuValue], null),
+            Storage = WindowsStorageSensorProvider.Join(
+                [new StorageIdentity("disk-Q", "SSD teste")],
+                [new StorageReliabilityRaw("disk-Q", (byte)39, (byte)8, (ushort)100)])
+        };
+        Check(measured.HasMeasuredGpu && measured.HasMeasuredStorage,
+            "medidas legítimas devem aparecer individualizadas");
+
         if (probeNative && OperatingSystem.IsWindows())
         {
             var gpu = NvidiaNvmlSensorProvider.Capture();
             Check(gpu.Devices.Count <= 16 && gpu.CapturedAtUtc.Offset == TimeSpan.Zero,
                 "snapshot NVML excedeu teto ou data UTC");
-            Check(gpu.Devices.All(d => d.UsagePercent.Value is not { } v || v is >= 0 and <= 100),
+            Check(gpu.Devices.All(d => d.UsagePercent.Value is null ||
+                (d.UsagePercent.Value >= 0 && d.UsagePercent.Value <= 100)),
                 "GPU reportou porcentagem inválida");
             // Sem driver NVIDIA, GPU genérica permanece indisponível, não falha.
             var acpi = AcpiThermalZoneProvider.Capture(CancellationToken.None);
