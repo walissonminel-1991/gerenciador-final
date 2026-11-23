@@ -58,6 +58,42 @@ internal static class WindowsWddmGpuProviderTests
               aggregated.Adapters[1].DedicatedUsedBytes.Value == 1_234_000,
             "GPU por LUID confundiu adaptadores ou somou engines diferentes");
 
+        // O Windows pode relatar várias engines por GPU; 3D, cópia,
+        // compute e vídeo não são frações somáveis de uma engine única.
+        var multiEngine = WindowsWddmGpuProvider.Join(
+            [
+                new(engine3D, 12UL), new(another3D, 18UL),
+                new(engineCopy, 6UL),
+                new("pid_15_" + gpuA + "_eng_2_engtype_Compute_0", 53UL),
+                new("pid_16_" + gpuA + "_eng_3_engtype_VideoDecode", 24UL),
+                new("pid_17_" + gpuA + "_eng_4_engtype_VideoEncode", 0UL),
+                new("pid_18_" + gpuA + "_eng_5_engtype_3D", 41UL)
+            ], [new(gpuA, 1_234_567UL, 12_345UL)]);
+        var detail = multiEngine.Adapters.Single();
+        Check(multiEngine.State == HardwareDiscoveryState.Complete &&
+              detail.Engines.Count == 6 &&
+              detail.BusiestEnginePercent.Value == 53 &&
+              detail.BusiestOfType("3D").Value == 41 &&
+              detail.BusiestOfType("COPY").Value == 6 &&
+              detail.BusiestOfType("COMPUTE_0").Value == 53 &&
+              detail.BusiestOfType("VIDEODECODE").Value == 24 &&
+              detail.BusiestOfType("VIDEOENCODE").Value == 0 &&
+              detail.BusiestOfType("RAYTRACING").Value is null,
+            "as engines por tipo devem ser medidas separadamente, sem inventar somas");
+        Check(detail.Engines.Select(x => x.EngineType).Distinct().Count() >= 5 &&
+              detail.Engines.All(x => !x.EngineIndex.Contains("pid_", StringComparison.OrdinalIgnoreCase)),
+            "snapshot de engines não deve expor IDs de processos");
+        var enginesPartiais = WindowsWddmGpuProvider.Join(
+            [new(engine3D, 99UL), new(another3D, 90UL), new(engineCopy, 4UL)], []);
+        Check(enginesPartiais.State == HardwareDiscoveryState.Partial &&
+              enginesPartiais.Adapters.Single().BusiestOfType("3D").Value is null &&
+              enginesPartiais.Adapters.Single().BusiestOfType("COPY").Value == 4,
+            "engine impossível não pode contaminar os demais motores válidos");
+        var zeroMeasured = WindowsWddmGpuProvider.Join([new(engine3D, 0UL)], []);
+        Check(zeroMeasured.Adapters.Single().BusiestOfType("3D").Value == 0 &&
+              zeroMeasured.Adapters.Single().BusiestOfType("COMPUTE").Value is null,
+            "0% medido difere de engine não oferecido");
+
         var incomplete = WindowsWddmGpuProvider.Join(
             [new(engine3D, 99), new(another3D, 90), new(engineCopy, 16)],
             [new(gpuA, 60, 70), new(gpuA, 80, 90)]);
