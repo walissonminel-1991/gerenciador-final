@@ -179,8 +179,11 @@ internal static class BundlewareReviewTests
             _ => Task.CompletedTask).GetAwaiter().GetResult();
         if (!routed.SentToExecutor || dispatched != 1 ||
             routed.Outcomes.Count != 1 ||
-            routed.Outcomes[0].State != UninstallState.RegistrationAbsent)
-            throw new Exception("Bundleware: seleção não passou pelo executor real com dupla conferência.");
+            routed.Outcomes[0].State != UninstallState.RegistrationAbsent ||
+            routed.PostRemovalReviews.Count != 1 ||
+            routed.PostRemovalReviews[0].State != BundlePostRemovalState.RegistrationsAbsent ||
+            routed.PostRemovalReviews[0].ConfirmsCleanUninstall)
+            throw new Exception("Bundleware: executor e conciliação ARP não confirmaram apenas ausência de registros.");
         launchObserved = false;
         Task<int?> UncertainLaunch(UninstallRequest _, CancellationToken __) =>
             Task.FromException<int?>(new Exception("Falha sintética após iniciar executor"));
