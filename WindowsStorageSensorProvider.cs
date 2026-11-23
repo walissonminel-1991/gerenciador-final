@@ -135,12 +135,13 @@ internal static class WindowsStorageSensorProvider
             locator = Activator.CreateInstance(type);
             service = ((dynamic)locator!).ConnectServer(".", @"root\Microsoft\Windows\Storage");
 
-            var physical = new List<StorageIdentity>();
-            var reliability = new List<StorageReliabilityRaw>();
+            var physical = new List<StorageReferencedPhysical>();
+            var reliability = new List<StorageReferencedReliability>();
+            var associations = new List<StorageAssociationReference>();
             var clock = Stopwatch.StartNew();
             bool partial = false;
 
-            void Query(string sql, Action<Func<string, object?>> read)
+            void Query(string sql, Action<Func<string, object?>, string?> read)
             {
                 object? result = null;
                 try
@@ -167,7 +168,11 @@ internal static class WindowsStorageSensorProvider
                                 catch (COMException) { partial = true; return null; }
                                 finally { Release(property); Release(properties); }
                             }
-                            read(Get);
+                            // RelPath da PRÓPRIA instância WMI é comparado às
+                            // referências da associação, sem parsing de DeviceId.
+                            string? path = ReadRelPath(row);
+                            if (path is null) partial = true;
+                            read(Get, path);
                         }
                         finally { Release(row); }
                     }
@@ -175,19 +180,35 @@ internal static class WindowsStorageSensorProvider
                 finally { Release(result); }
             }
 
-            Query("SELECT DeviceId, FriendlyName FROM MSFT_PhysicalDisk", get =>
+            Query("SELECT DeviceId, FriendlyName FROM MSFT_PhysicalDisk", (get, path) =>
             {
                 string id = Convert.ToString(get("DeviceId"), CultureInfo.InvariantCulture)?.Trim() ?? "";
                 if (id.Length == 0) { partial = true; return; }
-                physical.Add(new(id, Convert.ToString(get("FriendlyName"), CultureInfo.InvariantCulture) ?? ""));
+                physical.Add(new(new StorageIdentity(id,
+                    Convert.ToString(get("FriendlyName"), CultureInfo.InvariantCulture) ?? ""), path));
             });
-            Query("SELECT DeviceId, Temperature, Wear, PowerOnHours FROM MSFT_StorageReliabilityCounter", get =>
+            Query("SELECT DeviceId, Temperature, Wear, PowerOnHours FROM MSFT_StorageReliabilityCounter",
+                (get, path) =>
             {
                 string id = Convert.ToString(get("DeviceId"), CultureInfo.InvariantCulture)?.Trim() ?? "";
                 if (id.Length == 0) { partial = true; return; }
-                reliability.Add(new(id, get("Temperature"), get("Wear"), get("PowerOnHours")));
+                reliability.Add(new(new StorageReliabilityRaw(id, get("Temperature"),
+                    get("Wear"), get("PowerOnHours")), path));
             });
-            return Join(physical, reliability, partial);
+            // REF é a evidência oficial de associação, mais forte que DeviceId
+            // coincidente. Falha na classe de associação NÃO libera fallback.
+            try
+            {
+                Query("SELECT PhysicalDisk, StorageReliabilityCounter FROM " +
+                    "MSFT_PhysicalDiskToStorageReliabilityCounter", (get, _) =>
+                {
+                    associations.Add(new(
+                        Convert.ToString(get("PhysicalDisk"), CultureInfo.InvariantCulture),
+                        Convert.ToString(get("StorageReliabilityCounter"), CultureInfo.InvariantCulture)));
+                });
+            }
+            catch (COMException) { partial = true; }
+            return StorageAssociationLinker.Join(physical, reliability, associations, partial);
         }
         catch (OperationCanceledException) { return Unavailable("Consulta Storage cancelada"); }
         catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or
@@ -197,6 +218,19 @@ internal static class WindowsStorageSensorProvider
             return Unavailable("Provedor Storage/WMI indisponível ou acesso negado");
         }
         finally { Release(service); Release(locator); }
+    }
+
+    private static string? ReadRelPath(object row)
+    {
+        object? path = null;
+        try
+        {
+            path = ((dynamic)row).Path_;
+            string? value = Convert.ToString(((dynamic)path!).RelPath, CultureInfo.InvariantCulture);
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch { return null; } // Sem Path_ válido, sem relação confiável.
+        finally { Release(path); }
     }
 
     private static void Release(object? obj)
