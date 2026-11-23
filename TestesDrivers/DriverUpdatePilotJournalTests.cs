@@ -16,9 +16,19 @@ internal static class DriverUpdatePilotJournalTests
                 @"PCI\VEN_0001&DEV_0002", "Fornecedor", "oem8.inf",
                 "1.0", "Image", "Driver sintetico");
             string path = Path.Combine(folder, "intent.json");
+            var never = DriverUpdatePilotFileJournal.InspectReadOnly(path);
+            Ensure(never.Disposition == DriverWuaJournalDisposition.NeverStarted &&
+                never.LastWrittenUtc is null && !never.RequiresSupervisedReview &&
+                !never.AuthorizesInstallation && !File.Exists(path),
+                "consulta tipada não cria diário nem autoriza instalação");
             using (var first = new DriverUpdatePilotFileJournal(path))
             {
                 Ensure(first.TryBegin(choice), "primeira intencao duravel rejeitada");
+                var begun = DriverUpdatePilotFileJournal.InspectReadOnly(path);
+                Ensure(begun.Disposition == DriverWuaJournalDisposition.PendingReconciliation &&
+                    begun.Phase == "InstallationStarted" &&
+                    begun.LastWrittenUtc.HasValue && !begun.AuthorizesInstallation,
+                    "intenção de instalação aberta continua pendente até confirmação");
                 using var concurrent = new DriverUpdatePilotFileJournal(path);
                 Ensure(!concurrent.TryBegin(choice),
                     "lock interinstancia nao bloqueou intencao concorrente");
@@ -26,6 +36,12 @@ internal static class DriverUpdatePilotJournalTests
             }
             Ensure(DriverUpdatePilotFileJournal.ReadOnlyStatus(path).Contains("conciliação"),
                 "a UI precisa sinalizar estado incerto sem alterar o diário");
+            var pendingSnapshot = DriverUpdatePilotFileJournal.InspectReadOnly(path);
+            Ensure(pendingSnapshot.Disposition == DriverWuaJournalDisposition.PendingReconciliation &&
+                pendingSnapshot.RequiresSupervisedReview &&
+                pendingSnapshot.Phase == nameof(DriverUpdatePilotState.InstallationUncertain) &&
+                !pendingSnapshot.AuthorizesInstallation,
+                "intenção incerta preserva bloqueio na API tipada");
             var bytes = File.ReadAllBytes(path);
             using (var recovered = new DriverUpdatePilotFileJournal(path))
                 Ensure(!recovered.TryBegin(choice) &&
@@ -39,6 +55,12 @@ internal static class DriverUpdatePilotJournalTests
             }
             Ensure(DriverUpdatePilotFileJournal.ReadOnlyStatus(successPath).Contains("verificada"),
                 "status somente leitura deve reconhecer conclusão válida");
+            var verifiedSnapshot = DriverUpdatePilotFileJournal.InspectReadOnly(successPath);
+            Ensure(verifiedSnapshot.Disposition == DriverWuaJournalDisposition.Verified &&
+                verifiedSnapshot.Phase == nameof(DriverUpdatePilotState.Verified) &&
+                !verifiedSnapshot.RequiresSupervisedReview &&
+                !verifiedSnapshot.AuthorizesInstallation,
+                "verificação guardada não se converte em autorização para nova instalação");
             using (var next = new DriverUpdatePilotFileJournal(successPath))
             {
                 Ensure(next.TryBegin(choice),
@@ -48,11 +70,22 @@ internal static class DriverUpdatePilotJournalTests
             using (var pending = new DriverUpdatePilotFileJournal(successPath))
                 Ensure(!pending.TryBegin(choice),
                     "reinicio pendente nao bloqueou transacao posterior");
+            Ensure(DriverUpdatePilotFileJournal.InspectReadOnly(successPath)
+                is { Disposition: DriverWuaJournalDisposition.PendingReconciliation,
+                     Phase: nameof(DriverUpdatePilotState.PendingReboot),
+                     RequiresSupervisedReview: true },
+                "reinício pendente continua pendente, não é sucesso");
             string corrupt = Path.Combine(folder, "corrupt.json");
             File.WriteAllText(corrupt, "{\"Phase\":\"Verified\",\"Sha256\":\"fake\"}");
             var untouched = File.ReadAllBytes(corrupt);
             Ensure(DriverUpdatePilotFileJournal.ReadOnlyStatus(corrupt).Contains("inválido"),
                 "status de diário corrompido deve falhar fechado");
+            Ensure(DriverUpdatePilotFileJournal.InspectReadOnly(corrupt)
+                is { Disposition: DriverWuaJournalDisposition.InvalidOrUnsafe,
+                     RequiresSupervisedReview: true, AuthorizesInstallation: false },
+                "registro com hash falso nunca aceita nova transação");
+            Ensure(File.ReadAllBytes(corrupt).SequenceEqual(untouched),
+                "consulta tipada não reescreveu arquivo inválido");
             using (var broken = new DriverUpdatePilotFileJournal(corrupt))
                 Ensure(!broken.TryBegin(choice) &&
                     File.ReadAllBytes(corrupt).SequenceEqual(untouched),
