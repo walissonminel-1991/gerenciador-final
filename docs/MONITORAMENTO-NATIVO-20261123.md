@@ -140,3 +140,20 @@ Contadores inválidos (sem valor, fora de 0..100 ou contribuição de processos 
 Testes `WindowsWddmGpuProviderTests` e `HardwareMonitoringDiagnosticReportTests`: 3D, Copy, Compute_0, VideoDecode, VideoEncode, categoria sem dados, 0% comprovado, motor inválido em coexistência com motor válido, mais de uma engine 3D e identidade por LUID/phys. Interface de UI não modificada; sensores de temperatura/RPM/potência de GPU AMD/Intel continuam indisponíveis sem fonte oficial.
 
 **Pendente:** CIs Windows e integridade do novo HEAD; nenhuma homologação física adicional em PC FORTE/FRACO foi executada.
+## Contadores oficiais de confiabilidade de armazenamento — 23/11/2026
+
+Gate anterior: HEAD `f127fc51c870fdafc979785995de320114d67130`, CI Windows #45244747069 SUCCESS (incluindo etapa Testes layout e RAM, política, Drivers 2022/2025, BETA e compilação Windows x64), integridade #45244747040 SUCCESS. A falha anterior de teste WDDM em `3D_suffix` foi corrigida sem alterar parser de produção nem workflows.
+
+Expansão `StorageReliabilityCounterMapper.cs`, `WindowsStorageSensorProvider.cs` e diagnóstico sem identificadores: leitura de `ReadErrorsTotal`, `ReadErrorsUncorrected`, `WriteErrorsTotal`, `WriteErrorsUncorrected`, `ReadLatencyMax`, `WriteLatencyMax`, `FlushLatencyMax`, `StartStopCycleCount` e `LoadUnloadCycleCount` via SELECT da classe oficial `MSFT_StorageReliabilityCounter`. Não chamar `Reset`, não acessar SMART bruto, não alterar estado do disco.
+
+**Identidade obrigatória:** essas métricas integram `StorageReliabilityRaw.Diagnostics` e são atribuídas a `StorageDeviceSensors.Diagnostics` **apenas** após o vínculo `MSFT_PhysicalDiskToStorageReliabilityCounter` via REF WMI local unívoco e DeviceId coerente. Discos sem relação REF continuam reconhecidos, mas `Diagnostics` é `null`. Duplicatas, identidades contraditórias e relação ausente não produzem métricas (fail-closed).
+
+**Disponibilidade e semântica:** contador de erros `0` é registrado como **zero informado pelo Windows**, não prova saúde física nem que o fabricante implementou integralmente a métrica. Latência máxima em milissegundos é publicada apenas para valores positivos e até 24h (limite conservador de plausibilidade); zero, nulo, sentinela e número inválido ficam indisponíveis. Ciclos operacionais positivos válidos são publicados; zero fica indisponível sem evidência de suporte. Se erros não corrigidos excederem o total informado, somente aquele par de contadores é invalidado e o snapshot torna-se parcial. Erros e latências não equivalem a nota de saúde ou desgaste SMART.
+
+Leitura WMI COM de campos opcionais tolera objeto/propriedade nulos ou RuntimeBinderException sem interromper a captura. O relatório agregador apresenta apenas quantidade de discos com métrica reportada, nunca DeviceId, nome, serial, valores individuais ou caminhos.
+
+Testes `StorageReliabilityCounterMapperTests.cs` cobrem conversão UInt64/string, limites, zero reportado versus ausência, inconsistência de erros, correspondência por REF, ordenação trocada, relações ausentes ou duplicadas e recusa da identificação contraditória. A suíte existente executa os casos sintéticos sem operação administrativa; sonda Storage continua opt-in e somente leitura.
+
+Referências oficiais: https://learn.microsoft.com/pt-br/windows-hardware/drivers/storage/msft-storagereliabilitycounter ; https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-physicaldisktostoragereliabilitycounter .
+
+**Pendente:** revalidar CI Windows e integridade no novo SHA, e homologar medições de sensores físicos no PC FORTE/PC FRACO autorizado. Não atribuir a GPU AMD/Intel temperatura, potência ou RPM sem fonte oficial comprovada; CPU, GPU, RAM e ACPI seguem isolados e inalterados.
