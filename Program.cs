@@ -3698,11 +3698,22 @@ internal sealed partial class MainForm : Form
                     Log("Bundleware — " + outcome.Request.Original.Name + ": " + review.Message);
                 }
             }
+            // A limpeza integrada usa apenas os resultados sem dependências
+            // OEM remanescentes. Não altera o desfecho do desinstalador nem
+            // remove silenciosamente componentes do pacote.
+            var cleanupCandidates = BundlewareReview.SafeResidualCleanupCandidates(
+                outcomes, bundleObservations);
+            foreach (var held in outcomes.Where(o =>
+                !cleanupCandidates.Contains(o)))
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(
+                    ResidualAppIdentity.From(held.Request.Original),
+                    "bundle_cleanup", "preserved",
+                    reason: "bundle_components_remaining_or_inconclusive"));
             ResidualBatchResult? cleanup = null;
             if (consent)
             {
                 Status("Conferindo resíduos dos aplicativos removidos...");
-                cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(outcomes, contexts,
+                cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(cleanupCandidates, contexts,
                     Inventory, (plans, token) => OnUninstallUiAsync(() => ConfirmUninstallCleanupAsync(plans, token)),
                     (plans, token) => OnUninstallUiAsync(() => RunElevatedAsync(ResidualElevatedProtocol.TaskName, plans, token, RecordResidualEvent)),
                     RecordResidualEvent, cancellation.Token,
