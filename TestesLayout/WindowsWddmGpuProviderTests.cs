@@ -76,6 +76,7 @@ internal static class WindowsWddmGpuProviderTests
               detail.BusiestOfType("3D").Value == 41 &&
               detail.BusiestOfType("COPY").Value == 6 &&
               detail.BusiestOfType("COMPUTE_0").Value == 53 &&
+              detail.BusiestOfType("COMPUTE").Value == 53 &&
               detail.BusiestOfType("VIDEODECODE").Value == 24 &&
               detail.BusiestOfType("VIDEOENCODE").Value == 0 &&
               detail.BusiestOfType("RAYTRACING").Value is null,
