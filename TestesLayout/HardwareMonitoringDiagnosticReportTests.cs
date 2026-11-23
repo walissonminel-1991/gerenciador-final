@@ -67,6 +67,10 @@ internal static class HardwareMonitoringDiagnosticReportTests
         };
         string confirmed = HardwareMonitoringDiagnosticReport.Format(measured);
         Check(confirmed.Contains("Intel 1", StringComparison.Ordinal) &&
+              confirmed.Contains("adaptadores não software: 1", StringComparison.Ordinal) &&
+              !confirmed.Contains("adaptadores físicos:", StringComparison.Ordinal) &&
+              confirmed.Contains("D3DKMT sem métricas válidas é inconclusivo", StringComparison.Ordinal) &&
+              !confirmed.Contains("indisponíveis sem provedor dedicado", StringComparison.Ordinal) &&
               confirmed.Contains("com engine observado: 1", StringComparison.Ordinal) &&
               confirmed.Contains("motores 3D: 1", StringComparison.Ordinal) &&
               confirmed.Contains("motores de cópia: 0", StringComparison.Ordinal) &&

@@ -84,7 +84,7 @@ internal static class HardwareMonitoringDiagnosticReport
             "Inventário PnP: " + State(portfolio.DeviceInventory.State) +
                 "; dispositivos observados: " + portfolio.DeviceInventory.DeviceCount,
             "DXGI: " + State(dxgi?.State ?? HardwareDiscoveryState.Unavailable) +
-                "; adaptadores físicos: " + physical.Length +
+                "; adaptadores não software: " + physical.Length +
                 " (AMD " + amd + ", Intel " + intel + ", NVIDIA " + nvidia +
                 ", outros " + other + ")",
             "GPU WDDM: " + State(wddm?.State ?? HardwareDiscoveryState.Unavailable) +
@@ -167,7 +167,7 @@ internal static class HardwareMonitoringDiagnosticReport
                 "; zonas: " + acpi.Count +
                 "; temperaturas válidas: " + WithValue(acpi.Select(x => x.TemperatureC)),
             "Temperaturas de CPU/chipset/VRM: indisponíveis sem sensor associado e comprovado.",
-            "AMD/Intel: temperatura de GPU, potência e RPM indisponíveis sem provedor dedicado.",
+            "GPU AMD/Intel/NVIDIA: D3DKMT sem métricas válidas é inconclusivo; NVML NVIDIA é fonte independente (ventoinha em %, não RPM).",
             "Não correlacionar UUID da NVML com LUID WDDM/DXGI sem evidência adicional."
         };
         return string.Join(Environment.NewLine, lines);
