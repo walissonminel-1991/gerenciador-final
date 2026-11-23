@@ -56,8 +56,11 @@ internal static class BundlewareReview
         if (!RegistryIdentity(id))
             return new(BundleReviewState.NotRegistryInstallation,
                 "Esta instalação não é uma entrada ARP examinada.", id, []);
-        if (!IsSafeMetadata(selected) || scan.Items.Any(app => !IsSafeMetadata(app)))
-            return Invalid("Metadados de instalador inválidos ou incompletos.");
+        // Um Registro de terceiro com metadados inválidos não invalida uma
+        // instalação independente. Falhar fechado para o próprio item
+        // escolhido e para componentes com ParentKeyName ligado a ele.
+        if (!IsSafeMetadata(selected))
+            return Invalid("Metadados do instalador selecionado inválidos.");
         var rows = scan.Items.Where(app => string.Equals(app.InventoryId, id,
             StringComparison.OrdinalIgnoreCase)).ToArray();
         if (rows.Length != 1 || !ReferenceEquals(rows[0], selected) ||
@@ -82,12 +85,15 @@ internal static class BundlewareReview
 
         string[] linked = id.Split('|');
         string ownKey = linked[2];
-        var children = scan.Items.Where(app => app.BundleParentKeyName.Length != 0 &&
+        var related = scan.Items.Where(app => app.BundleParentKeyName.Length != 0 &&
                 string.Equals(app.BundleParentKeyName, ownKey, StringComparison.OrdinalIgnoreCase) &&
                 app.InventoryId.StartsWith(linked[0] + "|" + linked[1] + "|",
                     StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(app.InventoryId, id, StringComparison.OrdinalIgnoreCase))
-            .Select(app => app.InventoryId)
+            .ToArray();
+        if (related.Any(app => !IsSafeMetadata(app)))
+            return Invalid("Componente relacionado possui metadados inconsistentes.");
+        var children = related.Select(app => app.InventoryId)
             .Order(StringComparer.OrdinalIgnoreCase).ToArray();
         bool bundled = children.Length != 0 || selected.BundleProviderKey.Length != 0;
         return new(bundled ? BundleReviewState.BundleRoot : BundleReviewState.Independent,
