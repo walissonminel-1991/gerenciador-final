@@ -126,7 +126,7 @@ internal static class D3dKmtGpuSensorProvider
         var result = new List<D3dKmtGpuReading>();
         foreach (var row in items.Take(MaxLogicalAdapters * MaxPhysicalAdapters))
         {
-            if (row.Key.PhysicalIndex >= MaxPhysicalAdapters || duplicateIds.Contains(row.Key))
+            if (row.Key.Physical >= MaxPhysicalAdapters || duplicateIds.Contains(row.Key))
             { partial = true; continue; }
             if (!row.HasPerformanceData) partial = true;
 
