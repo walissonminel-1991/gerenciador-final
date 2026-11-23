@@ -237,6 +237,57 @@ internal static class BundlewareReview
         }
     }
 
+    // Ligação com o fluxo de desinstalação já existente, sem comandos novos.
+    // snapshots provêm de ScanAllInstalledAppsForSafety (inclusive ARP ocultos).
+    // Verifica o vínculo antes de cada execução OEM, não só na prévia.
+    internal static bool RelationsStillSafe(UninstallRequest request,
+        UninstallSnapshot preview, UninstallSnapshot current)
+    {
+        if (request is null || preview is null || current is null ||
+            !preview.Complete || !current.Complete)
+            return false;
+        string id = request.Original.InventoryId;
+        // Não interferir nos fluxos não ARP (MSIX segue seu próprio executor).
+        if (!RegistryIdentity(id)) return true;
+        bool Registered(ProgramEntry app) =>
+            app.InventorySource.StartsWith("Registro:", StringComparison.OrdinalIgnoreCase);
+        var firstRows = preview.Items.Where(Registered).ToArray();
+        var latestRows = current.Items.Where(Registered).ToArray();
+        if (firstRows.GroupBy(app => app.InventoryId, StringComparer.OrdinalIgnoreCase)
+                .Any(group => group.Count() != 1) ||
+            latestRows.GroupBy(app => app.InventoryId, StringComparer.OrdinalIgnoreCase)
+                .Any(group => group.Count() != 1))
+            return false;
+        var old = firstRows.Where(app => string.Equals(app.InventoryId,
+            id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var now = latestRows.Where(app => string.Equals(app.InventoryId,
+            id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (old.Length != 1 || now.Length != 1 ||
+            !UninstallBatch.SameRegistration(request.Original, old[0]) ||
+            !UninstallBatch.SameRegistration(old[0], now[0]) ||
+            !IsSafeMetadata(old[0]) || !IsSafeMetadata(now[0]) ||
+            !string.Equals(old[0].BundleParentKeyName,
+                now[0].BundleParentKeyName, StringComparison.Ordinal) ||
+            !string.Equals(old[0].BundleProviderKey,
+                now[0].BundleProviderKey, StringComparison.Ordinal) ||
+            !string.Equals(old[0].BundleParentKeyName,
+                request.Original.BundleParentKeyName, StringComparison.Ordinal) ||
+            !string.Equals(old[0].BundleProviderKey,
+                request.Original.BundleProviderKey, StringComparison.Ordinal))
+            return false;
+        var first = new RegistryInventoryScan(firstRows, firstRows.Length, 0, 0, 0, 0)
+        { IncludesHiddenEntries = true };
+        var latest = new RegistryInventoryScan(latestRows, latestRows.Length, 0, 0, 0, 0)
+        { IncludesHiddenEntries = true };
+        var initialReview = Evaluate(first, old[0]);
+        var latestReview = Evaluate(latest, now[0]);
+        return initialReview.CanProposeRegisteredUninstall &&
+            latestReview.CanProposeRegisteredUninstall &&
+            initialReview.State == latestReview.State &&
+            initialReview.RegisteredChildren.SequenceEqual(latestReview.RegisteredChildren,
+                StringComparer.OrdinalIgnoreCase);
+    }
+
     // Gate por fotografia *atual* para o executor, antes do lançamento.
     // Evita remover componente aninhado mesmo por chamada direta antiga.
     internal static bool CanLaunchIndividual(ProgramEntry? app) =>
