@@ -107,6 +107,16 @@ internal static class BundlewareReviewTests
             FullScan, FakeLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
         if (stale.SentToExecutor || dispatched != 0)
             throw new Exception("Bundleware: dependência alterada foi aceita indevidamente.");
+        var atLaunchChanged = BundlewareReview.RunConfirmedSelectionAsync(
+            scan, [parent.InventoryId], true, FreshArp,
+            () => Task.FromResult(new UninstallSnapshot(
+                [parent, changedChild, independent], true)),
+            FakeLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
+        if (!atLaunchChanged.SentToExecutor || dispatched != 0 ||
+            atLaunchChanged.Outcomes.Count != 1 ||
+            atLaunchChanged.Outcomes[0].State != UninstallState.Blocked ||
+            atLaunchChanged.Outcomes[0].DiagnosticReason != "bundle_relationship_changed")
+            throw new Exception("Bundleware: alteração no último snapshot não foi recusada antes do uninstaller.");
         var routed = BundlewareReview.RunConfirmedSelectionAsync(
             scan, [parent.InventoryId], true, FreshArp, FullScan, FakeLaunch,
             _ => Task.CompletedTask).GetAwaiter().GetResult();
