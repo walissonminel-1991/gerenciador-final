@@ -107,6 +107,23 @@ internal static class DriverRecoveryVaultTests
                 observed.PublishedInf == "oem900.inf" &&
                 !observed.DeviceRestored && !observed.MayClearPendingAutomatically,
                 "Restore: assinatura, classe e INF observados não provam dispositivo restaurado");
+            int signatureChecks = 0;
+            DriverInfVerificationResult CountSignature(DriverStoreEvidence source)
+            {
+                signatureChecks++;
+                return Trusted(source);
+            }
+            var otherPackage = new DriverStoreEvidence("oem902.inf",
+                DriverStoreState.Mapped, inf, Path.Combine(folder, "outro.inf"));
+            var inventoryWithOther = observedSet with { Packages =
+                [new DriverPublishedPackage(otherPackage, 0, false),
+                 new DriverPublishedPackage(evidence, 0, false)] };
+            var filtered = DriverRecoveryVault.ReconcileWithEvidence(root, folder,
+                inventoryWithOther, CountSignature, _ => "Printer");
+            check(filtered.State == DriverRestoreReconcileState.MatchingInfObserved &&
+                signatureChecks == 1,
+                "Restore: somente INF de mesmo nome original é submetido à assinatura");
+
             check(DriverRecoveryVault.ReconcileWithEvidence(root, folder,
                 observedSet with { Partial = true }, Trusted, _ => "Printer").State ==
                     DriverRestoreReconcileState.Inconclusive &&
