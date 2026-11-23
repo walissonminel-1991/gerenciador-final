@@ -16,6 +16,15 @@ internal static class DriverHistory
     private static readonly object Gate = new();
     private const int MaxBytes = 2_000_000;
     private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+
+    // A chave do histórico é a associação identificada pelo WMI, não um
+    // HardwareID para casar ofertas ou instalar pacotes. IDs opacos sem barra
+    // ou com '?' são literais e só podem ser comparados como observações WMI.
+    // Recusar valores vazios, espaços periféricos, controles e entradas extensas.
+    private static bool ValidAssociationId(string? id) =>
+        id is { Length: > 0 and <= 4000 } &&
+        id == id.Trim() && !id.Any(char.IsControl);
+
     internal static Dictionary<string, string> Snapshot(DriverInventoryResult inventory)
     {
         // O historico v1 representa associacoes WMI assinadas, nao dispositivos
@@ -28,11 +37,11 @@ internal static class DriverHistory
         // qualquer perda de linhas brutas impede a substituicao do historico.
         if (inventory.Partial || inventory.Items.Count is 0 or > 4000 ||
             associated.Length == 0 ||
-            // Validar caracteres de controle ANTES de Trim(): newline no fim
-            // nao pode desaparecer e transformar identidade bruta invalida
-            // em fotografia historica confiavel.
-            inventory.Items.Any(x => x.DeviceId is null || x.DeviceId.Any(char.IsControl)) ||
-            identities.Any(x => !DriverInventory.ValidHardwareId(x)) ||
+            // Validar a identidade WMI bruta ANTES de Trim(): não usar o
+            // predicado de HardwareID, que rejeita formas WMI legítimas.
+            // A fotografia integral continua obrigatória; nenhuma linha é
+            // descartada silenciosamente para evitar falsas ausências.
+            inventory.Items.Any(x => !ValidAssociationId(x.DeviceId)) ||
             identities.Distinct(StringComparer.Ordinal).Count() != identities.Length ||
             (inventory.SignedRows > 0 && inventory.SignedRows != associated.Length))
             throw new InvalidDataException("Consulta ambigua ou incompleta nao substitui historico.");
