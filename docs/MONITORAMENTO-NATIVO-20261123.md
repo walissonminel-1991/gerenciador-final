@@ -229,3 +229,16 @@ O relatório sem identificadores e a sonda nativa publicam essas contagens de fo
 Não introduz nenhum driver, serviço, agendamento, instalação, privilégio, rede, biblioteca terceira nem alteração de workflows. CPU, DIMM, chipset e VRM continuam com sensores térmicos indisponíveis sem interface física comprovada; a plataforma WMI informa inventário e utilização lógica, não temperatura do componente. A homologação nos PCs FORTE/FRACO permanece pendente.
 
 **Gate novo pendente:** as CIs Windows e integridade devem concluir no SHA final desta ampliação; as contagens adicionais reais só serão relatadas quando os logs do runner comprovarem sua execução.
+## RAM — tensão configurada por módulo via Win32_PhysicalMemory
+
+Base de aceitação: PR Draft #106 em SHA `1d0b804621f5c48e9bae0d43bd4558bcdbd87025`, Windows #45266831080 SUCCESS (regressões, política de segurança, etapa 38 Testes layout e RAM e compilação Windows x64) e integridade #45266830751 SUCCESS.
+
+Na sonda física de **runner virtualizado** dessa CI, `D3DKMT_GPU estado=Partial; dxgi_nao_software=1; dispositivos_consultados=1; temperaturas=0; ventoinhasRPM=0; potenciasRelativas=0; frequenciasMemoria=0; sem_temperatura=1; sem_RPM=1; consulta_perf_ausente=1; caps_ausentes=0; desligadas_confirmadas=0; sem_metrica_valida=1`. Não foi falha de GPU nem validação de sensores AMD/Intel/NVIDIA reais. WMI reportou `PLATAFORMA consulta cpu_sockets=1 dimms=2 boards=1 cpu_instances=4`. Testes sintéticos e sonda nativa são evidências distintas.
+
+**Ampliação funcional, apenas leitura:** `WindowsPlatformHardwareProvider.cs` agora consulta a propriedade oficial `Win32_PhysicalMemory.ConfiguredVoltage` em `root\cimv2`, mantendo a identidade de cada módulo pelo par **BankLabel/DeviceLocator** sem usar índice de enumeração. O valor **SMBIOS configurado**, em milivolts, é apresentado somente quando número inteiro positivo plausível (500–5000 mV); `0`, nulo e valores impossíveis ficam `Unavailable`. Módulos com chave duplicada não recebem o campo. Propriedade opcional ausente não transforma módulo correto em erro; valores não nulos e impossíveis tornam a fonte parcial. Não equivale a sensor elétrico instantâneo, tensão do VRM ou medição térmica de DIMM.
+
+`HardwareMonitoringDiagnosticReport` e a sonda WMI passam a informar apenas o **número** de módulos com tensão configurada reportada, nunca identidade do slot nem milivolts particulares. Testes sintéticos cobrem 1200 mV reportados, 0/nulo desconhecido, negativo e valores fora de limite, além de privacidade no relatório. Nenhum driver, DLL, serviço, instalação, acesso administrativo, rede ou modificação de infraestrutura foi acrescentado.
+
+Documentação Microsoft: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-physicalmemory (propriedade `ConfiguredVoltage`, unidade mV e `0` desconhecido). CPU, chipset, VRM, GPU sem dados e temperaturas de DIMM continuam explicitamente indisponíveis sem fontes físicas verificáveis.
+
+**Status:** Gates Windows e integridade precisam validar os commits novos no SHA final desta etapa; a sonda RAM no runner pode retornar 0 módulos com tensão configurada, resultado honesto de indisponibilidade.
