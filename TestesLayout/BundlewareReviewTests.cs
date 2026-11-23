@@ -70,6 +70,33 @@ internal static class BundlewareReviewTests
                 new UninstallSnapshot(initialSnapshot.Items, false))
                 .Contains("não puderam ser conferidas", StringComparison.Ordinal))
             throw new Exception("Bundleware: aviso de impacto do pacote incorreto ou exagerado.");
+        var removedParent = new UninstallOutcome(executable, UninstallState.RegistrationAbsent);
+        var childSurvived = BundlewareReview.ObserveAfterUninstall(removedParent,
+            initialSnapshot, new UninstallSnapshot([child, independent], true));
+        var allArpGone = BundlewareReview.ObserveAfterUninstall(removedParent,
+            initialSnapshot, new UninstallSnapshot([independent], true));
+        var parentReturned = BundlewareReview.ObserveAfterUninstall(removedParent,
+            initialSnapshot, new UninstallSnapshot([parent, child, independent], true));
+        var uncertainAfter = BundlewareReview.ObserveAfterUninstall(removedParent,
+            initialSnapshot, new UninstallSnapshot([independent], false));
+        var incompleteUninstall = BundlewareReview.ObserveAfterUninstall(
+            new UninstallOutcome(executable, UninstallState.Pending), initialSnapshot,
+            new UninstallSnapshot([independent], true));
+        if (childSurvived.State != BundlePostRemovalState.ComponentsStillRegistered ||
+            childSurvived.RelatedBefore != 1 || childSurvived.RelatedRemaining != 1 ||
+            allArpGone.State != BundlePostRemovalState.RegistrationsAbsent ||
+            allArpGone.ConfirmsCleanUninstall || allArpGone.MayRemoveRemainingComponents ||
+            parentReturned.State != BundlePostRemovalState.ParentStillRegistered ||
+            uncertainAfter.State != BundlePostRemovalState.Inconclusive ||
+            incompleteUninstall.State != BundlePostRemovalState.PendingObservation)
+            throw new Exception("Bundleware: conciliação posterior de registros ARP promoveu conclusão ou perdeu dependências.");
+        var independentRequest = new UninstallRequest(independent, executable.Command);
+        var independentOutcome = new UninstallOutcome(independentRequest,
+            UninstallState.RegistrationAbsent);
+        if (BundlewareReview.ObserveAfterUninstall(independentOutcome, initialSnapshot,
+                new UninstallSnapshot([parent, child], true)).State !=
+                BundlePostRemovalState.NotApplicable)
+            throw new Exception("Bundleware: aplicativo independente ganhou falsa pendência de componentes.");
         var selected = BundlewareReview.PrepareUserSelection(scan, [parent.InventoryId]);
         if (!selected.Eligible || selected.Requests.Count != 1 ||
             selected.Requests[0].Original.InventoryId != parent.InventoryId)
