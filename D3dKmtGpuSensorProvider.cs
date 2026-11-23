@@ -21,7 +21,15 @@ internal sealed record D3dKmtGpuReading(
 
 internal sealed record D3dKmtGpuSnapshot(
     DateTimeOffset CapturedAtUtc, HardwareDiscoveryState State,
-    IReadOnlyList<D3dKmtGpuReading> Adapters, string? Limitation);
+    IReadOnlyList<D3dKmtGpuReading> Adapters, string? Limitation)
+{
+    // Contagens consultivas por adaptador físico, sem expor LUID, modelo,
+    // valores individuais ou inferir defeito do driver. Podem se sobrepor.
+    internal int WithoutPerformanceQuery { get; init; }
+    internal int WithoutCapabilitiesQuery { get; init; }
+    internal int ConfirmedPoweredOff { get; init; }
+    internal int WithoutAnyValidMetric { get; init; }
+}
 
 internal static class D3dKmtGpuSensorProvider
 {
@@ -125,6 +133,8 @@ internal static class D3dKmtGpuSensorProvider
             .Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
         if (duplicateIds.Count > 0) partial = true;
         var result = new List<D3dKmtGpuReading>();
+        int performanceMissing = 0, capabilitiesMissing = 0;
+        int powerOff = 0, noValidMetric = 0;
         foreach (var row in items.Take(MaxLogicalAdapters * MaxPhysicalAdapters))
         {
             if (row.Key.Physical >= MaxPhysicalAdapters || duplicateIds.Contains(row.Key))
@@ -133,6 +143,9 @@ internal static class D3dKmtGpuSensorProvider
             // Conservar a identidade do adaptador, mas não aceitar telemetria
             // de uma GPU que o próprio driver informa estar desligada.
             bool active = row.HasPerformanceData && row.IsPoweredOn;
+            if (!row.HasPerformanceData) performanceMissing++;
+            if (!row.HasCapabilities) capabilitiesMissing++;
+            if (row.HasPerformanceData && !row.IsPoweredOn) powerOff++;
             if (!active) partial = true;
 
             var unavailableTemp = MonitorReading<double>.Unavailable(Source + ".Temperature");
@@ -154,6 +167,8 @@ internal static class D3dKmtGpuSensorProvider
                 row.PowerTenthsPercent is >= 1 and <= 2_000;
             bool clockOk = active &&
                 row.MemoryFrequencyHz is >= 10_000_000 and <= 50_000_000_000;
+            if (!temperatureOk && !fanOk && !powerOk && !clockOk)
+                noValidMetric++;
             result.Add(new(row.Key,
                 temperatureOk
                     ? MonitorReading<double>.Available(row.TemperatureTenthsC / 10d,
@@ -177,7 +192,13 @@ internal static class D3dKmtGpuSensorProvider
                 partial ? HardwareDiscoveryState.Partial : HardwareDiscoveryState.Complete,
             result.AsReadOnly(),
             partial ? "GPU WDDM/driver sem sensores em alguns adaptadores" :
-                result.Count == 0 ? "Sem GPU física consultável" : null);
+                result.Count == 0 ? "Sem GPU física consultável" : null)
+        {
+            WithoutPerformanceQuery = performanceMissing,
+            WithoutCapabilitiesQuery = capabilitiesMissing,
+            ConfirmedPoweredOff = powerOff,
+            WithoutAnyValidMetric = noValidMetric
+        };
     }
 
     internal static D3dKmtGpuSnapshot Capture(DxgiGpuSnapshot dxgi, CancellationToken token)
