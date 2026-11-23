@@ -11,7 +11,8 @@ internal sealed record HardwareSensorPortfolio(
     StorageSensorsSnapshot Storage,
     AcpiThermalZoneSnapshot AcpiPlatform,
     WddmGpuSnapshot? WindowsGpuCounters = null,
-    DxgiGpuSnapshot? DxgiAdapters = null)
+    DxgiGpuSnapshot? DxgiAdapters = null,
+    WindowsPlatformHardwareSnapshot? PlatformHardware = null)
 {
     internal bool HasMeasuredGpu => NvidiaGpus.Devices.Any(x =>
         x.UsagePercent.Availability == MonitorAvailability.Available ||
@@ -56,6 +57,10 @@ internal static class HardwareSensorPortfolioReader
         token.ThrowIfCancellationRequested();
         var acpi = AcpiThermalZoneProvider.Capture(token);
         token.ThrowIfCancellationRequested();
-        return new(DateTimeOffset.UtcNow, baseSample, inventory, gpu, storage, acpi, wddm, dxgi);
+        // Dados SMBIOS e contadores por CPU lógica. O diagnóstico não
+        // associa esses dados a temperatura de pacote, VRM ou DIMM.
+        var platform = WindowsPlatformHardwareProvider.Capture(token);
+        token.ThrowIfCancellationRequested();
+        return new(DateTimeOffset.UtcNow, baseSample, inventory, gpu, storage, acpi, wddm, dxgi, platform);
     }
 }
