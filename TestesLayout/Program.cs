@@ -20,9 +20,10 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--monitoramento-wddm")) { WindowsWddmGpuProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-provedores")) { HardwareSensorProviderTests.Run(probeNative: true); return; }
         if (args.Contains("--monitoramento-descoberta")) { NativeHardwareDiscoveryTests.Run(includeRealWindowsScan: true); return; }
-        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); return; }
+        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
@@ -65,6 +66,7 @@ internal static class LayoutTests
         LiveHardwareMonitoringTests.Run();
         NativeHardwareDiscoveryTests.Run();
         HardwareSensorProviderTests.Run();
+        WindowsWddmGpuProviderTests.Run();
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         WheelScrollTests.Run();
