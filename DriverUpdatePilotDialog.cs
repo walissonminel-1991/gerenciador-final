@@ -269,7 +269,8 @@ internal static class DriverUpdatePilotDialog
                     Environment.NewLine + "VERSÃO OFERTADA: NÃO COMPROVADA. " +
                     "Esta oferta consultiva não prova atualização numericamente superior." +
                     Environment.NewLine + (nativeWua ?
-                        "G3.2: revalidação consultiva disponível. Instalação somente com backup e consentimento." :
+                        "G3.2: revalidação consultiva disponível. Instalação somente com backup e consentimento." +
+                        Environment.NewLine + DriverRecoveryVault.CaptureOverviewReadOnly().StatusForDriverPilot :
                         "Nenhuma instalação nesta compilação normal.");
             UpdateEligibility();
         };
