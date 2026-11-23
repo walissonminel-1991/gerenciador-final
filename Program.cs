@@ -4041,10 +4041,11 @@ internal static class WorkerHost
                 var sfc = await AppServices.RunCommandAsync("sfc.exe",
                     new[] { "/verifyonly" },
                     line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
-                var result = WindowsIntegrityAssessment.Interpret(
+                var detail = WindowsIntegrityAssessment.Assess(
                     dism.ExitCode, dism.StandardOutput + dism.StandardError,
                     sfc.ExitCode, sfc.StandardOutput + sfc.StandardError);
-                log("WINCHECK:" + result.ToString().ToUpperInvariant());
+                log("Resultado consultivo: " + detail.Summary);
+                log("WINCHECK:" + detail.Overall.ToString().ToUpperInvariant());
                 return 0; // inconclusivo nao libera reparo.
             }
             case "windows-repair":
@@ -4074,11 +4075,12 @@ internal static class WorkerHost
                 var sfcAfter = await AppServices.RunCommandAsync("sfc.exe",
                     new[] { "/verifyonly" },
                     line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
-                var verified = WindowsIntegrityAssessment.Interpret(
+                var verified = WindowsIntegrityAssessment.Assess(
                     dismAfter.ExitCode, dismAfter.StandardOutput + dismAfter.StandardError,
                     sfcAfter.ExitCode, sfcAfter.StandardOutput + sfcAfter.StandardError);
-                log(WindowsIntegrityAssessment.PostRepairWire(verified));
-                return verified == IntegrityState.Healthy ? 0 : 1;
+                log("Pós-reparo consultivo: " + verified.Summary);
+                log(WindowsIntegrityAssessment.PostRepairWire(verified.Overall));
+                return verified.FullyVerified ? 0 : 1;
             }
             case "flush-dns": return await Run("ipconfig.exe", "/flushdns");
             case "network-repair-winsock":
