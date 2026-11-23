@@ -32,6 +32,7 @@ internal static class HardwareMonitoringDiagnosticReportTests
               summary.Contains("GPU WDDM: indisponível", StringComparison.Ordinal) &&
               summary.Contains("NVIDIA NVML: indisponível", StringComparison.Ordinal) &&
               summary.Contains("Armazenamento WMI: completo", StringComparison.Ordinal) &&
+              summary.Contains("Confiabilidade Storage (contadores reportados, não saúde geral): erros leitura totais: 0", StringComparison.Ordinal) &&
               summary.Contains("Zonas térmicas ACPI: indisponível", StringComparison.Ordinal),
             "fontes indisponíveis não foram distinguidas");
         Check(!summary.Contains(secretDevice, StringComparison.Ordinal) &&
@@ -74,6 +75,7 @@ internal static class HardwareMonitoringDiagnosticReportTests
               !confirmed.Contains("NVIDIA de exemplo", StringComparison.Ordinal),
             "saída de diagnóstico vazou nomes ou UUID de GPUs");
         Check(confirmed.Contains("não é RPM", StringComparison.Ordinal) &&
+              confirmed.Contains("latências máximas leitura: 0", StringComparison.Ordinal) &&
               confirmed.Contains("CPU/chipset/VRM: indisponíveis", StringComparison.Ordinal),
             "saída atribuiu RPM ou sensor ACPI de CPU sem comprovação");
         Console.WriteLine("OK monitoramento: resumo consultivo sem identificadores e sensores não presumidos.");
