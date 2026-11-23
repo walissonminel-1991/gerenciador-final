@@ -457,6 +457,12 @@ internal static class DriverRecoveryVault
             foreach (var package in published.Packages)
             {
                 var evidence = package.Evidence;
+                // O arquivo original exportado é a identidade de pacote.
+                // Evita verificar milhares de INFs publicados sem relação
+                // com esta recuperação e mantém a checagem do hash exato.
+                if (!string.Equals(Path.GetFileName(evidence.StorePath),
+                    review.Receipt.OriginalInf, StringComparison.OrdinalIgnoreCase))
+                    continue;
                 var signature = verify(evidence);
                 if (signature.Trust != DriverInfTrust.VerifiedInf ||
                     !string.Equals(signature.Sha256, review.Receipt.InfSha256,
