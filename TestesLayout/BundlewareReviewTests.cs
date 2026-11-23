@@ -146,6 +146,33 @@ internal static class BundlewareReviewTests
             !uncertain.Reason.Contains("incerto", StringComparison.OrdinalIgnoreCase) ||
             uncertain.Reason.Contains("nenhuma remoção iniciada", StringComparison.OrdinalIgnoreCase))
             throw new Exception("Bundleware: falha após handoff foi tratada como nenhuma remoção.");
+        // Metadados quebrados de aplicativo não relacionado não interrompem
+        // a desinstalação registrada de outra suite; filhos ligados falham.
+        var unrelatedBroken = new ProgramEntry
+        {
+            Name = "Terceiro com metadados inválidos",
+            InventoryId = "CurrentUser|Registry64|OtherBad",
+            InventorySource = "Registro: Usuário atual (64 bits)",
+            BundleMetadataReliable = false, BundleParentKeyName = @"..\\other",
+            InventoryOnly = true
+        };
+        var withUnrelated = scan with { Items = [parent, child, independent, unrelatedBroken] };
+        if (!BundlewareReview.RelationsStillSafe(executable, initialSnapshot,
+                new UninstallSnapshot([parent, child, independent, unrelatedBroken], true)) ||
+            BundlewareReview.Evaluate(withUnrelated, parent).State != BundleReviewState.BundleRoot)
+            throw new Exception("Bundleware: metadados de terceiro afetaram pacote sem relação.");
+        var linkedBroken = new ProgramEntry
+        {
+            Name = child.Name, InventoryId = child.InventoryId,
+            InventorySource = child.InventorySource,
+            BundleParentKeyName = "BundleParent", BundleMetadataReliable = false,
+            InventoryOnly = true
+        };
+        if (BundlewareReview.RelationsStillSafe(executable, initialSnapshot,
+                new UninstallSnapshot([parent, linkedBroken, independent], true)) ||
+            BundlewareReview.Evaluate(scan with { Items = [parent, linkedBroken, independent] },
+                parent).CanProposeRegisteredUninstall)
+            throw new Exception("Bundleware: filho vinculado com metadados invalidos passou na barreira.");
         Console.WriteLine("OK: bundleware por identidade ARP e seleção de bloatware explícita; nenhuma desinstalação.");
     }
 }
