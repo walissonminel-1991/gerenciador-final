@@ -44,6 +44,14 @@ internal static class BundlewareReviewTests
             throw new Exception("Bundleware: componente, pai ou independente mal classificados.");
         if (!BundlewareReview.CanLaunchIndividual(parent))
             throw new Exception("Bundleware: raiz elegível não deveria ser tratada como filho.");
+        var executable = UninstallBatch.Select([parent]).Single();
+        var initialSnapshot = new UninstallSnapshot([parent, child, independent], true);
+        if (!BundlewareReview.RelationsStillSafe(executable, initialSnapshot, initialSnapshot) ||
+            BundlewareReview.RelationsStillSafe(executable, initialSnapshot,
+                new UninstallSnapshot([parent, independent], true)) ||
+            BundlewareReview.RelationsStillSafe(executable, initialSnapshot,
+                new UninstallSnapshot([parent, child, independent], false)))
+            throw new Exception("Bundleware: ligação ao executor padrão não preserva o relacionamento completo.");
         var selected = BundlewareReview.PrepareUserSelection(scan, [parent.InventoryId]);
         if (!selected.Eligible || selected.Requests.Count != 1 ||
             selected.Requests[0].Original.InventoryId != parent.InventoryId)
@@ -102,6 +110,10 @@ internal static class BundlewareReviewTests
             BundleParentKeyName = "OutroPacote", InventoryOnly = true
         };
         var changed = scan with { Items = [parent, changedChild, independent] };
+        if (BundlewareReview.RelationsStillSafe(executable, initialSnapshot,
+                new UninstallSnapshot([parent, changedChild, independent], true)))
+            throw new Exception("Bundleware: mudança da relação no executor padrão não foi bloqueada.");
+
         var stale = BundlewareReview.RunConfirmedSelectionAsync(
             scan, [parent.InventoryId], true, () => Task.FromResult(changed),
             FullScan, FakeLaunch, _ => Task.CompletedTask).GetAwaiter().GetResult();
