@@ -64,6 +64,16 @@ internal static class HardwareMonitoringDiagnosticReport
                     WithValue(wddm?.Adapters.Select(x => x.BusiestEnginePercent) ?? []) +
                 "; memória dedicada: " +
                     WithValue(wddm?.Adapters.Select(x => x.DedicatedUsedBytes) ?? []) +
+                "; motores 3D: " +
+                    WithValue(wddm?.Adapters.Select(x => x.BusiestOfType("3D")) ?? []) +
+                "; motores de cópia: " +
+                    WithValue(wddm?.Adapters.Select(x => x.BusiestOfType("COPY")) ?? []) +
+                "; motores compute: " +
+                    WithValue(wddm?.Adapters.Select(x => x.BusiestOfType("COMPUTE")) ?? []) +
+                "; motores decode de vídeo: " +
+                    WithValue(wddm?.Adapters.Select(x => x.BusiestOfType("VIDEODECODE")) ?? []) +
+                "; motores encode de vídeo: " +
+                    WithValue(wddm?.Adapters.Select(x => x.BusiestOfType("VIDEOENCODE")) ?? []) +
                 "; DXGI inequívocos: " + matched.Count(x => x.DxgiDescription is not null) +
                 "; PnP inequívocos: " + matched.Count(x => x.PnpInstanceId is not null),
             "NVIDIA NVML: " + (portfolio.NvidiaGpus.ProviderAvailable ? "disponível" : "indisponível") +
