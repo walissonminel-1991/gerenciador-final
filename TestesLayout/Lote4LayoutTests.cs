@@ -19,6 +19,12 @@ internal static class Lote4LayoutTests
         string expected = DarkLogView.NormalizeWindowsLineBreaks(history.Report([], false));
         var open = Descendants(owner).OfType<Button>()
             .Single(b => b.Name == "LocalReliabilityReportButton");
+        if (!open.Visible)
+        {
+            owner.Controls.Find("V269PaneToggle", true).OfType<Button>().Single().PerformClick();
+            Application.DoEvents();
+        }
+        if (!open.Visible) throw new Exception("L4 exportação local inacessível no painel compacto.");
         Exception? failure = null;
         int inspected = 0;
         using var timer = new System.Windows.Forms.Timer { Interval = 50 };

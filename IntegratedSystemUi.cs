@@ -250,7 +250,7 @@ internal sealed partial class MainForm
     private void FitSystemActionsHeight(TableLayoutPanel root, TableLayoutPanel actions)
     {
         if (root.IsDisposed || actions.IsDisposed || root.ClientSize.Width < 1) return;
-        int width = Math.Max(88,
+        int width = Math.Max(24,
             (root.ClientSize.Width - root.Padding.Horizontal) / 4 - 23);
         int minHeight = (int)Math.Ceiling(82d * Math.Max(1d, DeviceDpi / 96d));
         int height = minHeight;
@@ -525,9 +525,7 @@ internal sealed partial class MainForm
             {
                 int space = flow.ClientSize.Width - flow.Padding.Horizontal;
                 if (space <= 0) break;
-                int columns = _activeSystemView == "startup"
-                    ? StartupCardLayout.ColumnsForSpace(space, flow.DeviceDpi)
-                    : space >= 720 * Math.Max(1, flow.DeviceDpi / 96d) ? 2 : 1;
+                int columns = space >= 720 * Math.Max(1, flow.DeviceDpi / 96d) ? 2 : 1;
                 int cardWidth = StartupCardLayout.CardWidth(space, columns, flow.DeviceDpi);
                 int beforeWidth = flow.ClientSize.Width;
                 flow.SuspendLayout();

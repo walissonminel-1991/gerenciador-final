@@ -228,8 +228,9 @@ internal sealed class V269Shell : UserControl
     internal void SetOperationContent(Control content)
     {
         _rightPane.SetOperationContent(content);
-        var toggle = new Button { Text = "Painel", AccessibleName = "Mostrar ou ocultar painel de operações",
-            Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 3, 0, 0) };
+        var toggle = new Button { Name = "V269PaneToggle", Text = "Painel",
+            AccessibleName = "Mostrar ou ocultar painel de operações",
+            Dock = DockStyle.Top, Height = 30, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 3, 0, 0) };
         _paneToggle = toggle;
         toggle.Click += (_, _) =>
         {

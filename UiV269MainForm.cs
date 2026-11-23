@@ -368,6 +368,16 @@ internal sealed partial class MainForm
             _nav.PresentPanel(new(V269PanelKind.Details, title, description));
     }
 
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Escape && _v269Confirming)
+        {
+            _nav.RightPane.ResolveConfirmation(false);
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
     private async Task<bool> ConfirmV269Async(string title, string description, CancellationToken token = default)
     {
         if (_v269Confirming || IsDisposed || Disposing || !Visible || IsInTray || _betaClose.IsClosing) return false;
