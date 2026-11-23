@@ -79,12 +79,16 @@ internal static class DriverRecoveryVaultTests
             check(overview.UpdateJournal.Disposition ==
                     DriverWuaJournalDisposition.NeverStarted &&
                 overview.Backups.VerifiedCount == 1 &&
+                overview.StatusForDriverPilot.Contains("Cópias OEM verificadas: 1", StringComparison.Ordinal) &&
+                overview.StatusForDriverPilot.Contains("Nenhuma atualização", StringComparison.Ordinal) &&
+                !overview.StatusForDriverPilot.Contains(root, StringComparison.OrdinalIgnoreCase) &&
                 !overview.NeedsSupervisedReview &&
                 !overview.GrantsMaintenancePermission,
                 "Visao WUA+cofre: uma copia valida nao concede instalacao");
             var busyOverview = DriverRecoveryVault.CaptureOverviewReadOnlyForTest(
                 Path.Combine(root, "no-wua-journal.json"), root, true);
             check(busyOverview.NeedsSupervisedReview &&
+                busyOverview.StatusForDriverPilot.Contains("operação de Drivers ativa", StringComparison.Ordinal) &&
                 !busyOverview.GrantsMaintenancePermission,
                 "Visao WUA+cofre: outra operacao ativa impede conclusao segura");
             var availableCatalog = DriverRecoveryVault.BrowseBackupsForTest(root);
