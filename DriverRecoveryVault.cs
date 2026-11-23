@@ -57,6 +57,17 @@ internal sealed record DriverMaintenanceReadOnlyOverview(
     internal int PendingRecoveries => Backups.Items.Count(x =>
         x.State == DriverBackupCatalogState.PendingReconciliation);
     internal bool GrantsMaintenancePermission => false;
+
+    // Resumo sem identificadores, caminhos locais ou versões inferidas.
+    // A consulta ao cofre nunca substitui a prova OEM por pacote específico.
+    internal string StatusForDriverPilot =>
+        "Diário WUA: " + UpdateJournal.Disposition +
+        (UpdateJournal.OtherProcessHoldsLock ? " (outra sessão ativa)" : "") +
+        ". Cópias OEM verificadas: " + Backups.VerifiedCount +
+        "; recuperações pendentes: " + PendingRecoveries +
+        (Backups.Partial ? "; catálogo parcial/inconclusivo" : "") +
+        (OtherDriverOperationActive ? "; operação de Drivers ativa" : "") +
+        ". Nenhuma atualização ou recuperação autorizada por este resumo.";
 }
 
 internal static class DriverRecoveryVault
