@@ -90,6 +90,30 @@ internal static class DriverUpdatePilotJournalTests
                 Ensure(!broken.TryBegin(choice) &&
                     File.ReadAllBytes(corrupt).SequenceEqual(untouched),
                     "journal adulterado foi aceito/reescrito");
+            // Um enum numérico desconhecido continua inválido mesmo quando
+            // seu digest SHA-256 corresponde ao conteúdo serializado.
+            var stamped = DateTimeOffset.UtcNow;
+            const string numericPhase = "98765";
+            string hashedPayload = choice.UpdateId + "\n" + choice.Revision +
+                "\n" + choice.DeviceId + "\n" + numericPhase + "\n" +
+                stamped.ToUniversalTime().ToString("O",
+                    System.Globalization.CultureInfo.InvariantCulture);
+            string numericHash = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(hashedPayload)));
+            string numericPath = Path.Combine(folder, "numeric-phase.json");
+            File.WriteAllText(numericPath, System.Text.Json.JsonSerializer.Serialize(new
+            {
+                choice.UpdateId, choice.Revision, choice.DeviceId,
+                Phase = numericPhase, Timestamp = stamped, Sha256 = numericHash
+            }));
+            var numericOriginal = File.ReadAllBytes(numericPath);
+            Ensure(DriverUpdatePilotFileJournal.InspectReadOnly(numericPath)
+                is { Disposition: DriverWuaJournalDisposition.InvalidOrUnsafe,
+                     AuthorizesInstallation: false } &&
+                !DriverUpdatePilotFileJournal.MayBeginReadOnly(numericPath) &&
+                File.ReadAllBytes(numericPath).SequenceEqual(numericOriginal),
+                "fase numérica desconhecida com hash coerente deve ser inválida");
             Console.WriteLine("OK F2: journal atomico, lock exclusivo, estado incerto/reboot e integridade fail-closed; sem COM");
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
