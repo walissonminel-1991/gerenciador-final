@@ -35,6 +35,9 @@ internal static class StorageAssociationLinkerTests
             "caminho local absoluto e relativo devem indicar a mesma instância WMI");
         Check(StorageAssociationLinker.CanonicalReference(physicalA, "MSFT_StorageReliabilityCounter") is null &&
               StorageAssociationLinker.CanonicalReference(
+                @"\\REMOTE-UNTRUSTED\root\Microsoft\Windows\Storage:" + physicalA,
+                "MSFT_PhysicalDisk") is null &&
+              StorageAssociationLinker.CanonicalReference(
                 @"\\LOCALHOST\root\cimv2:" + physicalA, "MSFT_PhysicalDisk") is null &&
               StorageAssociationLinker.CanonicalReference(
                 "MSFT_Disk.Number=\"1\"", "MSFT_PhysicalDisk") is null &&
