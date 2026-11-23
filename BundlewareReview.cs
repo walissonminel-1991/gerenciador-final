@@ -46,8 +46,8 @@ internal static class BundlewareReview
         string id = selected?.InventoryId ?? "";
         BundleReview Invalid(string reason) =>
             new(BundleReviewState.Inconclusive, reason, id, []);
-        if (scan is null || selected is null || scan.ReadFailures != 0 ||
-            scan.Duplicates != 0)
+        if (scan is null || selected is null || !scan.IncludesHiddenEntries ||
+            scan.ReadFailures != 0 || scan.Duplicates != 0)
             return Invalid("Inventário ARP parcial ou ambíguo: não planejar remoção em grupo.");
         if (!RegistryIdentity(id))
             return new(BundleReviewState.NotRegistryInstallation,
@@ -98,7 +98,8 @@ internal static class BundlewareReview
     internal static BundleUninstallPreview PrepareUserSelection(
         RegistryInventoryScan? scan, IReadOnlyCollection<string>? selectedIds)
     {
-        if (scan is null || scan.ReadFailures != 0 || scan.Duplicates != 0 ||
+        if (scan is null || !scan.IncludesHiddenEntries ||
+            scan.ReadFailures != 0 || scan.Duplicates != 0 ||
             selectedIds is null || selectedIds.Count is < 1 or > 50 ||
             selectedIds.Any(id => !RegistryIdentity(id)))
             return new(false, "Seleção ou inventário incompleto.", [], []);
