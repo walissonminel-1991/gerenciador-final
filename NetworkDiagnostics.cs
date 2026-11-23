@@ -48,6 +48,18 @@ internal static class NetworkDiagnostics
             : valid.Select(g => (Local: local, Gateway: (IPAddress?)g)).ToArray();
     }
 
+    // Uma interface pode apresentar mais de um IPv4 de origem. Preservar
+    // cada par possível; escolher o primeiro ocultaria ambiguidade de rota.
+    internal static (IPAddress? Local, IPAddress? Gateway)[] Ipv4RouteCandidates(
+        IEnumerable<IPAddress> locals, IEnumerable<IPAddress> gateways)
+    {
+        var validLocals = locals.Where(HasUsableIpv4).Distinct().ToArray();
+        var listedGateways = gateways.ToArray();
+        return validLocals.Length == 0
+            ? Ipv4RouteCandidates((IPAddress?)null, listedGateways)
+            : validLocals.SelectMany(local => Ipv4RouteCandidates(local, listedGateways)).ToArray();
+    }
+
     // Escolher o caminho apenas quando há exatamente UM par de IPv4 local
     // e gateway válidos, independentemente de quantos adaptadores existam.
     // Sem consultar métricas Windows, não inferir rota preferencial.
@@ -138,9 +150,8 @@ internal static class NetworkDiagnostics
                 .SelectMany(n =>
                 {
                     var props = n.GetIPProperties();
-                    var local = props.UnicastAddresses.Select(a => a.Address)
-                        .FirstOrDefault(HasUsableIpv4);
-                    return Ipv4RouteCandidates(local,
+                    var locals = props.UnicastAddresses.Select(a => a.Address);
+                    return Ipv4RouteCandidates(locals,
                         props.GatewayAddresses.Select(g => g.Address))
                         .Select(candidate => (Adapter: n, candidate.Local, candidate.Gateway));
                 })
