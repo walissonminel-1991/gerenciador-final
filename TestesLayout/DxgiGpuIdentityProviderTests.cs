@@ -49,6 +49,18 @@ internal static class DxgiGpuIdentityProviderTests
             dxgiSnapshot with { Adapters = [dxgi, dxgi] }, inventory);
         Check(duplicated[0].DxgiDescription is null && duplicated[0].PnpInstanceId is null,
             "LUID duplicado não pode associar nome por posição");
+        // O mesmo LUID com phys distintos identifica engines distintas, mas
+        // o DXGI GetDesc1 não atesta qual instância física é qual.
+        var linked = wddm with { Adapters = [
+            wddm.Adapters[0],
+            wddm.Adapters[0] with { Key = new WddmGpuKey(1, 0x1234, 1) }
+        ] };
+        var linkedResults = DxgiGpuIdentityProvider.Correlate(linked, dxgiSnapshot, inventory);
+        Check(linkedResults.Count == 2 && linkedResults.All(x =>
+            x.DxgiDescription is null && x.PnpInstanceId is null &&
+            x.IdentitySource.Contains("compartilhado", StringComparison.Ordinal)),
+            "um mesmo LUID de duas GPUs físicas não prova identidade de cada phys");
+
         var partial = DxgiGpuIdentityProvider.Correlate(wddm,
             dxgiSnapshot, inventory with { State = HardwareDiscoveryState.Partial });
         Check(partial[0].DxgiDescription == "Intel Arc teste" &&
