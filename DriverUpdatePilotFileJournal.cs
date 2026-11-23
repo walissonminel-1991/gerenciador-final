@@ -4,6 +4,23 @@ using System.Text.Json;
 
 namespace GerenciadorAplicativos;
 
+// Consulta sem efeito colateral para coordenação WUA com os demais motores.
+// O estado consultivo nunca concede permissão de instalação, nem reabre
+// uma intenção pendente. O caminho físico usa os gates existentes.
+internal enum DriverWuaJournalDisposition
+{
+    NeverStarted, Verified, PendingReconciliation, InvalidOrUnsafe
+}
+internal sealed record DriverWuaJournalSnapshot(
+    DriverWuaJournalDisposition Disposition, string Phase,
+    DateTimeOffset? LastWrittenUtc, string Message)
+{
+    internal bool RequiresSupervisedReview =>
+        Disposition is DriverWuaJournalDisposition.PendingReconciliation or
+            DriverWuaJournalDisposition.InvalidOrUnsafe;
+    internal bool AuthorizesInstallation => false;
+}
+
 // Journal experimental para impedir repeticao apos queda, timeout ou resultado
 // incerto. Arquivo local separado do historico v1 de consultas.
 internal sealed class DriverUpdatePilotFileJournal(string path) :
@@ -35,6 +52,49 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
             return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
+    // Novo contrato consultivo: snapshot tipado do diário local. Nunca
+    // lista IDs de dispositivo, caminhos ou metadados de identificação.
+    // Cuidado: "Verified" atesta só o registro guardado, não a situação
+    // PnP atual nem uma nova autorização de manutenção.
+    internal static DriverWuaJournalSnapshot InspectReadOnly(string journalPath)
+    {
+        DriverWuaJournalSnapshot Invalid(string reason) => new(
+            DriverWuaJournalDisposition.InvalidOrUnsafe, "",
+            null, reason);
+        try
+        {
+            if (!SafeStorage(journalPath))
+                return Invalid("Diário WUA inseguro ou inacessível; operação bloqueada.");
+            if (!File.Exists(journalPath))
+                return new(DriverWuaJournalDisposition.NeverStarted, "", null,
+                    "Nenhuma intenção WUA observada nesta localização.");
+            using var input = new FileStream(journalPath, FileMode.Open, FileAccess.Read,
+                FileShare.Read);
+            if (input.Length is <= 0 or > 4096)
+                return Invalid("Diário WUA vazio ou fora do limite; preservar.");
+            var bytes = new byte[(int)input.Length];
+            input.ReadExactly(bytes);
+            if (input.ReadByte() != -1)
+                return Invalid("Diário WUA alterado durante leitura; preservar.");
+            var ledger = JsonSerializer.Deserialize<Ledger>(bytes);
+            if (ledger is null || !Valid(ledger) ||
+                ledger.Timestamp == default ||
+                ledger.Timestamp > DateTimeOffset.UtcNow.AddMinutes(5))
+                return Invalid("Diário WUA inválido; não sobrescrever.");
+            bool verified = ledger.Phase == nameof(DriverUpdatePilotState.Verified);
+            return new(verified ? DriverWuaJournalDisposition.Verified :
+                DriverWuaJournalDisposition.PendingReconciliation,
+                ledger.Phase, ledger.Timestamp, verified
+                    ? "Última operação registrada como verificada; nova operação ainda exige consulta e consentimento."
+                    : "Intenção WUA não verificada; conciliação supervisionada necessária.");
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return Invalid("Diário WUA indisponível (" + ex.GetType().Name +
+                "); nenhuma operação liberada.");
+        }
     }
 
     // G3.1: inspeção passiva e limitada a 4 KiB. Nunca cria, limpa ou
