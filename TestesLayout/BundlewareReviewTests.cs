@@ -98,6 +98,31 @@ internal static class BundlewareReviewTests
         var independentRequest = new UninstallRequest(independent, executable.Command);
         var independentOutcome = new UninstallOutcome(independentRequest,
             UninstallState.RegistrationAbsent);
+        var blockedCleanup = BundlewareReview.SafeResidualCleanupCandidates(
+            [removedParent, independentOutcome],
+            new Dictionary<string, BundlePostRemovalReview>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                [parent.InventoryId] = childSurvived
+            });
+        if (blockedCleanup.Length != 1 ||
+            blockedCleanup[0] != independentOutcome ||
+            BundlewareReview.SafeResidualCleanupCandidates(
+                [removedParent, independentOutcome],
+                new Dictionary<string, BundlePostRemovalReview>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                    [parent.InventoryId] = uncertainAfter
+                }).Length != 1 ||
+            BundlewareReview.SafeResidualCleanupCandidates(
+                [removedParent, independentOutcome],
+                new Dictionary<string, BundlePostRemovalReview>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                    [parent.InventoryId] = allArpGone
+                }).Length != 2)
+            throw new Exception("Bundleware: limpeza residual atingiria pacote OEM pendente ou preservaria programa independente.");
+
         if (BundlewareReview.ObserveAfterUninstall(independentOutcome, initialSnapshot,
                 new UninstallSnapshot([parent, child], true)).State !=
                 BundlePostRemovalState.NotApplicable)
