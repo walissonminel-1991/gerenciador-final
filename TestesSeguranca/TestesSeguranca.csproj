@@ -16,6 +16,7 @@
     <Compile Include="../SafeMaintenanceAudit.cs" Link="SafeMaintenanceAudit.cs" />
     <Compile Include="../WindowsIntegrityAssessment.cs" Link="WindowsIntegrityAssessment.cs" />
     <Compile Include="../NetworkRepairOutcome.cs" Link="NetworkRepairOutcome.cs" />
+    <Compile Include="../NetworkDiagnostics.cs" Link="NetworkDiagnostics.cs" />
     <Compile Include="../WindowsMaintenanceProgress.cs" Link="WindowsMaintenanceProgress.cs" />
     <Compile Include="../SingleVolumeOptimization.cs" Link="SingleVolumeOptimization.cs" />
     <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
