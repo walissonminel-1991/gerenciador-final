@@ -254,7 +254,11 @@ internal static class BundlewareReview
             return false;
         string id = request.Original.InventoryId;
         // Não interferir nos fluxos não ARP (MSIX segue seu próprio executor).
-        if (!RegistryIdentity(id)) return true;
+        // Entrada marcada "Registro:" com identidade malformada NÃO pode ser
+        // tratada como não ARP para contornar a revisão de dependências.
+        if (!RegistryIdentity(id))
+            return !request.Original.InventorySource.StartsWith("Registro:",
+                StringComparison.OrdinalIgnoreCase);
         bool Registered(ProgramEntry app) =>
             app.InventorySource.StartsWith("Registro:", StringComparison.OrdinalIgnoreCase);
         var firstRows = preview.Items.Where(Registered).ToArray();
