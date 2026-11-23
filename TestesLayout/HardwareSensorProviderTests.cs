@@ -75,6 +75,13 @@ internal static class HardwareSensorProviderTests
         Check(orphan.State == HardwareDiscoveryState.Partial,
             "telemetria sem dispositivo correspondente não é inventário completo");
 
+        Check(AcpiThermalZoneProvider.ConvertTenthsKelvin(null).Value is null &&
+              AcpiThermalZoneProvider.ConvertTenthsKelvin(0).Value is null &&
+              AcpiThermalZoneProvider.ConvertTenthsKelvin(3001u).Value is { } degrees &&
+              Math.Abs(degrees - 26.95) < 0.01 &&
+              AcpiThermalZoneProvider.ConvertTenthsKelvin(5000u).Value is null,
+              "temperatura ACPI deve converter décimos Kelvin sem atribuir a CPU");
+
         if (probeNative && OperatingSystem.IsWindows())
         {
             var gpu = NvidiaNvmlSensorProvider.Capture();
@@ -83,6 +90,9 @@ internal static class HardwareSensorProviderTests
             Check(gpu.Devices.All(d => d.UsagePercent.Value is not { } v || v is >= 0 and <= 100),
                 "GPU reportou porcentagem inválida");
             // Sem driver NVIDIA, GPU genérica permanece indisponível, não falha.
+            var acpi = AcpiThermalZoneProvider.Capture(CancellationToken.None);
+            Check(acpi.CapturedAtUtc.Offset == TimeSpan.Zero,
+                "ACPI não preservou timestamp UTC");
             var disks = WindowsStorageSensorProvider.Capture(CancellationToken.None);
             Check(disks.CapturedAtUtc.Offset == TimeSpan.Zero &&
                   disks.Disks.All(x => !string.IsNullOrWhiteSpace(x.Name)),
