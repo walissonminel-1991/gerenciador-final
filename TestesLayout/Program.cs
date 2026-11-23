@@ -86,7 +86,9 @@ internal static class LayoutTests
         NativeHardwareDiscoveryTests.Run();
         HardwareSensorProviderTests.Run();
         WindowsWddmGpuProviderTests.Run();
-        DxgiGpuIdentityProviderTests.Run();
+        // Exercitar a ABI DXGI em runners Windows sem forçar consultas WMI
+        // ou exigir GPU física no host de CI. Ausência é estado inconclusivo.
+        DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows());
         HardwareMonitoringDiagnosticReportTests.Run();
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
