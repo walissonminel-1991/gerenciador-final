@@ -112,6 +112,20 @@ Check(!partialIntegrity.FullyVerified &&
     failedDism.ComponentStore == IntegrityState.Inconclusive &&
     failedDism.Overall == IntegrityState.Inconclusive,
     "Diagnostico por componente: texto vago e exit nao zero nunca comprovam integridade.");
+Check(WindowsIntegrityAssessment.AssessReboot(false, false) ==
+        WindowsRepairRebootState.Clear &&
+    WindowsIntegrityAssessment.AssessReboot(true, false) ==
+        WindowsRepairRebootState.Pending &&
+    WindowsIntegrityAssessment.AssessReboot(false, true) ==
+        WindowsRepairRebootState.Pending &&
+    WindowsIntegrityAssessment.AssessReboot(true, null) ==
+        WindowsRepairRebootState.Pending &&
+    WindowsIntegrityAssessment.AssessReboot(false, null) ==
+        WindowsRepairRebootState.Inconclusive &&
+    WindowsIntegrityAssessment.AssessReboot(null, null) ==
+        WindowsRepairRebootState.Inconclusive,
+    "Reparo Windows: reinício CBS/WU bloqueia; ausência parcial de evidência nunca libera.");
+Console.WriteLine("OK: gate read-only de reinicio antes do consentimento e no worker elevado.");
 Console.WriteLine("OK: DISM e SFC consultivos com gating conservador.");
 Check(NetworkRepairOutcome.FromWire("DONE|0") == NetworkRepairWorkerState.CommandReturnedZero &&
     NetworkRepairOutcome.FromWire("DONE|5") == NetworkRepairWorkerState.CommandReturnedError &&
