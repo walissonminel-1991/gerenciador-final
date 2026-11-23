@@ -74,7 +74,11 @@ internal static class HardwareMonitoringDiagnosticReport
                 "; tensões SMBIOS configuradas em mV: " +
                     (platform?.RamModules.Count(x =>
                         x.ConfiguredMilliVolts.Value.HasValue) ?? 0) +
-                " (não são tensão instantânea nem temperatura de DIMM)",
+                " (não são tensão instantânea nem temperatura de DIMM)" +
+                "; faixas operacionais SMBIOS completas: " +
+                    (platform?.RamModules.Count(x =>
+                        x.MinMilliVolts.Value.HasValue && x.MaxMilliVolts.Value.HasValue) ?? 0) +
+                " (limites reportados, não medição elétrica)",
             "Placa-mãe WMI: " + State(platform?.MotherboardsState ??
                 HardwareDiscoveryState.Unavailable) +
                 "; placas identificadas: " + (platform?.Motherboards.Count ?? 0) +

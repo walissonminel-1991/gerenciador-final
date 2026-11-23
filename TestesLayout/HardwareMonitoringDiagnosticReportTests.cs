@@ -86,7 +86,7 @@ internal static class HardwareMonitoringDiagnosticReportTests
         var modules = WindowsPlatformHardwareProvider.Join(
             [new WmiCpuSocketRaw("CPU0", "CPU pessoal secreto", 8U, 16U, 3950U)],
             [new WmiRamModuleRaw("BANK0", "DIMM-SECRETO-1",
-                8_589_934_592UL, 3600U, 26U, 1234U)],
+                8_589_934_592UL, 3600U, 26U, 1234U, 1000U, 1500U)],
             [new WmiMotherboardRaw("Base Board", "Fabricante confidencial",
                 "Modelo placa pessoal 123", "Rev 1")],
             [new WmiLogicalCpuRaw("0", 17UL), new WmiLogicalCpuRaw("_Total", 40UL)]);
@@ -100,7 +100,10 @@ internal static class HardwareMonitoringDiagnosticReportTests
                   StringComparison.Ordinal) &&
               extended.Contains("Módulos RAM SMBIOS: completo; módulos identificados: 1; capacidades informadas: 1; clocks configurados: 1; tensões SMBIOS configuradas em mV: 1",
                   StringComparison.Ordinal) &&
+              extended.Contains("faixas operacionais SMBIOS completas: 1", StringComparison.Ordinal) &&
               !extended.Contains("1234", StringComparison.Ordinal) &&
+              !extended.Contains("1000", StringComparison.Ordinal) &&
+              !extended.Contains("1500", StringComparison.Ordinal) &&
               extended.Contains("Placa-mãe WMI: completo; placas identificadas: 1; fabricante/modelo informados: 1",
                   StringComparison.Ordinal) &&
               !extended.Contains("CPU pessoal secreto", StringComparison.Ordinal) &&

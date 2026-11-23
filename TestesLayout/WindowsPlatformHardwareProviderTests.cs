@@ -28,8 +28,8 @@ internal static class WindowsPlatformHardwareProviderTests
             new WmiCpuSocketRaw("CPU1", "Intel teste", 4U, 8U, 2600U)
         };
         var memory = new[] {
-            new WmiRamModuleRaw("BANK0", "DIMM_A2", "8589934592", 3200U, 26U, 1_200U),
-            new WmiRamModuleRaw("BANK1", "DIMM_B2", 8_589_934_592UL, 3200U, 26U, 0U)
+            new WmiRamModuleRaw("BANK0", "DIMM_A2", "8589934592", 3200U, 26U, 1_200U, 1_100U, 1_350U),
+            new WmiRamModuleRaw("BANK1", "DIMM_B2", 8_589_934_592UL, 3200U, 26U, 0U, 0U, 0U)
         };
         var motherboards = new[] {
             new WmiMotherboardRaw("Base Board", "Fabricante exemplo", "Modelo A", "Rev 2")
@@ -57,6 +57,10 @@ internal static class WindowsPlatformHardwareProviderTests
               complete.RamModules[0].SmbiosMemoryType == 26 &&
               complete.RamModules[0].ConfiguredMilliVolts.Value == 1200 &&
               complete.RamModules[0].ConfiguredMilliVolts.Source.Contains("SMBIOS", StringComparison.Ordinal) &&
+              complete.RamModules[0].MinMilliVolts.Value == 1100 &&
+              complete.RamModules[0].MaxMilliVolts.Value == 1350 &&
+              complete.RamModules[1].MinMilliVolts.Value is null &&
+              complete.RamModules[1].MaxMilliVolts.Value is null &&
               complete.RamModules[1].ConfiguredMilliVolts.Value is null &&
               complete.Motherboards.Count == 1 &&
               complete.Motherboards[0].Tag == "Base Board" &&
@@ -94,6 +98,34 @@ internal static class WindowsPlatformHardwareProviderTests
         Check(noVoltage.RamModulesState == HardwareDiscoveryState.Complete &&
               noVoltage.RamModules.All(x => x.ConfiguredMilliVolts.Value is null),
             "0 e null em ConfiguredVoltage indicam desconhecido, não 0 mV medidos");
+
+        var noBounds = WindowsPlatformHardwareProvider.Join(sockets,
+            [memory[0] with { MinVoltage = null, MaxVoltage = 0U }, memory[1]],
+            motherboards, loads);
+        Check(noBounds.RamModulesState == HardwareDiscoveryState.Complete &&
+              noBounds.RamModules[0].MinMilliVolts.Value is null &&
+              noBounds.RamModules[0].MaxMilliVolts.Value is null &&
+              noBounds.RamModules[0].ConfiguredMilliVolts.Value == 1200,
+            "limites SMBIOS ausentes não invalidam tensão configurada conhecida");
+
+        var reversedBounds = WindowsPlatformHardwareProvider.Join(sockets,
+            [memory[0] with { MinVoltage = 1_500U, MaxVoltage = 1_100U }, memory[1]],
+            motherboards, loads);
+        Check(reversedBounds.RamModulesState == HardwareDiscoveryState.Partial &&
+              reversedBounds.RamModules[0].MinMilliVolts.Value is null &&
+              reversedBounds.RamModules[0].MaxMilliVolts.Value is null &&
+              reversedBounds.RamModules[0].ConfiguredMilliVolts.Value == 1200 &&
+              reversedBounds.RamModules[0].CapacityBytes.Value.HasValue,
+            "intervalo SMBIOS contraditório não pode criar leitura nem apagar dados independentes");
+
+        var impossibleBounds = WindowsPlatformHardwareProvider.Join(sockets,
+            [memory[0] with { MinVoltage = -1L, MaxVoltage = 9_000U }, memory[1]],
+            motherboards, loads);
+        Check(impossibleBounds.RamModulesState == HardwareDiscoveryState.Partial &&
+              impossibleBounds.RamModules[0].MinMilliVolts.Value is null &&
+              impossibleBounds.RamModules[0].MaxMilliVolts.Value is null &&
+              impossibleBounds.RamModules[0].CapacityBytes.Value.HasValue,
+            "limites de tensão impossíveis não podem derrubar capacidade RAM válida");
 
         var duplicateRam = WindowsPlatformHardwareProvider.Join(sockets,
             memory.Append(memory[0] with { Capacity = 16_000_000_000UL }),
@@ -152,6 +184,8 @@ internal static class WindowsPlatformHardwareProviderTests
                 " dimms=" + native.RamModules.Count +
                 " dimms_voltagem_configurada=" +
                     native.RamModules.Count(x => x.ConfiguredMilliVolts.Value.HasValue) +
+                " dimms_faixa_tensao=" + native.RamModules.Count(x =>
+                    x.MinMilliVolts.Value.HasValue && x.MaxMilliVolts.Value.HasValue) +
                 " boards=" + native.Motherboards.Count +
                 " cpu_instances=" + native.MeasuredLogicalCpuInstances);
         }

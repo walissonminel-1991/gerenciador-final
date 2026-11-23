@@ -13,7 +13,8 @@ internal sealed record WmiCpuSocketRaw(
 internal sealed record WmiRamModuleRaw(
     string? BankLabel, string? DeviceLocator, object? Capacity,
     object? ConfiguredClockSpeed, object? SMBIOSMemoryType,
-    object? ConfiguredVoltage = null);
+    object? ConfiguredVoltage = null,
+    object? MinVoltage = null, object? MaxVoltage = null);
 internal sealed record WmiMotherboardRaw(
     string? Tag, string? Manufacturer, string? Product, string? Version);
 internal sealed record WmiLogicalCpuRaw(string? Name, object? PercentProcessorTime);
@@ -30,6 +31,10 @@ internal sealed record WindowsRamModule(
     // SMBIOS configurado, NÃO leitura elétrica instantânea nem sensor VRM.
     internal MonitorReading<double> ConfiguredMilliVolts { get; init; } =
         MonitorReading<double>.Unavailable("Windows WMI Win32_PhysicalMemory.ConfiguredVoltage");
+    internal MonitorReading<double> MinMilliVolts { get; init; } =
+        MonitorReading<double>.Unavailable("Windows WMI Win32_PhysicalMemory.MinVoltage");
+    internal MonitorReading<double> MaxMilliVolts { get; init; } =
+        MonitorReading<double>.Unavailable("Windows WMI Win32_PhysicalMemory.MaxVoltage");
 }
 internal sealed record WindowsMotherboard(
     string Tag, string? Manufacturer, string? Product, string? Version);
@@ -162,15 +167,28 @@ internal static class WindowsPlatformHardwareProvider
             ulong? mhz = UInt(raw.ConfiguredClockSpeed);
             ulong? memoryType = UInt(raw.SMBIOSMemoryType);
             ulong? millivolts = UInt(raw.ConfiguredVoltage);
+            ulong? minimumMillivolts = UInt(raw.MinVoltage);
+            ulong? maximumMillivolts = UInt(raw.MaxVoltage);
             // ConfiguredVoltage = 0 ou null significa "não informado"
             // segundo Win32_PhysicalMemory; não tornar o módulo inválido.
             // Valor presente mas impossível só afeta a confiabilidade da fonte.
             bool voltageProvided = raw.ConfiguredVoltage is not null &&
                 raw.ConfiguredVoltage is not DBNull;
             bool voltageValid = millivolts is >= 500 and <= 5_000;
+            bool minimumProvided = raw.MinVoltage is not null and not DBNull;
+            bool maximumProvided = raw.MaxVoltage is not null and not DBNull;
+            bool minimumValid = minimumMillivolts is >= 500 and <= 5_000;
+            bool maximumValid = maximumMillivolts is >= 500 and <= 5_000;
+            // Um intervalo mínimo > máximo é contraditório. Não se presume
+            // que a tensão configurada precise ficar dentro dele (ex.: XMP).
+            bool contradictoryBounds = minimumValid && maximumValid &&
+                minimumMillivolts!.Value > maximumMillivolts!.Value;
             if (capacity is null or < 16_777_216 or > 4_398_046_511_104 ||
                 mhz is null or < 100 or > 20_000 ||
-                (voltageProvided && millivolts != 0 && !voltageValid))
+                (voltageProvided && millivolts != 0 && !voltageValid) ||
+                (minimumProvided && minimumMillivolts != 0 && !minimumValid) ||
+                (maximumProvided && maximumMillivolts != 0 && !maximumValid) ||
+                contradictoryBounds)
                 memoryPartial = true;
             ramResult.Add(new(bank ?? "", slot ?? "",
                 capacity is >= 16_777_216 and <= 4_398_046_511_104
@@ -186,7 +204,17 @@ internal static class WindowsPlatformHardwareProvider
                     ? MonitorReading<double>.Available(millivolts!.Value,
                         Source + " Win32_PhysicalMemory.ConfiguredVoltage (mV SMBIOS reportados, não medidos)")
                     : MonitorReading<double>.Unavailable(
-                        Source + " Win32_PhysicalMemory.ConfiguredVoltage (0/nulo/fora da faixa)")
+                        Source + " Win32_PhysicalMemory.ConfiguredVoltage (0/nulo/fora da faixa)"),
+                MinMilliVolts = minimumValid && !contradictoryBounds
+                    ? MonitorReading<double>.Available(minimumMillivolts!.Value,
+                        Source + " Win32_PhysicalMemory.MinVoltage (mV SMBIOS, não medidos)")
+                    : MonitorReading<double>.Unavailable(
+                        Source + " Win32_PhysicalMemory.MinVoltage (0/nulo/inválido)"),
+                MaxMilliVolts = maximumValid && !contradictoryBounds
+                    ? MonitorReading<double>.Available(maximumMillivolts!.Value,
+                        Source + " Win32_PhysicalMemory.MaxVoltage (mV SMBIOS, não medidos)")
+                    : MonitorReading<double>.Unavailable(
+                        Source + " Win32_PhysicalMemory.MaxVoltage (0/nulo/inválido)")
             });
         }
 
@@ -316,12 +344,13 @@ internal static class WindowsPlatformHardwareProvider
                     get("NumberOfCores"), get("NumberOfLogicalProcessors"),
                     get("CurrentClockSpeed"))));
             bool ramOk = Query("SELECT BankLabel, DeviceLocator, Capacity, " +
-                "ConfiguredClockSpeed, SMBIOSMemoryType, ConfiguredVoltage FROM Win32_PhysicalMemory",
+                "ConfiguredClockSpeed, SMBIOSMemoryType, ConfiguredVoltage, " +
+                "MinVoltage, MaxVoltage FROM Win32_PhysicalMemory",
                 get => ram.Add(new(
                     Convert.ToString(get("BankLabel"), CultureInfo.InvariantCulture),
                     Convert.ToString(get("DeviceLocator"), CultureInfo.InvariantCulture),
                     get("Capacity"), get("ConfiguredClockSpeed"), get("SMBIOSMemoryType"),
-                    get("ConfiguredVoltage"))));
+                    get("ConfiguredVoltage"), get("MinVoltage"), get("MaxVoltage"))));
             bool boardOk = Query("SELECT Tag, Manufacturer, Product, Version FROM Win32_BaseBoard",
                 get => boards.Add(new(
                     Convert.ToString(get("Tag"), CultureInfo.InvariantCulture),
