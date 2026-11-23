@@ -65,6 +65,47 @@ internal static class LayoutTests
         if (msixWithoutFullName.UninstallAction != "uninstall-manual" ||
             new ProgramEntry { Name = "Win32", CanUninstall = true }.UninstallAction != "uninstall")
             throw new Exception("VF06: roteamento de MSIX incompleto ou Win32 foi alterado.");
+        if (args.Contains("--monitoramento-storage-relacao"))
+        {
+            StorageAssociationLinkerTests.Run();
+            StorageReliabilityCounterMapperTests.Run();
+            var live = WindowsStorageSensorProvider.Capture(CancellationToken.None);
+            Console.WriteLine("STORAGE_RELACAO estado=" + live.State +
+                "; discos=" + live.Disks.Count +
+                "; temperaturas=" + live.Disks.Count(x => x.TemperatureC.Value.HasValue));
+            return;
+        }
+        if (args.Contains("--monitoramento-resumo-nativo"))
+        {
+            // Diagnóstico explícito sem identificadores; COM WMI em STA.
+            // Não inventa dados quando driver/firmware não expõe sensores.
+            using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+            try
+            {
+                // CPU % usa delta temporal; a primeira leitura é somente base,
+                // e não pode ser mostrada como zero nem como uso instantâneo.
+                var monitor = new LiveHardwareMonitor();
+                monitor.Capture();
+                Thread.Sleep(300); // única espera curta desta sonda explícita
+                ct.Token.ThrowIfCancellationRequested();
+                var result = HardwareSensorPortfolioReader.CaptureOnDemand(
+                    monitor, ct.Token);
+                Console.WriteLine(HardwareMonitoringDiagnosticReport.Format(result));
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("GERENCIADOR FINAL — MONITORAMENTO — CONSULTA INCONCLUSIVA");
+                Console.WriteLine("Uma fonte de sensores excedeu o orçamento consultivo; nenhuma manutenção foi executada.");
+            }
+            return;
+        }
+        if (args.Contains("--monitoramento-plataforma")) { WindowsPlatformHardwareProviderTests.Run(probeNative: true); return; }
+        if (args.Contains("--monitoramento-d3dkmt")) { D3dKmtGpuSensorProviderTests.Run(probeNative: true); return; }
+        if (args.Contains("--monitoramento-dxgi")) { DxgiGpuIdentityProviderTests.Run(probeNative: true); return; }
+        if (args.Contains("--monitoramento-wddm")) { WindowsWddmGpuProviderTests.Run(probeNative: true); return; }
+        if (args.Contains("--monitoramento-provedores")) { HardwareSensorProviderTests.Run(probeNative: true); return; }
+        if (args.Contains("--monitoramento-descoberta")) { NativeHardwareDiscoveryTests.Run(includeRealWindowsScan: true); return; }
+        if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); D3dKmtGpuSensorProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); StorageReliabilityCounterMapperTests.Run(); WindowsPlatformHardwareProviderTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
         if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
@@ -104,6 +145,22 @@ internal static class LayoutTests
             if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
             return;
         }
+        LiveHardwareMonitoringTests.Run();
+        NativeHardwareDiscoveryTests.Run();
+        HardwareSensorProviderTests.Run();
+        WindowsWddmGpuProviderTests.Run();
+        // Exercitar a ABI DXGI em runners Windows sem forçar consultas WMI
+        // ou exigir GPU física no host de CI. Ausência é estado inconclusivo.
+        DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        // Homologação consultiva nativa no runner Windows já autorizado pelo
+        // workflow existente. Apenas lê o driver e publica contagens, sem IDs.
+        D3dKmtGpuSensorProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        HardwareMonitoringDiagnosticReportTests.Run();
+        StorageAssociationLinkerTests.Run();
+        StorageReliabilityCounterMapperTests.Run();
+        // Contadores e inventário WMI reais só no runner Windows. O teste
+        // registra contagens agregadas; chipset/VRM sem fonte física ficam sem leitura.
+        WindowsPlatformHardwareProviderTests.Run(probeNative: OperatingSystem.IsWindows());
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         WheelScrollTests.Run();
