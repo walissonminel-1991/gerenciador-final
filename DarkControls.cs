@@ -315,18 +315,7 @@ internal sealed class DarkProgramList : Control
         return (hover, down || (pulse && _pulseProgress < 0.75F), pulse ? _pulseProgress : 0F);
     }
 
-    internal bool AnimateButtonFeedback = true;
     private readonly ContextMenuStrip _appActionsMenu = new();
-
-    internal bool AllowsUpdate(ProgramEntry item) => _actionsEnabled &&
-        !_multiSelectMode && UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
-        OperationFor?.Invoke(item)?.PreventRetry != true &&
-        VerifiedUpdaters.GetPrimaryAction(item) is "update" or "terminal";
-
-    internal bool AllowsRemoval(ProgramEntry item) => _actionsEnabled &&
-        !_multiSelectMode && UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
-        OperationFor?.Invoke(item)?.Active != true &&
-        item.UninstallAction is "uninstall" or "msix-uninstall";
 
     private (ProgramEntry? Item, string Action) HitAction(Point point)
     {
@@ -338,11 +327,11 @@ internal sealed class DarkProgramList : Control
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
-        if (AllowsRemoval(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
+        if (this.AllowsRemoval(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
             return (item, item.UninstallAction);
-        if (AllowsUpdate(item) && AppRowGeometry.UpdateButton(bounds).Contains(point))
+        if (this.AllowsUpdate(item) && AppRowGeometry.UpdateButton(bounds).Contains(point))
             return (item, VerifiedUpdaters.GetPrimaryAction(item)!);
-        if (AllowsUpdate(item) && VerifiedUpdaters.GetOfficialPage(item) is not null &&
+        if (this.AllowsUpdate(item) && VerifiedUpdaters.GetOfficialPage(item) is not null &&
             AppRowGeometry.SiteButton(bounds).Contains(point)) return (item, "site");
         return (null, "");
     }
@@ -353,13 +342,13 @@ internal sealed class DarkProgramList : Control
         foreach (ToolStripItem previous in _appActionsMenu.Items.Cast<ToolStripItem>().ToArray())
             previous.Dispose();
         var update = VerifiedUpdaters.GetPrimaryAction(item);
-        Add("Atualizar", update, () => AllowsUpdate(item));
-        Add("Desinstalar", item.UninstallAction, () => AllowsRemoval(item));
+        Add("Atualizar", update, () => this.AllowsUpdate(item));
+        Add("Desinstalar", item.UninstallAction, () => this.AllowsRemoval(item));
         if (update is not null and not ("update" or "terminal"))
             Add(VerifiedUpdaters.PrimaryActionLabel(item), update, () => true);
         else if (VerifiedUpdaters.GetOfficialPage(item) is not null)
             Add("Site oficial", "site", () => true);
-        if (!AllowsRemoval(item) && item.UninstallAction == "uninstall-manual")
+        if (!this.AllowsRemoval(item) && item.UninstallAction == "uninstall-manual")
             Add("Gerenciar no Windows", "uninstall-manual", () =>
                 UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.Active != true);
         _appActionsMenu.Show(this, position);
@@ -561,7 +550,7 @@ internal sealed class DarkProgramList : Control
         bool click = hit is not null && ReferenceEquals(hit, _downItem) && action == _downAction;
         _downItem = null;
         _downAction = "";
-        if (click && !AnimateButtonFeedback) ItemActionClicked?.Invoke(hit!, action);
+        if (click && !this.V269Options().AnimateButtonFeedback) ItemActionClicked?.Invoke(hit!, action);
         else if (click)
         {
             // Feedback perceptível mesmo para a ação que abre o navegador instantaneamente.

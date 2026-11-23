@@ -777,7 +777,7 @@ internal sealed partial class MainForm : Form
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
-            if (!startServices) return;
+            if (!startServices || _v269Confirming) return;
             if (e.Page == V269Page.Limpeza) await RefreshDiskUsageAsync();
             if (e.Page == V269Page.Inicializacao) await RefreshStartupEntriesAsync();
             if (e.Page == V269Page.Sistema && _activeSystemView == "memory")
@@ -2212,19 +2212,20 @@ internal sealed partial class MainForm : Form
         _status.TextAlign = ContentAlignment.MiddleLeft;
         top.Controls.Add(_status, 0, 1);
         var localReport = CreateSecondaryButton("Histórico");
-        localReport.Name = "LocalReliabilityReportButton";
+        localReport.Name = "V269LocalHistory";
         localReport.AccessibleName = "Abrir histórico e relatório local";
         localReport.AccessibleDescription = "Relatório técnico local e comparação de inventários, somente leitura.";
         localReport.Dock = DockStyle.Fill;
         localReport.Font = new Font("Segoe UI", 8.2F, FontStyle.Bold);
         localReport.Margin = new Padding(5, 0, 0, 0);
-        localReport.Click += (_, _) => ShowLocalReliabilityReport();
+        localReport.Click += (_, _) => PresentV269History();
         _toolTips.SetToolTip(localReport, "Histórico técnico local e comparação de inventários; não executa operações.");
         top.Controls.Add(localReport, 2, 0);
         var export = CreateSecondaryButton("Exportar");
+        export.Name = "LocalReliabilityReportButton";
         export.Dock = DockStyle.Left;
         export.AccessibleName = "Exportar histórico local em texto";
-        export.Click += (_, _) => SaveLocalReliabilityReport();
+        export.Click += (_, _) => ShowLocalReliabilityReport();
         top.Controls.Add(export, 0, 0);
         AddUninstallCancelButton(top);
         top.SetColumnSpan(_status, 4);
@@ -2243,13 +2244,6 @@ internal sealed partial class MainForm : Form
     }
 
     private void ShowLocalReliabilityReport()
-    {
-        if (_busy || _nav.RightPane.Current?.Kind == V269PanelKind.Confirmation) return;
-        _nav.PresentPanel(new(V269PanelKind.History, "Histórico local",
-            _reliability.Report(_installed, _inventoryIncomplete)));
-    }
-
-    private void SaveLocalReliabilityReport()
     {
         string report = _reliability.Report(_installed, _inventoryIncomplete);
         using var dialog = new Form
@@ -2386,7 +2380,7 @@ internal sealed partial class MainForm : Form
         bool quietStartup, bool allowDuringBatch)
     {
         if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
-            allowDuringBatch) || _betaClose.IsClosing) return;
+            allowDuringBatch) || _v269Confirming || _betaClose.IsClosing) return;
         _busy = true;
         if (!quietStartup)
         {
@@ -2398,6 +2392,7 @@ internal sealed partial class MainForm : Form
             _progress.Style = CanAnimateV269 ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
             _progress.MarqueeAnimationSpeed = CanAnimateV269 ? 24 : 0;
         }
+        _operationResult = description;
         _status.Text = description;
         if (!quietStartup)
             _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", description));
@@ -2418,7 +2413,10 @@ internal sealed partial class MainForm : Form
                 }
                 _status.Text = _operationResult;
                 if (!quietStartup && _nav.RightPane.Current?.Kind == V269PanelKind.Progress)
-                    _nav.PresentPanel(new(V269PanelKind.Details, "Último estado", _operationResult));
+                    _nav.PresentPanel(new(V269PanelKind.Details, "Último estado",
+                        _operationResult == description
+                            ? "Nenhum desfecho adicional foi reportado. Consulte o registro."
+                            : _operationResult));
                 UpdateBulkButtons();
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
                     _checkUpdatesButton.Enabled = !_batchUpdatesActive;
@@ -2462,7 +2460,8 @@ internal sealed partial class MainForm : Form
                 // Verificar caminhos pode envolver disco lento ou indisponivel.
                 // Resolver antes de entregar o snapshot a thread da interface.
                 foreach (var item in result.Items)
-                    item.CanUninstall = ActionableInventory.CanUninstall(item);
+                    item.CanUninstall = !result.Incomplete && BundlewareReview.CanLaunchIndividual(item) &&
+                        ActionableInventory.CanUninstall(item);
                 return result;
             });
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -3656,6 +3655,14 @@ internal sealed partial class MainForm : Form
         {
             var requests = await Task.Run(() => UninstallBatch.Select(apps), cancellation.Token);
             var before = await Inventory();
+            if (requests.Length == 0 || !before.Complete ||
+                requests.Any(request => !BundlewareReview.RelationsStillSafe(request, before, before)))
+            {
+                foreach (var app in apps)
+                    SetUninstallProgress(app, "failed", "Inventário ou relação de pacote sem confirmação.");
+                Status("Revise o inventário antes de remover. Nenhum desinstalador foi iniciado.");
+                return;
+            }
             foreach (var request in requests)
             {
                 cancellation.Token.ThrowIfCancellationRequested();

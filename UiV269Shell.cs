@@ -206,6 +206,7 @@ internal sealed class V269Shell : UserControl
     private readonly Dictionary<V269Page, V269NavButton> _navigation = new();
     private readonly Dictionary<V269Page, Control> _pages = new();
     private readonly List<Font> _ownedFonts = [];
+    private int _appliedTextScale;
     private readonly TableLayoutPanel _columns;
     private readonly TableLayoutPanel _navigationLayout;
     private readonly Panel _sidebar;
@@ -420,6 +421,8 @@ internal sealed class V269Shell : UserControl
 
     private void ApplyFonts()
     {
+        if (_appliedTextScale == TextScalePercent) return;
+        _appliedTextScale = TextScalePercent;
         var previous = _ownedFonts.ToArray();
         _ownedFonts.Clear();
         Font NewFont(float size, FontStyle style = FontStyle.Regular)
@@ -523,12 +526,12 @@ internal sealed class V269Shell : UserControl
 
     protected override void Dispose(bool disposing)
     {
+        base.Dispose(disposing);
         if (disposing)
         {
             foreach (var font in _ownedFonts) font.Dispose();
             _ownedFonts.Clear();
         }
-        base.Dispose(disposing: disposing);
     }
 
     private sealed class V269NavButton : Button

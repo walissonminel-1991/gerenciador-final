@@ -129,7 +129,10 @@ internal sealed partial class MainForm
             var matching = dxgi.Where(adapter => !adapter.IsSoftware
                 && adapter.LuidHigh == gpu.Key.LuidHigh && adapter.LuidLow == gpu.Key.LuidLow).ToArray();
             if (matching.Length != 1) continue;
-            yield return ($"{matching[0].Name} · D3DKMT ({gpu.Key.Physical})",
+            bool singlePhysical = snapshot.D3dKmtGpuSensors!.Adapters.Count(adapter =>
+                adapter.Key.LuidHigh == gpu.Key.LuidHigh && adapter.Key.LuidLow == gpu.Key.LuidLow) == 1;
+            string name = singlePhysical ? matching[0].Name : "Adaptador físico " + gpu.Key.Physical;
+            yield return (name + " · D3DKMT",
                 $"Temperatura: {Measure(gpu.TemperatureC, x => $"{x:0.#} °C")}\n" +
                 $"Ventoinha: {Measure(gpu.FanRpm, x => $"{x:0} RPM")}\n" +
                 $"Potência relativa: {Measure(gpu.RelativePowerPercent, x => $"{x:0.#}%")}\n" +
@@ -241,11 +244,11 @@ internal sealed partial class MainForm
         view.Disposed += (_, _) => binder.Dispose();
         if (loadPreferences) _v269Appearance = ReadV269Appearance();
         binder.SetOptions(_v269Appearance);
-        _programList.AnimateButtonFeedback = CanAnimateV269;
+        _programList.V269Options().AnimateButtonFeedback = CanAnimateV269;
         appearance.AppearanceChanged += (_, _) =>
         {
             _v269Appearance = appearance.GetOptions().Normalize();
-            _programList.AnimateButtonFeedback = CanAnimateV269;
+            _programList.V269Options().AnimateButtonFeedback = CanAnimateV269;
             ApplyV269ContentAppearance(this);
             if (_progress.Style == ProgressBarStyle.Marquee && !CanAnimateV269)
             {
@@ -352,6 +355,13 @@ internal sealed partial class MainForm
         root.Invalidate();
     }
 
+    private void PresentV269History()
+    {
+        if (_busy || _v269Confirming) return;
+        _nav.PresentPanel(new(V269PanelKind.History, "Histórico local",
+            _reliability.Report(_installed, _inventoryIncomplete)));
+    }
+
     private void PresentV269Details(string title, string description)
     {
         if (!_busy && _nav.RightPane.Current?.Kind is not (V269PanelKind.Progress or V269PanelKind.Result))
@@ -377,4 +387,31 @@ internal sealed partial class MainForm
                 previouslyFocused.Focus();
         }
     }
+}
+
+
+internal sealed class V269ProgramListOptions
+{
+    internal bool AnimateButtonFeedback = true;
+}
+
+internal static class V269ProgramListActions
+{
+    private static readonly ConditionalWeakTable<DarkProgramList, V269ProgramListOptions> Options = new();
+
+    internal static V269ProgramListOptions V269Options(this DarkProgramList list) =>
+        Options.GetValue(list, static _ => new());
+
+    internal static bool AllowsUpdate(this DarkProgramList list, ProgramEntry item) =>
+        list.ActionsEnabled && !list.MultiSelectMode &&
+        list.UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
+        list.OperationFor?.Invoke(item)?.PreventRetry != true &&
+        VerifiedUpdaters.GetPrimaryAction(item) is "update" or "terminal";
+
+    internal static bool AllowsRemoval(this DarkProgramList list, ProgramEntry item) =>
+        list.ActionsEnabled && !list.MultiSelectMode &&
+        list.UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
+        list.OperationFor?.Invoke(item)?.Active != true &&
+        (item.UninstallAction == "msix-uninstall" ||
+            item.UninstallAction == "uninstall" && BundlewareReview.CanLaunchIndividual(item));
 }
