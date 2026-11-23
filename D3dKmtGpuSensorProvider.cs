@@ -160,7 +160,7 @@ internal static class D3dKmtGpuSensorProvider
                     : unavailableFan,
                 powerOk
                     ? MonitorReading<double>.Available(row.PowerTenthsPercent / 10d,
-                        Source + ".Power (percentagem relativa, nunca watts)")
+                        Source + ".Power (percentagem relativa, não W)")
                     : unavailablePower,
                 clockOk
                     ? MonitorReading<double>.Available(row.MemoryFrequencyHz / 1_000_000d,
