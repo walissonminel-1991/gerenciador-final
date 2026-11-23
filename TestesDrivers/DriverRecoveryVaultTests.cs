@@ -8,6 +8,32 @@ internal static class DriverRecoveryVaultTests
 {
     internal static void Run(Action<bool, string> check)
     {
+        // Um backup manual, staging ou exclusão nunca é uma sessão WUA.
+        check(!DriverG32RecoveryTicket.TryBeginOperation((DriverG32OperationKind)99),
+            "Motor Drivers: espécie inválida não adquire trava");
+        check(DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Export),
+            "Motor Drivers: backup adquire lease exclusivo");
+        try
+        {
+            check(DriverG32RecoveryTicket.HasActiveOperation &&
+                !DriverG32RecoveryTicket.HasUpdateOperation &&
+                !DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Update),
+                "Motor Drivers: backup não se converte em permissão WUA e impede paralelismo");
+        }
+        finally { DriverG32RecoveryTicket.EndOperation(); }
+        check(DriverG32RecoveryTicket.TryBeginOperation(),
+            "Motor Drivers: WUA adquire nova sessão");
+        try
+        {
+            check(DriverG32RecoveryTicket.HasUpdateOperation &&
+                !DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Stage) &&
+                !DriverG32RecoveryTicket.TryBeginOperation(DriverG32OperationKind.Uninstall),
+                "Motor Drivers: sessão WUA exclui staging e desinstalação");
+        }
+        finally { DriverG32RecoveryTicket.EndOperation(); }
+        check(!DriverG32RecoveryTicket.HasActiveOperation &&
+            !DriverG32RecoveryTicket.HasUpdateOperation,
+            "Motor Drivers: lease encerrado revoga autoridade de execução");
         const string id = @"PCI\VEN_1111&DEV_2222\INSTANCE";
         var store = new DriverStoreEvidence("oem17.inf", DriverStoreState.Mapped,
             @"C:\Windows\INF\oem17.inf",
