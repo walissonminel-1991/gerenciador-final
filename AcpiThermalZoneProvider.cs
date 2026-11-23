@@ -60,15 +60,9 @@ internal static class AcpiThermalZoneProvider
                     if (zones.Count >= MaxZones) { partial = true; break; }
                     object? Get(string key)
                     {
-                        object? properties = null, property = null;
-                        try
-                        {
-                            properties = ((dynamic)row).Properties_;
-                            property = ((dynamic)properties).Item(key);
-                            return ((dynamic)property).Value;
-                        }
-                        catch (COMException) { partial = true; return null; }
-                        finally { Release(property); Release(properties); }
+                        object? value = ReadWmiValueOrNull(row, key, out bool unreadable);
+                        if (unreadable) partial = true;
+                        return value;
                     }
                     string name = (Convert.ToString(Get("InstanceName"), CultureInfo.InvariantCulture) ?? "").Trim();
                     if (name.Length == 0 || name.Length > 256 || name.Any(char.IsControl) ||
@@ -87,6 +81,43 @@ internal static class AcpiThermalZoneProvider
             System.Security.SecurityException)
         { return Unavailable("Firmware não publicou zonas ACPI consultáveis"); }
         finally { Release(rows); Release(service); Release(locator); }
+    }
+
+    // Uma propriedade WMI opcional pode retornar objeto COM nulo em máquinas
+    // com zonas ACPI incompletas. Um campo ilegível é inconclusivo, não uma
+    // exceção que derruba os demais provedores.
+    internal static object? ReadWmiValueOrNull(object? row, string key, out bool unreadable)
+    {
+        unreadable = false;
+        object? properties = null, property = null;
+        try
+        {
+            if (row is null || string.IsNullOrWhiteSpace(key))
+            {
+                unreadable = true;
+                return null;
+            }
+            properties = ((dynamic)row).Properties_;
+            if (properties is null)
+            {
+                unreadable = true;
+                return null;
+            }
+            property = ((dynamic)properties).Item(key);
+            if (property is null)
+            {
+                unreadable = true;
+                return null;
+            }
+            return ((dynamic)property).Value;
+        }
+        catch (Exception ex) when (ex is COMException or
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or NullReferenceException)
+        {
+            unreadable = true;
+            return null;
+        }
+        finally { Release(property); Release(properties); }
     }
 
     private static void Release(object? value)
