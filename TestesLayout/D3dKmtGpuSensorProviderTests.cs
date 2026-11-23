@@ -23,8 +23,12 @@ internal static class D3dKmtGpuSensorProviderTests
                 2800, 950, true, true)
         };
         var all = D3dKmtGpuSensorProvider.Join([rows[2], rows[0], rows[1]]);
-        Check(all.State == HardwareDiscoveryState.Complete && all.Adapters.Count == 3,
-            "chaves por LUID/phys precisam preservar GPUs e ordem sem misturar");
+        Check(all.State == HardwareDiscoveryState.Complete && all.Adapters.Count == 3 &&
+              all.WithoutPerformanceQuery == 0 &&
+              all.WithoutCapabilitiesQuery == 1 &&
+              all.ConfirmedPoweredOff == 0 &&
+              all.WithoutAnyValidMetric == 0,
+            "chaves por LUID/phys e fontes consultadas não podem misturar GPUs");
         var a = all.Adapters.Single(x => x.Key == amd);
         Check(a.TemperatureC.Value == 66.5 &&
               a.FanRpm.Value == 1250 &&
@@ -53,8 +57,12 @@ internal static class D3dKmtGpuSensorProviderTests
               reject.Adapters.Single(x => x.Key == amd).RelativePowerPercent.Value is null &&
               reject.Adapters.Single(x => x.Key == amd).MemoryFrequencyMhz.Value is null &&
               reject.Adapters.Single(x => x.Key == intel).MemoryFrequencyMhz.Value is null &&
-              reject.State == HardwareDiscoveryState.Partial,
-            "valores impossíveis ou driver que não responde não podem ser exibidos");
+              reject.State == HardwareDiscoveryState.Partial &&
+              reject.WithoutPerformanceQuery == 1 &&
+              reject.WithoutCapabilitiesQuery == 1 &&
+              reject.ConfirmedPoweredOff == 0 &&
+              reject.WithoutAnyValidMetric == 2,
+            "valores impossíveis e falha de desempenho têm contagens independentes");
         var poweredOff = D3dKmtGpuSensorProvider.Join([
             rows[0] with { IsPoweredOn = false }
         ]);
@@ -64,15 +72,29 @@ internal static class D3dKmtGpuSensorProviderTests
               poweredOff.Adapters[0].TemperatureC.Value is null &&
               poweredOff.Adapters[0].FanRpm.Value is null &&
               poweredOff.Adapters[0].RelativePowerPercent.Value is null &&
-              poweredOff.Adapters[0].MemoryFrequencyMhz.Value is null,
-            "GPU que o driver informa desligada deve conservar identidade sem leituras ativas");
+              poweredOff.Adapters[0].MemoryFrequencyMhz.Value is null &&
+              poweredOff.ConfirmedPoweredOff == 1 &&
+              poweredOff.WithoutPerformanceQuery == 0 &&
+              poweredOff.WithoutAnyValidMetric == 1,
+            "GPU desligada confirmada não equivale a consulta de desempenho ausente");
         var poweredMixed = D3dKmtGpuSensorProvider.Join([
             rows[0] with { IsPoweredOn = false }, rows[2]
         ]);
         Check(poweredMixed.State == HardwareDiscoveryState.Partial &&
               poweredMixed.Adapters.Single(x => x.Key == nvidia).TemperatureC.Value == 53 &&
-              poweredMixed.Adapters.Single(x => x.Key == amd).TemperatureC.Value is null,
+              poweredMixed.Adapters.Single(x => x.Key == amd).TemperatureC.Value is null &&
+              poweredMixed.ConfirmedPoweredOff == 1 &&
+              poweredMixed.WithoutAnyValidMetric == 1,
             "GPU desligada não pode invalidar sensores de outro LUID");
+
+        var unanswered = D3dKmtGpuSensorProvider.Join([
+            rows[1] with { HasPerformanceData = false, IsPoweredOn = false }
+        ]);
+        Check(unanswered.WithoutPerformanceQuery == 1 &&
+              unanswered.ConfirmedPoweredOff == 0 &&
+              unanswered.WithoutAnyValidMetric == 1 &&
+              unanswered.Adapters.Single().TemperatureC.Value is null,
+            "GPU sem resposta D3DKMT não pode ser classificada como desligada");
 
         var duplicate = D3dKmtGpuSensorProvider.Join([rows[0], rows[0]]);
         Check(duplicate.State == HardwareDiscoveryState.Unavailable &&
@@ -126,6 +148,10 @@ internal static class D3dKmtGpuSensorProviderTests
                 "; frequenciasMemoria=" + native.Adapters.Count(x => x.MemoryFrequencyMhz.Value.HasValue) +
                 "; sem_temperatura=" + native.Adapters.Count(x => !x.TemperatureC.Value.HasValue) +
                 "; sem_RPM=" + native.Adapters.Count(x => !x.FanRpm.Value.HasValue) +
+                "; consulta_perf_ausente=" + native.WithoutPerformanceQuery +
+                "; caps_ausentes=" + native.WithoutCapabilitiesQuery +
+                "; desligadas_confirmadas=" + native.ConfirmedPoweredOff +
+                "; sem_metrica_valida=" + native.WithoutAnyValidMetric +
                 "; limitacao=" + (native.Limitation ?? "nenhuma"));
         }
         Console.WriteLine("OK monitoramento GPU D3DKMT: temperatura, RPM, potência relativa e clock por LUID/phys.");
