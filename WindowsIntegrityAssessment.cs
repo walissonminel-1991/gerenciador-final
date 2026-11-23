@@ -22,6 +22,8 @@ internal sealed record WindowsIntegrityDetails(
         ProtectedFiles + "; resultado conjunto: " + Overall +
         ". Nenhuma conclusão deriva apenas do código de saída.";
 }
+internal enum SfcVerificationState { Inconclusive, NoViolations, Violations }
+
 internal static class WindowsIntegrityAssessment
 {
     // Duas fontes oficiais de reinício; uma exceção de leitura nunca vira
@@ -54,21 +56,17 @@ internal static class WindowsIntegrityAssessment
         int sfcExit, string sfcOutput)
     {
         if (dismExit != 0 || sfcExit != 0) return IntegrityState.Inconclusive;
-        string d = Normalize(dismOutput), s = Normalize(sfcOutput);
+        string d = Normalize(dismOutput);
         bool dismProblem = HasAny(d, "component store is repairable",
             "armazenamento de componentes pode ser reparado",
             "armazenamento de componentes e reparavel");
         bool dismGood = HasAny(d, "no component store corruption detected",
             "nenhuma corrupcao do armazenamento de componentes detectada",
             "nenhuma corrupcao do repositorio de componentes detectada");
-        bool sfcProblem = HasAny(s, "windows resource protection found integrity violations",
-            "protecao de recursos do windows encontrou violacoes de integridade");
-        bool sfcGood = HasAny(s, "windows resource protection did not find any integrity violations",
-            "protecao de recursos do windows nao encontrou nenhuma violacao de integridade",
-            "protecao de recursos do windows nao encontrou violacoes de integridade");
-        if ((dismProblem && !dismGood) || (sfcProblem && !sfcGood))
+        var sfc = InterpretSfcVerification(sfcExit, sfcOutput);
+        if ((dismProblem && !dismGood) || sfc == SfcVerificationState.Violations)
             return IntegrityState.Repairable;
-        if (dismGood && sfcGood && !dismProblem && !sfcProblem)
+        if (dismGood && !dismProblem && sfc == SfcVerificationState.NoViolations)
             return IntegrityState.Healthy;
         return IntegrityState.Inconclusive;
     }
@@ -112,6 +110,19 @@ internal static class WindowsIntegrityAssessment
             _ => IntegrityState.Inconclusive
         };
         return value is "WINREPAIR:HEALTHY" or "WINREPAIR:REPAIRABLE" or "WINREPAIR:INCONCLUSIVE";
+    }
+
+    internal static SfcVerificationState InterpretSfcVerification(int exitCode, string output)
+    {
+        if (exitCode != 0) return SfcVerificationState.Inconclusive;
+        string text = Normalize(output);
+        bool violations = HasAny(text, "windows resource protection found integrity violations",
+            "protecao de recursos do windows encontrou violacoes de integridade");
+        bool clean = HasAny(text, "windows resource protection did not find any integrity violations",
+            "protecao de recursos do windows nao encontrou nenhuma violacao de integridade",
+            "protecao de recursos do windows nao encontrou violacoes de integridade");
+        if (clean == violations) return SfcVerificationState.Inconclusive;
+        return clean ? SfcVerificationState.NoViolations : SfcVerificationState.Violations;
     }
 
     private static bool HasAny(string s, params string[] a) => a.Any(s.Contains);

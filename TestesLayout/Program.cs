@@ -803,10 +803,12 @@ internal static class LayoutTests
         nav.SelectTab(3);
         Application.DoEvents();
         var repairTools = Descendants(form).OfType<ModernButton>()
-            .Where(b => b.Text is "Analisar rede" or "Reparar rede" or
+            .Where(b => b.Text is "Analisar rede" or "Reparar rede" or "Diagnosticar áudio" or
+                "Diagnosticar impressora" or "Diagnosticar USB" or "Diagnosticar chipset" or
+                "Diagnosticar tela azul" or
                 "Criar ponto de restauração" or "Restaurar configurações da rede" or
                 "Escolher ponto de restauração").ToArray();
-        if (repairTools.Length != 5 || repairTools.Any(b =>
+        if (repairTools.Length != 10 || repairTools.Any(b =>
             b.Width >= b.Parent!.ClientSize.Width))
             throw new Exception("Botoes de reparo nao devem ultrapassar a largura util do cartao.");
         // Regressao PC FORTE .49: titulo longo no cartao de 3 colunas
@@ -825,8 +827,14 @@ internal static class LayoutTests
         var repairFlow = Descendants(form).OfType<DarkScrollableFlow>()
             .Single(flow => flow.Name == "RepairActions");
         var repairCardPanels = repairFlow.Content.Controls.OfType<Panel>().ToArray();
-        if (repairCardPanels.Length != 7)
-            throw new Exception("Grade de Reparo e Rede perdeu algum dos sete cartoes.");
+        if (repairCardPanels.Length != 12 || !repairTools.Any(button => button.Text == "Diagnosticar USB") ||
+            !repairTools.Any(button => button.Text == "Diagnosticar chipset") ||
+            !repairTools.Any(button => button.Text == "Diagnosticar tela azul"))
+            throw new Exception("Grade de Reparo e Rede deve conter os doze cartões, incluindo USB, chipset e tela azul.");
+        var diagnosticReport = Descendants(form).OfType<Label>().Single(label => label.Name == "RepairDiagnosticResult");
+        if (diagnosticReport.Visible || diagnosticReport.Parent is not TableLayoutPanel repairLayout ||
+            repairLayout.RowStyles[repairLayout.GetRow(diagnosticReport)].Height != 0)
+            throw new Exception("VF03: painel de diagnóstico não deve ocupar espaço antes da consulta.");
         var firstRow = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(x => x.Top))
             .OrderBy(card => card.Left).ToArray();
         if (repairFlow.ClientSize.Width >= 1100)

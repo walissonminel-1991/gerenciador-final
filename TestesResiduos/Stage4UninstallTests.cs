@@ -20,6 +20,10 @@ internal static class Stage4UninstallTests
             () => { reads++; return Task.FromResult(present); }, (_, _) => { launched++; return Task.FromResult<int?>(null); }, _ => Task.CompletedTask);
         check(missingHandle.Count == 1 && missingHandle[0].State == UninstallState.Pending && launched == 1 && reads == 1,
             "ETAPA4: shell sem handle deixa pendente e interrompe lote antes do segundo aplicativo");
+        string interruptedSummary = UninstallResultSummary.Describe(missingHandle, null, selected);
+        check(interruptedSummary.Contains(first.Name + Environment.NewLine + "Conclusão da desinstalação pendente") &&
+              interruptedSummary.Contains(second.Name + Environment.NewLine + "Desinstalação não iniciada"),
+            "VF09: resumo distingue o aplicativo pendente do aplicativo que ficou na fila");
         var store = new UninstallOperationStore();
         store.Set(first, missingHandle[0].State == UninstallState.Pending ? UninstallStage.Pending : UninstallStage.Failed);
         check(store.Find(App(version: "2.0"))?.PreventRetry == true,
@@ -58,11 +62,17 @@ internal static class Stage4UninstallTests
             (_, _) => { launched++; return Task.FromResult<int?>(0); }, _ => Task.CompletedTask, cancelled.Token);
         check(stopped.Single().State == UninstallState.Cancelled && launched == 0,
             "ETAPA4: cancelamento anterior não inicia fornecedor nem lote seguinte");
+        string cancelledSummary = UninstallResultSummary.Describe(stopped, null, selected);
+        check(cancelledSummary.Contains(first.Name + Environment.NewLine + "Desinstalação cancelada") &&
+              cancelledSummary.Contains(second.Name + Environment.NewLine + "Desinstalação não iniciada"),
+            "VF09: resumo distingue cancelamento explícito e item não iniciado");
         cancelled.Dispose();
         var refusal = await new UninstallBatch().RunAsync(selected, false, () => Task.FromResult(present),
             (_, _) => throw new Exception("Não autorizado"), _ => Task.CompletedTask);
         check(refusal.All(o => o.State == UninstallState.Refused),
             "ETAPA4: NÃO na desinstalação recusa todos os itens sem executar comando");
+        check(!UninstallResultSummary.Describe(refusal, null, selected).Contains("Desinstalação não iniciada"),
+            "VF09: recusa do lote mantém os resultados individuais de cada aplicativo");
 
         var identity = ResidualAppIdentity.From(first);
         var plan = new IntegratedResidualPlan(new(identity, "synthetic", [], [], [], 0, []), [], [], [], 0, true, []);

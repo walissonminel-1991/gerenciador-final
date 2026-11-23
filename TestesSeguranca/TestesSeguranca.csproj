@@ -16,6 +16,11 @@
     <Compile Include="../SafeMaintenanceAudit.cs" Link="SafeMaintenanceAudit.cs" />
     <Compile Include="../WindowsIntegrityAssessment.cs" Link="WindowsIntegrityAssessment.cs" />
     <Compile Include="../NetworkRepairOutcome.cs" Link="NetworkRepairOutcome.cs" />
+    <Compile Include="../WindowsFileRepair.cs" Link="WindowsFileRepair.cs" />
+    <Compile Include="../AudioOutputDiagnostic.cs" Link="AudioOutputDiagnostic.cs" />
+    <Compile Include="../PrinterQueueDiagnostic.cs" Link="PrinterQueueDiagnostic.cs" />
+    <Compile Include="../UsbPnpDiagnostic.cs" Link="UsbPnpDiagnostic.cs" />
+    <Compile Include="../BlueScreenDiagnostic.cs" Link="BlueScreenDiagnostic.cs" />
     <Compile Include="../NetworkDiagnostics.cs" Link="NetworkDiagnostics.cs" />
     <Compile Include="../WindowsMaintenanceProgress.cs" Link="WindowsMaintenanceProgress.cs" />
     <Compile Include="../SingleVolumeOptimization.cs" Link="SingleVolumeOptimization.cs" />

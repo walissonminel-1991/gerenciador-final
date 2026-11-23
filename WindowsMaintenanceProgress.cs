@@ -1,21 +1,24 @@
 namespace GerenciadorAplicativos;
 
 // Progresso refletido a partir da saida real da ferramenta (nao estimado).
-// 0-50 = DISM; 50-100 = SFC. Sem percentual no log, mantem animacao.
+// Cada etapa ocupa uma fração do total. Sem percentual, não estima avanço.
 internal sealed class WindowsMaintenanceProgress
 {
     private int stage;
+    private int stageCount;
     internal bool Update(string line, out int percentage)
     {
         percentage = 0;
-        if (line.Contains("Etapa 1/2", StringComparison.Ordinal))
+        var stageMarker = System.Text.RegularExpressions.Regex.Match(line, @"\AEtapa ([1-4])/([234])\b");
+        if (stageMarker.Success)
         {
-            stage = 1;
-            return false;
-        }
-        if (line.Contains("Etapa 2/2", StringComparison.Ordinal))
-        {
-            stage = 2;
+            int next = stageMarker.Groups[1].Value[0] - '0';
+            int total = stageMarker.Groups[2].Value[0] - '0';
+            if (next <= total)
+            {
+                stage = next;
+                stageCount = total;
+            }
             return false;
         }
         if (stage == 0) return false;
@@ -24,7 +27,7 @@ internal sealed class WindowsMaintenanceProgress
         {
             if (!int.TryParse(match.Groups[1].Value, out int value) || value > 100)
                 continue;
-            percentage = stage == 1 ? value / 2 : 50 + value / 2;
+            percentage = ((stage - 1) * 100 + value) / stageCount;
             return true;
         }
         return false;

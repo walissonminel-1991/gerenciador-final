@@ -36,6 +36,12 @@ if (args is ["--hardware-catalog"])
     return;
 }
 
+if (args is ["--chipset-pnp"])
+{
+    ChipsetPnpDiagnosticTests.Run();
+    return;
+}
+
 if (args is ["--silent-uninstall"])
 {
     DriverSilentUninstallTests.Run();
@@ -66,6 +72,7 @@ if (args.Any(a => a.StartsWith("--f4-", StringComparison.Ordinal) ||
     return;
 }
 DriverHardwareCatalogTests.Run();
+ChipsetPnpDiagnosticTests.Run();
 DriverWuaF4VmHarnessTests.Run();
 DriverUxGuidanceTests.Run();
 DriverLabSimulationTests.Run();

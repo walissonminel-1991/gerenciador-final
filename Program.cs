@@ -1699,13 +1699,28 @@ internal sealed partial class MainForm : Form
                 "Fica disponível somente quando uma verificação encontra problemas que podem ser corrigidos. Pede confirmação.",
                 AppServices.Green, RepairWindowsAfterVerificationAsync),
             Tool("Analisar rede",
-                "Verifica se a conexão com a internet está funcionando. Não altera configurações.",
+                "Consulta o adaptador e o gateway e testa DNS e uma conexão TCP na porta 443.",
                 AppServices.Blue,
                 RunNetworkDiagnosticAsync),
             Tool("Reparar rede",
-                "Fica disponível quando a análise identifica um problema de conexão que pode ser corrigido.",
+                "Oferece limpar o cache quando o teste de resolução DNS falha. Pede confirmação.",
                 AppServices.Blue,
                 RepairNetworkAfterDiagnosisAsync),
+            Tool("Diagnosticar áudio",
+                "Consulta as saídas de áudio ativas e a saída padrão para multimídia.",
+                AppServices.Blue, RunAudioDiagnosticAsync),
+            Tool("Diagnosticar impressora",
+                "Consulta o estado da fila da impressora padrão do Windows.",
+                AppServices.Blue, RunPrinterDiagnosticAsync),
+            Tool("Diagnosticar USB",
+                "Consulta a presença e os códigos PnP de dispositivos USB.",
+                AppServices.Blue, RunUsbDiagnosticAsync),
+            Tool("Diagnosticar chipset",
+                "Consulta o estado PnP dos controladores SMBus e da ponte PCI–ISA.",
+                AppServices.Blue, RunChipsetDiagnosticAsync),
+            Tool("Diagnosticar tela azul",
+                "Consulta códigos de parada e desligamentos inesperados registrados pelo Windows.",
+                AppServices.Blue, RunBlueScreenDiagnosticAsync),
             Tool("Restaurar configurações da rede", "Opção avançada: restaura as configurações da conexão. A internet pode cair e o Windows pode precisar reiniciar.",
                 AppServices.Orange,
                 () => ConfirmThenRun("network-reset", "Restaurar as configurações da conexão? A internet pode cair. Talvez seja necessário reiniciar o Windows.")),
@@ -1720,20 +1735,24 @@ internal sealed partial class MainForm : Form
                 AppServices.Gray, ChooseRestorePointAsync)
         });
         repairActions.Name = "RepairActions";
-        var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+        var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
             Margin = Padding.Empty, BackColor = AppServices.Background };
         // Proporções responsivas: em janelas menores os cartões usam a rolagem escura.
         repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
+        repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 205));
         repairLayout.Controls.Add(repairActions, 0, 0);
-        repairLayout.Controls.Add(BuildNetworkResultPanel(), 0, 1);
+        repairLayout.Controls.Add(_repairReport, 0, 1);
+        repairLayout.Controls.Add(BuildNetworkResultPanel(), 0, 2);
         repair.Controls.Add(ScrollablePage(repairLayout, width =>
         {
             int cardsHeight = ToolsHeight(repairActions, width);
             int resultHeight = NetworkResultHeight();
+            int diagnosticHeight = RepairDiagnosticHeight(width);
             repairLayout.RowStyles[0].Height = cardsHeight;
-            repairLayout.RowStyles[1].Height = resultHeight;
-            return cardsHeight + resultHeight;
+            repairLayout.RowStyles[1].Height = diagnosticHeight;
+            repairLayout.RowStyles[2].Height = resultHeight;
+            return cardsHeight + resultHeight + diagnosticHeight;
         }, trackRepair: true));
         performance.Controls.Add(ScrollablePage(BuildEnergyPanel(),
             _ => (int)Math.Ceiling(405 * DeviceDpi / 96d)));
@@ -2385,7 +2404,7 @@ internal sealed partial class MainForm : Form
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
                     _checkUpdatesButton.Enabled = !_batchUpdatesActive;
                 if (_repairNetworkButton is not null)
-                    _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
+                    _repairNetworkButton.Enabled = NetworkDiagnostics.SuggestTargetedRepair(_lastNetworkScan) is not null;
                 RefreshWindowsRepairButton();
                 RefreshWindowsUpdateInstallButton();
                 if (_nav.SelectedIndex == 2)
@@ -3723,7 +3742,7 @@ internal sealed partial class MainForm : Form
                 catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex))
                 { Log("O inventário não pôde ser atualizado. O resumo da desinstalação foi preservado."); }
             }
-            string summary = UninstallResultSummary.Describe(outcomes, cleanup);
+            string summary = UninstallResultSummary.Describe(outcomes, cleanup, requests);
             if (bundleObservations.Count != 0)
             {
                 summary += Environment.NewLine + Environment.NewLine +
@@ -3914,7 +3933,7 @@ internal sealed partial class MainForm : Form
         RefreshWindowsRepairButton();
         await ConfirmThenRun("windows-repair",
             "Foram encontrados problemas em arquivos do Windows. Deseja tentar corrigir? " +
-            "A operação pode demorar e alterar arquivos do sistema.");
+            "A operação pode demorar e alterar arquivos do sistema. Após o reparo, o SFC verificará os arquivos protegidos novamente.");
     }
 
     private Task ChooseRestorePointAsync()
@@ -4150,7 +4169,7 @@ internal sealed partial class MainForm : Form
                         _progress.MarqueeAnimationSpeed = 0;
                         _progress.Style = ProgressBarStyle.Continuous;
                         _progress.Value = percentage;
-                        Status("Manutenção Windows — progresso da etapa: " +
+                        Status("Manutenção Windows — progresso: " +
                             percentage.ToString() + "%");
                     }
                 }
@@ -4288,14 +4307,17 @@ internal static class WorkerHost
         if (TryParseRestorePowerTask(task, out var powerId))
             return await PowerPlanService.RestorePreviousAsync(powerId, log);
 
-        async Task<int> Run(string exe, params string[] args)
+        async Task<CommandResult> RunWithResult(string exe, params string[] args)
         {
             log("Executando: " + exe + " " + string.Join(" ", args));
             var result = await AppServices.RunCommandAsync(exe, args,
                 s => { if (!string.IsNullOrWhiteSpace(s)) log(s.TakeText(350)); });
             log("Código de saída: " + result.ExitCode);
-            return result.ExitCode;
+            return result;
         }
+
+        async Task<int> Run(string exe, params string[] args) =>
+            (await RunWithResult(exe, args)).ExitCode;
 
         log("Permissão administrativa concedida. Progresso exibido na janela principal.");
         if (SingleVolumeOptimization.TryParseTask(task, out string volume))
@@ -4363,37 +4385,11 @@ internal static class WorkerHost
                     log(WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Inconclusive));
                     return 2;
                 }
-                log("Etapa 1/2 — DISM: examinando e, se necessário, reparando a imagem do Windows.");
-                int dismCode = await Run("dism.exe", "/Online", "/Cleanup-Image", "/RestoreHealth");
-                if (dismCode != 0)
+                return await WindowsFileRepair.RunAsync(async (exe, args) =>
                 {
-                    log("A etapa DISM não terminou normalmente. SFC não foi iniciado; confira os detalhes acima.");
-                    return dismCode;
-                }
-                log("Etapa 2/2 — SFC: verificando e tentando reparar os arquivos protegidos do Windows.");
-                int sfcCode = await Run("sfc.exe", "/scannow");
-                if (sfcCode != 0)
-                {
-                    log("SFC não concluiu normalmente; integridade não comprovada.");
-                    log(WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Inconclusive));
-                    return sfcCode;
-                }
-                // Não promover código zero de /RestoreHealth ou /scannow a
-                // confirmação de integridade. Reexecutar apenas consultas.
-                log("Pós-reparo 1/2: DISM /ScanHealth (somente leitura).");
-                var dismAfter = await AppServices.RunCommandAsync("dism.exe",
-                    new[] { "/Online", "/Cleanup-Image", "/ScanHealth" },
-                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
-                log("Pós-reparo 2/2: SFC /verifyonly (somente leitura).");
-                var sfcAfter = await AppServices.RunCommandAsync("sfc.exe",
-                    new[] { "/verifyonly" },
-                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
-                var verified = WindowsIntegrityAssessment.Assess(
-                    dismAfter.ExitCode, dismAfter.StandardOutput + dismAfter.StandardError,
-                    sfcAfter.ExitCode, sfcAfter.StandardOutput + sfcAfter.StandardError);
-                log("Pós-reparo consultivo: " + verified.Summary);
-                log(WindowsIntegrityAssessment.PostRepairWire(verified.Overall));
-                return verified.FullyVerified ? 0 : 1;
+                    var result = await RunWithResult(exe, args);
+                    return (result.ExitCode, result.StandardOutput + result.StandardError);
+                }, log);
             }
             case "flush-dns": return await Run("ipconfig.exe", "/flushdns");
             case "network-repair-winsock":
