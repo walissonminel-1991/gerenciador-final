@@ -49,7 +49,7 @@ internal sealed class V269AppIconCache(Control owner):IDisposable
     private bool _running,_disposed;
     internal Bitmap? Get(string value)
     {
-        if(_disposed||!owner.IsHandleCreated||V269LocalIconSource.Parse(value) is not {} source)return null;
+        if(_disposed||!owner.IsHandleCreated||!owner.Visible||V269LocalIconSource.Parse(value) is not {} source)return null;
         if(_items.TryGetValue(source,out var image))return image;
         if(_pending.Count<24&&_pending.Add(source)){_queue.Enqueue(source);Start();}
         return null;

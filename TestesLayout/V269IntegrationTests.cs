@@ -130,8 +130,96 @@ internal static class V269IntegrationTests
             shell.RightPane.Current?.Description == "Resultado preservado",
             "tema Claro preserva contraste do registro e o resultado publicado");
         VerifySettings(form,shell);
+        VerifyApps(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyApps(MainForm form,V269Shell shell)
+    {
+        const BindingFlags flags=BindingFlags.NonPublic|BindingFlags.Instance;
+        var inventory=(List<ProgramEntry>)typeof(MainForm).GetField("_installed",flags)!.GetValue(form)!;
+        var list=(DarkProgramList)typeof(MainForm).GetField("_programList",flags)!.GetValue(form)!;
+        var sort=form.Controls.Find("V269AppSort",true).OfType<ComboBox>().Single();
+        var search=form.Controls.Find("V269AppsSearch",true).OfType<TextBox>().Single();
+        var details=form.Controls.Find("V269AppsDetails",true).OfType<Button>().Single();
+        var more=form.Controls.Find("V269AppsMore",true).OfType<Button>().Single();
+        var theme=form.Controls.Find("V269ThemeChoice",true).OfType<ComboBox>().Single();
+        var surface=form.Controls.OfType<TableLayoutPanel>().Single();
+        var originalSize=surface.Size;int originalTheme=theme.SelectedIndex;
+        var original=inventory.ToArray();var panel=shell.RightPane.Current;
+        var render=typeof(MainForm).GetMethod("RenderPrograms",flags)!;
+        var entries=new[]{
+            new ProgramEntry{Name="7-Zip 24.09 (x64)",Version="24.09",Publisher="Igor Pavlov",InventoryId="GF-APP-FIXTURE-1",
+                InventorySource="Registro: Computador (64 bits)",InstallDate=new DateOnly(2026,11,18),CanUninstall=true},
+            new ProgramEntry{Name="Discord",Version="1.0.9172",Publisher="Discord Inc.",InventoryId="GF-APP-FIXTURE-2",
+                InventorySource="Registro: Usuário atual (64 bits)",InstallDate=new DateOnly(2026,11,18)},
+            new ProgramEntry{Name="Microsoft Edge",Version="142.0.3595.44",Publisher="Microsoft Corporation",InventoryId="GF-APP-FIXTURE-3",InventoryOnly=true},
+            new ProgramEntry{Name="OBS Studio",Version="31.0.3",Publisher="OBS Project",InventoryId="GF-APP-FIXTURE-4",
+                InventorySource="Registro: Computador (64 bits)",InstallDate=new DateOnly(2026,11,12),IsUpdate=true,AvailableVersion="32.0.1"},
+            new ProgramEntry{Name="VLC media player",Version="3.0.21",Publisher="VideoLAN",InventoryId="GF-APP-FIXTURE-5",
+                InventorySource="Registro: Computador (64 bits)",InstallDate=new DateOnly(2026,11,15)}
+        };
+        try
+        {
+            shell.PresentPanel(null);shell.SelectPage(V269Page.Aplicativos);
+            inventory.Clear();inventory.AddRange(entries);render.Invoke(form,[]);
+            Application.DoEvents();
+            Require(list.V269TableMode&&list.Items.Count==5&&sort.Items.Count==5,"view real de seis colunas");
+            sort.SelectedIndex=1;Require(list.Items[0].Name=="VLC media player","seletor Z–A conectado ao inventário");
+            sort.SelectedIndex=2;Require(list.Items[0].InstallDate.HasValue&&list.Items[^1].InstallDate is null,"datas reais e ausências no fim");
+            sort.SelectedIndex=3;Require(list.Items[0].Name=="OBS Studio","ofertas primeiro");
+            sort.SelectedIndex=0;search.Text="VLC";Require(list.Items.Count==1&&list.Items[0]==entries[4],"pesquisa real");
+            search.Clear();list.SelectedIndex=0;
+            typeof(DarkProgramList).GetMethod("OnKeyDown",flags)!.Invoke(list,[new KeyEventArgs(Keys.Alt|Keys.Down)]);
+            Require(sort.SelectedIndex==4&&ReferenceEquals(list.Items[1],entries[0]),"reordenação pelo teclado conectada");
+            sort.SelectedIndex=0;
+            foreach(var size in new[]{new Size(760,596),new Size(992,659),new Size(1200,659)})
+            foreach(int index in new[]{0,1,2})
+            {
+                surface.Size=size;theme.SelectedIndex=index;
+                shell.PresentPanel(null);render.Invoke(form,[]);
+                list.SelectedIndex=0;surface.PerformLayout();Application.DoEvents();
+                Require(list.TableHeaderHeight>0&&list.Items.Count==5,"cabeçalho fixo e inventário preservado");
+                var rowMethod=typeof(DarkProgramList).GetMethod("RowBounds",flags)!;
+                var row=(Rectangle)rowMethod.Invoke(list,[0])!;
+                var cells=V269AppTable.Columns(row,shell.InterfaceScalePercent,list.DeviceDpi);
+                Require(cells.Length==6&&cells.Sum(x=>x.Width)==row.Width,"geometria das colunas");
+                using(var image=new Bitmap(surface.Width,surface.Height))
+                {surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");}
+                if(size.Width<=1040)
+                {
+                    if(shell.RightPane.Visible)details.PerformClick();
+                    details.PerformClick();Application.DoEvents();
+                    Require(shell.RightPane.Visible&&shell.RightPane.Current?.Kind==V269PanelKind.Details,"detalhes compactos acessíveis");
+                    using var image=new Bitmap(surface.Width,surface.Height);
+                    surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-DETALHES-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");
+                    details.PerformClick();Application.DoEvents();
+                }
+                more.PerformClick();Application.DoEvents();
+                Require(form.Controls.Find("V269AppsExtraCommands",true).Single().Visible,"comandos complementares alcançáveis");
+                more.PerformClick();Application.DoEvents();
+            }
+            // Testar o hit-test sem disparar nenhum executável, inclusive com
+            // o deslocamento horizontal aplicado.
+            var horizontal=list.Controls.OfType<HScrollBar>().Single();
+            surface.Size=new Size(760,596);surface.PerformLayout();Application.DoEvents();
+            if(shell.RightPane.Visible)details.PerformClick();
+            if(horizontal.Visible)horizontal.Value=Math.Max(0,horizontal.Maximum-horizontal.LargeChange+1);
+            var bounds=(Rectangle)typeof(DarkProgramList).GetMethod("RowBounds",flags)!.Invoke(list,[2])!;
+            var action=V269AppTable.Action(bounds,shell.InterfaceScalePercent,list.DeviceDpi,true);
+            var hit=((ProgramEntry? Item,string Action))typeof(DarkProgramList).GetMethod("HitAction",flags)!.Invoke(list,
+                [new Point(action.X+action.Width/2,action.Y+action.Height/2)])!;
+            Require(hit.Item is null,"remoção bloqueada também após deslocamento horizontal");
+        }
+        finally
+        {
+            inventory.Clear();inventory.AddRange(original);search.Clear();sort.SelectedIndex=0;
+            theme.SelectedIndex=originalTheme;surface.Size=originalSize;
+            render.Invoke(form,[]);shell.SelectPage(V269Page.Configuracoes);shell.PresentPanel(panel);
+            surface.PerformLayout();Application.DoEvents();
+        }
+        Console.WriteLine("PASS Aplicativos V2.6.9: tabela real, pesquisa, ordenação, detalhes, ações complementares e 15 capturas sintéticas.");
     }
 
     private static void VerifyAppIconSources()

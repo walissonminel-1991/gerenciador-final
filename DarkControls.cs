@@ -244,6 +244,7 @@ internal sealed class DarkProgramList : Control
     internal Bitmap? LocalAppIcon(string value)=>LoadLocalAppIcons?(_appIcons??=new V269AppIconCache(this)).Get(value):null;
     internal bool V269TableMode=>_tableMode;
     private string _emptyMessage="Nenhum aplicativo identificado.";
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal string EmptyMessage {get=>_emptyMessage;set{_emptyMessage=value;Invalidate();}}
     internal int TableHeaderHeight=>_tableMode?V269AppTable.Scale(42,_tableOptions.InterfacePercent,DeviceDpi):0;
     private int HorizontalHeight=>_tableMode&&_horizontal.Visible?_horizontal.Height:0;
