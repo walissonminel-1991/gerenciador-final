@@ -34,7 +34,7 @@ internal static class Program
                 "Diagnóstico indisponível", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 2;
         }
-        bool reopenAdministrator = false;
+        V269AdminLaunchTicket? reopenAdministrator = null;
         try
         {
             LocalPerformanceMetrics.Sink = sample => DiagnosticTrace.Write(sample.Format());
@@ -84,7 +84,7 @@ internal static class Program
         finally
         {
             DiagnosticTrace.Stop();
-            if (reopenAdministrator) V269AdminSessionLauncher.RequestOnce();
+            if (reopenAdministrator is { } ticket) V269AdminSessionLauncher.RequestOnce(ticket);
         }
     }
 }

@@ -763,7 +763,8 @@ internal sealed partial class MainForm
     private V269SettingsPage? _v269Settings;
     private bool _v269SettingsBusy;
     private bool _v269SettingsLive;
-    private bool _v269AdminRestartApproved, _v269AdminClosedNormally;
+    private V269AdminLaunchTicket? _v269AdminRestartTicket;
+    private bool _v269AdminClosedNormally;
     internal bool V269CanAnimateButtons => CanAnimateV269;
 
     private Control BuildV269Settings(bool loadPreferences)
@@ -798,7 +799,7 @@ internal sealed partial class MainForm
             saveAppearance.Tick+=(_,_)=>{saveAppearance.Stop();SaveAppearance();};
             FormClosing+=(_,e)=>
             {
-                if(e.CloseReason!=CloseReason.UserClosing)_v269AdminRestartApproved=false;
+                if(e.CloseReason!=CloseReason.UserClosing)_v269AdminRestartTicket=null;
                 saveAppearance.Stop();SaveAppearance();
             };
             FormClosed+=(_,e)=>
@@ -847,7 +848,14 @@ internal sealed partial class MainForm
         };
         view.General.History.Click+=(_,_)=>
         {
-            if(!_busy&&!_v269Confirming&&!_betaClose.IsClosing)ShowLocalReliabilityReport();
+            if(_busy||_v269Confirming||_betaClose.IsClosing)return;
+            if(_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
+            {
+                ShowLocalReliabilityReport();return;
+            }
+            PresentV269History();
+            if(!_nav.RightPane.Visible)
+                _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
         };
         view.VisibleChanged+=(_,_)=>{if(view.Visible)RefreshV269General();};
         view.ApplyAppearance(_v269Appearance);RefreshV269General();
@@ -916,13 +924,16 @@ internal sealed partial class MainForm
             if(!await ConfirmV269Async("Modo Administrador",description))return;
             if(_busy||_batchUpdatesActive||_windowsUpdateInstalling||_betaClose.IsClosing||
                 V269SessionIsAdministrator()!=elevated)return;
-            if(!elevated&&!V269AdminSessionLauncher.IsEligible(Environment.ProcessPath))
+            if(!elevated)
             {
-                PresentV269SettingsInformation("Modo Administrador","O executável atual não é elegível para reabertura.");return;
+                try{_v269AdminRestartTicket=V269AdminSessionLauncher.Prepare(Environment.ProcessPath??"");}
+                catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+                {
+                    PresentV269SettingsInformation("Modo Administrador","Não foi possível verificar o executável atual para reabertura.");return;
+                }
             }
-            _v269AdminRestartApproved=!elevated;
             Close();
-            if(!IsDisposed&&!_betaClose.IsClosing)_v269AdminRestartApproved=false;
+            if(!IsDisposed&&!_betaClose.IsClosing)_v269AdminRestartTicket=null;
         }
         finally
         {
@@ -931,11 +942,11 @@ internal sealed partial class MainForm
         }
     }
 
-    internal bool ConsumeV269AdminRestart()
+    internal V269AdminLaunchTicket? ConsumeV269AdminRestart()
     {
-        bool allowed=_v269AdminRestartApproved&&_v269AdminClosedNormally&&!_betaClose.IsShutdown;
-        _v269AdminRestartApproved=false;
-        return allowed;
+        var ticket=_v269AdminClosedNormally&&!_betaClose.IsShutdown?_v269AdminRestartTicket:null;
+        _v269AdminRestartTicket=null;
+        return ticket;
     }
 
     private async Task ToggleV269StartupAsync()
@@ -950,15 +961,18 @@ internal sealed partial class MainForm
                 "Iniciar o GF na bandeja ao entrar nesta conta? Nenhum serviço ou privilégio administrativo será criado."))return;
             if(ReadV269Startup()!=previous)
             {
+                _v269Settings?.SetNotice("O estado da inicialização mudou; revise antes de alterar.");
                 Status("O estado da inicialização mudou; revise antes de alterar.");return;
             }
             StartupTrayRegistration.SetEnabled(!previous);
-            Status(ReadV269Startup()==!previous?"Preferência de inicialização confirmada.":
-                "Não foi possível confirmar a alteração da inicialização.");
+            bool verified=ReadV269Startup()==!previous;
+            _v269Settings?.SetNotice(verified?null:"Não foi possível confirmar a alteração da inicialização.");
+            Status(verified?"Preferência de inicialização confirmada.":"Não foi possível confirmar a alteração da inicialização.");
         }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or
             InvalidDataException or InvalidOperationException)
         {
+            _v269Settings?.SetNotice("Não foi possível alterar a inicialização.");
             Status("Não foi possível alterar a inicialização.");DiagnosticTrace.Write("PREFERENCIAS.INICIO_FALHA "+ex.GetType().Name);
         }
         finally{_v269SettingsBusy=false;RefreshV269General();}

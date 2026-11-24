@@ -406,6 +406,7 @@ internal static class V269SettingsGlyph
 {
     internal static void Draw(Graphics g,Rectangle rect,int index,Color color)
     {
+        if(index==5){V269HomeHeadingIcon.DrawGlyph(g,rect,V269Page.Reparo,color);return;}
         var state=g.Save();
         try
         {
@@ -437,11 +438,7 @@ internal static class V269SettingsGlyph
                 case 4:
                     using(var shape=V269Shell.Rounded(new Rectangle(2,5,20,14),2))g.DrawPath(p,shape);
                     g.DrawLine(p,4,15,20,15);g.DrawLine(p,16,17,18,17);break;
-                case 5:
-                    // Mesmo vetor de Reparo utilizado na navegação.
-                    g.Restore(state);
-                    V269HomeHeadingIcon.DrawGlyph(g,rect,V269Page.Reparo,color);
-                    state=g.Save();break;
+                case 5:break; // reutilizado antes da transformação
                 case 6:
                     g.DrawLine(p,3,7,12,7);g.DrawLine(p,3,12,16,12);g.DrawLine(p,3,17,12,17);
                     g.DrawLines(p,new Point[]{new(13,6),new(18,12),new(13,18)});

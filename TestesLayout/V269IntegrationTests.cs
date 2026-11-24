@@ -160,7 +160,11 @@ internal static class V269IntegrationTests
                 launch.ArgumentList.Count==0&&string.IsNullOrEmpty(launch.Arguments)&&
                 !V269AdminSessionLauncher.IsEligible(path)&&!V269AdminSessionLauncher.IsEligible("GerenciadorFinal.exe"),
                 "modo administrador solicita apenas UAC do executável exato, sem argumentos ou persistência");
-            Require(!form.ConsumeV269AdminRestart(),"abertura normal/testes não solicitam elevação");
+            var ticket=V269AdminSessionLauncher.Prepare(exe);
+            Require(V269AdminSessionLauncher.Verify(ticket),"identidade do executável de teste verificável");
+            File.AppendAllText(exe,"alteração sintética");
+            Require(!V269AdminSessionLauncher.Verify(ticket),"troca do executável invalida solicitação administrativa");
+            Require(form.ConsumeV269AdminRestart() is null,"abertura normal/testes não solicitam elevação");
         }
         finally{if(Directory.Exists(folder))Directory.Delete(folder,true);}
         general.SetObserved(false,null,new V269GeneralOptions(false,true),TelemetryConsent.Declined,true);
