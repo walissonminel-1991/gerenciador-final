@@ -63,6 +63,7 @@ internal sealed class V269RightPane : UserControl
     private readonly Panel _titleHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
     private readonly Label _appFlowHeading=new(){Name="V269AppFlowHeading",Dock=DockStyle.Top,
         TextAlign=ContentAlignment.MiddleLeft,Visible=false,Margin=Padding.Empty};
+    private readonly V269AppFlowState _appFlowState=new();
     private readonly TextBox _description;
     private readonly ProgressBar _progress;
     private readonly Panel _operationContent;
@@ -137,6 +138,7 @@ internal sealed class V269RightPane : UserControl
             e.Graphics.DrawLine(line,0,_title.Height-1,_title.Width-1,_title.Height-1);
         };
         _titleHost.Controls.Add(_title);
+        _titleHost.Controls.Add(_appFlowState);
         _titleHost.Controls.Add(_appFlowHeading);
         _appFlowHeading.SendToBack();
         _layout.Controls.Add(_titleHost, 0, 0);
@@ -148,7 +150,7 @@ internal sealed class V269RightPane : UserControl
         _choices = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false, Visible = false };
         foreach (var (caption, accepted) in new[] { ("Cancelar", false), ("Confirmar", true) })
         {
-            var button = new Button
+            var button = new V269AppFlowButton(accepted)
             {
                 Name = accepted ? "V269AcceptConfirmation" : "V269CancelConfirmation",
                 Text = caption, AutoSize = true, MinimumSize = new Size(70, 26)
@@ -223,7 +225,7 @@ internal sealed class V269RightPane : UserControl
         bool changed=active!=_appFlow;_appFlow=active;
         _appFlowHeading.Text=Current?.Kind==V269PanelKind.Confirmation?
             "Confirmação da ação":"Operação em andamento";
-        _appFlowHeading.Visible=active;
+        _appFlowHeading.Visible=active;_appFlowState.Visible=active;
         // A operação pode já fornecer o mesmo título do estado.
         _title.Visible=!active||!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
         if(changed)ApplyPaneSurface();
@@ -316,6 +318,8 @@ internal sealed class V269RightPane : UserControl
         var palette=(_structuredApp||_appFlow)?V269AppDetailStyle.Palette(_appPaneTheme):_basePanePalette;
         BackColor = palette.RightPanel;
         _titleHost.BackColor=palette.RightPanel;_appFlowHeading.ForeColor=palette.Text;
+        foreach(var button in _choices.Controls.OfType<V269AppFlowButton>())
+            button.ApplyAppStyle(_appFlow,_appPaneTheme,_appInterfacePercent);
         _layout.BackColor = palette.RightPanel;
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
@@ -341,9 +345,14 @@ internal sealed class V269RightPane : UserControl
         {
             int height=Math.Max(V269AppTable.Scale(24,_appInterfacePercent,DeviceDpi),_appFlowHeading.Font.Height+3);
             _appFlowHeading.Height=height;
+            _appFlowState.Font=_applicationDetails.Font;
+            _appFlowState.ApplyState(Current?.Kind==V269PanelKind.Confirmation,Current?.ProgressPercent,
+                _appPaneTheme,_appInterfacePercent);
+            int stateHeight=Math.Max(V269AppTable.Scale(36,_appInterfacePercent,DeviceDpi),_appFlowState.Font.Height*2+4);
+            _appFlowState.Height=stateHeight;
             _title.TextAlign=ContentAlignment.MiddleLeft;_title.Margin=Padding.Empty;
             bool distinct=!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
-            _layout.RowStyles[0].Height=height+(distinct?Math.Max(26,_title.Font.Height+6):0);
+            _layout.RowStyles[0].Height=height+stateHeight+(distinct?Math.Max(26,_title.Font.Height+6):0);
             return;
         }
         if(!_structuredApp)

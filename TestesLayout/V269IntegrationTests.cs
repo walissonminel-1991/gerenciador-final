@@ -444,6 +444,8 @@ internal static class V269IntegrationTests
                 "histórico abaixo da autorização, sem cobrir a descrição nem os botões");
             Require(shell.RightPane.Controls.Find("V269AppFlowHeading",true).Single().Text=="Confirmação da ação",
                 "cabeçalho operacional distingue estado de autorização e alvo");
+            Require(shell.RightPane.Controls.Find("V269AppFlowState",true).Single() is {Visible:true,AccessibleName:"Aguardando autorização"}&&
+                accept is V269AppFlowButton,"estado explícito e botão temático de autorização");
             CaptureOperationalHistory("CONFIRMACAO");
             var confirmationDismiss=confirmationHistory.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
             confirmationHistory.EnsureVisible(confirmationDismiss);
@@ -496,6 +498,9 @@ internal static class V269IntegrationTests
                     var flowHistory=shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single();
                     Require(flowHistory.Visible&&flowHistory.Controls.Find("V269AppPreviousResult",true).Length==1,
                         "histórico permanece acessível durante progresso");
+                    Require(shell.RightPane.Controls.Find("V269AppFlowState",true).Single() is
+                        {Visible:true,AccessibleName:"Em andamento · progresso não informado"},
+                        "progresso sem porcentagem observada não inventa percentual");
                     CaptureOperationalHistory("PROGRESSO");
                     var flowDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
                     var realCancel=form.Controls.Find("UninstallCancel",true).Single();

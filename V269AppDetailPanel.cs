@@ -28,6 +28,103 @@ internal static class V269AppDetailStyle
     {V269Theme.Dark=>"#3c4249",V269Theme.Claro=>"#b7d1e2",_=>"#1c354b"});
 }
 
+// Botões de fluxo: somente a pintura varia. O botão WinForms mantém
+// clique, foco, teclado, acessibilidade e o contrato original.
+internal sealed class V269AppFlowButton : Button
+{
+    private readonly bool _primary,_dismiss;
+    private bool _appStyle;
+    private int _percent=100;
+    private V269Theme _theme;
+    internal V269AppFlowButton(bool primary,bool dismiss=false)
+    {
+        _primary=primary;_dismiss=dismiss;
+    }
+    internal void ApplyAppStyle(bool active,V269Theme theme,int percent)
+    {
+        _appStyle=active;_theme=theme;_percent=percent;
+        FlatStyle=active?FlatStyle.Flat:FlatStyle.Standard;
+        UseVisualStyleBackColor=!active;
+        FlatAppearance.BorderSize=active?0:1;
+        SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,active);
+        if(active)BackColor=V269AppDetailStyle.Palette(theme).RightPanel;
+        else BackColor=SystemColors.Control;
+        Invalidate();
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        if(!_appStyle){base.OnPaint(e);return;}
+        if(Width<3||Height<3)return;
+        Color H(string s)=>V269AppTable.H(s);
+        var palette=V269AppDetailStyle.Palette(_theme);
+        var (surface,border,ink)=_theme switch
+        {
+            V269Theme.Claro=>(_primary?H("#13649e"):H("#d5e8f6"),_primary?H("#1c6798"):H("#9bbacf"),_primary?Color.White:H("#173d59")),
+            V269Theme.Dark=>(_primary?H("#515961"):H("#30353a"),_primary?H("#b7c0c8"):H("#60666d"),H("#dce0e4")),
+            _=>(_primary?H("#205f95"):H("#102638"),_primary?H("#6ea7cf"):H("#416783"),_primary?H("#eff8ff"):H("#c5d6e1"))
+        };
+        if(!Enabled)ink=palette.SecondaryText;
+        int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
+        var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
+        using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),S(8));
+        using var fill=new SolidBrush(surface);using var outline=new Pen(border);
+        g.FillPath(fill,shape);g.DrawPath(outline,shape);
+        int left=S(6);
+        if(!_dismiss)
+        {
+            int n=S(12),y=(Height-n)/2;
+            using var pen=new Pen(ink,Math.Max(1f,DeviceDpi/96f)){StartCap=LineCap.Round,EndCap=LineCap.Round};
+            if(_primary)g.DrawLines(pen,new Point[]{new(left,y+n/2),new(left+n/3,y+n-2),new(left+n,y+2)});
+            else{g.DrawLine(pen,left,y+2,left+n,y+n-2);g.DrawLine(pen,left+n,y+2,left,y+n-2);}
+            left+=n+S(5);
+        }
+        TextRenderer.DrawText(g,Text,Font,new Rectangle(left,0,Math.Max(1,Width-left-S(6)),Height),ink,
+            TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine|
+            TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding);
+        if(Focused&&ShowFocusCues&&Width>8&&Height>8)ControlPaint.DrawFocusRectangle(g,new Rectangle(4,4,Width-8,Height-8));
+    }
+}
+
+// Estado explícito do painel: nunca inferir sucesso nem porcentagem.
+internal sealed class V269AppFlowState : Control
+{
+    private V269Theme _theme;
+    private int _percent=100;
+    private bool _confirmation;
+    internal V269AppFlowState()
+    {
+        Name="V269AppFlowState";AccessibleRole=AccessibleRole.StaticText;
+        SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);
+        Dock=DockStyle.Top;Margin=Padding.Empty;Visible=false;
+    }
+    internal void ApplyState(bool confirmation,int? progress,V269Theme theme,int percent)
+    {
+        _confirmation=confirmation;_theme=theme;_percent=percent;
+        Text=confirmation?"Aguardando autorização":progress is int n?$"Em andamento · {Math.Clamp(n,0,100)}%":"Em andamento · progresso não informado";
+        AccessibleName=Text;Invalidate();
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        if(Width<3||Height<3)return;
+        var palette=V269AppDetailStyle.Palette(_theme);Color H(string s)=>V269AppTable.H(s);
+        var (surface,border)=_theme switch
+        {
+            V269Theme.Dark=>(H("#30353a"),H("#60666d")),
+            V269Theme.Claro=>(H("#d5e8f6"),H("#9bbacf")),
+            _=>(H("#122b40"),H("#385d7c"))
+        };
+        int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
+        var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
+        using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),S(8));
+        using var fill=new SolidBrush(surface);using var line=new Pen(border);
+        g.FillPath(fill,shape);g.DrawPath(line,shape);
+        int dot=S(9);using var state=new SolidBrush(H(_confirmation?"#e4bb79":"#58b8e6"));
+        g.FillEllipse(state,S(12),(Height-dot)/2,dot,dot);
+        TextRenderer.DrawText(g,Text,Font,new Rectangle(S(30),0,Math.Max(1,Width-S(36)),Height),palette.Text,
+            TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding);
+    }
+}
+
 // Linha contextual baseada em gf-history-row. A ação descarta apenas
 // a apresentação, e nunca um evento do motor ou do registro local.
 internal sealed class V269AppHistoryRow : TableLayoutPanel
@@ -35,10 +132,12 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
     private readonly Label _symbol=new(){Text="•",AutoSize=true,Margin=Padding.Empty};
     private readonly Label _heading=new(){AutoSize=true,UseMnemonic=false,Margin=Padding.Empty};
     private readonly Label _message=new(){AutoSize=true,UseMnemonic=false,Margin=Padding.Empty};
-    private readonly Button _dismiss=new(){Name="V269AppDismissResult",Text="Dispensar",FlatStyle=FlatStyle.Flat,
+    private readonly V269AppFlowButton _dismiss=new(false,true){Name="V269AppDismissResult",Text="Dispensar",FlatStyle=FlatStyle.Flat,
         AutoSize=false,UseVisualStyleBackColor=false,Anchor=AnchorStyles.Top|AnchorStyles.Right,Margin=Padding.Empty};
     private Font? _headingFont,_messageFont;
     private Color _line;
+    private int _percent=100;
+    private V269Theme _theme=V269Theme.AzulGf;
     internal bool HasBottomDivider {get;}
     internal V269AppHistoryRow(V269AppPreviousResult result,Action<Guid>? dismiss,bool hasBottomDivider)
     {
@@ -69,6 +168,7 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
     internal void ApplyMetrics(int percent,int width)
     {
         int S(int n)=>V269AppTable.Scale(n,percent,DeviceDpi);
+        _percent=percent;_dismiss.ApplyAppStyle(true,_theme,percent);
         Margin=Padding.Empty;Padding=new Padding(0,S(8),0,S(8));
         int symbol=S(23),button=Math.Max(S(65),TextRenderer.MeasureText(_dismiss.Text,_dismiss.Font).Width+S(12));
         ColumnStyles[0].Width=symbol;ColumnStyles[2].Width=button;
@@ -81,7 +181,9 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
     {
         BackColor=palette.RightPanel;_heading.ForeColor=palette.Text;
         _symbol.ForeColor=_message.ForeColor=palette.SecondaryText;_line=palette.Border;
-        _dismiss.BackColor=palette.Card;_dismiss.ForeColor=palette.Text;
+        _theme=palette==V269AppDetailStyle.Palette(V269Theme.Dark)?V269Theme.Dark:
+            palette==V269AppDetailStyle.Palette(V269Theme.Claro)?V269Theme.Claro:V269Theme.AzulGf;
+        _dismiss.ApplyAppStyle(true,_theme,_percent);_dismiss.ForeColor=palette.Text;
         _dismiss.FlatAppearance.BorderColor=palette.Border;
         _dismiss.FlatAppearance.MouseOverBackColor=palette.Card;
         _dismiss.FlatAppearance.MouseDownBackColor=palette.Card;Invalidate();
