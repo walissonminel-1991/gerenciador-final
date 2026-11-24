@@ -36,8 +36,21 @@ internal static class GfMonitorHostTests
         var s = GfResourceMonitorAdapter.FromPortfolio(newer, key, now.AddSeconds(8));
         Require(s.CpuPercent == 14 && s.RamPercent == 50 && s.GpuPercent == 80 &&
             s.VramPercent == 75 && s.GpuTemperature == 70, "portfólio com relógio antigo mantém fontes válidas");
-        Require(s.MetricTimes?.GpuTemperature == now && s.MetricTimes?.Cpu == now.AddSeconds(8),
-            "instantes reais por fonte");
+        Require(s.MetricTimes?.GpuTemperature == now && s.MetricTimes?.Cpu == now.AddSeconds(8) &&
+            s.MetricTimes?.GpuIdentity == now, "instantes reais por fonte e identidade");
+        var retainedIdentity = portfolio with
+        {
+            WindowsGpuCounters = portfolio.WindowsGpuCounters! with { CapturedAtUtc = now.AddSeconds(8) },
+            D3dKmtGpuSensors = portfolio.D3dKmtGpuSensors! with { CapturedAtUtc = now.AddSeconds(8) },
+            WindowsCounters = newer.WindowsCounters
+        };
+        var retained = GfResourceMonitorAdapter.FromPortfolio(retainedIdentity, key, now.AddSeconds(8));
+        Require(retained.GpuTemperature == 70 && retained.MetricTimes?.GpuTemperature == now.AddSeconds(8),
+            "contadores novos com identidade ainda válida");
+        var identityExpired = GfMonitorMetricTimes.FreshAt(retained, now.AddSeconds(11));
+        Require(identityExpired.GpuIdentity is null && identityExpired.GpuPercent is null &&
+            identityExpired.VramPercent is null && identityExpired.GpuTemperature is null &&
+            identityExpired.CpuPercent == 14, "identidade vencida não é renovada por fonte de dados");
         s = GfResourceMonitorAdapter.FromPortfolio(newer, key, now.AddSeconds(11));
         Require(s.CpuPercent == 14 && s.RamPercent == 50 && s.GpuPercent is null && s.GpuTemperature is null,
             "CPU nova não renova identidade e GPU vencidas");
@@ -58,6 +71,12 @@ internal static class GfMonitorHostTests
         Require(fresh.CpuPercent == 14 && fresh.RamPercent == 42 && fresh.CpuTemperature == 48 &&
             fresh.GpuPercent is null && fresh.VramPercent is null && fresh.GpuTemperature is null,
             "entrega nova não renova GPU antiga");
+        // Benchmark estrutural determinístico: sem relógio de desempenho
+        // dependente do runner, não clonar em nenhuma passagem ociosa.
+        var stable = fresh;
+        for (int i = 0; i < 10_000; i++)
+            if (!ReferenceEquals(stable, GfMonitorMetricTimes.FreshAt(stable, now)))
+                throw new InvalidOperationException("Monitor GF: alocação de snapshot ocioso");
         Require(GfMonitorMetricTimes.FreshAt(sample with { MetricTimes = sample.MetricTimes! with { Cpu = null } }, now).CpuPercent is null,
             "timestamp ausente não herda entrega");
         var caps = GfThermalEvidence.FromD3dKmt(key, 1, key, 1, true, 700, 800, now.AddSeconds(-4));
@@ -85,7 +104,12 @@ internal static class GfMonitorHostTests
                 Require(host.BeginGeneration(key) == 1, "geração explícita");
                 var portfolio = Fixture(now, key);
                 Require(host.Publish(1, portfolio, now), "publicar dados já coletados");
-                Require(!host.Publish(1, portfolio, now), "rejeitar entrega duplicada");
+                Require(!host.Publish(1, portfolio, now) && !host.Publish(1, portfolio, now.AddSeconds(1)),
+                    "rejeitar cache repetido mesmo com nova hora de entrega");
+                Require(!host.Publish(1, Fixture(now.AddSeconds(60), key), now.AddSeconds(1)),
+                    "rejeitar fonte futura sem contaminar watermark");
+                Require(host.Publish(1, Fixture(now.AddSeconds(2), key), now.AddSeconds(2)),
+                    "fonte legítima após data futura inválida");
                 Require(!host.Publish(1, Fixture(now.AddSeconds(-1), key), now.AddSeconds(1)), "não regredir fonte");
                 Require(host.BeginGeneration(null) == 2 && !host.Publish(1, portfolio, now), "geração anterior rejeitada");
                 var enabled = GfResourceMonitorPreferences.Default with { Enabled = true, OpacityPercent = 75 };

@@ -3,7 +3,8 @@ namespace GerenciadorAplicativos;
 // Instantes de medição distintos da entrega. Null explícito não vira
 // timestamp global. Snapshots legados sem este contrato conservam sua semântica.
 internal sealed record GfMonitorMetricTimes(DateTimeOffset? Cpu, DateTimeOffset? Gpu,
-    DateTimeOffset? Ram, DateTimeOffset? Vram, DateTimeOffset? CpuTemperature, DateTimeOffset? GpuTemperature)
+    DateTimeOffset? Ram, DateTimeOffset? Vram, DateTimeOffset? CpuTemperature, DateTimeOffset? GpuTemperature,
+    DateTimeOffset? GpuIdentity = null)
 {
     internal static DateTimeOffset? At(GfResourceMonitorSnapshot s, int index)
     {
@@ -14,19 +15,33 @@ internal sealed record GfMonitorMetricTimes(DateTimeOffset? Cpu, DateTimeOffset?
 
     internal static GfResourceMonitorSnapshot FreshAt(GfResourceMonitorSnapshot s, DateTimeOffset now)
     {
-        bool Fresh(int i) => At(s, i) is DateTimeOffset at &&
+        bool FreshTime(DateTimeOffset at) =>
             GfResourceMonitorAdapter.IsFresh(at, now) && at <= s.CapturedAtUtc.AddSeconds(5);
+        bool Fresh(int i) => At(s, i) is DateTimeOffset at && FreshTime(at);
+        // Quando o adaptador fornece o instante DXGI, sua expiração também
+        // invalida métricas dependentes, sem falsificar os tempos WDDM/D3DKMT.
+        bool identity = s.MetricTimes?.GpuIdentity is not DateTimeOffset identityAt || FreshTime(identityAt);
+        bool cpu = Fresh(0), gpu = identity && Fresh(1), ram = Fresh(2),
+            vram = identity && Fresh(3), cpuTemp = Fresh(4), gpuTemp = identity && Fresh(5);
+        // Caminho ocioso: devolver a mesma instância sem alocar um record a
+        // cada Tick, inclusive quando todas as métricas já estão indisponíveis.
+        if ((cpu || s.CpuPercent is null) && (gpu || s.GpuPercent is null) &&
+            (ram || s.RamPercent is null) && (vram || s.VramPercent is null) &&
+            (cpuTemp || (s.CpuTemperature is null && s.CpuThermalLimit is null)) &&
+            (gpuTemp || (s.GpuTemperature is null && s.GpuThermalLimit is null && s.GpuThermalEvidence is null)) &&
+            (identity || s.GpuIdentity is null)) return s;
         return s with
         {
-            CpuPercent = Fresh(0) ? s.CpuPercent : null,
-            GpuPercent = Fresh(1) ? s.GpuPercent : null,
-            RamPercent = Fresh(2) ? s.RamPercent : null,
-            VramPercent = Fresh(3) ? s.VramPercent : null,
-            CpuTemperature = Fresh(4) ? s.CpuTemperature : null,
-            GpuTemperature = Fresh(5) ? s.GpuTemperature : null,
-            CpuThermalLimit = Fresh(4) ? s.CpuThermalLimit : null,
-            GpuThermalLimit = Fresh(5) ? s.GpuThermalLimit : null,
-            GpuThermalEvidence = Fresh(5) ? s.GpuThermalEvidence : null
+            CpuPercent = cpu ? s.CpuPercent : null,
+            GpuPercent = gpu ? s.GpuPercent : null,
+            RamPercent = ram ? s.RamPercent : null,
+            VramPercent = vram ? s.VramPercent : null,
+            CpuTemperature = cpuTemp ? s.CpuTemperature : null,
+            GpuTemperature = gpuTemp ? s.GpuTemperature : null,
+            CpuThermalLimit = cpuTemp ? s.CpuThermalLimit : null,
+            GpuThermalLimit = gpuTemp ? s.GpuThermalLimit : null,
+            GpuThermalEvidence = gpuTemp ? s.GpuThermalEvidence : null,
+            GpuIdentity = identity ? s.GpuIdentity : null
         };
     }
 }

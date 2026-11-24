@@ -58,7 +58,7 @@ internal static class GfResourceMonitorAdapter
             MetricTimes = result.MetricTimes! with
             {
                 Gpu = wddm?.CapturedAtUtc, Vram = wddm?.CapturedAtUtc,
-                GpuTemperature = thermal?.CapturedAtUtc
+                GpuTemperature = thermal?.CapturedAtUtc, GpuIdentity = dxgi.CapturedAtUtc
             }
         }, deliveredAt);
     }

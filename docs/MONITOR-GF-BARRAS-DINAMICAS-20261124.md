@@ -77,3 +77,10 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 
 ## 24/11 — atualização da fixture para o contrato de timestamps
 - CI Windows 45422807310, regressão job 138546611839: falha na fixture explícita de GPU identificada durante reprodução dos contratos BETA LOCAL. O teste adicionava valores GPU/VRAM/temperatura a FromCounters sem os novos instantes por fonte. A rejeição é o comportamento esperado do contrato. Correção exclusivamente na fixture: declarar instantes distintos nas amostras com e sem identidade. Sem alterar regra de frescor ou aceitar GPU sem identidade. A nova CI deve comprovar a correção.
+
+
+## 24/11 — incremento de estabilidade preparado sobre 45c044d
+- Frescor também considera instante da identidade DXGI nas entregas adaptadas; quando a identidade vence, métricas dependentes tornam-se indisponíveis mesmo com WDDM/D3DKMT recentes. O instante de cada medição permanece intacto. Compatibilidade dos snapshots sintéticos legados preservada.
+- O host rejeita timestamps de origem acima da tolerância de cinco segundos antes de registrar watermarks; comparação de projeção elimina reentrega do mesmo cache com hora de publicação diferente, mas permite invalidação de fontes. Não há novo coletor.
+- FreshAt retorna a própria instância no caminho ocioso. Teste determinístico de 10.000 passagens exige identidade de referência (não é medição de CPU/RAM em hardware). Fixtures adicionais cobrem expiração de identidade, publicação futura e recuperação legítima.
+- Aguardar aprovação integral de 028ad64 e depois 45c044d antes de publicar este incremento; não cancelar CI nem homologar por revisão estática. WORK segue responsável pela unificação e homologação física.

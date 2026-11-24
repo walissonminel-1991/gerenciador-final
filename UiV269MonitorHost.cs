@@ -16,6 +16,7 @@ internal sealed class GfMonitorHost : IDisposable
     private long _generation;
     private WddmGpuKey? _selected;
     private DateTimeOffset? _cpuAt, _wddmAt, _dxgiAt, _thermalAt;
+    private GfResourceMonitorSnapshot? _lastProjected;
     private V269Theme _theme;
     private bool _animate = true, _disposed, _closingForHost, _applying;
 
@@ -51,6 +52,7 @@ internal sealed class GfMonitorHost : IDisposable
         Check();
         _selected = selected;
         _cpuAt = _wddmAt = _dxgiAt = _thermalAt = null;
+        _lastProjected = null;
         _relay.BeginGeneration(++_generation);
         return _generation;
     }
@@ -68,12 +70,23 @@ internal sealed class GfMonitorHost : IDisposable
         var t = portfolio.D3dKmtGpuSensors?.CapturedAtUtc;
         static bool Older(DateTimeOffset? next, DateTimeOffset? previous) =>
             next is DateTimeOffset n && previous is DateTimeOffset p && n < p;
-        if (Older(c, _cpuAt) || Older(w, _wddmAt) || Older(d, _dxgiAt) || Older(t, _thermalAt)) return false;
+        // Não registrar no watermark de uma fonte uma data futura inválida:
+        // isso bloquearia amostras legítimas posteriores. Uma fonte ausente
+        // ou antiga continua podendo ser invalidada no adaptador.
+        bool Future(DateTimeOffset? at) => at is DateTimeOffset value && value > now.AddSeconds(5);
+        if (Future(c) || Future(w) || Future(d) || Future(t) ||
+            Older(c, _cpuAt) || Older(w, _wddmAt) || Older(d, _dxgiAt) || Older(t, _thermalAt)) return false;
         var s = GfResourceMonitorAdapter.FromPortfolio(portfolio, _selected, now);
         if (evidence is not null && _selected is WddmGpuKey key && s.GpuTemperature is not null &&
             s.MetricTimes?.GpuTemperature is DateTimeOffset measured && evidence.Matches(key, generation, measured, now))
             s = s with { GpuThermalEvidence = evidence };
+        // A hora de entrega, sozinha, não constitui nova medição. Comparar
+        // valores, instantes de origem, identidade e evidência; invalidar uma
+        // fonte que venceu ainda produz uma entrega distinta.
+        if (_lastProjected is { } last && (s with { CapturedAtUtc = last.CapturedAtUtc }) == last)
+            return false;
         if (!_relay.Publish(generation, s, now)) return false;
+        _lastProjected = s;
         _cpuAt = c; _wddmAt = w ?? _wddmAt; _dxgiAt = d ?? _dxgiAt; _thermalAt = t ?? _thermalAt;
         return true;
     }
