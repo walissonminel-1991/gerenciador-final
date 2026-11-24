@@ -19,7 +19,7 @@ internal sealed class GfThermalPresentation
         var caps = snapshot.GpuThermalEvidence;
         if (caps is null || snapshot.Generation <= 0 ||
             !string.Equals(snapshot.GpuIdentity, caps.Key.ToString(), StringComparison.Ordinal) ||
-            !caps.Matches(caps.Key, snapshot.Generation, snapshot.CapturedAtUtc, now)) return null;
+            !caps.Matches(caps.Key, snapshot.Generation, GfMonitorMetricTimes.At(snapshot, 5) ?? snapshot.CapturedAtUtc, now)) return null;
         return caps;
     }
 
@@ -34,7 +34,7 @@ internal sealed class GfThermalPresentation
         {
             _latch.Reset(); return _alert = GfThermalAlert.Unknown;
         }
-        return _alert = _latch.Update(snapshot.GpuTemperature, snapshot.CapturedAtUtc, now, caps.Key, snapshot.Generation, caps);
+        return _alert = _latch.Update(snapshot.GpuTemperature, GfMonitorMetricTimes.At(snapshot, 5) ?? snapshot.CapturedAtUtc, now, caps.Key, snapshot.Generation, caps);
     }
 
     internal bool Expire(DateTimeOffset now)

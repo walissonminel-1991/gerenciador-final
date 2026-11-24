@@ -48,7 +48,7 @@ internal sealed class GfMonitorSnapshotRelay : IDisposable
         try
         {
             if (_latest is { } snapshot && GfResourceMonitorAdapter.IsFresh(snapshot.CapturedAtUtc, now))
-                Deliver(() => consumer(snapshot));
+                Deliver(() => consumer(GfMonitorMetricTimes.FreshAt(snapshot, now)));
             else { _latest = null; Deliver(invalidate); }
         }
         catch { Detach(id); throw; }
@@ -69,7 +69,7 @@ internal sealed class GfMonitorSnapshotRelay : IDisposable
             if (_selectedGpuIdentity is not null && !string.Equals(_selectedGpuIdentity, snapshot.GpuIdentity, StringComparison.Ordinal)) return false;
             _selectedGpuIdentity = snapshot.GpuIdentity;
         }
-        snapshot = snapshot with { Generation = generation };
+        snapshot = GfMonitorMetricTimes.FreshAt(snapshot with { Generation = generation }, now);
         _watermark = snapshot.CapturedAtUtc;
         _latest = snapshot;
         // Não engolir exceções da UI: o host deve tratar falhas na fronteira

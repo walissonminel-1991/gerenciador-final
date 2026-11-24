@@ -10,7 +10,8 @@ internal sealed record GfResourceMonitorSnapshot(DateTimeOffset CapturedAtUtc,
     double? CpuPercent, double? GpuPercent, double? RamPercent, double? VramPercent,
     double? CpuTemperature, double? GpuTemperature,
     double? CpuThermalLimit = null, double? GpuThermalLimit = null,
-    string? GpuIdentity = null, GfThermalEvidence? GpuThermalEvidence = null, long Generation = 0);
+    string? GpuIdentity = null, GfThermalEvidence? GpuThermalEvidence = null, long Generation = 0,
+    GfMonitorMetricTimes? MetricTimes = null);
 
 internal sealed class GfResourceMonitorForm : Form
 {
@@ -148,8 +149,14 @@ internal sealed class GfResourceMonitorForm : Form
         {
             if (_arrivedTick is long tick && Environment.TickCount64 - tick > 10_000)
                 ClearReadings();
-            else if (_last is { } snapshot && _gpuThermal.Expire(DateTimeOffset.UtcNow))
-                Render(snapshot, updateFilters: false);
+            else if (_last is { } snapshot)
+            {
+                var now = DateTimeOffset.UtcNow;
+                var fresh = GfMonitorMetricTimes.FreshAt(snapshot, now);
+                bool expired = _gpuThermal.Expire(now);
+                if (fresh != snapshot) { _last = fresh; Render(fresh, updateFilters: true); }
+                else if (expired) Render(snapshot, updateFilters: false);
+            }
         };
         VisibleChanged += (_, _) =>
         {
@@ -157,6 +164,11 @@ internal sealed class GfResourceMonitorForm : Form
             if (Visible)
             {
                 if (_arrivedTick is long tick && Environment.TickCount64 - tick > 10_000) ClearReadings();
+                else if (_last is { } snapshot)
+                {
+                    var fresh = GfMonitorMetricTimes.FreshAt(snapshot, DateTimeOffset.UtcNow);
+                    if (fresh != snapshot) { _last = fresh; Render(fresh, updateFilters: true); }
+                }
                 _freshness.Start();
             }
             else _freshness.Stop();
@@ -362,6 +374,7 @@ internal sealed class GfResourceMonitorForm : Form
         // Não exibir métricas de GPU que não tenham uma identidade selecionada.
         if (string.IsNullOrWhiteSpace(snapshot.GpuIdentity))
             snapshot = snapshot with { GpuPercent = null, VramPercent = null, GpuTemperature = null, GpuThermalLimit = null, GpuThermalEvidence = null };
+        snapshot = GfMonitorMetricTimes.FreshAt(snapshot, now);
         _last = snapshot; _lastAcceptedAt = snapshot.CapturedAtUtc;
         // Descontar idade anterior à entrega, usando relógio monotônico depois dela.
         _arrivedTick = Environment.TickCount64 - (long)Math.Max(0, (now - snapshot.CapturedAtUtc).TotalMilliseconds);
@@ -382,7 +395,7 @@ internal sealed class GfResourceMonitorForm : Form
             double? limit = i == 4 ? s.CpuThermalLimit : i == 5
                 ? evidence?.MaximumC ?? (s.GpuThermalEvidence is null ? s.GpuThermalLimit : null) : null;
             bool atWarning = i == 5 && evidence is not null && data[i] is double raw && raw >= evidence.WarningC;
-            if (updateFilters) _smoothed[i] = _filters[i].Update(data[i], s.CapturedAtUtc, kind,
+            if (updateFilters) _smoothed[i] = _filters[i].Update(data[i], GfMonitorMetricTimes.At(s, i) ?? s.CapturedAtUtc, kind,
                 atWarning ? 0 : i is 2 or 3 ? 2 : 3, limit);
             var frame = i == 5 ? _gpuThermal.Frame(s, _smoothed[i], _theme, now) :
                 GfMeterScale.Frame(kind, _smoothed[i], _theme, limit);
