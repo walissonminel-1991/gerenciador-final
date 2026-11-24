@@ -149,8 +149,11 @@ internal sealed class GfDynamicProgressBar : Control
             _animation.Stop();
             _shownKind = null; // o próximo frame é reapresentado no novo tema
         }
+        if (_animate && Visible && _target.State == GfMeterState.Indeterminate) _animation.Start();
         Invalidate();
     }
+
+    internal bool IsAnimationRunning() => _animation.Enabled;
 
     internal void Present(GfMeterFrame frame, string description)
     {

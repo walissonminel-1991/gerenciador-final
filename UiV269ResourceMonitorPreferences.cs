@@ -42,6 +42,27 @@ internal static class GfResourceMonitorPreferencesStore
 {
     private const int MaxBytes = 4096;
 
+    private static bool HasCompleteSchema(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object) return false;
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!keys.Add(property.Name)) return false;
+            var value = property.Value;
+            bool valid = property.Name switch
+            {
+                "Version" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int version) && version == 1,
+                "Enabled" or "Expanded" or "AlwaysOnTop" or "SnapToEdges" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+                "OpacityPercent" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _),
+                "X" or "Y" => value.ValueKind == JsonValueKind.Null || (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _)),
+                _ => false
+            };
+            if (!valid) return false;
+        }
+        return keys.Count == 8;
+    }
+
     internal static GfResourceMonitorPreferences Load(string path)
     {
         try
@@ -53,10 +74,7 @@ internal static class GfResourceMonitorPreferencesStore
             if (stream.ReadByte() != -1) return GfResourceMonitorPreferences.Default;
             using var document = JsonDocument.Parse(bytes);
             var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object ||
-                !root.TryGetProperty("Version", out var version) || !version.TryGetInt32(out int v) || v != 1 ||
-                !root.TryGetProperty("Enabled", out var enabled) ||
-                enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            if (!HasCompleteSchema(root))
                 return GfResourceMonitorPreferences.Default;
             return (root.Deserialize<GfResourceMonitorPreferences>() ?? GfResourceMonitorPreferences.Default).Normalize();
         }

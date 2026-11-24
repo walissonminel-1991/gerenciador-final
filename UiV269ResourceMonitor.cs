@@ -10,12 +10,13 @@ internal sealed record GfResourceMonitorSnapshot(DateTimeOffset CapturedAtUtc,
     double? CpuPercent, double? GpuPercent, double? RamPercent, double? VramPercent,
     double? CpuTemperature, double? GpuTemperature,
     double? CpuThermalLimit = null, double? GpuThermalLimit = null,
-    string? GpuIdentity = null);
+    string? GpuIdentity = null, GfThermalEvidence? GpuThermalEvidence = null, long Generation = 0);
 
 internal sealed class GfResourceMonitorForm : Form
 {
     private static readonly string[] Names = ["CPU", "GPU", "RAM", "VRAM", "CPU", "GPU"];
     private readonly GfMeterSmoother[] _filters = Enumerable.Range(0, 6).Select(_ => new GfMeterSmoother()).ToArray();
+    private readonly GfThermalPresentation _gpuThermal = new();
     private readonly Label[] _values = new Label[6];
     private readonly Label?[] _compactValues = new Label?[6];
     private readonly GfDynamicProgressBar[] _bars = new GfDynamicProgressBar[6];
@@ -147,6 +148,8 @@ internal sealed class GfResourceMonitorForm : Form
         {
             if (_arrivedTick is long tick && Environment.TickCount64 - tick > 10_000)
                 ClearReadings();
+            else if (_last is { } snapshot && _gpuThermal.Expire(DateTimeOffset.UtcNow))
+                Render(snapshot, updateFilters: false);
         };
         VisibleChanged += (_, _) =>
         {
@@ -358,7 +361,7 @@ internal sealed class GfResourceMonitorForm : Form
         }
         // Não exibir métricas de GPU que não tenham uma identidade selecionada.
         if (string.IsNullOrWhiteSpace(snapshot.GpuIdentity))
-            snapshot = snapshot with { GpuPercent = null, VramPercent = null, GpuTemperature = null, GpuThermalLimit = null };
+            snapshot = snapshot with { GpuPercent = null, VramPercent = null, GpuTemperature = null, GpuThermalLimit = null, GpuThermalEvidence = null };
         _last = snapshot; _lastAcceptedAt = snapshot.CapturedAtUtc;
         // Descontar idade anterior à entrega, usando relógio monotônico depois dela.
         _arrivedTick = Environment.TickCount64 - (long)Math.Max(0, (now - snapshot.CapturedAtUtc).TotalMilliseconds);
@@ -368,16 +371,25 @@ internal sealed class GfResourceMonitorForm : Form
     private readonly double?[] _smoothed = new double?[6];
     private void Render(GfResourceMonitorSnapshot s, bool updateFilters)
     {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (updateFilters) _gpuThermal.Update(s, now);
+        else _gpuThermal.Expire(now);
+        var evidence = _gpuThermal.Evidence(s, now);
         double?[] data = [s.CpuPercent, s.GpuPercent, s.RamPercent, s.VramPercent, s.CpuTemperature, s.GpuTemperature];
         for (int i = 0; i < data.Length; i++)
         {
             var kind = i >= 4 ? GfMeterKind.Temperature : GfMeterKind.Usage;
-            double? limit = i == 4 ? s.CpuThermalLimit : i == 5 ? s.GpuThermalLimit : null;
-            if (updateFilters) _smoothed[i] = _filters[i].Update(data[i], s.CapturedAtUtc, kind, i is 2 or 3 ? 2 : 3, limit);
-            var frame = GfMeterScale.Frame(kind, _smoothed[i], _theme, limit);
+            double? limit = i == 4 ? s.CpuThermalLimit : i == 5
+                ? evidence?.MaximumC ?? (s.GpuThermalEvidence is null ? s.GpuThermalLimit : null) : null;
+            bool atWarning = i == 5 && evidence is not null && data[i] is double raw && raw >= evidence.WarningC;
+            if (updateFilters) _smoothed[i] = _filters[i].Update(data[i], s.CapturedAtUtc, kind,
+                atWarning ? 0 : i is 2 or 3 ? 2 : 3, limit);
+            var frame = i == 5 ? _gpuThermal.Frame(s, _smoothed[i], _theme, now) :
+                GfMeterScale.Frame(kind, _smoothed[i], _theme, limit);
             string number = GfMeterScale.Valid(data[i], kind) ? data[i]!.Value.ToString("0") + (i >= 4 ? "°C" : "%") : "—";
             string description = _values[i].AccessibleName + ": " + number +
-                (i >= 4 && !GfMeterScale.ValidThermalLimit(limit) ? " (escala térmica de referência)" : "");
+                (i == 5 && s.GpuThermalEvidence is not null ? _gpuThermal.Description(s, now) :
+                    i >= 4 && !GfMeterScale.ValidThermalLimit(limit) ? " (escala térmica de referência)" : "");
             _values[i].Text = number; _values[i].ForeColor = frame.Color; _values[i].AccessibleDescription = description;
             if (_compactValues[i] is Label compact)
             {
@@ -388,8 +400,20 @@ internal sealed class GfResourceMonitorForm : Form
         }
     }
 
+    // Invalidação explícita de geração, distinta da expiração normal que
+    // preserva o watermark e rejeita replays antigos.
+    internal void ResetForSnapshotGeneration()
+    {
+        if (IsDisposed || Disposing || InvokeRequired)
+            throw new InvalidOperationException("Reset de geração exige janela viva na thread da UI.");
+        _lastAcceptedAt = null;
+        _gpuIdentity = null;
+        ClearReadings();
+    }
+
     private void ClearReadings()
     {
+        _gpuThermal.Reset();
         _arrivedTick = null; _last = null;
         for (int i = 0; i < 6; i++)
         {
