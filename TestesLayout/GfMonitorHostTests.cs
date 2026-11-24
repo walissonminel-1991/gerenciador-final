@@ -68,7 +68,7 @@ internal static class GfMonitorHostTests
         Label Metric(int index) => (Label)Window().Controls.Find("MonitorCompactMetric" + index, true).Single();
         var now = DateTimeOffset.UtcNow;
         var enabled = GfResourceMonitorPreferences.Default with { Enabled = true, OpacityPercent = 75 };
-        using (var host = new GfMonitorHost(path))
+        using (var host = new GfMonitorHost(path, () => true))
         {
             var generation = host.BeginGeneration(key);
             var caps = GfThermalEvidence.FromD3dKmt(key, generation, key, generation, true, 700, 800, now);
@@ -97,7 +97,7 @@ internal static class GfMonitorHostTests
         }
         Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any() &&
             GfResourceMonitorPreferencesStore.Load(path).Enabled, "encerramento libera janela e conserva opção");
-        using (var restored = new GfMonitorHost(path))
+        using (var restored = new GfMonitorHost(path, () => true))
         {
             Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any() &&
                 !restored.WantsCollection(false, true), "construtor não abre ou coleta implicitamente");
@@ -107,6 +107,42 @@ internal static class GfMonitorHostTests
                 "limpar fixture de preferência");
         }
         Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any(), "nenhuma janela residual");
+    }
+
+    private static void VerifyPresentation(string path)
+    {
+        bool desktop = false;
+        using var host = new GfMonitorHost(path, () => desktop);
+        var now = DateTimeOffset.UtcNow;
+        var p = GfResourceMonitorPreferences.Default with { Enabled=true };
+        Require(host.Apply(p,now) && !host.WantsCollection(false,true),"desktop oculto não coleta");
+        desktop=true; host.RefreshVisibility(); Application.DoEvents();
+        var window=Application.OpenForms.OfType<GfResourceMonitorForm>().Single();
+        Require(window.Visible && !window.TopMost && host.WantsCollection(false,true),"desktop confirmado mostra monitor");
+        int style=GfMonitorNativePresentation.Styles(window.Handle);
+        int mask=GfMonitorNativePresentation.Layered|GfMonitorNativePresentation.Transparent|GfMonitorNativePresentation.NoActivate;
+        Require((style&mask)==mask,"fixação nativa a 100% de opacidade");
+        desktop=false; host.RefreshVisibility();
+        Require(!window.Visible && !host.WantsCollection(false,true) && host.WantsCollection(true,true),
+            "oculto sem bloquear demanda de Início");
+        Require(host.Apply(host.Preferences() with { AlwaysOnTop=true },now) && window.Visible && window.TopMost,
+            "sobreposição explícita sem outra janela");
+        Require(host.Apply(host.Preferences() with { Fixed=false, MonitorTheme=V269Theme.Claro, OpacityPercent=75 },now),
+            "desbloquear sem mudar sobreposição");
+        Require((GfMonitorNativePresentation.Styles(window.Handle)&GfMonitorNativePresentation.Transparent)==0 &&
+            window.TopMost && window.BackColor==V269VisualTokens.ForTheme(V269Theme.Claro).Accent,
+            "desbloqueio nativo e tema próprio");
+        host.Configure(V269Theme.Dark,false);
+        Require(window.BackColor==V269VisualTokens.ForTheme(V269Theme.Claro).Accent,"tema global não substitui monitor");
+        Require(host.Apply(host.Preferences() with { AlwaysOnTop=false, Fixed=true },now) && !window.Visible,
+            "voltar ao desktop sem sobrepor");
+        Require(host.Apply(host.Preferences() with { Enabled=false, MonitorTheme=V269Theme.Dark, ScalePercent=125 },now),
+            "desabilitar com preferências novas");
+        var stored=GfResourceMonitorPreferencesStore.Load(path);
+        Require(!stored.Enabled && stored.MonitorTheme==V269Theme.Dark && stored.ScalePercent==125,
+            "fechamento não sobrescreve edição");
+        Require(!GfMonitorNativePresentation.ShouldShow(true,true,true,false),
+            "falha nativa nunca autoriza exibição");
     }
 
     internal static void Run()
@@ -146,7 +182,7 @@ internal static class GfMonitorHostTests
         var path = Path.Combine(folder, "monitor.json");
         try
         {
-            using (var host = new GfMonitorHost(path))
+            using (var host = new GfMonitorHost(path, () => true))
             {
                 Require(!host.WantsCollection(false, true) && host.WantsCollection(true, true) &&
                     !host.WantsCollection(true, false), "demanda não contorna gates");
@@ -173,6 +209,7 @@ internal static class GfMonitorHostTests
             }
             Require(!GfResourceMonitorPreferencesStore.Load(path).Enabled, "desativação persistida");
             VerifyWindowLifecycle(path, key);
+            VerifyPresentation(path);
         }
         finally { Directory.Delete(folder, recursive: true); }
 

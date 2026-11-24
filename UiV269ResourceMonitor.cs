@@ -41,6 +41,8 @@ internal sealed class GfResourceMonitorForm : Form
     private DateTimeOffset? _lastAcceptedAt;
     private bool _snapToEdges = true, _fixed = true;
     private int _scalePercent = 100;
+    private bool _managedPresentation, _nativeReady;
+    internal bool NativePresentationReady => _nativeReady;
     internal bool Expanded => _isExpanded;
     internal event EventHandler? ModeChanged;
 
@@ -130,15 +132,8 @@ internal sealed class GfResourceMonitorForm : Form
         _expanded.Visible = false;
         Controls.Add(_compact);
 
-        var menu = new ContextMenuStrip();
-        var top = new ToolStripMenuItem("Sempre no topo") { CheckOnClick = true };
-        top.CheckedChanged += (_, _) => TopMost = top.Checked;
-        menu.Opening += (_, _) => top.Checked = TopMost;
-        menu.Items.Add(top);
-        menu.Items.Add("Alternar visualização", null, (_, _) => SetExpanded(!Expanded));
-        menu.Items.Add("Fechar", null, (_, _) => Close());
-        ContextMenuStrip = menu;
-        Disposed += (_, _) => menu.Dispose();
+        // Não duplicar as ações de Configurações nem os botões da janela.
+        // Fixar desliga também o hit-test nativo e os gestos locais.
         // Sem leitura de hardware: invalida uma amostra que deixou de chegar.
         _freshness = new() { Interval = 1000 };
         _freshness.Tick += (_, _) =>
@@ -163,7 +158,7 @@ internal sealed class GfResourceMonitorForm : Form
                 else if (_last is { } snapshot)
                 {
                     var fresh = GfMonitorMetricTimes.FreshAt(snapshot, DateTimeOffset.UtcNow);
-                    if (fresh != snapshot) { _last = fresh; Render(fresh, updateFilters: true); }
+                    _last = fresh; Render(fresh, updateFilters: true);
                 }
                 _freshness.Start();
             }
@@ -321,15 +316,34 @@ internal sealed class GfResourceMonitorForm : Form
     internal void ApplyPreferences(GfResourceMonitorPreferences preferences)
     {
         var p = preferences.Normalize();
+        _managedPresentation = true;
         TopMost = p.AlwaysOnTop;
         Opacity = p.OpacityPercent / 100d;
         _snapToEdges = p.SnapToEdges;
         _fixed = p.Fixed;
+        if (_fixed)
+        {
+            _drag = null;
+            foreach (var control in _surfaces.Concat(_text)) if (control.Capture) control.Capture=false;
+        }
         _scalePercent = p.ScalePercent;
         Configure(p.MonitorTheme, _animate);
         SetExpanded(p.Expanded);
         if (p.X is int x && p.Y is int y) Location = new(x, y);
         ClampLocation(snap: false);
+        RefreshNativePresentation();
+    }
+
+    protected override bool ShowWithoutActivation => _managedPresentation;
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        if (_managedPresentation) RefreshNativePresentation();
+    }
+    internal bool RefreshNativePresentation()
+    {
+        _nativeReady = GfMonitorNativePresentation.Apply(Handle,_fixed,(int)Math.Round(Opacity*100));
+        return _nativeReady;
     }
 
     internal GfResourceMonitorPreferences CapturePreferences(bool enabled) =>
@@ -350,9 +364,9 @@ internal sealed class GfResourceMonitorForm : Form
 
     private void AttachDrag(Control c)
     {
-        c.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { _drag = Cursor.Position - new Size(Location); c.Capture = true; } };
-        c.MouseMove += (_, _) => { if (_drag is Point d && c.Capture) Location = Cursor.Position - new Size(d); };
-        c.MouseUp += (_, _) => { _drag = null; c.Capture = false; ClampLocation(_snapToEdges); };
+        c.MouseDown += (_, e) => { if (!_fixed && e.Button == MouseButtons.Left) { _drag = Cursor.Position - new Size(Location); c.Capture = true; } };
+        c.MouseMove += (_, _) => { if (!_fixed && _drag is Point d && c.Capture) Location = Cursor.Position - new Size(d); };
+        c.MouseUp += (_, _) => { if (_drag is null) return; _drag = null; c.Capture = false; if (!_fixed) { ClampLocation(_snapToEdges); ModeChanged?.Invoke(this, EventArgs.Empty); } };
         c.MouseCaptureChanged += (_, _) => { if (!c.Capture) _drag = null; };
     }
 
@@ -376,7 +390,9 @@ internal sealed class GfResourceMonitorForm : Form
         _last = snapshot; _lastAcceptedAt = snapshot.CapturedAtUtc;
         // Descontar idade anterior à entrega, usando relógio monotônico depois dela.
         _arrivedTick = Environment.TickCount64 - (long)Math.Max(0, (now - snapshot.CapturedAtUtc).TotalMilliseconds);
-        Render(snapshot, updateFilters: true);
+        // Oculto: conservar relógios e snapshot, sem atualizar controles.
+        // O próximo Show reapresenta o cache sanitizado.
+        if (Visible) Render(snapshot, updateFilters: true);
     }
 
     private readonly double?[] _smoothed = new double?[6];

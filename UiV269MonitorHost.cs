@@ -10,6 +10,8 @@ internal sealed class GfMonitorHost : IDisposable
     private readonly int _thread = Environment.CurrentManagedThreadId;
     private readonly GfMonitorSnapshotRelay _relay = new();
     private readonly string _preferencesPath;
+    private readonly Func<bool> _desktopForeground;
+    private readonly System.Windows.Forms.Timer _visibilityTimer;
     private GfResourceMonitorPreferences _preferences;
     private GfResourceMonitorForm? _window;
     private GfMonitorWindowBinding? _binding;
@@ -19,10 +21,27 @@ internal sealed class GfMonitorHost : IDisposable
     private GfResourceMonitorSnapshot? _lastProjected;
      private bool _animate = true, _disposed, _closingForHost, _applying;
 
-    internal GfMonitorHost(string preferencesPath)
+    internal GfMonitorHost(string preferencesPath, Func<bool>? desktopForeground = null)
     {
         _preferencesPath = Path.GetFullPath(preferencesPath);
         _preferences = GfResourceMonitorPreferencesStore.Load(_preferencesPath);
+        _desktopForeground = desktopForeground ?? GfMonitorNativePresentation.IsDesktopForeground;
+        // Somente visibilidade do desktop; não é timer de hardware.
+        _visibilityTimer = new() { Interval = 250 };
+        _visibilityTimer.Tick += (_,_) => RefreshVisibility();
+    }
+
+    internal void RefreshVisibility()
+    {
+        Check();
+        if (_window is not { IsDisposed: false } window) { _visibilityTimer.Stop(); return; }
+        bool show = GfMonitorNativePresentation.ShouldShow(_preferences.Enabled,_preferences.AlwaysOnTop,
+            _preferences.AlwaysOnTop || _desktopForeground(), window.NativePresentationReady);
+        if(show && !window.Visible) window.Show();
+        else if(!show && window.Visible) window.Hide();
+        // Overlay não precisa sondar foreground; falha nativa permanece oculta.
+        if(_preferences.Enabled && !_preferences.AlwaysOnTop && window.NativePresentationReady) _visibilityTimer.Start();
+        else _visibilityTimer.Stop();
     }
 
     private void Check()
@@ -120,6 +139,7 @@ internal sealed class GfMonitorHost : IDisposable
             }
         }
         else CloseWindow();
+        RefreshVisibility();
         return Save();
     }
 
@@ -141,11 +161,14 @@ internal sealed class GfMonitorHost : IDisposable
             window.ApplyPreferences(_preferences);
             window.FormClosed += OnClosed;
             window.ModeChanged += OnModeChanged;
-            window.Show();
+            // ApplyPreferences cria o HWND sem exibi-lo; não piscar sobre apps
+            // ao habilitar o modo desktop. A janela escondida também aceita replay.
+            RefreshVisibility();
             _binding = new GfMonitorWindowBinding(window, _relay, now);
         }
         catch
         {
+            _visibilityTimer.Stop();
             window.FormClosed -= OnClosed; window.ModeChanged -= OnModeChanged;
             _binding?.Dispose(); _binding = null; _window = null;
             window.Dispose();
@@ -161,6 +184,7 @@ internal sealed class GfMonitorHost : IDisposable
     private void OnClosed(object? sender, FormClosedEventArgs e)
     {
         if (sender is not GfResourceMonitorForm window || !ReferenceEquals(_window, window)) return;
+        _visibilityTimer.Stop();
         var captured = window.CapturePreferences(_closingForHost && _preferences.Enabled);
         _preferences = _closingForHost ? _preferences with { X = captured.X, Y = captured.Y } : captured;
         window.FormClosed -= OnClosed; window.ModeChanged -= OnModeChanged;
@@ -170,6 +194,7 @@ internal sealed class GfMonitorHost : IDisposable
 
     private void CloseWindow()
     {
+        _visibilityTimer.Stop();
         if (_window is not { } window) return;
         _closingForHost = true;
         try { window.Close(); }
@@ -192,6 +217,7 @@ internal sealed class GfMonitorHost : IDisposable
         if (_disposed) return;
         Save(); // conserva a preferência habilitada para a próxima execução
         CloseWindow();
+        _visibilityTimer.Dispose();
         _relay.Dispose();
         _disposed = true;
     }
