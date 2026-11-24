@@ -252,13 +252,39 @@ internal static class V269IntegrationTests
                     }
                 }
             }
+            // Acionar os três botões consultivos da view real, em MainForm
+            // sem serviços, e inspecionar o painel produzido pelo controlador.
+            // Não gravar Registro, não coletar dados e não solicitar UAC.
+            shell.PresentPanel(null);
+            page.ScrollTo(0);Application.DoEvents();
+            Require(general.Privacy.Focus(),"Saiba mais alcançável");
+            general.Privacy.PerformClick();Application.DoEvents();
+            Require(shell.RightPane.Visible &&
+                shell.RightPane.Current is {Kind:V269PanelKind.Details,Title:"Privacidade e coleta de dados"} privacy &&
+                privacy.Description.Contains(BetaRuntimePolicy.IsLocalBeta?BetaRuntimePolicy.LocalNotice:TelemetryConsentPolicy.RemoteNotice),
+                "Saiba mais apresenta o aviso efetivo de consentimento");
+            shell.PresentPanel(null);Application.DoEvents();
+            Require(general.Diagnostic.Focus(),"diagnóstico alcançável");
+            general.Diagnostic.PerformClick();Application.DoEvents();
+            Require(shell.RightPane.Visible &&
+                shell.RightPane.Current is {Kind:V269PanelKind.Details,Title:"Diagnóstico local"} diagnostic &&
+                diagnostic.Description.Contains(DiagnosticTrace.VersionLabel) &&
+                diagnostic.Description.Contains("RELATÓRIO LOCAL DE CONFIABILIDADE"),
+                "diagnóstico apresenta versão e relatório local reais");
+            shell.PresentPanel(null);Application.DoEvents();
+            Require(general.History.Focus(),"histórico alcançável");
+            general.History.PerformClick();Application.DoEvents();
+            Require(shell.RightPane.Visible &&
+                shell.RightPane.Current is {Kind:V269PanelKind.History,Title:"Histórico local"} history &&
+                history.Description.Contains("RELATÓRIO LOCAL DE CONFIABILIDADE"),
+                "histórico aciona o relatório do controlador real");
         }
         finally
         {
             surface.Size=originalSize;themeChoice.SelectedIndex=(int)old.Theme;page.ScrollTo(0);
             shell.PresentPanel(originalPanel);surface.PerformLayout();Application.DoEvents();
         }
-        Console.WriteLine("PASS Configurações V2.6.9: preferências descartáveis, estados observados, três temas, rolagem e capturas.");
+        Console.WriteLine("PASS Configurações V2.6.9: preferências descartáveis, estados observados, três temas, rolagem, botões consultivos e capturas.");
     }
 
     private static HardwareSensorPortfolio VerifyHome(MainForm form, Control view)
