@@ -364,6 +364,10 @@ internal static class V269IntegrationTests
                     descriptionHeading.Font.SizeInPoints>historyHeading.Font.SizeInPoints&&
                     note.Padding.Left>0&&historyHeading.Padding.Top>0,
                     "hierarquia tipográfica, nota destacada e separação do histórico do HTML");
+                var historyTable=shell.RightPane.Controls.Find("V269AppDetailsFields",true).OfType<TableLayoutPanel>().Single();
+                var lastHistoryRow=historyTable.Controls.OfType<V269AppHistoryRow>().Single();
+                Require(historyHeading.Width>=historyTable.ClientSize.Width-2&&!lastHistoryRow.HasBottomDivider,
+                    "divisor de largura integral e ausência de borda após o último resultado, conforme HTML");
                 var captureScroll=shell.RightPane.Controls.Find("V269AppDetailsScroll",true)
                     .OfType<DarkVScrollBar>().Single();
                 foreach(bool bottom in new[]{false,true})

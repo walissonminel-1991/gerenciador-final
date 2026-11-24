@@ -39,8 +39,10 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
         AutoSize=false,UseVisualStyleBackColor=false,Anchor=AnchorStyles.Top|AnchorStyles.Right,Margin=Padding.Empty};
     private Font? _headingFont,_messageFont;
     private Color _line;
-    internal V269AppHistoryRow(V269AppPreviousResult result,Action<Guid>? dismiss)
+    internal bool HasBottomDivider {get;}
+    internal V269AppHistoryRow(V269AppPreviousResult result,Action<Guid>? dismiss,bool hasBottomDivider)
     {
+        HasBottomDivider=hasBottomDivider;
         Name="V269AppPreviousResult";AccessibleName=result.Title;AccessibleDescription=result.Description;
         AutoSize=true;AutoSizeMode=AutoSizeMode.GrowAndShrink;Dock=DockStyle.Top;ColumnCount=3;RowCount=2;
         ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,23));ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
@@ -86,7 +88,7 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
     }
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);if(Width<1||Height<1)return;
+        base.OnPaint(e);if(!HasBottomDivider||Width<1||Height<1)return;
         using var pen=new Pen(_line);e.Graphics.DrawLine(pen,0,Height-1,Width-1,Height-1);
     }
     protected override void Dispose(bool disposing)
@@ -177,8 +179,13 @@ internal sealed class V269AppDetailPanel : Panel
                 ApplyFullMetrics(label);
                 if(name=="V269AppDescriptionHeading"&&_descriptionHeadingFont is not null)
                     label.Font=_descriptionHeadingFont;
-                if(name=="V269AppHistoryHeading"&&_historyHeadingFont is not null)
-                    label.Font=_historyHeadingFont;
+                if(name=="V269AppHistoryHeading")
+                {
+                    if(_historyHeadingFont is not null)label.Font=_historyHeadingFont;
+                    // O divisor do HTML atravessa toda a área útil, não
+                    // somente a largura natural do texto do título.
+                    label.Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right;
+                }
                 if(name is "V269AppDetailNote" or "V269AppHistoryHeading")
                     label.Paint+=(_,e)=>{
                         int S(int n)=>V269AppTable.Scale(n,_interfacePercent,DeviceDpi);
@@ -221,10 +228,10 @@ internal sealed class V269AppDetailPanel : Panel
             if(model.PreviousResults is {Count:>0} previous)
             {
                 AddFull("Resultados anteriores",true,"V269AppHistoryHeading");
-                foreach(var result in previous)
+                for(int index=0;index<previous.Count;index++)
                 {
                     int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                    var history=new V269AppHistoryRow(result,model.DismissResult);
+                    var history=new V269AppHistoryRow(previous[index],model.DismissResult,index<previous.Count-1);
                     history.ApplyMetrics(_interfacePercent,Math.Max(1,ClientSize.Width));
                     history.ApplyPalette(_palette);
                     history.MouseWheel+=ScrollContent;
@@ -251,7 +258,8 @@ internal sealed class V269AppDetailPanel : Panel
                 foreach(Label label in _table.Controls.OfType<Label>())
                 {
                     int column=_table.GetColumn(label);
-                    int max=_table.GetColumnSpan(label)==2?width-6:
+                    int max=label.Name=="V269AppHistoryHeading"?width:
+                        _table.GetColumnSpan(label)==2?width-6:
                         (int)(width*(column==0 ? .4 : .6))-6;
                     label.MaximumSize=new Size(Math.Max(20,max),0);
                 }
