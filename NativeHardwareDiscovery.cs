@@ -24,6 +24,7 @@ internal sealed record HardwareDeviceDescriptor(
     HardwareDeviceKind Kind)
 {
     internal string? InstalledDriverVersion { get; init; }
+    internal string? ReportedPcieLink { get; init; }
 }
 
 internal sealed record HardwareDiscoverySnapshot(
@@ -142,6 +143,21 @@ internal static class NativeHardwareDiscovery
         return ValidateInstalledDriver(Encoding.Unicode.GetString(buffer, 0, (int)needed).TrimEnd('\0'));
     }
 
+    // pciprop.h: CurrentLinkSpeed (9), CurrentLinkWidth (10).
+    // Leitura do devnode da própria GPU, sem acessar configuração PCI bruta.
+    private static uint? ReadPciUInt(IntPtr set, ref DeviceInfoData data, uint id)
+    {
+        var key = new DevicePropertyKey { Format = new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"), Id = id };
+        var buffer = new byte[4];
+        return ReadDevicePropertyKey(set, ref data, ref key, out uint type, buffer, 4,
+            out uint needed, 0) && type == 7 && needed == 4
+            ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(buffer) : null;
+    }
+
+    internal static string? FormatWindowsPcie(uint? speed, uint? width) =>
+        speed is >= 1 and <= 5 && width is 1 or 2 or 4 or 8 or 12 or 16 or 32
+            ? $"PCIe {speed}.0 x{width} (Windows, consulta)" : null;
+
     internal static string? ValidateInstalledDriver(string? version)
     {
         if (string.IsNullOrEmpty(version) || version.Length > 64) return null;
@@ -201,7 +217,11 @@ internal static class NativeHardwareDiscovery
                     HardwareDeviceClassifier.BusOf(instance), kind)
                 {
                     InstalledDriverVersion = kind == HardwareDeviceKind.Graphics && instance.Length > 0
-                        ? ReadInstalledDriver(set, ref data) : null
+                        ? ReadInstalledDriver(set, ref data) : null,
+                    ReportedPcieLink = kind == HardwareDeviceKind.Graphics &&
+                        HardwareDeviceClassifier.BusOf(instance) == "PCI"
+                        ? FormatWindowsPcie(ReadPciUInt(set, ref data, 9), ReadPciUInt(set, ref data, 10))
+                        : null
                 });
             }
 

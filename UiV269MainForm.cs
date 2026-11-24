@@ -239,11 +239,16 @@ internal sealed partial class MainForm
             : "Memória física indisponível.");
 
         foreach (var gpu in snapshot.NvidiaGpus.Devices)
+        {
+            if (gpu.Bar1TotalBytes is { } bar1)
+                yield return (gpu.Name + " · BAR1 (NVML)", "Abertura reportada: " + Gib(bar1) +
+                    "\nNão confirma ativação de Resizable BAR.");
             yield return (gpu.Name + " · NVML", $"Uso: {Measure(gpu.UsagePercent, x => $"{x:0.#}%")}\n" +
                 $"Temperatura: {Measure(gpu.TemperatureC, x => $"{x:0.#} °C")}\n" +
                 $"Potência: {Measure(gpu.PowerWatts, x => $"{x:0.#} W")}\n" +
                 $"Ventoinha: {Measure(gpu.FanPercent, x => $"{x:0.#}%")}\n" +
                 $"VRAM usada: {Measure(gpu.VramUsedBytes, Gib)}");
+        }
 
         var adapters = snapshot.MatchedGpuDevices;
         foreach (var gpu in adapters)
@@ -294,6 +299,10 @@ internal sealed partial class MainForm
                 yield return ("Especificação nominal AMD",
                     $"Base: {specification.BaseMhz} MHz · Boost até {specification.BoostMhz} MHz\n" +
                     "Valores de fábrica, não medições do clock ativo.\n" + specification.Source);
+            if (platform.IntelNominalBaseMhz is { } intelBase)
+                yield return ("Intel · CPUID 16H", $"Base nominal: {intelBase} MHz\n" +
+                    (platform.IntelReportedMaximumMhz is { } intelMax
+                        ? $"Máximo reportado: {intelMax} MHz (não confirma Turbo Boost)" : "Máximo não informado"));
             foreach (var cpu in platform.CpuSockets)
                 yield return (cpu.ReportedName ?? "Processador · WMI",
                     $"Núcleos físicos: {cpu.PhysicalCores?.ToString() ?? "indisponível"}\n" +
@@ -359,7 +368,8 @@ internal sealed partial class MainForm
         // ou frequências base/turbo pelo clock reportado pelo firmware.
         if (cpu.Count > 1 && cpuL3.Length != 0) cpuL3 += " (por CPU)";
         var cpuRows = new V269HomeRow[] { R("Arquitetura", cpuArchitecture), R("Núcleos / Threads", coreCounts),
-            R("Frequência base", nominal is null ? nd : $"{nominal.BaseMhz / 1000d:0.00} GHz (AMD)"),
+            R("Frequência base", nominal is not null ? $"{nominal.BaseMhz / 1000d:0.00} GHz (AMD)" :
+                platform?.IntelNominalBaseMhz is { } intelBase ? $"{intelBase / 1000d:0.00} GHz (CPUID)" : nd),
             R("Frequência turbo", nominal is null ? nd : $"Até {nominal.BoostMhz / 1000d:0.00} GHz (AMD)"),
             R("Cache L3", cpuL3) };
         var cpuSensors = new V269HomeRow[] { R("Temperatura", M(sample?.Sensors.CpuTemperatureC, Temp)),
@@ -453,7 +463,9 @@ internal sealed partial class MainForm
         var nvml = snapshot?.NvidiaGpus.Devices ?? [];
         var pnp = snapshot?.DeviceInventory.Devices.Where(x => x.Kind == HardwareDeviceKind.Graphics).ToArray() ?? [];
         string links = Join(nvml.Where(x => x.CurrentPcieLink is not null)
-            .Select(x => x.Name + ": " + x.CurrentPcieLink));
+            .Select(x => x.Name + ": " + x.CurrentPcieLink)
+            .Concat(pnp.Where(x => x.ReportedPcieLink is not null)
+                .Select(x => x.Name + ": " + x.ReportedPcieLink)));
         var driverValues = pnp.Where(x => x.InstalledDriverVersion is not null)
             .Select(x => x.Name + ": " + x.InstalledDriverVersion + " (Windows)").ToList();
         if (nvml.Count > 0 && snapshot?.NvidiaGpus.NvidiaDriverVersion is { } version)

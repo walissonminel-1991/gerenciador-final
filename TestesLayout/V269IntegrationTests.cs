@@ -130,7 +130,8 @@ internal static class V269IntegrationTests
         var pnp = new HardwareDiscoverySnapshot(at, HardwareDiscoveryState.Complete,
             [new HardwareDeviceDescriptor("PCI\\VEN_1002&DEV_1234&SUBSYS_00000001\\fixture",
                 "GPU fixture AMD", "AMD", "Display", "PCI", HardwareDeviceKind.Graphics)
-                { InstalledDriverVersion = NativeHardwareDiscovery.ValidateInstalledDriver("32.0.1.123") }],
+                { InstalledDriverVersion = NativeHardwareDiscovery.ValidateInstalledDriver("32.0.1.123"),
+                    ReportedPcieLink = NativeHardwareDiscovery.FormatWindowsPcie(3, 16) }],
             "fixture", null);
         var gpu = new NvidiaGpuSensorSnapshot(at, true,
             [new NvidiaGpuSensorSample(0, "GPU fixture NVML", null,
@@ -160,7 +161,13 @@ internal static class V269IntegrationTests
             V269TpmReader.Describe(0, 1, 99) is null,
             "TPM confirmado, não encontrado e inconclusivo permanecem distintos");
         Require(models[1].Specs.Single(x => x.Label == "Barramento").Value ==
-                "GPU fixture NVML: PCIe 4.0 x8 (atual)" &&
+                "GPU fixture NVML: PCIe 4.0 x8 (atual) / GPU fixture AMD: PCIe 3.0 x16 (Windows, consulta)" &&
+            NativeHardwareDiscovery.FormatWindowsPcie(5, 8) == "PCIe 5.0 x8 (Windows, consulta)" &&
+            NativeHardwareDiscovery.FormatWindowsPcie(6, 8) is null &&
+            NativeHardwareDiscovery.FormatWindowsPcie(3, 0) is null &&
+            NvidiaNvmlSensorProvider.Bar1Capacity(8UL << 30, 7UL << 30, 1UL << 30) == 8UL << 30 &&
+            NvidiaNvmlSensorProvider.Bar1Capacity(0, 0, 0) is null &&
+            NvidiaNvmlSensorProvider.Bar1Capacity(1, 2, 3) is null &&
             models[1].Specs.Single(x => x.Label == "Driver").Value ==
                 "GPU fixture AMD: 32.0.1.123 (Windows) / 576.02 (NVIDIA NVML)" &&
             NativeHardwareDiscovery.ValidateInstalledDriver("32.0.1.123") == "32.0.1.123" &&
@@ -231,6 +238,15 @@ internal static class V269IntegrationTests
             V269CpuSpecCatalog.Resolve(platform.CpuSockets[0] with {
                 ReportedName = "AMD Ryzen 7 5700X", LogicalProcessors = 8 }) is null,
             "catálogo nominal exige SKU exato, arquitetura e topologia corroboradas");
+        Require(V269IntelCpuidClocks.Parse(3200, 4600) is { BaseMhz: 3200, MaximumMhz: 4600 } &&
+            V269IntelCpuidClocks.Parse(0, 4600) is null &&
+            V269IntelCpuidClocks.Parse(3200, 1000) is { MaximumMhz: null },
+            "CPUID: base zero e máximo contraditório não são convertidos em dados");
+        var intel = MainForm.V269HomeModels(snapshot with { PlatformHardware = platform with {
+            IntelNominalBaseMhz = 3200, IntelReportedMaximumMhz = 4600 } });
+        Require(intel[0].Specs.Single(x => x.Label == "Frequência base").Value.Contains("CPUID") &&
+            intel[0].Specs.Single(x => x.Label == "Frequência turbo").Value == "N/D",
+            "CPUID máximo não é confundido com Turbo Boost");
         foreach (var pair in new[] { (18U, "DDR"), (19U, "DDR2"), (20U, "DDR2 FB-DIMM"), (21U, "N/D") })
         {
             var legacy = WindowsPlatformHardwareProvider.Join([], 

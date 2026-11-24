@@ -16,6 +16,7 @@ internal sealed record NvidiaGpuSensorSample(
 {
     internal string? CurrentPcieLink { get; init; }
     internal string? ReportedArchitecture { get; init; }
+    internal ulong? Bar1TotalBytes { get; init; }
 }
 
 internal sealed record NvidiaGpuSensorSnapshot(
@@ -36,6 +37,9 @@ internal static class NvidiaNvmlSensorProvider
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MemoryInfo { public ulong Total; public ulong Free; public ulong Used; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Bar1MemoryInfo { public ulong Total; public ulong Free; public ulong Used; }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int Init();
@@ -59,6 +63,12 @@ internal static class NvidiaNvmlSensorProvider
     private delegate int GetFan(IntPtr device, out uint percent);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int GetMemory(IntPtr device, out MemoryInfo memory);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int GetBar1Memory(IntPtr device, out Bar1MemoryInfo memory);
+
+    // Tamanho BAR1 é evidência de abertura, não o estado booleano de ReBAR.
+    internal static ulong? Bar1Capacity(ulong total, ulong free, ulong used) =>
+        total <= (1UL << 40) && IsPlausibleMemory(total, free, used) ? total : null;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int GetDeviceUInt(IntPtr device, out uint value);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -178,6 +188,7 @@ internal static class NvidiaNvmlSensorProvider
             var power = Export<GetPower>(library, "nvmlDeviceGetPowerUsage");
             var fan = Export<GetFan>(library, "nvmlDeviceGetFanSpeed");
             var memory = Export<GetMemory>(library, "nvmlDeviceGetMemoryInfo");
+            var bar1Memory = Export<GetBar1Memory>(library, "nvmlDeviceGetBAR1MemoryInfo");
             var pcieGeneration = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkGeneration");
             var pcieWidth = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkWidth");
             var architecture = Export<GetDeviceUInt>(library, "nvmlDeviceGetArchitecture");
@@ -226,6 +237,8 @@ internal static class NvidiaNvmlSensorProvider
                         : MonitorReading<ulong>.Unavailable(Source + " VRAM (WDDM)"))
                 {
                     CurrentPcieLink = FormatPcie(gen, lanes),
+                    Bar1TotalBytes = bar1Memory is not null && bar1Memory(device, out var bar) == Success
+                        ? Bar1Capacity(bar.Total, bar.Free, bar.Used) : null,
                     ReportedArchitecture = architecture is not null &&
                         architecture(device, out uint reportedArchitecture) == Success
                         ? FormatArchitecture(reportedArchitecture) : null

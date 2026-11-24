@@ -61,6 +61,8 @@ internal sealed record WindowsPlatformHardwareSnapshot(
     IReadOnlyList<WindowsLogicalCpuLoad> LogicalCpuInstances)
 {
     internal string? ReportedBiosVersion { get; init; }
+    internal int? IntelNominalBaseMhz { get; init; }
+    internal int? IntelReportedMaximumMhz { get; init; }
     internal int MeasuredLogicalCpuInstances => LogicalCpuInstances.Count(x =>
         x.UsagePercent.Availability == MonitorAvailability.Available &&
         x.UsagePercent.Value.HasValue);
@@ -397,8 +399,14 @@ internal static class WindowsPlatformHardwareProvider
             bool biosOk = Query("SELECT SMBIOSBIOSVersion FROM Win32_BIOS",
                 get => bios.Add(Identity(Convert.ToString(get("SMBIOSBIOSVersion"), CultureInfo.InvariantCulture))));
             string? biosVersion = biosOk && !partial && bios.Count == 1 ? bios[0] : null;
-            return Join(cpus, ram, boards, loads,
+            var snapshot = Join(cpus, ram, boards, loads,
                 cpuOk, ramOk, boardOk, loadOk, priorPartial, biosVersion);
+            if (snapshot.CpuSocketsState == HardwareDiscoveryState.Complete &&
+                snapshot.CpuSockets.Count == 1 && snapshot.CpuSockets[0].ReportedArchitecture == "x64" &&
+                V269IntelCpuidClocks.Capture() is { } clocks)
+                snapshot = snapshot with { IntelNominalBaseMhz = clocks.BaseMhz,
+                    IntelReportedMaximumMhz = clocks.MaximumMhz };
+            return snapshot;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is COMException or
@@ -413,5 +421,33 @@ internal static class WindowsPlatformHardwareProvider
     {
         if (obj is not null && Marshal.IsComObject(obj))
             Marshal.FinalReleaseComObject(obj);
+    }
+}
+
+
+// Intel SDM, CPUID leaf 16H. Base e máximo reportados em MHz.
+// Somente um socket homogêneo, sem hipervisor anunciado. O máximo
+// arquitetural não é automaticamente a frequência Turbo Boost.
+internal sealed record V269IntelCpuidClocks(int BaseMhz, int? MaximumMhz)
+{
+    internal static V269IntelCpuidClocks? Parse(int eax, int ebx)
+    {
+        int basis = eax & 0xffff, maximum = ebx & 0xffff;
+        if (basis is < 100 or > 20_000) return null;
+        return new(basis, maximum >= basis && maximum <= 20_000 ? maximum : null);
+    }
+
+    internal static V269IntelCpuidClocks? Capture()
+    {
+        if (!System.Runtime.Intrinsics.X86.X86Base.IsSupported) return null;
+        var (max, b, c, d) = System.Runtime.Intrinsics.X86.X86Base.CpuId(0, 0);
+        if (max < 0x16 || b != 0x756e6547 || d != 0x49656e69 || c != 0x6c65746e)
+            return null; // GenuineIntel, e folha implementada.
+        var features = System.Runtime.Intrinsics.X86.X86Base.CpuId(1, 0);
+        if ((unchecked((uint)features.Ecx) & 0x80000000u) != 0) return null;
+        var extended = System.Runtime.Intrinsics.X86.X86Base.CpuId(7, 0);
+        if ((extended.Edx & (1 << 15)) != 0) return null; // CPUs híbridas: sem inferência.
+        var frequency = System.Runtime.Intrinsics.X86.X86Base.CpuId(0x16, 0);
+        return Parse(frequency.Eax, frequency.Ebx);
     }
 }
