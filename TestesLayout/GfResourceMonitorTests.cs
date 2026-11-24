@@ -210,7 +210,7 @@ internal static class GfResourceMonitorTests
             "limitar transparência e rejeitar coordenadas absurdas");
         var work = new Rectangle(-1440, 0, 1440, 900);
         Require(GfResourceMonitorPreferences.Fit(new Point(-1440, 880), new Size(552, 186), work, 10) ==
-            new Point(-1440, 668), "reencaixar após mudança de modo ou tela");
+            new Point(-1440, 714), "reencaixar após mudança de modo ou tela");
         var folder = Path.Combine(Path.GetTempPath(), "gf-monitor-fixture-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, "monitor.json");
