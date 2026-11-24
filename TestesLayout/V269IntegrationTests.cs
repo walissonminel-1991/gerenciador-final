@@ -172,6 +172,11 @@ internal static class V269IntegrationTests
             "estado administrativo e consentimento provêm da fotografia efetiva");
         Require(!general.Collect.AutoCheck&&!general.StartWindows.AutoCheck&&!general.Notifications.AutoCheck,
             "ações não alteram estado por otimismo antes do motor");
+        general.SetObserved(null,null,new V269GeneralOptions(),TelemetryConsent.Declined,true,false);
+        Require(!general.Administrator.Enabled&&!general.Collect.Enabled,"privilégios e coleta indisponíveis não são habilitados");
+        var range=page.Appearance.Controls.Find("V269UiScale",true).OfType<V269SettingsRange>().Single();
+        Require(range.ValueAtPosition(-10)==90&&range.ValueAtPosition(range.Width+10)==110,
+            "barra visual conserva os limites do motor TrackBar");
         var originalPanel=shell.RightPane.Current;
         shell.PresentPanel(null);
         var surface=form.Controls.OfType<TableLayoutPanel>().Single();

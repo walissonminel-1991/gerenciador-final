@@ -780,8 +780,33 @@ internal sealed partial class MainForm
         view.Disposed+=(_,_)=>binder.Dispose();
         binder.SetOptions(_v269Appearance);
         _programList.V269Options().AnimateButtonFeedback=CanAnimateV269;
-        if(loadPreferences)FormClosed+=(_,e)=>
-            _v269AdminClosedNormally=e.CloseReason==CloseReason.UserClosing&&!_betaClose.IsShutdown;
+        System.Windows.Forms.Timer? saveAppearance=null;
+        bool dirtyAppearance=false;
+        void SaveAppearance()
+        {
+            if(!dirtyAppearance)return;
+            try{WriteV269Appearance(_v269Appearance);dirtyAppearance=false;view.SetNotice(null);}
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                view.SetNotice("Aparência aplicada nesta sessão; não foi possível salvar a preferência.");
+                DiagnosticTrace.Write("PREFERENCIAS.APARENCIA_FALHA "+ex.GetType().Name);
+            }
+        }
+        if(loadPreferences)
+        {
+            saveAppearance=new System.Windows.Forms.Timer{Interval=250};
+            saveAppearance.Tick+=(_,_)=>{saveAppearance.Stop();SaveAppearance();};
+            FormClosing+=(_,e)=>
+            {
+                if(e.CloseReason!=CloseReason.UserClosing)_v269AdminRestartApproved=false;
+                saveAppearance.Stop();SaveAppearance();
+            };
+            FormClosed+=(_,e)=>
+            {
+                _v269AdminClosedNormally=e.CloseReason==CloseReason.UserClosing&&!_betaClose.IsShutdown;
+                saveAppearance.Dispose();
+            };
+        }
         appearance.AppearanceChanged+=(_,_)=>
         {
             _v269Appearance=appearance.GetOptions().Normalize();
@@ -791,14 +816,7 @@ internal sealed partial class MainForm
             {
                 _progress.MarqueeAnimationSpeed=0;_progress.Style=ProgressBarStyle.Blocks;
             }
-            if(!loadPreferences)return;
-            try{WriteV269Appearance(_v269Appearance);view.SetNotice(null);}
-            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-            {
-                view.SetNotice("Aparência aplicada nesta sessão; não foi possível salvar a preferência.");
-                Status("Aparência aplicada nesta sessão; não foi possível salvar a preferência.");
-                DiagnosticTrace.Write("PREFERENCIAS.APARENCIA_FALHA "+ex.GetType().Name);
-            }
+            if(saveAppearance is not null){dirtyAppearance=true;saveAppearance.Stop();saveAppearance.Start();}
         };
         view.General.Notifications.Click+=(_,_)=>ChangeV269General(_v269General with{Notifications=!_v269General.Notifications});
         view.General.Tray.Click+=(_,_)=>ChangeV269General(_v269General with{MinimizeToTray=!_v269General.MinimizeToTray});

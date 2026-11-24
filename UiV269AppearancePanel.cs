@@ -49,7 +49,7 @@ internal sealed class V269AppearancePanel : V269SettingsCard
         _theme=new ComboBox{Name="V269ThemeChoice",DropDownStyle=ComboBoxStyle.DropDownList,
             TabStop=true,AccessibleName="Tema da interface",IntegralHeight=false,FlatStyle=FlatStyle.Flat};
         _theme.Items.AddRange(["Azul GF (padrão)","Dark — Preto e grafite","Claro — azul suave"]);
-        TrackBar Scale(string name,string caption,int maximum)=>new(){Name=name,AccessibleName=caption,
+        TrackBar Scale(string name,string caption,int maximum)=>new V269SettingsRange{Name=name,AccessibleName=caption,
             Minimum=90,Maximum=maximum,Value=100,SmallChange=1,LargeChange=5,TickStyle=TickStyle.None,
             AutoSize=false,TabStop=true};
         _uiScale=Scale("V269UiScale","Tamanho da interface",110);
@@ -81,7 +81,8 @@ internal sealed class V269AppearancePanel : V269SettingsCard
         base.ApplyOptions(options);
         _theme.BackColor=Options.Theme switch {V269Theme.Dark=>H("#383d43"),V269Theme.Claro=>H("#eaf5fe"),_=>H("#0d2233")};
         _theme.ForeColor=Ink;_theme.Font=F(14);
-        _uiScale.BackColor=_textScale.BackColor=Options.Theme switch {V269Theme.Dark=>H("#2c3034"),V269Theme.Claro=>H("#e5f3fc"),_=>H("#0c293e")};
+        ((V269SettingsRange)_uiScale).ApplyOptions(Options);
+        ((V269SettingsRange)_textScale).ApplyOptions(Options);
         _animations.Theme=Options.Theme;
         if(Width>=80)ArrangeCard(Width);
     }
@@ -124,9 +125,10 @@ internal sealed class V269AppearancePanel : V269SettingsCard
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        V269HomeHeadingIcon.DrawGlyph(e.Graphics,new Rectangle(S(14),S(12),S(24),S(24)),V269Page.Sistema,GlyphColor(6));
+        V269SettingsGlyph.Draw(e.Graphics,new Rectangle(S(14),S(12),S(24),S(24)),3,H(Options.Theme switch
+        {V269Theme.Dark=>"#65b8ef",V269Theme.Claro=>"#167bbb",_=>"#75c4ed"}));
         using var pen=new Pen(Rule);e.Graphics.DrawLine(pen,S(14),S(41),Math.Max(S(14),Width-S(14)),S(41));
-        if(_motionRow.Height>0)V269SettingsGlyph.Draw(e.Graphics,new Rectangle(_motionRow.X+S(3),_motionRow.Y+(_motionRow.Height-S(23))/2,S(23),S(23)),3,GlyphColor(6));
+        if(_motionRow.Height>0)V269SettingsGlyph.Draw(e.Graphics,new Rectangle(_motionRow.X+S(3),_motionRow.Y+(_motionRow.Height-S(23))/2,S(23),S(23)),6,GlyphColor(6));
     }
     private void RefreshLabels()
     {

@@ -165,6 +165,104 @@ internal sealed class V269SettingsSwitch : CheckBox
     }
 }
 
+// A barra conserva o controle TrackBar nativo e seus eventos/teclado.
+// A pintura e o mapeamento do mouse usam a geometria do HTML aprovado.
+internal sealed class V269SettingsRange : TrackBar
+{
+    private V269AppearanceOptions _appearance=V269AppearanceOptions.Default;
+    private bool _dragging;
+    internal V269SettingsRange()
+    {
+        SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|
+            ControlStyles.SupportsTransparentBackColor|ControlStyles.ResizeRedraw,true);
+        BackColor=Color.Transparent;Cursor=Cursors.Hand;TickStyle=TickStyle.None;
+    }
+    internal void ApplyOptions(V269AppearanceOptions options){_appearance=options.Normalize();Invalidate();}
+    private int S(int px)=>Math.Max(1,(int)Math.Round(px*_appearance.InterfacePercent*DeviceDpi/9600d));
+    private int Thumb=>Math.Min(S(18),Math.Max(1,Height-2));
+    protected override void OnValueChanged(EventArgs e){base.OnValueChanged(e);Invalidate();}
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        if(Width<3||Height<3)return;
+        var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
+        Color H(string x)=>V269SettingsCard.H(x);
+        var (accent,meter,border,knob)=_appearance.Theme switch
+        {
+            V269Theme.Dark=>(H("#c7cfd6"),H("#46505b"),H("#565c62"),H("#2b2f34")),
+            V269Theme.Claro=>(H("#2374ab"),H("#c3dced"),H("#9bbacf"),H("#f5fbff")),
+            _=>(H("#2d9cdb"),H("#28445d"),H("#25445f"),H("#0c2439"))
+        };
+        int thumb=Thumb,half=thumb/2,railHeight=Math.Min(Height-2,S(7)),y=(Height-railHeight)/2;
+        var rail=new Rectangle(1,y,Math.Max(1,Width-2),railHeight);
+        using var path=V269Shell.Rounded(rail,railHeight/2);
+        using var background=new SolidBrush(meter);using var line=new Pen(border);
+        g.FillPath(background,path);
+        double ratio=(Value-Minimum)/(double)Math.Max(1,Maximum-Minimum);
+        int cx=half+(int)Math.Round(Math.Max(0,Width-thumb)*ratio);
+        var saved=g.Save();
+        try{g.SetClip(path);using var active=new SolidBrush(accent);g.FillRectangle(active,0,y,Math.Max(1,cx),railHeight);}
+        finally{g.Restore(saved);}
+        g.DrawPath(line,path);
+        var rect=new Rectangle(cx-half,(Height-thumb)/2,Math.Max(1,thumb-1),Math.Max(1,thumb-1));
+        using var ring=new SolidBrush(accent);g.FillEllipse(ring,rect);
+        int inset=Math.Min(S(4),thumb/3);var inner=Rectangle.Inflate(rect,-inset,-inset);
+        if(inner.Width>0&&inner.Height>0){using var fill=new SolidBrush(knob);g.FillEllipse(fill,inner);}
+        if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,ClientRectangle);
+    }
+    internal int ValueAtPosition(int x)
+    {
+        int t=Thumb;double f=Math.Clamp((x-t/2d)/Math.Max(1,Width-t),0d,1d);
+        return Math.Clamp(Minimum+(int)Math.Round((Maximum-Minimum)*f),Minimum,Maximum);
+    }
+    protected override void WndProc(ref Message m)
+    {
+        const int LeftDown=0x0201,LeftUp=0x0202,MouseMove=0x0200,CaptureChanged=0x0215;
+        int x=unchecked((short)m.LParam.ToInt64());
+        if(Enabled&&m.Msg==LeftDown){Focus();_dragging=true;Capture=true;Value=ValueAtPosition(x);return;}
+        if(_dragging&&m.Msg==MouseMove){Value=ValueAtPosition(x);return;}
+        if(_dragging&&m.Msg==LeftUp){Value=ValueAtPosition(x);_dragging=false;Capture=false;return;}
+        if(m.Msg==CaptureChanged)_dragging=false;
+        base.WndProc(ref m);
+    }
+}
+
+internal sealed class V269SettingsButton : Button
+{
+    private readonly int _glyph;
+    internal V269AppearanceOptions Options=V269AppearanceOptions.Default;
+    internal V269SettingsButton(string name,string caption,int glyph)
+    {
+        Name=name;Text=caption;AccessibleName=caption;_glyph=glyph;
+        FlatStyle=FlatStyle.Flat;FlatAppearance.BorderSize=0;
+        TabStop=true;Margin=Padding.Empty;UseVisualStyleBackColor=false;
+        SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|
+            ControlStyles.SupportsTransparentBackColor|ControlStyles.ResizeRedraw,true);
+        BackColor=Color.Transparent;
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        if(Width<=2||Height<=2)return;
+        var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
+        Color H(string x)=>V269SettingsCard.H(x);
+        var (background,border,ink)=Options.Theme switch
+        {
+            V269Theme.Dark=>(H("#353a40"),H("#737c85"),H("#d1d6db")),
+            V269Theme.Claro=>(H("#e2f0fb"),H("#8eafc7"),H("#173d59")),
+            _=>(H("#102b41"),H("#3d5a70"),H("#c5d6e1"))
+        };
+        int S(int px)=>Math.Max(1,(int)Math.Round(px*Options.InterfacePercent*DeviceDpi/9600d));
+        using var shape=V269Shell.Rounded(new Rectangle(0,0,Width-1,Height-1),S(8));
+        using var fill=new SolidBrush(background);using var line=new Pen(border);
+        g.FillPath(fill,shape);g.DrawPath(line,shape);
+        int n=S(15),x=S(10);
+        V269SettingsGlyph.Draw(g,new Rectangle(x,(Height-n)/2,n,n),_glyph,ink);
+        TextRenderer.DrawText(g,Text,Font,new Rectangle(x+n+S(6),0,
+            Math.Max(1,Width-x-n-S(12)),Height),ink,TextFormatFlags.VerticalCenter|
+            TextFormatFlags.NoPrefix|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPadding);
+        if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,new Rectangle(2,2,Width-4,Height-4));
+    }
+}
+
 internal sealed class V269GeneralSettingsPanel : V269SettingsCard
 {
     private readonly Label _title = TextLabel("V269GeneralTitle","Geral");
@@ -204,13 +302,8 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
         }
     }
 
-    private static Button ActionButton(string name,string text)
-    {
-        var button = new Button { Name=name, Text=text, AccessibleName=text, FlatStyle=FlatStyle.Flat,
-            TabStop=true, Margin=Padding.Empty, UseVisualStyleBackColor=false };
-        button.FlatAppearance.BorderSize=1;
-        return button;
-    }
+    private static Button ActionButton(string name,string text) =>
+        new V269SettingsButton(name,text,name switch {"V269PrivacyInfo"=>8,"V269GenerateDiagnostic"=>9,_=>10});
 
     internal void SetObserved(bool? administrator, bool? startup, V269GeneralOptions general,
         TelemetryConsent consent, bool canChange, bool canCollect = true)
@@ -255,11 +348,12 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
                 }
                 else if(action is Button button)
                 {
-                    int w=TextRenderer.MeasureText(button.Text,button.Font).Width+S(37);
-                    action.Size=new Size(Math.Min(Math.Max(S(94),w),Math.Max(S(40),rowRight-copyX)),S(30));
-                    button.BackColor=Options.Theme switch {V269Theme.Dark=>H("#353a40"),V269Theme.Claro=>H("#e2f0fb"),_=>H("#102b41")};
-                    button.ForeColor=Ink;
-                    button.FlatAppearance.BorderColor=Options.Theme switch {V269Theme.Dark=>H("#737c85"),V269Theme.Claro=>H("#8eafc7"),_=>H("#3d5a70")};
+                    button.Font=F(12,FontStyle.Bold);
+                    int baseline=button.Name switch {"V269PrivacyInfo"=>106,"V269GenerateDiagnostic"=>146,_=>160};
+                    int w=Math.Max(S(baseline),TextRenderer.MeasureText(button.Text,button.Font,
+                        Size.Empty,TextFormatFlags.NoPadding).Width+S(42));
+                    action.Size=new Size(Math.Min(w,Math.Max(S(40),rowRight-copyX)),S(30));
+                    if(button is V269SettingsButton visual){visual.Options=Options;visual.Invalidate();}
                 }
                 actionWidth+=action.Width+S(8);
             }
@@ -292,7 +386,8 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
     {
         base.OnPaint(e);
         var g=e.Graphics;
-        V269HomeHeadingIcon.DrawGlyph(g,new Rectangle(S(14),S(12),S(24),S(24)),V269Page.Configuracoes,GlyphColor(6));
+        V269SettingsGlyph.Draw(g,new Rectangle(S(14),S(12),S(24),S(24)),7,H(Options.Theme switch
+        {V269Theme.Dark=>"#b998f2",V269Theme.Claro=>"#7046c1",_=>"#b7a5f5"}));
         using var pen=new Pen(Rule);
         g.DrawLine(pen,S(14),S(41),Math.Max(S(14),Width-S(14)),S(41));
         for(int i=0;i<_rows.Length;i++)
@@ -320,17 +415,49 @@ internal static class V269SettingsGlyph
             switch(index)
             {
                 case 0:
-                    g.DrawPolygon(p,[new Point(12,2),new Point(21,6),new Point(19,15),new Point(12,22),new Point(5,15),new Point(3,6)]);
-                    g.DrawLines(p,[new Point(8,12),new Point(11,15),new Point(16,9)]);break;
-                case 1: g.DrawPolygon(p,[new Point(6,3),new Point(21,12),new Point(6,21)]);break;
+                    using(var path=new GraphicsPath())
+                    {
+                        path.AddBezier(12,22,12,22,20,18,20,12);path.AddLine(20,12,20,5);
+                        path.AddLine(20,5,12,2);path.AddLine(12,2,4,5);path.AddLine(4,5,4,12);
+                        path.AddBezier(4,12,4,18,12,22,12,22);path.CloseFigure();g.DrawPath(p,path);
+                    }
+                    g.DrawLines(p,new Point[]{new(9,12),new(11,14),new(15,10)});break;
+                case 1:g.DrawPolygon(p,new Point[]{new(8,5),new(19,12),new(8,19)});break;
                 case 2:
-                    using(var path=new GraphicsPath()){
-                        path.AddBezier(5,17,7,15,6,8,8,6);path.AddBezier(8,6,10,2,14,2,16,6);
-                        path.AddBezier(16,6,18,8,17,15,19,17);path.AddLine(19,17,5,17);g.DrawPath(p,path);
-                    }g.DrawArc(p,9,17,6,5,0,180);break;
-                case 3: g.DrawRectangle(p,3,4,18,14);g.DrawLine(p,12,18,12,22);g.DrawLine(p,7,22,17,22);break;
-                case 4: g.DrawEllipse(p,3,3,18,7);g.DrawLine(p,3,7,3,18);g.DrawLine(p,21,7,21,18);g.DrawArc(p,3,8,18,7,0,180);g.DrawArc(p,3,15,18,7,0,180);break;
-                default: g.DrawLine(p,4,20,15,9);g.DrawArc(p,11,2,11,11,40,270);g.DrawLine(p,4,20,7,22);break;
+                    g.DrawArc(p,6,2,12,12,180,180);
+                    using(var path=new GraphicsPath())
+                    {
+                        path.AddBezier(6,8,6,15,3,15,3,17);path.AddLine(3,17,21,17);
+                        path.AddBezier(21,17,21,15,18,15,18,8);g.DrawPath(p,path);
+                    }
+                    g.DrawLine(p,10,21,14,21);break;
+                case 3:
+                    using(var shape=V269Shell.Rounded(new Rectangle(3,4,18,14),2))g.DrawPath(p,shape);
+                    g.DrawLine(p,8,22,16,22);g.DrawLine(p,12,18,12,22);break;
+                case 4:
+                    using(var shape=V269Shell.Rounded(new Rectangle(2,5,20,14),2))g.DrawPath(p,shape);
+                    g.DrawLine(p,4,15,20,15);g.DrawLine(p,16,17,18,17);break;
+                case 5:
+                    // Mesmo vetor de Reparo utilizado na navegação.
+                    g.Restore(state);
+                    V269HomeHeadingIcon.DrawGlyph(g,rect,V269Page.Reparo,color);
+                    state=g.Save();break;
+                case 6:
+                    g.DrawLine(p,3,7,12,7);g.DrawLine(p,3,12,16,12);g.DrawLine(p,3,17,12,17);
+                    g.DrawLines(p,new Point[]{new(13,6),new(18,12),new(13,18)});
+                    g.DrawLine(p,20,5,20,7);g.DrawLine(p,20,17,20,19);break;
+                case 7:
+                    g.DrawLine(p,4,7,20,7);g.DrawLine(p,4,17,20,17);
+                    g.DrawLine(p,9,4,9,10);g.DrawLine(p,15,14,15,20);break;
+                case 8:g.DrawEllipse(p,2,2,20,20);g.DrawLine(p,12,10,12,17);g.DrawLine(p,12,6,12,6.3f);break;
+                case 9:
+                    g.DrawPolygon(p,new Point[]{new(6,2),new(14,2),new(19,7),new(19,22),new(6,22)});
+                    g.DrawLines(p,new Point[]{new(14,2),new(14,8),new(19,8)});
+                    g.DrawLine(p,9,12,16,12);g.DrawLine(p,9,16,16,16);break;
+                case 10:
+                    using(var shape=V269Shell.Rounded(new Rectangle(4,4,16,18),2))g.DrawPath(p,shape);
+                    g.DrawLines(p,new Point[]{new(9,4),new(9,2),new(15,2),new(15,4)});
+                    g.DrawLine(p,8,11,16,11);g.DrawLine(p,8,15,16,15);break;
             }
         }
         finally {g.Restore(state);}

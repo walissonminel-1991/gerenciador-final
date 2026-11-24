@@ -541,9 +541,9 @@ internal sealed class V269Shell : UserControl
         _homeGlyph.Visible = home;
         _homeGlyph.Page = SelectedPage;
         _homeGlyph.ForeColor = Theme switch {
-            V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#c6cdd3" : "#65b8ef"),
-            V269Theme.Claro => ColorTranslator.FromHtml("#2577a8"),
-            _ => ColorTranslator.FromHtml("#69bfe0") };
+            V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#b998f2" : "#65b8ef"),
+            V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#7046c1" : "#2577a8"),
+            _ => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#b7a5f5" : "#69bfe0") };
         _homeGlyph.Invalidate();
         _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 57 : 68) : 70;
