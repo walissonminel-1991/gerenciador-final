@@ -7,11 +7,14 @@ internal static class V269AppTable
 {
     internal static readonly string[] Headers=["Aplicativo","Versão","Editor","Instalado em","Situação","Ações"];
     internal static int Scale(int px,int scale,int dpi)=>Math.Max(1,(int)Math.Round(px*scale*dpi/9600d));
-    internal static int MinimumWidth(int scale,int dpi)=>new[]{150,68,96,80,90,65}.Sum(n=>Scale(n,scale,dpi));
+    // As seis colunas adaptam-se antes de exigir deslocamento horizontal.
+    // A coluna de ações conserva alvos completos, mesmo na largura mínima.
+    private static readonly int[] CompactWidths=[126,46,61,68,55,65];
+    internal static int MinimumWidth(int scale,int dpi)=>CompactWidths.Sum(n=>Scale(n,scale,dpi));
     internal static Rectangle[] Columns(Rectangle bounds,int scale,int dpi)
     {
-        int[] minimum=[150,68,96,80,90,65];
-        double[] weights=[2,.8,1.1,.9,1,.6];
+        int[] minimum=CompactWidths;
+        double[] weights=[2.2,.8,1.1,.9,1,.2];
         int[] sizes=minimum.Select(x=>Scale(x,scale,dpi)).ToArray();
         int extra=Math.Max(0,bounds.Width-sizes.Sum());
         for(int i=0;i<sizes.Length;i++)sizes[i]+=(int)(extra*weights[i]/weights.Sum());

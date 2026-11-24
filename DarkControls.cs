@@ -25,12 +25,21 @@ internal sealed class DarkVScrollBar : Control
     private static readonly Color Thumb = Color.FromArgb(87, 110, 134);
     private static readonly Color ThumbHot = Color.FromArgb(117, 157, 196);
     private (Color Track,Color Thumb,Color Hot)? _appColors;
+    private bool _horizontalAxis;
+    internal void SetAppHorizontalAxis()
+    {
+        _horizontalAxis=true;
+        MinimumSize=new Size(25,12);
+        Height=12;
+    }
     // Opt-in por instância: barras legadas de Drivers, histórico e outras
     // ferramentas mantêm exatamente as cores e a geometria anteriores.
     internal void ApplyAppScrollTheme(V269Theme theme)
     {
         _appColors=V269AppTable.ScrollColors(theme);
         BackColor=_appColors.Value.Track;
+        // Trilha estreita; o controle mantém área de clique e foco.
+        if(_horizontalAxis)Height=12;else Width=12;
         AccessibleRole=AccessibleRole.ScrollBar;
         Invalidate();
     }
@@ -85,13 +94,16 @@ internal sealed class DarkVScrollBar : Control
     private Rectangle ThumbBounds()
     {
         const int margin = 3;
-        int available = Math.Max(1, Height - margin * 2);
+        int available = Math.Max(1, (_horizontalAxis?Width:Height) - margin * 2);
+        int thickness=Math.Max(2,(_horizontalAxis?Height:Width)-margin*2);
+        Rectangle Along(int pos,int size)=>_horizontalAxis?
+            new Rectangle(margin+pos,margin,size,thickness):new Rectangle(margin,margin+pos,thickness,size);
         if (_contentSize <= 0 || _contentSize <= _pageSize)
-            return new Rectangle(margin, margin, Math.Max(2, Width - margin * 2), available);
+            return Along(0,available);
         int size = Math.Clamp((int)Math.Round(available * (_pageSize / (double)_contentSize)), Math.Min(25, available), available);
         int travel = available - size;
         int pos = MaximumValue == 0 ? 0 : (int)Math.Round(travel * (_value / (double)MaximumValue));
-        return new Rectangle(margin, margin + pos, Math.Max(2, Width - margin * 2), size);
+        return Along(pos,size);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -119,13 +131,13 @@ internal sealed class DarkVScrollBar : Control
         if (thumb.Contains(e.Location))
         {
             _dragging = true;
-            _dragY = e.Y;
+            _dragY = _horizontalAxis?e.X:e.Y;
             _dragValue = _value;
             Capture = true;
         }
         else
         {
-            Value += e.Y < thumb.Top ? -_pageSize : _pageSize;
+            Value += (_horizontalAxis?e.X<thumb.Left:e.Y<thumb.Top) ? -_pageSize : _pageSize;
         }
     }
 
@@ -135,8 +147,8 @@ internal sealed class DarkVScrollBar : Control
         if (_dragging)
         {
             Rectangle thumb = ThumbBounds();
-            int travel = Math.Max(1, Height - 6 - thumb.Height);
-            Value = _dragValue + (int)Math.Round((e.Y - _dragY) * (MaximumValue / (double)travel));
+            int travel = Math.Max(1, (_horizontalAxis?Width-thumb.Width:Height-thumb.Height) - 6);
+            Value = _dragValue + (int)Math.Round(((_horizontalAxis?e.X:e.Y) - _dragY) * (MaximumValue / (double)travel));
         }
         else
         {
@@ -162,14 +174,17 @@ internal sealed class DarkVScrollBar : Control
     protected override bool IsInputKey(Keys keyData)
     {
         Keys key = keyData & Keys.KeyCode;
-        return key is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End || base.IsInputKey(keyData);
+        return (_horizontalAxis&&(key is Keys.Left or Keys.Right))||
+            key is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End || base.IsInputKey(keyData);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         switch (e.KeyCode)
         {
+            case Keys.Left when _horizontalAxis:
             case Keys.Up: Value -= 35; break;
+            case Keys.Right when _horizontalAxis:
             case Keys.Down: Value += 35; break;
             case Keys.PageUp: Value -= _pageSize; break;
             case Keys.PageDown: Value += _pageSize; break;
@@ -249,7 +264,7 @@ internal sealed class DarkProgramList : Control
         if(_tableMode&&Visible)UpdateMetrics();
     }
     private readonly DarkVScrollBar _scrollbar = new();
-    private readonly HScrollBar _horizontal=new(){Visible=false,TabStop=true,AccessibleName="Rolagem horizontal de aplicativos"};
+    private readonly DarkVScrollBar _horizontal=new(){Name="V269AppsHorizontalScroll",Visible=false,TabStop=true,AccessibleName="Rolagem horizontal de aplicativos"};
     private V269AppearanceOptions _tableOptions=V269AppearanceOptions.Default;
     private bool _tableMode,_tableLayout;
     private ProgramEntry? _dragApp;
@@ -277,6 +292,7 @@ internal sealed class DarkProgramList : Control
         _tableMode=true;_tableOptions=options.Normalize();
         _scrollbar.ApplyAppScrollTheme(_tableOptions.Theme);
         _scrollbar.AccessibleName="Rolagem vertical de aplicativos";
+        _horizontal.ApplyAppScrollTheme(_tableOptions.Theme);
         _itemHeight=V269AppTable.Scale(52,_tableOptions.InterfacePercent,DeviceDpi);
         float fontSize=9f*_tableOptions.TextPercent/100f;
         if(_tableFont is null||Math.Abs(_tableFont.Size-fontSize)>.01f)
@@ -348,6 +364,7 @@ internal sealed class DarkProgramList : Control
         _scrollbar.ValueChanged += (_, _) => { _scrollOffset = _scrollbar.Value; Invalidate(); };
         MouseCaptureChanged+=(_,_)=>{if(!Capture)_dragApp=null;};
         Controls.Add(_scrollbar);
+        _horizontal.SetAppHorizontalAxis();
         Controls.Add(_horizontal);
         _horizontal.ValueChanged+=(_,_)=>Invalidate();
         Resize += (_, _) => UpdateMetrics();
@@ -600,7 +617,7 @@ internal sealed class DarkProgramList : Control
                 _scrollbar.Dock=DockStyle.None;
                 int width=Math.Max(1,ClientSize.Width);
                 int minimum=V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi);
-                int h=Math.Max(12,SystemInformation.HorizontalScrollBarHeight);
+                int h=Math.Max(12,_horizontal.Height);
                 int v=Math.Max(12,_scrollbar.Width);
                 bool horizontal=minimum>width;
                 bool vertical=(long)_items.Count*_itemHeight>Math.Max(1,ClientSize.Height-TableHeaderHeight-(horizontal?h:0));
@@ -609,10 +626,7 @@ internal sealed class DarkProgramList : Control
                 int content=Math.Max(1,width-(vertical?v:0));
                 int body=Math.Max(1,ClientSize.Height-TableHeaderHeight-(horizontal?h:0));
                 _horizontal.Bounds=new Rectangle(0,Math.Max(0,ClientSize.Height-h),content,h);
-                _horizontal.Minimum=0;_horizontal.LargeChange=Math.Max(1,content);
-                _horizontal.Maximum=Math.Max(0,Math.Max(minimum,content)-1);
-                _horizontal.Value=Math.Min(_horizontal.Value,Math.Max(0,minimum-content));
-                _horizontal.Visible=horizontal;
+                _horizontal.SetMetrics(Math.Max(minimum,content),content);
                 _scrollbar.Bounds=new Rectangle(Math.Max(0,width-v),TableHeaderHeight,v,body);
                 _scrollbar.SetMetrics(_items.Count*_itemHeight,body);
             }
@@ -802,7 +816,7 @@ internal sealed class DarkProgramList : Control
         int notches = _wheel.Consume(e.Delta);
         if(notches!=0&&_tableMode&&(ModifierKeys&Keys.Shift)!=0)
         {
-            _horizontal.Value=Math.Clamp(_horizontal.Value-notches*64,0,Math.Max(0,_horizontal.Maximum-_horizontal.LargeChange+1));
+            _horizontal.Value=Math.Clamp(_horizontal.Value-notches*64,0,_horizontal.MaximumValue);
             return;
         }
         if (notches != 0)

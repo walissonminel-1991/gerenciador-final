@@ -1198,7 +1198,7 @@ internal sealed partial class MainForm : Form
 
         // Recursos funcionais do GF que não existem no HTML de demonstração.
         // Recolhidos por padrão; a operação em lote mantém acesso ao botão Parar.
-        var actionsHost=new Panel{Name="V269AppsExtraScroll",Dock=DockStyle.Fill,AutoScroll=true,
+        var actionsHost=new Panel{Name="V269AppsExtraScroll",Dock=DockStyle.Fill,AutoScroll=false,
             Margin=Padding.Empty,BackColor=AppServices.Background,Visible=false};
         var actions=new TableLayoutPanel{Name="V269AppsExtraCommands",Dock=DockStyle.Top,
             ColumnCount=2,RowCount=4,Margin=Padding.Empty,BackColor=AppServices.Background};
@@ -1255,12 +1255,33 @@ internal sealed partial class MainForm : Form
                 searchBar.SetCellPosition(_v269AppSortChoice,new TableLayoutPanelCellPosition(compact?1:2,compact?1:0));
                 searchBar.SetCellPosition(details,new TableLayoutPanelCellPosition(compact?0:3,compact?1:0));
                 root.RowStyles[0].Height=S(compact?84:44);
-                int desired=S(136);
-                actions.Height=desired;actionsHost.AutoScrollMinSize=new Size(0,desired);
-                // Em janela baixa, os comandos rolam independentemente;
-                // conservar espaço para cabeçalho e parte da tabela.
+                // Distribuir os sete comandos na largura disponível antes de
+                // tomar altura da lista; não criar rolagem de comandos por padrão.
+                int cols=root.ClientSize.Width>=S(660)?4:root.ClientSize.Width>=S(500)?3:2;
+                int rows=(actions.Controls.Count+cols-1)/cols;
+                if(actions.ColumnCount!=cols||actions.RowCount!=rows)
+                {
+                    actions.SuspendLayout();
+                    try
+                    {
+                        // Abrir a grade antes de reposicionar, encolher depois.
+                        actions.ColumnCount=Math.Max(actions.ColumnCount,cols);
+                        actions.RowCount=Math.Max(actions.RowCount,rows);
+                        for(int i=0;i<actions.Controls.Count;i++)
+                            actions.SetCellPosition(actions.Controls[i],new TableLayoutPanelCellPosition(i%cols,i/cols));
+                        actions.ColumnCount=cols;actions.RowCount=rows;
+                        actions.ColumnStyles.Clear();actions.RowStyles.Clear();
+                        for(int i=0;i<cols;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/cols));
+                        for(int i=0;i<rows;i++)actions.RowStyles.Add(new RowStyle(SizeType.Percent,100f/rows));
+                    }
+                    finally{actions.ResumeLayout(true);}
+                }
+                int desired=S(34)*rows;
+                actions.Height=desired;
                 int budget=Math.Max(S(34),root.ClientSize.Height-(int)root.RowStyles[0].Height-
                     (int)root.RowStyles[3].Height-S(60));
+                actionsHost.AutoScroll=expanded&&budget<desired;
+                actionsHost.AutoScrollMinSize=actionsHost.AutoScroll?new Size(0,desired):Size.Empty;
                 root.RowStyles[1].Height=expanded?Math.Min(desired,budget):0;
             }
             finally{searchBar.ResumeLayout(true);}
@@ -1604,7 +1625,7 @@ internal sealed partial class MainForm : Form
         {var cell=cells[i];cell.Inflate(-S(5),0);return cell;}
         var grip=V269AppTable.Grip(bounds,options.InterfacePercent,dpi);
         Text(_multiSelectMode?(item.CanUninstall?(_checkedApps.Contains(item)?"☑":"☐"):""):"⋮⋮",grip,bold);
-        int iconSize=Math.Min(S(30),bounds.Height-6);
+        int iconSize=Math.Max(1,Math.Min(Math.Min(S(30),bounds.Height-6),cells[0].Width/4));
         var mark=new Rectangle(grip.Right+S(3),bounds.Y+(bounds.Height-iconSize)/2,iconSize,iconSize);
         using(var shape=ModernButton.RoundRect(mark,S(5)))
         using(var fill=new SolidBrush(colors.Head))

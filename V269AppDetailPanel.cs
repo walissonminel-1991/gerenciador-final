@@ -92,7 +92,7 @@ internal sealed class V269AppDetailPanel : Panel
             Label Make(string value,bool strong)
             {
                 var label=new Label{Text=value,AutoSize=true,
-                    Margin=new Padding(3,5,3,5),ForeColor=strong?_palette.Text:_palette.SecondaryText,
+                    Margin=new Padding(3,3,3,3),ForeColor=strong?_palette.Text:_palette.SecondaryText,
                     AccessibleName=value,Tag=strong,UseMnemonic=false};
                 label.MouseWheel+=ScrollContent;return label;
             }
@@ -124,24 +124,29 @@ internal sealed class V269AppDetailPanel : Panel
         try
         {
             int barWidth=Math.Max(12,_scroll.Width);
-            int width=Math.Max(1,ClientSize.Width-barWidth-3);
             int height=Math.Max(1,ClientSize.Height);
+            int Measure(int width)
+            {
+                _table.Width=width;
+                _identity.MaximumSize=new Size(width,0);
+                int identityText=Math.Max(20,width-(int)_identity.ColumnStyles[0].Width-12);
+                _name.MaximumSize=_publisher.MaximumSize=new Size(identityText,0);
+                foreach(Label label in _table.Controls.OfType<Label>())
+                {
+                    int column=_table.GetColumn(label);
+                    int max=_table.GetColumnSpan(label)==2?width-6:
+                        (int)(width*(column==0 ? .4 : .6))-6;
+                    label.MaximumSize=new Size(Math.Max(20,max),0);
+                }
+                return Math.Max(1,_table.GetPreferredSize(new Size(width,0)).Height);
+            }
+            // Primeiro medir com a largura inteira; só reservar a trilha
+            // se houver excesso real. Evitar quebra de texto desnecessária.
+            int width=Math.Max(1,ClientSize.Width);
+            int content=Measure(width);
+            if(content>height){width=Math.Max(1,width-barWidth-3);content=Measure(width);}
             _viewport.Bounds=new Rectangle(0,0,width,height);
             _scroll.Bounds=new Rectangle(Math.Max(0,ClientSize.Width-barWidth),0,barWidth,height);
-            _table.Width=width;
-            _identity.MaximumSize=new Size(width,0);
-            int identityText=Math.Max(20,width-(int)_identity.ColumnStyles[0].Width-12);
-            _name.MaximumSize=_publisher.MaximumSize=new Size(identityText,0);
-            foreach(Label label in _table.Controls.OfType<Label>())
-            {
-                int column=_table.GetColumn(label);
-                int max=_table.GetColumnSpan(label)==2?width-6:
-                    (int)(width*(column==0 ? .4 : .6))-6;
-                label.MaximumSize=new Size(Math.Max(20,max),0);
-            }
-            // Altura medida pelo conteúdo a cada seleção/escala, não pela
-            // altura anterior: uma descrição longa não deixa extensão vazia.
-            int content=Math.Max(1,_table.GetPreferredSize(new Size(width,0)).Height);
             _table.Size=new Size(width,content);
             _table.PerformLayout();
             _scroll.SetMetrics(content,height);PositionContent();

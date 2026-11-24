@@ -201,6 +201,8 @@ internal static class V269IntegrationTests
                     typeof(MainForm).GetMethod("PresentV269AppDetails",flags)!.Invoke(form,[selected]);
                 surface.PerformLayout();Application.DoEvents();
                 Require(list.TableHeaderHeight>0&&list.Items.Count==5,"cabeçalho fixo e inventário preservado");
+                Require(!list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single().Visible,
+                    "seis colunas adaptadas sem rolagem horizontal nas janelas de referência");
                 Require(list.BackColor==V269AppTable.EmptySurface((V269Theme)index),
                     "aplicação geral de temas conserva a superfície exclusiva de Aplicativos");
                 var rowMethod=typeof(DarkProgramList).GetMethod("RowBounds",flags)!;
@@ -218,18 +220,21 @@ internal static class V269IntegrationTests
                     details.PerformClick();Application.DoEvents();
                     Require(shell.RightPane.Visible&&shell.RightPane.Current?.Kind==V269PanelKind.Details,"detalhes compactos acessíveis");
                     var columns=(TableLayoutPanel)shell.RightPane.Parent!;
-                    Require(columns.Name=="V269MainLayout"&&columns.GetRow(shell.RightPane)==2&&columns.GetColumn(shell.RightPane)==0,"painel compacto fica abaixo da tabela");
+                    Require(columns.Name=="V269MainLayout"&&columns.GetRow(shell.RightPane)==2&&columns.GetColumn(shell.RightPane)==0&&!list.Visible,
+                        "painel compacto ocupa área principal sem rolagem simultânea da lista");
+                    var back=form.Controls.Find("V269AppsBackToList",true).OfType<Button>().Single();
+                    Require(back.Visible,"retorno à lista pelo cabeçalho permanece acessível");
                     Require(shell.RightPane.Current?.Application is {Fields.Count:7,Description:"Descrição sintética declarada para testar apresentação."}&&
                         shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
                         "painel estruturado expõe fatos locais e motivos");
                     var scrollbar=shell.RightPane.Controls.Find("V269AppDetailsScroll",true).OfType<DarkVScrollBar>().Single();
                     var fields=shell.RightPane.Controls.Find("V269AppDetailsFields",true).Single();
-                    Require(scrollbar.Visible&&scrollbar.MaximumValue>0&&scrollbar.AccessibleRole==AccessibleRole.ScrollBar,
-                        "painel compacto conserva rolagem temática e acessível");
+                    Require(scrollbar.Visible==(scrollbar.MaximumValue>0)&&scrollbar.AccessibleRole==AccessibleRole.ScrollBar,
+                        "painel compacto mostra rolagem temática somente quando necessária");
                     Require(shell.RightPane.BackColor==V269AppDetailStyle.Palette((V269Theme)index).RightPanel,
                         "superfície do detalhe segue apenas o tema de Aplicativos");
                     scrollbar.Value=scrollbar.MaximumValue;
-                    Require(fields.Top==-scrollbar.Value&&fields.Bottom==fields.Parent!.ClientSize.Height,
+                    Require(fields.Top==-scrollbar.Value&&(scrollbar.MaximumValue==0||fields.Bottom==fields.Parent!.ClientSize.Height),
                         "rolagem alcança fim exato do conteúdo sem extensão vazia");
                     var key=typeof(DarkVScrollBar).GetMethod("OnKeyDown",flags)!;
                     key.Invoke(scrollbar,[new KeyEventArgs(Keys.Home)]);
@@ -242,7 +247,8 @@ internal static class V269IntegrationTests
                         "identidade visual do painel vinculada à seleção, sem arte fictícia");
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-DETALHES-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");
-                    details.PerformClick();Application.DoEvents();
+                    back.PerformClick();Application.DoEvents();
+                    Require(list.Visible&&!shell.RightPane.Visible,"retorno restaura tabela e fecha detalhes");
                 }
                 if(size.Width>1040)
                 {
@@ -254,6 +260,9 @@ internal static class V269IntegrationTests
                 }
                 more.PerformClick();Application.DoEvents();
                 Require(form.Controls.Find("V269AppsExtraCommands",true).Single().Visible,"comandos complementares alcançáveis");
+                var commandsHost=form.Controls.Find("V269AppsExtraScroll",true).OfType<Panel>().Single();
+                Require(!commandsHost.VerticalScroll.Visible&&!commandsHost.HorizontalScroll.Visible,
+                    "comandos se adaptam sem barras adicionais nos tamanhos de referência");
                 more.PerformClick();Application.DoEvents();
             }
             more.PerformClick();Application.DoEvents();
@@ -268,10 +277,10 @@ internal static class V269IntegrationTests
             more.PerformClick();Application.DoEvents();
             // Testar o hit-test sem disparar nenhum executável, inclusive com
             // o deslocamento horizontal aplicado.
-            var horizontal=list.Controls.OfType<HScrollBar>().Single();
+            var horizontal=list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single();
             surface.Size=new Size(760,596);surface.PerformLayout();Application.DoEvents();
             if(shell.RightPane.Visible)details.PerformClick();
-            if(horizontal.Visible)horizontal.Value=Math.Max(0,horizontal.Maximum-horizontal.LargeChange+1);
+            if(horizontal.Visible)horizontal.Value=horizontal.MaximumValue;
             var bounds=(Rectangle)typeof(DarkProgramList).GetMethod("RowBounds",flags)!.Invoke(list,[2])!;
             var action=V269AppTable.Action(bounds,shell.InterfaceScalePercent,list.DeviceDpi,true);
             var hit=((ProgramEntry? Item,string Action))typeof(DarkProgramList).GetMethod("HitAction",flags)!.Invoke(list,
@@ -410,6 +419,26 @@ internal static class V269IntegrationTests
 
     private static void VerifyAppTableGeometry()
     {
+        using(var bar=new DarkVScrollBar())
+        {
+            bar.SetAppHorizontalAxis();bar.Size=new Size(240,12);
+            bar.SetMetrics(600,240);
+            foreach(var theme in new[]{V269Theme.AzulGf,V269Theme.Dark,V269Theme.Claro})
+            {
+                bar.ApplyAppScrollTheme(theme);
+                Require(bar.BackColor==V269AppTable.ScrollColors(theme).Track&&bar.AccessibleRole==AccessibleRole.ScrollBar,
+                    "contingência horizontal mantém tema e acessibilidade");
+            }
+            var key=typeof(DarkVScrollBar).GetMethod("OnKeyDown",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
+            key.Invoke(bar,[new KeyEventArgs(Keys.End)]);
+            Require(bar.Value==360,"fim da rolagem horizontal");
+            key.Invoke(bar,[new KeyEventArgs(Keys.Left)]);
+            Require(bar.Value==325,"seta horizontal desloca a barra");
+            key.Invoke(bar,[new KeyEventArgs(Keys.Home)]);
+            Require(bar.Value==0,"início da rolagem horizontal");
+            bar.SetMetrics(240,240);
+            Require(!bar.Visible&&bar.MaximumValue==0,"barra desaparece sem excesso");
+        }
         using(var trash=V269AppTable.ActionGlyph(true))
         using(var update=V269AppTable.ActionGlyph(false))
         {
