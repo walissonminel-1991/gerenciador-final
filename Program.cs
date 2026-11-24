@@ -1117,6 +1117,7 @@ internal sealed partial class MainForm : Form
     private string[] _v269ManualOrder=[];
     private bool _v269OrderLive;
     private readonly V269SettingsCombo _v269AppSortChoice=new() { Name="V269AppSort", DropDownStyle=ComboBoxStyle.DropDownList };
+    private Font? _v269AppSortFont;
 
     private Control BuildProgramsPanel(bool loadPreferences)
     {
@@ -1143,24 +1144,26 @@ internal sealed partial class MainForm : Form
         _search.AccessibleName="Pesquisar aplicativo por nome, versão ou editor";
         _search.Margin=new Padding(4,5,4,5);_search.Dock=DockStyle.Fill;
         _search.TextChanged+=(_,_)=>RenderPrograms();
-        searchBar.Controls.Add(_search,1,0);
+        var searchFrame=new V269AppSearchBox(_search);
+        searchBar.Controls.Add(searchFrame,1,0);
         _v269AppSortChoice.AccessibleName="Ordenar aplicativos";
         _toolTips.SetToolTip(_v269AppSortChoice,"Instalados recentemente usa a data declarada pela fonte: instalação, atualização ou manutenção. Datas desconhecidas ficam no fim.");
         _v269AppSortChoice.Items.AddRange(["Nome (A–Z)","Nome (Z–A)","Instalados recentemente","Atualizações primeiro","Ordem manual"]);
         _v269AppSortChoice.SelectedIndex=0;_v269AppSortChoice.Dock=DockStyle.Fill;
         _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{if(_v269AppSortChoice.SelectedIndex>=0){_v269AppSort=(V269AppSort)_v269AppSortChoice.SelectedIndex;RenderPrograms();}};
-        _v269AppSortChoice.Margin=new Padding(4,4,4,4);
+        _v269AppSortChoice.Margin=new Padding(0,1,9,1);
+        _v269AppSortChoice.Disposed+=(_,_)=>_v269AppSortFont?.Dispose();
         searchBar.Controls.Add(_v269AppSortChoice,2,0);
-        var details=new Button{Text="Detalhes",Name="V269AppsDetails",FlatStyle=FlatStyle.Flat,BackColor=AppServices.Gray,ForeColor=Ink};details.Dock=DockStyle.Fill;
+        var details=new V269AppToolbarButton("Detalhes"){Name="V269AppsDetails"};details.Dock=DockStyle.Fill;
         details.Margin=new Padding(3,3,0,3);
         details.Click+=(_,_)=>{
             if(_programList.SelectedItem is {} app)PresentV269AppDetails(app);
             _nav.ShowV269AppPane();
         };
         searchBar.Controls.Add(details,3,0);
-        _checkUpdatesButton=CreateButton("Verificar",AppServices.Blue,Color.White);
+        _checkUpdatesButton=new V269AppToolbarButton("Verificar",true);
         _checkUpdatesButton.Name="V269AppsVerify";_checkUpdatesButton.AccessibleName="Verificar inventário e atualizações";
-        _checkUpdatesButton.Dock=DockStyle.Fill;_checkUpdatesButton.Margin=new Padding(0,3,4,3);
+        _checkUpdatesButton.Dock=DockStyle.Fill;_checkUpdatesButton.Margin=new Padding(0,3,9,3);
         _checkUpdatesButton.Click+=(_,_)=>_ = CheckUpdatesFromButtonAsync();
         _toolTips.SetToolTip(_checkUpdatesButton,"Renova inventário e consulta versões por HTTPS; não instala nada. Durante consulta, clique novamente para cancelar.");
         searchBar.Controls.Add(_checkUpdatesButton,0,0);
@@ -1196,21 +1199,25 @@ internal sealed partial class MainForm : Form
         {
             int S(int px)=>V269AppTable.Scale(px,_v269Appearance.InterfacePercent,root.DeviceDpi);
             bool compact=root.ClientSize.Width<S(430);
+            bool showDetails=_nav.LayoutWindowWidth<=1040;
+            details.Visible=showDetails;
             searchBar.SuspendLayout();
             try
             {
                 searchBar.RowStyles.Clear();searchBar.RowCount=compact?2:1;
                 for(int i=0;i<searchBar.RowCount;i++)searchBar.RowStyles.Add(new RowStyle(SizeType.Percent,100f/searchBar.RowCount));
-                searchBar.ColumnStyles[0].Width=S(90);searchBar.ColumnStyles[2].Width=compact?0:S(145);
-                searchBar.ColumnStyles[3].Width=compact?0:S(75);
-                searchBar.SetColumnSpan(_search,1);searchBar.SetColumnSpan(_v269AppSortChoice,1);
+                searchBar.ColumnStyles[0].Width=S(115);
+                int sortWidth=Math.Clamp(root.ClientSize.Width-S(showDetails?340:270),S(120),S(207));
+                searchBar.ColumnStyles[2].Width=compact?0:sortWidth;
+                searchBar.ColumnStyles[3].Width=compact||!showDetails?0:S(70);
+                searchBar.SetColumnSpan(searchFrame,1);searchBar.SetColumnSpan(_v269AppSortChoice,1);
                 searchBar.SetCellPosition(_checkUpdatesButton,new TableLayoutPanelCellPosition(0,0));
-                searchBar.SetCellPosition(_search,new TableLayoutPanelCellPosition(1,0));
+                searchBar.SetCellPosition(searchFrame,new TableLayoutPanelCellPosition(1,0));
                 searchBar.SetCellPosition(_v269AppSortChoice,new TableLayoutPanelCellPosition(compact?1:2,compact?1:0));
                 searchBar.SetCellPosition(details,new TableLayoutPanelCellPosition(compact?0:3,compact?1:0));
                 root.RowStyles[0].Height=S(compact?84:44);
                 root.RowStyles[1].Height=expanded?S(108):0;
-                root.RowStyles[3].Height=S(34);
+                root.RowStyles[3].Height=S(30);
             }
             finally{searchBar.ResumeLayout(true);}
         }
@@ -1239,7 +1246,7 @@ internal sealed partial class MainForm : Form
             "Entradas sem ação autorizada permanecem somente leitura.");
         _toolTips.SetToolTip(_selectedFilterButton,
             "Mostra apenas aplicativos marcados para operações autorizadas.");
-        var more=new Button{Text="Mais ações",Name="V269AppsMore",FlatStyle=FlatStyle.Flat,BackColor=AppServices.Gray,ForeColor=Ink};
+        var more=new V269AppToolbarButton("Mais ações"){Name="V269AppsMore"};
         more.Dock=DockStyle.Fill;more.Margin=new Padding(2,3,0,3);
         more.Click+=(_,_)=>{if(_batchUpdatesActive&&expanded)return;expanded=!expanded;
             actions.Visible=expanded;more.Text=expanded?"Recolher":"Mais ações";FitToolbar();};
@@ -1297,7 +1304,7 @@ internal sealed partial class MainForm : Form
             if (_programList.SelectedItem is { } selected)
                 PresentV269AppDetails(selected);
         };
-        var host = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
+        var host = new Panel { Name="V269AppsTableFrame",Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = new Padding(0,10,0,0),Padding=new Padding(1) };
         _emptyState.Dock = DockStyle.Fill;
         _emptyState.TextAlign = ContentAlignment.MiddleCenter;
         _emptyState.Font = new Font("Segoe UI", 10F);
@@ -1308,6 +1315,7 @@ internal sealed partial class MainForm : Form
         host.Controls.Add(_programList);
         host.Controls.Add(_emptyState);
         root.Controls.Add(host, 0, 2);
+        root.SizeChanged+=(_,_)=>host.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
         FitToolbar();
         UpdateBulkButtons();
         RenderTitle();

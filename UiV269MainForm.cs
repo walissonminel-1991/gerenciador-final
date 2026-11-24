@@ -1062,7 +1062,20 @@ internal sealed partial class MainForm
         var palette = V269Palette;
         if (root is DarkDriverList driverList) driverList.Theme = _v269Appearance.Theme;
         if (root is DarkProgramList appsList) appsList.ApplyV269Table(_v269Appearance);
-        if(root==_v269AppSortChoice){_v269AppSortChoice.ApplyOptions(_v269Appearance);_v269AppSortChoice.DropDownHeight=_v269AppSortChoice.ItemHeight*5+4;}
+        if(root==_v269AppSortChoice)
+        {
+            float size=9f*_v269Appearance.TextPercent/100f;
+            if(_v269AppSortFont is null||Math.Abs(_v269AppSortFont.Size-size)>.01f)
+            {var old=_v269AppSortFont;_v269AppSortFont=new Font("Segoe UI",size);_v269AppSortChoice.Font=_v269AppSortFont;old?.Dispose();}
+            _v269AppSortChoice.ApplyOptions(_v269Appearance);
+            _v269AppSortChoice.ItemHeight=Math.Max(_v269AppSortChoice.Font.Height+2,V269AppTable.Scale(42,_v269Appearance.InterfacePercent,root.DeviceDpi)-6);
+            _v269AppSortChoice.DropDownHeight=_v269AppSortChoice.ItemHeight*5+4;
+        }
+        if(root is V269AppSearchBox appSearch){appSearch.ApplyOptions(_v269Appearance);return;}
+        if(root is V269AppToolbarButton appButton){appButton.ApplyOptions(_v269Appearance);return;}
+        if(root.Name=="V269AppsTableFrame"){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Border;
+            root.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
+            foreach(Control child in root.Controls)ApplyV269ContentAppearance(child);return;}
         if(root==_search){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Row;root.ForeColor=V269AppTable.Colors(_v269Appearance.Theme).Ink;}
         if(root.Name=="V269AppsPage"&&root.Tag is Action fitApps)fitApps();
         if (root is DarkProgramList or DarkDriverList)

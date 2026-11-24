@@ -628,7 +628,7 @@ internal static class LayoutTests
                     {
                         var toolbar=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsToolbar");
                         var verify=toolbar.Controls.OfType<Button>().Single(b=>b.Name=="V269AppsVerify");
-                        var search=toolbar.Controls.OfType<TextBox>().Single();
+                        var search=toolbar.Controls.Find("V269AppsSearch",true).OfType<TextBox>().Single();
                         var sort=toolbar.Controls.OfType<ComboBox>().Single();
                         if(!verify.Visible||!search.Visible||!sort.Visible||sort.Items.Count!=5||
                             toolbar.Controls.Cast<Control>().Any(x=>x.Visible&&x.Right>toolbar.ClientSize.Width+2))
