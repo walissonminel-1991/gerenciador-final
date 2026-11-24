@@ -1202,6 +1202,19 @@ internal sealed partial class MainForm
             SuppressHoverHint(history, history.AccessibleDescription ?? history.Text);
             SetDriverStatus(state.Text);
         }
+        static void RoundV269TableFrame(Control control, int cssRadius)
+        {
+            var size = control.ClientSize;
+            if (size.Width <= 2 || size.Height <= 2)
+            {
+                control.Region = null;
+                return;
+            }
+            int radius = Math.Min(V269AppTable.Scale(cssRadius, 100, control.DeviceDpi),
+                Math.Min(size.Width, size.Height) / 2);
+            using var outline = ModernButton.RoundRect(new Rectangle(Point.Empty, size), radius);
+            control.Region = new Region(outline);
+        }
         void FitV269Toolbar()
         {
             if (toolbar is null || searchFrame is null || details is null) return;
@@ -1271,6 +1284,12 @@ internal sealed partial class MainForm
             root.Tag = (Action)FitV269Toolbar;
             content.Name = "V269DriversTableFrame";
             content.Padding = new Padding(1);
+            content.SizeChanged += (_, _) => RoundV269TableFrame(content, 10);
+            content.DpiChangedAfterParent += (_, _) => RoundV269TableFrame(content, 10);
+            list.SizeChanged += (_, _) => RoundV269TableFrame(list, 9);
+            list.DpiChangedAfterParent += (_, _) => RoundV269TableFrame(list, 9);
+            RoundV269TableFrame(content, 10);
+            RoundV269TableFrame(list, 9);
             root.Disposed += (_, _) =>
             {
                 searchBar.Dispose();

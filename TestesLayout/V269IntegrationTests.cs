@@ -152,6 +152,7 @@ internal static class V269IntegrationTests
     {
         var root = shell.PageContent(V269Page.Drivers)!;
         var list = root.Controls.Find("DriverInventoryList", true).OfType<DarkDriverList>().Single();
+        var frame = root.Controls.Find("V269DriversTableFrame", true).Single();
         var sort = root.Controls.Find("V269DriversSort", true).OfType<V269AppSortCombo>().Single();
         var details = root.Controls.Find("V269DriversDetails", true).OfType<Button>().Single();
         var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
@@ -199,6 +200,9 @@ internal static class V269IntegrationTests
                     Application.DoEvents();
                     var vertical = list.Controls.Find("V269DriversVerticalScroll", true).OfType<DarkVScrollBar>().Single();
                     var horizontal = list.Controls.Find("V269DriversHorizontalScroll", true).OfType<DarkVScrollBar>().Single();
+                    Require(frame.Region is { } edge && !edge.IsVisible(0, 0) &&
+                        edge.IsVisible(frame.Width / 2, frame.Height / 2),
+                        "moldura arredondada de Drivers acompanha o viewport");
                     Require(vertical.Visible && vertical.Top == list.TableHeaderHeight && !horizontal.Visible,
                         "cabeçalho fixo e barras somente quando há excesso");
                     Require(details.Visible == (size.Width <= 1040), "Detalhes aparece no breakpoint do HTML");
