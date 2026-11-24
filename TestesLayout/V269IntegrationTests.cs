@@ -18,6 +18,8 @@ internal static class V269IntegrationTests
             "oito instâncias nativas com Início ativo");
         VerifyHome(form, views[0]);
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
+        Require(paneToggle.Parent?.Name == "V269HomeFooter",
+            "controle adicional não altera o menu do HTML aprovado");
         Require(!shell.RightPane.Visible && paneToggle.Visible && paneToggle.Enabled,
             "Início usa toda a largura, mas mantém acesso explícito ao painel");
         paneToggle.PerformClick();
@@ -33,6 +35,9 @@ internal static class V269IntegrationTests
         var waiting = (Task<bool>)confirm.Invoke(form, ["Revisão de teste",
             "Alvo sintético. Nenhuma manutenção.", CancellationToken.None])!;
         shell.SelectPage(V269Page.Drivers);
+        Require(!form.Controls.Find("V269HomeMinimize", true).Single().Visible &&
+            paneToggle.Parent?.Name == "V269Navigation",
+            "as demais abas conservam a barra e o controle de operações anteriores");
         Require(!waiting.IsCompleted && shell.RightPane.Visible &&
             shell.RightPane.Current?.Kind == V269PanelKind.Confirmation && !views[2].Enabled,
             "troca de aba conserva a confirmação e impede uma operação concorrente");
@@ -73,6 +78,12 @@ internal static class V269IntegrationTests
     {
         Require(view is V269HomeDashboard, "Início deve usar o dashboard nativo reconstruído");
         var home = (V269HomeDashboard)view;
+        var header = form.Controls.Find("V269BrandHeader", true).OfType<V269BrandHeader>().Single();
+        Require(header.IsHomePresentation &&
+            form.Controls.Find("V269HomeMinimize", true).Single().Visible &&
+            form.Controls.Find("V269HomeClose", true).Single().Visible &&
+            !form.MaximizeBox && header.Height >= 60,
+            "cabeçalho único com comandos reais, sem maximização");
         Require(form.Controls.Find("V269BrandMark", true).Length == 1 &&
             form.Controls.Find("V269HomeHeadingIcon", true).Single().Visible &&
             form.Controls.Find("V269PageSubtitle", true).Single().Text ==
@@ -117,7 +128,10 @@ internal static class V269IntegrationTests
             MonitorReading<TimeSpan>.Available(TimeSpan.FromHours(3), "fixture"),
             LiveHardwareSensors.Unavailable);
         var pnp = new HardwareDiscoverySnapshot(at, HardwareDiscoveryState.Complete,
-            [], "fixture", null);
+            [new HardwareDeviceDescriptor("PCI\\VEN_1002&DEV_1234&SUBSYS_00000001\\fixture",
+                "GPU fixture AMD", "AMD", "Display", "PCI", HardwareDeviceKind.Graphics)
+                { InstalledDriverVersion = NativeHardwareDiscovery.ValidateInstalledDriver("32.0.1.123") }],
+            "fixture", null);
         var gpu = new NvidiaGpuSensorSnapshot(at, true,
             [new NvidiaGpuSensorSample(0, "GPU fixture NVML", null,
                 available, MonitorReading<double>.Available(61, "fixture"),
@@ -147,7 +161,11 @@ internal static class V269IntegrationTests
             "TPM confirmado, não encontrado e inconclusivo permanecem distintos");
         Require(models[1].Specs.Single(x => x.Label == "Barramento").Value ==
                 "GPU fixture NVML: PCIe 4.0 x8 (atual)" &&
-            models[1].Specs.Single(x => x.Label == "Driver").Value == "576.02 (NVIDIA NVML)" &&
+            models[1].Specs.Single(x => x.Label == "Driver").Value ==
+                "GPU fixture AMD: 32.0.1.123 (Windows) / 576.02 (NVIDIA NVML)" &&
+            NativeHardwareDiscovery.ValidateInstalledDriver("32.0.1.123") == "32.0.1.123" &&
+            NativeHardwareDiscovery.ValidateInstalledDriver("32.0.1.65536") is null &&
+            NativeHardwareDiscovery.ValidateInstalledDriver("32.0") is null &&
             models[1].Specs.Single(x => x.Label == "Resizable BAR").Value == "N/D" &&
             models[1].Specs.Single(x => x.Label == "Arquitetura").Value == "GPU fixture NVML: Blackwell (NVML)" &&
             NvidiaNvmlSensorProvider.FormatArchitecture(7) == "Ampere" &&
@@ -175,10 +193,23 @@ internal static class V269IntegrationTests
             models[0].Sensors.Any(x => x.Label == "Uso" && x.Value == "0%") &&
             models[0].Sensors.Any(x => x.Label == "Temperatura" && x.Value == "N/D"),
             "zero real não é ausência; núcleos e temperatura respeitam as fontes");
-        Require(models[1].Name == "GPU fixture NVML" &&
-            models[1].Sensors.Any(x => x.Label == "Ventoinha (%)" && x.Value == "35%") &&
-            models[1].Sensors.All(x => !x.Value.Contains("RPM", StringComparison.Ordinal)),
-            "NVML percentual não vira RPM");
+        Require(models[1].Name == "GPU fixture NVML / GPU fixture AMD" &&
+            models[1].Sensors.Select(x => x.Label).SequenceEqual(
+                new[] { "Temperatura", "Uso", "VRAM usada", "Ventoinha (GPU)" }) &&
+            models[1].Sensors.Single(x => x.Label == "Ventoinha (GPU)").Value ==
+                "GPU fixture NVML: 35% (NVML; não RPM)",
+            "quatro sensores do HTML, sem conversão indevida de percentual em RPM");
+        var noNvml = snapshot with { NvidiaGpus = new NvidiaGpuSensorSnapshot(at, false, [], "fixture indisponível") };
+        var noNvmlModel = MainForm.V269GpuModel(noNvml);
+        Require(noNvmlModel.Sensors.Count == 4 && noNvmlModel.Sensors.All(x => x.Value == "N/D") &&
+            noNvmlModel.Specs.Single(x => x.Label == "Driver").Value == "GPU fixture AMD: 32.0.1.123 (Windows)",
+            "falha NVML não conserva sensor antigo nem elimina driver Windows");
+        var newerGpu = snapshot with { NvidiaGpus = gpu with {
+            Devices = [gpu.Devices[0] with { TemperatureC = MonitorReading<double>.Available(66, "fixture ao vivo") }]
+        }};
+        Require(MainForm.V269GpuModel(newerGpu).Sensors.Single(x => x.Label == "Temperatura").Value.Contains("66 °C") &&
+            MainForm.V269GpuModel(newerGpu).Sensors.Count == 4,
+            "nova amostra GPU substitui leituras sem acrescentar linhas");
         Require(models[2].Specs.Any(x => x.Label == "Tipo" && x.Value == "DDR4") &&
             models[2].Specs.Any(x => x.Label == "Capacidade" && x.Value == "16 GiB") &&
             models[3].Specs.Any(x => x.Label == "Modelo" && x.Value == "Modelo fixture") &&
@@ -192,6 +223,14 @@ internal static class V269IntegrationTests
             models[3].Specs.Any(x => x.Label == "Soquete" && x.Value == "Designação: Socket fixture") &&
             models[4].Sensors.Any(x => x.Label == "Virtualização" && x.Value == "Ativa (firmware)"),
             "ISA, cache, designação do soquete, BIOS e virtualização não são inferidos");
+        var nominal = V269CpuSpecCatalog.Resolve(platform.CpuSockets[0] with {
+            ReportedName = "AMD Ryzen 7 5700X 8-Core Processor" });
+        Require(nominal is { BaseMhz: 3400, BoostMhz: 4600, L3MiB: 32, Socket: "AM4" } &&
+            V269CpuSpecCatalog.Resolve(platform.CpuSockets[0] with {
+                ReportedName = "AMD Ryzen 7 5700X3D 8-Core Processor" }) is null &&
+            V269CpuSpecCatalog.Resolve(platform.CpuSockets[0] with {
+                ReportedName = "AMD Ryzen 7 5700X", LogicalProcessors = 8 }) is null,
+            "catálogo nominal exige SKU exato, arquitetura e topologia corroboradas");
         foreach (var pair in new[] { (18U, "DDR"), (19U, "DDR2"), (20U, "DDR2 FB-DIMM"), (21U, "N/D") })
         {
             var legacy = WindowsPlatformHardwareProvider.Join([], 

@@ -242,6 +242,7 @@ internal sealed class V269Shell : UserControl
     private Button? _paneToggle;
     private bool _compactPaneOpen;
     private bool? _dashboardPaneOpen;
+    private bool _movingHomeToggle;
 
     internal void SetOperationContent(Control content)
     {
@@ -282,7 +283,7 @@ internal sealed class V269Shell : UserControl
         _columns.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310));
         _columns.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        _sidebar = new Panel { Name = "V269Sidebar", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 7, 0) };
+        _sidebar = new V269HomeSurfacePanel(true) { Name = "V269Sidebar", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 7, 0) };
         _navigationLayout = new TableLayoutPanel
         {
             Name = "V269Navigation", AccessibleName = "Navegação principal",
@@ -329,7 +330,7 @@ internal sealed class V269Shell : UserControl
         _navigationLayout.Controls.Add(_homeCopyright, 0, Pages.Length + 3);
         _sidebar.Controls.Add(_navigationLayout);
 
-        _content = new Panel { Name = "V269Main", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 7, 0) };
+        _content = new V269HomeSurfacePanel(false) { Name = "V269Main", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 7, 0) };
         var central = new TableLayoutPanel
         {
             Name = "V269MainLayout", Dock = DockStyle.Fill,
@@ -512,6 +513,7 @@ internal sealed class V269Shell : UserControl
             _appliedTextScale = 0;
             ApplyFonts();
         }
+        ApplyHomeSurfaces(home);
         _homeGlyph.Visible = home;
         _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 54 : 65) : 70;
@@ -528,6 +530,26 @@ internal sealed class V269Shell : UserControl
         bool showRight = !dashboard || mandatory || retained;
         if (_paneToggle is { } toggle)
         {
+            if (!_movingHomeToggle)
+            {
+                _movingHomeToggle = true;
+                try
+                {
+                    if (home && PageContent(V269Page.Inicio) is V269HomeDashboard dashboardView)
+                        dashboardView.AttachPaneToggle(toggle);
+                    else if (toggle.Parent != _navigationLayout)
+                    {
+                        if (toggle.Parent?.Parent is V269HomeDashboard oldHome) oldHome.DetachPaneToggle(toggle);
+                        toggle.AutoSize = false;
+                        toggle.MinimumSize = Size.Empty;
+                        toggle.Dock = DockStyle.Top;
+                        toggle.Height = 30;
+                        toggle.Margin = new Padding(0, 3, 0, 0);
+                        _navigationLayout.Controls.Add(toggle, 0, Pages.Length);
+                    }
+                }
+                finally { _movingHomeToggle = false; }
+            }
             bool compact = width < 1060;
             // O painel é fechado por padrão no dashboard, mas o histórico
             // e a exportação local continuam acessíveis por comando explícito.
@@ -574,7 +596,7 @@ internal sealed class V269Shell : UserControl
         int available = Math.Max(1, ClientSize.Height - _columns.Padding.Vertical -
             _navigationLayout.Padding.Vertical);
         bool footerFits = home && available >= S(500);
-        int toggleHeight = _paneToggle?.Visible == true ? S(34) : 0;
+        int toggleHeight = _paneToggle?.Visible == true && _paneToggle.Parent == _navigationLayout ? S(34) : 0;
         if (home)
         {
             int desired = 58; // 54 px do botão + gap de 4 px da .nav-list.
@@ -617,7 +639,39 @@ internal sealed class V269Shell : UserControl
         {
             button.HomePresentation = home;
             button.CurrentTheme = Theme;
+            button.BackColor = home ? Color.Transparent :
+                button.IsSelected ? V269VisualTokens.ForTheme(Theme).Selection : V269VisualTokens.ForTheme(Theme).Sidebar;
             button.Invalidate();
+        }
+    }
+
+    // Gradientes e bordas da última cascata do HTML congelado, somente
+    // na aba Início. Os demais painéis conservam sua paleta original.
+    private void ApplyHomeSurfaces(bool home)
+    {
+        var palette = V269VisualTokens.ForTheme(Theme);
+        var side = (V269HomeSurfacePanel)_sidebar;
+        var main = (V269HomeSurfacePanel)_content;
+        side.Configure(home, Theme);
+        main.Configure(home, Theme);
+        if (home)
+        {
+            _columns.BackColor = ColorTranslator.FromHtml(Theme switch {
+                V269Theme.Dark => "#151719", V269Theme.Claro => "#deebf7", _ => "#081827" });
+            _navigationLayout.BackColor = Color.Transparent;
+            _centralLayout.BackColor = _headingLayout.BackColor = _bodyHost.BackColor = Color.Transparent;
+            _pageTitle.ForeColor = ColorTranslator.FromHtml(Theme switch {
+                V269Theme.Dark => "#dce0e4", V269Theme.Claro => "#17374c", _ => "#e4edf6" });
+            _pageSubtitle.ForeColor = ColorTranslator.FromHtml(Theme switch {
+                V269Theme.Dark => "#adb6be", V269Theme.Claro => "#3f627a", _ => "#adbfce" });
+        }
+        else
+        {
+            _columns.BackColor = palette.Background;
+            _navigationLayout.BackColor = palette.Sidebar;
+            _centralLayout.BackColor = _headingLayout.BackColor = _bodyHost.BackColor = palette.Content;
+            _pageTitle.ForeColor = palette.Text;
+            _pageSubtitle.ForeColor = palette.SecondaryText;
         }
     }
 
@@ -636,7 +690,8 @@ internal sealed class V269Shell : UserControl
         foreach (var (page, button) in _navigation)
         {
             bool selected = page == SelectedPage;
-            button.BackColor = selected ? palette.Selection : palette.Sidebar;
+            button.BackColor = _homeGeometry ? Color.Transparent :
+                selected ? palette.Selection : palette.Sidebar;
             // Como no HTML V2.6.9: texto claro ao selecionar fundo azul
             // no tema Claro, e texto suave claro no Dark.
             button.ForeColor = selected
@@ -697,6 +752,7 @@ internal sealed class V269Shell : UserControl
         internal V269NavButton(V269Page page)
         {
             Page = page;
+            SetStyle(ControlStyles.SupportsTransparentBackColor, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             TextAlign = ContentAlignment.MiddleLeft;
@@ -763,8 +819,8 @@ internal sealed class V269Shell : UserControl
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var theme = CurrentTheme;
             Color H(string h) => ColorTranslator.FromHtml(h);
-            Color background = Parent?.BackColor ?? BackColor;
-            g.Clear(background);
+            // OnPaintBackground desenha a superfície pai; não apagar
+            // o gradiente do menu com um preenchimento opaco.
             var area = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
             using var shape = Rounded(area, 9);
             if (IsSelected)
@@ -826,6 +882,52 @@ internal sealed class V269Shell : UserControl
         p.AddArc(r.Right-d,r.Bottom-d,d,d,0,90);
         p.AddArc(r.Left,r.Bottom-d,d,d,90,90);
         p.CloseFigure(); return p;
+    }
+}
+
+internal sealed class V269HomeSurfacePanel : Panel
+{
+    private readonly bool _sidebar;
+    private bool _home;
+    private V269Theme _theme;
+
+    internal V269HomeSurfacePanel(bool sidebar)
+    {
+        _sidebar = sidebar;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+    }
+
+    internal void Configure(bool home, V269Theme theme)
+    {
+        _home = home; _theme = theme;
+        Padding = home ? new Padding(1) : Padding.Empty;
+        var palette = V269VisualTokens.ForTheme(theme);
+        BackColor = home ? Color.Transparent : _sidebar ? palette.Sidebar : palette.Content;
+        Invalidate(true);
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        base.OnPaintBackground(e);
+        if (!_home || Width < 3 || Height < 3) return;
+        Color H(string color) => ColorTranslator.FromHtml(color);
+        var (first, last, border, angle) = (_theme, _sidebar) switch
+        {
+            (V269Theme.Dark, true) => (H("#1e2024"), H("#17191c"), H("#4a5057"), 90f),
+            (V269Theme.Dark, false) => (H("#25282b"), H("#1c1e21"), H("#4d535a"), 75f),
+            (V269Theme.Claro, true) => (H("#d5eaf9"), H("#c6e0f2"), H("#8db1ca"), 90f),
+            (V269Theme.Claro, false) => (H("#e4f3ff"), H("#d7e9f8"), H("#8db1ca"), 65f),
+            (_, true) => (H("#081c31"), H("#0b2539"), H("#25445f"), 90f),
+            _ => (H("#0a2539"), H("#071a2b"), H("#25445f"), 55f)
+        };
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
+        using var path = V269Shell.Rounded(bounds, Math.Max(1, 12 * DeviceDpi / 96));
+        using var fill = new LinearGradientBrush(bounds, first, last, angle);
+        using var outline = new Pen(border);
+        e.Graphics.FillPath(fill, path);
+        e.Graphics.DrawPath(outline, path);
     }
 }
 

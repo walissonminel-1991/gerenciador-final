@@ -12,6 +12,10 @@ internal sealed partial class MainForm
     private bool _v269HardwareLoaded;
     private System.Windows.Forms.Timer? _v269LiveTimer;
     private bool _v269LiveSampling;
+    private readonly SemaphoreSlim _v269CaptureGate = new(1, 1);
+    private CancellationTokenSource? _v269LiveQuery;
+    private HardwareSensorPortfolio? _v269LastSnapshot;
+    private long _v269NextGpuSample;
     private IReadOnlyList<V269HomeModel>? _v269LastHomeModels;
     private readonly Label _v269HardwareStatus = new() { Dock = DockStyle.Fill, AutoEllipsis = true };
     private V269HomeDashboard? _v269Home;
@@ -56,6 +60,10 @@ internal sealed partial class MainForm
             details.Enabled = _v269HardwareDetails is not null;
         };
         _v269Home = new V269HomeDashboard(refresh, details, _v269HardwareStatus);
+        _v269Home.VisibleChanged += (_, _) =>
+        {
+            if (!_v269Home.Visible) _v269LiveQuery?.Cancel();
+        };
         _v269Home.SetModels(V269HomeModels(null));
         _v269Home.ApplyAppearance(_v269Appearance);
         return _v269Home;
@@ -66,14 +74,20 @@ internal sealed partial class MainForm
         if (_v269HardwareQuery is not null || IsDisposed || Disposing) return;
         using var request = new CancellationTokenSource();
         _v269HardwareQuery = request;
+        _v269LiveQuery?.Cancel();
+        bool ownsGate = false;
         _v269HardwareStatus.Text = "Consultando sensores e inventário locais…";
         try
         {
+            await _v269CaptureGate.WaitAsync(request.Token);
+            ownsGate = true;
             _ = await Task.Run(() => _v269Monitor.Capture(), request.Token);
             await Task.Delay(250, request.Token);
             var snapshot = await StaWorker.Run(() =>
                 HardwareSensorPortfolioReader.CaptureOnDemand(_v269Monitor, request.Token));
             if (request.IsCancellationRequested || IsDisposed || Disposing) return;
+            _v269LastSnapshot = snapshot;
+            _v269NextGpuSample = Environment.TickCount64 + 8000;
             _v269LastHomeModels = V269HomeModels(snapshot);
             _v269Home?.SetModels(_v269LastHomeModels);
             _v269HardwareDetails = string.Join(Environment.NewLine + Environment.NewLine,
@@ -97,38 +111,92 @@ internal sealed partial class MainForm
                 Log("Consulta de hardware: " + ex.GetType().Name);
             }
         }
-        finally { _v269HardwareQuery = null; }
+        finally
+        {
+            if (ownsGate) _v269CaptureGate.Release();
+            _v269HardwareQuery = null;
+        }
     }
 
-    // Atualização leve, apenas em Início visível e após consulta completa.
-    // Não repetir inventário PnP/WMI, ACPI ou consultas de manutenção no timer.
-    // GPU/TPM/firmware continuam com o horário da consulta completa.
+    // CPU/RAM a cada 2 s; GPU a cada 8 s, sem repetir inventário PnP,
+    // TPM, firmware ou armazenamento. Uma única consulta por vez, cancelável
+    // na saída da aba, bandeja ou fechamento.
     private void StartV269LiveSampling()
     {
         if (_v269LiveTimer is not null) return;
         _v269LiveTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+        bool CanSample() => _v269HardwareLoaded && _v269HardwareQuery is null &&
+            !_busy && !_v269Confirming && !IsDisposed && !Disposing && !_betaClose.IsClosing &&
+            !IsInTray && Visible && WindowState != FormWindowState.Minimized &&
+            _nav.SelectedPage == V269Page.Inicio && _v269LastHomeModels is not null;
         _v269LiveTimer.Tick += async (_, _) =>
         {
-            if (_v269LiveSampling || !_v269HardwareLoaded || _v269HardwareQuery is not null ||
-                _busy || _v269Confirming || IsDisposed || Disposing ||
-                IsInTray || !Visible || _nav.SelectedPage != V269Page.Inicio ||
-                _v269LastHomeModels is null) return;
+            if (_v269LiveSampling || !CanSample()) return;
+            using var request = new CancellationTokenSource();
+            _v269LiveQuery = request;
             _v269LiveSampling = true;
+            bool ownsGate = false;
             try
             {
-                var sample = await Task.Run(() => _v269Monitor.Capture());
-                if (IsDisposed || Disposing || IsInTray || !Visible ||
-                    _nav.SelectedPage != V269Page.Inicio || _busy || _v269Confirming ||
-                    _v269HardwareQuery is not null || _v269LastHomeModels is null) return;
-                _v269LastHomeModels = UpdateV269LiveRows(_v269LastHomeModels, sample);
+                await _v269CaptureGate.WaitAsync(request.Token);
+                ownsGate = true;
+                if (!CanSample()) return;
+                var baseline = _v269LastSnapshot;
+                var sample = await Task.Run(() => _v269Monitor.Capture(), request.Token);
+                if (!CanSample() || request.IsCancellationRequested) return;
+                _v269LastHomeModels = UpdateV269LiveRows(_v269LastHomeModels!, sample);
                 _v269Home?.SetModels(_v269LastHomeModels);
+                if (baseline is null || Environment.TickCount64 < _v269NextGpuSample) return;
+                try
+                {
+                    var refreshed = await StaWorker.Run(() =>
+                    {
+                        request.Token.ThrowIfCancellationRequested();
+                        var nvml = NvidiaNvmlSensorProvider.Capture();
+                        request.Token.ThrowIfCancellationRequested();
+                        var dxgi = DxgiGpuIdentityProvider.Capture();
+                        request.Token.ThrowIfCancellationRequested();
+                        var d3dkmt = D3dKmtGpuSensorProvider.Capture(dxgi, request.Token);
+                        request.Token.ThrowIfCancellationRequested();
+                        var wddm = WindowsWddmGpuProvider.Capture(request.Token);
+                        request.Token.ThrowIfCancellationRequested();
+                        return baseline with { WindowsCounters = sample, NvidiaGpus = nvml,
+                            DxgiAdapters = dxgi, D3dKmtGpuSensors = d3dkmt, WindowsGpuCounters = wddm };
+                    });
+                    if (!CanSample() || request.IsCancellationRequested ||
+                        !ReferenceEquals(baseline, _v269LastSnapshot)) return;
+                    _v269LastSnapshot = refreshed;
+                    var current = _v269LastHomeModels!.ToArray();
+                    current[1] = V269GpuModel(refreshed);
+                    _v269LastHomeModels = current;
+                    _v269Home?.SetModels(current);
+                    _v269HardwareDetails = string.Join(Environment.NewLine + Environment.NewLine,
+                        V269HardwareCards(refreshed).Select(x => x.Title + Environment.NewLine + x.Body));
+                }
+                finally { _v269NextGpuSample = Environment.TickCount64 + 8000; }
             }
+            catch (OperationCanceledException) when (request.IsCancellationRequested) { }
             catch (Exception ex) when (ex is not OutOfMemoryException)
-            { /* Manter a última consulta explícita; não inventar leituras. */ }
-            finally { _v269LiveSampling = false; }
+            {
+                // Uma falha não converte leitura anterior em dado atual.
+                if (CanSample() && _v269LastHomeModels is { } models && !request.IsCancellationRequested)
+                {
+                    var current = models.ToArray();
+                    current[1] = current[1] with { Sensors = current[1].Sensors.Select(r => r with { Value = "N/D" }).ToArray() };
+                    _v269LastHomeModels = current;
+                    _v269Home?.SetModels(current);
+                }
+            }
+            finally
+            {
+                if (ownsGate) _v269CaptureGate.Release();
+                _v269LiveQuery = null;
+                _v269LiveSampling = false;
+            }
         };
         FormClosed += (_, _) =>
         {
+            _v269LiveQuery?.Cancel();
             _v269LiveTimer?.Stop();
             _v269LiveTimer?.Dispose();
             _v269LiveTimer = null;
@@ -221,6 +289,11 @@ internal sealed partial class MainForm
             "Sensores de chipset e VRM: indisponíveis.");
         if (platform is not null)
         {
+            if (platform.CpuSocketsState == HardwareDiscoveryState.Complete && platform.CpuSockets.Count == 1 &&
+                V269CpuSpecCatalog.Resolve(platform.CpuSockets[0]) is { } specification)
+                yield return ("Especificação nominal AMD",
+                    $"Base: {specification.BaseMhz} MHz · Boost até {specification.BoostMhz} MHz\n" +
+                    "Valores de fábrica, não medições do clock ativo.\n" + specification.Source);
             foreach (var cpu in platform.CpuSockets)
                 yield return (cpu.ReportedName ?? "Processador · WMI",
                     $"Núcleos físicos: {cpu.PhysicalCores?.ToString() ?? "indisponível"}\n" +
@@ -270,73 +343,30 @@ internal sealed partial class MainForm
         var cpu = platform?.CpuSockets ?? [];
         var ram = platform?.RamModules ?? [];
         var boards = platform?.Motherboards ?? [];
-        var dxgi = snapshot?.DxgiAdapters?.Adapters.Where(x => !x.IsSoftware).ToArray() ?? [];
-        var nvml = snapshot?.NvidiaGpus.Devices ?? [];
         string cpuName = Join(cpu.Select(c => c.ReportedName));
         string coreCounts = cpu.Count > 0 && platform?.CpuSocketsState == HardwareDiscoveryState.Complete &&
             cpu.All(x => x.PhysicalCores.HasValue && x.LogicalProcessors.HasValue)
             ? $"{cpu.Sum(x => (long)x.PhysicalCores!.Value)} / {cpu.Sum(x => (long)x.LogicalProcessors!.Value)}" : nd;
-        string cpuArchitecture = Join(cpu.Select(x => x.ReportedArchitecture is { } isa ? isa + " (ISA)" : null));
+        var nominal = platform?.CpuSocketsState == HardwareDiscoveryState.Complete && cpu.Count == 1
+            ? V269CpuSpecCatalog.Resolve(cpu[0]) : null;
+        string cpuArchitecture = nominal is not null ? nominal.Microarchitecture + " (AMD)" :
+            Join(cpu.Select(x => x.ReportedArchitecture is { } isa ? isa + " (ISA)" : null));
         string cpuL3 = Join(cpu.Select(x => x.ReportedL3KiB is { } kib
             ? $"{kib / 1024d:0.##} MiB" : null));
+        if (cpuL3.Length == 0 && nominal?.L3MiB is { } l3)
+            cpuL3 = $"{l3} MiB (AMD)";
         // Não somar caches de topologias distintas nem deduzir Zen/Core
         // ou frequências base/turbo pelo clock reportado pelo firmware.
         if (cpu.Count > 1 && cpuL3.Length != 0) cpuL3 += " (por CPU)";
         var cpuRows = new V269HomeRow[] { R("Arquitetura", cpuArchitecture), R("Núcleos / Threads", coreCounts),
-            R("Frequência base", nd), R("Frequência turbo", nd), R("Cache L3", cpuL3) };
+            R("Frequência base", nominal is null ? nd : $"{nominal.BaseMhz / 1000d:0.00} GHz (AMD)"),
+            R("Frequência turbo", nominal is null ? nd : $"Até {nominal.BoostMhz / 1000d:0.00} GHz (AMD)"),
+            R("Cache L3", cpuL3) };
         var cpuSensors = new V269HomeRow[] { R("Temperatura", M(sample?.Sensors.CpuTemperatureC, Temp)),
             R("Uso", M(sample?.CpuUsagePercent, Percent)),
             R("Consumo", M(sample?.Sensors.CpuPowerWatts, x => $"{x:0.#} W")),
             R("Ventoinha (CPU)", M(sample?.Sensors.CpuFanRpm, Rpm)) };
 
-        // NVML reporta o link para o dispositivo consultado. Não associar
-        // ao DXGI por índice/nome; o driver NVIDIA é versão global NVML,
-        // não a versão WMI do pacote de cada adaptador.
-        string links = Join(nvml.Where(x => x.CurrentPcieLink is not null)
-            .Select(x => x.Name + ": " + x.CurrentPcieLink));
-        string? nvidiaDriver = nvml.Count > 0 && snapshot?.NvidiaGpus.NvidiaDriverVersion is { } driver
-            ? driver + " (NVIDIA NVML)" : null;
-        var graphics = new List<V269HomeRow> {
-            R("Memória", Join(dxgi.Select(x => x.Name + ": " + Gib(x.DedicatedVideoMemory) + " (DXGI)"))),
-            R("Barramento", links), R("Resizable BAR", nd), R("Driver", nvidiaDriver),
-            R("Arquitetura", Join(nvml.Where(x => x.ReportedArchitecture is not null)
-                .Select(x => x.Name + ": " + x.ReportedArchitecture + " (NVML)"))) };
-        var gpuSensors = new List<V269HomeRow>();
-        if (nvml.Count == 0)
-        {
-            gpuSensors.AddRange([R("Temperatura", nd), R("Uso", nd),
-                R("VRAM usada", nd), R("Ventoinha (GPU)", nd)]);
-        }
-        foreach (var gpu in nvml)
-        {
-            // NVML é uma fonte independente; percentual não vira RPM.
-            gpuSensors.Add(R("Fonte NVML", gpu.Name));
-            gpuSensors.Add(R("Temperatura", M(gpu.TemperatureC, Temp)));
-            gpuSensors.Add(R("Uso", M(gpu.UsagePercent, Percent)));
-            gpuSensors.Add(R("VRAM usada", M(gpu.VramUsedBytes, Gib)));
-            gpuSensors.Add(R("Ventoinha (%)", M(gpu.FanPercent, Percent)));
-            gpuSensors.Add(R("Consumo", M(gpu.PowerWatts, x => $"{x:0.#} W")));
-        }
-        foreach (var gpu in snapshot?.MatchedGpuDevices ?? [])
-        {
-            if (gpu.DxgiDescription is null) continue;
-            gpuSensors.Add(R("Fonte WDDM", gpu.DxgiDescription));
-            gpuSensors.Add(R("Motor mais ocupado", M(gpu.Counters.BusiestEnginePercent, Percent)));
-            gpuSensors.Add(R("VRAM usada", M(gpu.Counters.DedicatedUsedBytes, Gib)));
-        }
-        foreach (var gpu in snapshot?.D3dKmtGpuSensors?.Adapters ?? [])
-        {
-            var match = dxgi.Where(x => x.LuidHigh == gpu.Key.LuidHigh &&
-                x.LuidLow == gpu.Key.LuidLow).ToArray();
-            if (match.Length != 1) continue;
-            gpuSensors.Add(R("Fonte D3DKMT", match[0].Name + " · físico " + gpu.Key.Physical));
-            gpuSensors.Add(R("Temperatura", M(gpu.TemperatureC, Temp)));
-            gpuSensors.Add(R("Ventoinha (GPU)", M(gpu.FanRpm, Rpm)));
-        }
-        string gpuName = Join(dxgi.Select(x => x.Name).Concat(nvml.Select(x => x.Name)));
-        if (string.IsNullOrEmpty(gpuName))
-            gpuName = Join(snapshot?.DeviceInventory.Devices
-                .Where(x => x.Kind == HardwareDeviceKind.Graphics).Select(x => x.Name) ?? []);
         static string MemoryType(uint? type) => type switch {
             // SMBIOS Type 17 (não a enumeração WMI MemoryType).
             18 => "DDR", 19 => "DDR2", 20 => "DDR2 FB-DIMM", 24 => "DDR3", 26 => "DDR4", 34 => "DDR5",
@@ -353,8 +383,9 @@ internal sealed partial class MainForm
         var boardRows = new V269HomeRow[] { R("Fabricante", Join(boards.Select(x => x.Manufacturer))),
             R("Modelo", Join(boards.Select(x => x.Product))), R("Chipset", nd),
             R("BIOS", platform?.ReportedBiosVersion),
-            R("Soquete", Join(cpu.Select(x => x.ReportedSocketDesignation is { } designation
-                ? "Designação: " + designation : null))) };
+            R("Soquete", nominal?.Socket is { } socket ? socket + " (CPU, AMD)" :
+                Join(cpu.Select(x => x.ReportedSocketDesignation is { } designation
+                    ? "Designação: " + designation : null))) };
         var boardSensors = new V269HomeRow[] {
             R("Temp. chipset", M(sample?.Sensors.ChipsetTemperatureC, Temp)),
             R("Temp. VRM", M(sample?.Sensors.VrmTemperatureC, Temp)) };
@@ -396,11 +427,74 @@ internal sealed partial class MainForm
             R("TPM", snapshot?.TpmDescription), R("Virtualização", virtualization) };
         return [
             new("cpu", "Processador (CPU)", R("", cpuName).Value, cpuRows, cpuSensors),
-            new("gpu", "Placa de vídeo (GPU)", R("", gpuName).Value, graphics, gpuSensors),
+            V269GpuModel(snapshot),
             new("ram", "Memória (RAM)", "", ramRows, ramSensors),
             new("motherboard", "Placa-mãe / Chipset", "", boardRows, boardSensors),
             new("windows", "Windows", "", windowsRows, windowsSensors)
         ];
+    }
+
+    // Exatamente os cinco campos e quatro sensores do cartão aprovado.
+    // Fontes diferentes permanecem rotuladas; dados extras nos detalhes.
+    internal static V269HomeModel V269GpuModel(HardwareSensorPortfolio? snapshot)
+    {
+        const string nd = "N/D";
+        static V269HomeRow R(string label, string? value) => new(label,
+            string.IsNullOrWhiteSpace(value) || value == "indisponível" ? "N/D" : value);
+        static string Join(IEnumerable<string?> values) => string.Join(" / ", values
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal));
+        static string? Reading<T>(MonitorReading<T> reading, Func<T, string> format,
+            string identity, string source) where T : struct =>
+            reading.Availability == MonitorAvailability.Available && reading.Value is { } value
+                ? identity + ": " + format(value) + " (" + source + ")" : null;
+        static string Temp(double x) => $"{x:0.#} °C";
+        static string Percent(double x) => $"{x:0.#}%";
+        var dxgi = snapshot?.DxgiAdapters?.Adapters.Where(x => !x.IsSoftware).ToArray() ?? [];
+        var nvml = snapshot?.NvidiaGpus.Devices ?? [];
+        var pnp = snapshot?.DeviceInventory.Devices.Where(x => x.Kind == HardwareDeviceKind.Graphics).ToArray() ?? [];
+        string links = Join(nvml.Where(x => x.CurrentPcieLink is not null)
+            .Select(x => x.Name + ": " + x.CurrentPcieLink));
+        var driverValues = pnp.Where(x => x.InstalledDriverVersion is not null)
+            .Select(x => x.Name + ": " + x.InstalledDriverVersion + " (Windows)").ToList();
+        if (nvml.Count > 0 && snapshot?.NvidiaGpus.NvidiaDriverVersion is { } version)
+            driverValues.Add(version + " (NVIDIA NVML)");
+        var graphics = new V269HomeRow[] {
+            R("Memória", Join(dxgi.Where(x => x.DedicatedVideoMemory > 0)
+                .Select(x => x.Name + ": " + Gib(x.DedicatedVideoMemory) + " (DXGI)"))),
+            R("Barramento", links), R("Resizable BAR", nd), R("Driver", Join(driverValues)),
+            R("Arquitetura", Join(nvml.Where(x => x.ReportedArchitecture is not null)
+                .Select(x => x.Name + ": " + x.ReportedArchitecture + " (NVML)"))) };
+        var temperatures = new List<string?>();
+        var usages = new List<string?>();
+        var memories = new List<string?>();
+        var fans = new List<string?>();
+        foreach (var gpu in nvml)
+        {
+            temperatures.Add(Reading(gpu.TemperatureC, Temp, gpu.Name, "NVML"));
+            usages.Add(Reading(gpu.UsagePercent, Percent, gpu.Name, "NVML"));
+            memories.Add(Reading(gpu.VramUsedBytes, Gib, gpu.Name, "NVML"));
+            fans.Add(Reading(gpu.FanPercent, Percent, gpu.Name, "NVML; não RPM"));
+        }
+        foreach (var gpu in snapshot?.MatchedGpuDevices ?? [])
+        {
+            if (gpu.DxgiDescription is not { } identity) continue;
+            usages.Add(Reading(gpu.Counters.BusiestEnginePercent, Percent, identity, "WDDM; motor mais ocupado"));
+            memories.Add(Reading(gpu.Counters.DedicatedUsedBytes, Gib, identity, "WDDM"));
+        }
+        foreach (var gpu in snapshot?.D3dKmtGpuSensors?.Adapters ?? [])
+        {
+            var match = dxgi.Where(x => x.LuidHigh == gpu.Key.LuidHigh &&
+                x.LuidLow == gpu.Key.LuidLow).ToArray();
+            if (match.Length != 1) continue;
+            string identity = match[0].Name + " · físico " + gpu.Key.Physical;
+            temperatures.Add(Reading(gpu.TemperatureC, Temp, identity, "D3DKMT"));
+            fans.Add(Reading(gpu.FanRpm, x => $"{x:0} RPM", identity, "D3DKMT"));
+        }
+        string name = Join(dxgi.Select(x => x.Name).Concat(nvml.Select(x => x.Name))
+            .Concat(pnp.Select(x => x.Name)));
+        return new("gpu", "Placa de vídeo (GPU)", R("", name).Value, graphics,
+            [R("Temperatura", Join(temperatures)), R("Uso", Join(usages)),
+             R("VRAM usada", Join(memories)), R("Ventoinha (GPU)", Join(fans))]);
     }
 
     private Control BuildV269StartupPage()
@@ -529,6 +623,11 @@ internal sealed partial class MainForm
             home.ApplyAppearance(_v269Appearance);
             return;
         }
+        if (root is V269BrandHeader brand)
+        {
+            brand.RefreshHomeTheme(_v269Appearance);
+            if (brand.IsHomePresentation) return;
+        }
         if (root is V269AppearancePanel) return;
         if (!_v269Colors.TryGetValue(root, out var original))
         {
@@ -613,6 +712,45 @@ internal sealed partial class MainForm
     }
 }
 
+
+// Catálogo nominal local, pequeno e auditável. Não usa correspondência
+// parcial de nome nem classifica CPUs OEM/ES ou variantes X3D como X.
+internal sealed record V269CpuNominal(string Microarchitecture, int BaseMhz,
+    int BoostMhz, int? L3MiB, string? Socket, uint Cores, uint Threads, string Source);
+
+internal static class V269CpuSpecCatalog
+{
+    private const string Release = "https://www.amd.com/en/newsroom/press-releases/2022-3-15-amd-launches-the-ultimate-gaming-processor-brings.html";
+    private const string Support = "https://www.amd.com/en/support/downloads/drivers.html/processors/ryzen/ryzen-5000-series/";
+    private static readonly Dictionary<string, V269CpuNominal> Models = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["AMD Ryzen 7 5700X"] = new("Zen 3 (Vermeer)",3400,4600,32,"AM4",8,16,Support+"amd-ryzen-7-5700x.html"),
+        ["AMD Ryzen 5 5600"] = new("Zen 3 (Vermeer)",3500,4400,32,"AM4",6,12,Support+"amd-ryzen-5-5600.html"),
+        ["AMD Ryzen 5 5600X"] = new("Zen 3 (Vermeer)",3700,4600,32,"AM4",6,12,Support+"amd-ryzen-5-5600x.html"),
+        ["AMD Ryzen 5 5600G"] = new("Zen 3 (Cezanne)",3900,4400,16,"AM4",6,12,Support+"amd-ryzen-5-5600g.html"),
+        ["AMD Ryzen 5 5500"] = new("Zen 3",3600,4200,null,null,6,12,Release),
+        ["AMD Ryzen 5 4500"] = new("Zen 2",3600,4100,null,null,6,12,Release),
+        ["AMD Ryzen 3 4100"] = new("Zen 2",3800,4000,null,null,4,8,Release),
+        ["AMD Ryzen 5 4600G"] = new("Zen 2",3700,4200,null,null,6,12,Release)
+    };
+
+    internal static V269CpuNominal? Resolve(WindowsCpuSocket cpu)
+    {
+        if (cpu.ReportedArchitecture != "x64" || cpu.ReportedName is not { } raw ||
+            cpu.PhysicalCores is not { } cores || cpu.LogicalProcessors is not { } threads)
+            return null;
+        string name = string.Join(" ", raw.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        // Aceitar somente sufixos conhecidos do identificador WMI.
+        string coreSuffix = " " + cores + "-Core Processor";
+        if (name.EndsWith(coreSuffix, StringComparison.OrdinalIgnoreCase))
+            name = name[..^coreSuffix.Length];
+        else if (name.EndsWith(" with Radeon Graphics", StringComparison.OrdinalIgnoreCase))
+            name = name[..^" with Radeon Graphics".Length];
+        if (!Models.TryGetValue(name, out var value) || cores != value.Cores ||
+            threads != value.Threads) return null;
+        return value;
+    }
+}
 
 internal sealed class V269ProgramListOptions
 {
@@ -700,7 +838,8 @@ internal sealed class V269HomeDashboard : Panel
         Name = "V269HardwarePage";
         Dock = DockStyle.Fill;
         AutoScroll = false;
-        SetStyle(ControlStyles.Selectable | ControlStyles.OptimizedDoubleBuffer, true);
+        SetStyle(ControlStyles.Selectable | ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.SupportsTransparentBackColor, true);
         TabStop = true;
         AccessibleName = "Informações gerais do sistema e do hardware";
         _status = status;
@@ -729,6 +868,36 @@ internal sealed class V269HomeDashboard : Panel
         Controls.Add(_footer);
     }
 
+    // Acesso existente ao histórico/operações: fica abaixo dos cartões,
+    // fora do menu principal previsto pelo HTML, e conserva foco/rolagem.
+    internal void AttachPaneToggle(Button toggle)
+    {
+        if (toggle.Parent == _footer) return;
+        toggle.Enter -= PaneToggleFocus;
+        toggle.GotFocus -= PaneToggleFocus;
+        toggle.Dock = DockStyle.None;
+        toggle.AutoSize = true;
+        toggle.MinimumSize = new Size(115, 28);
+        toggle.Margin = new Padding(3);
+        _footer.Controls.Add(toggle);
+        toggle.Enter += PaneToggleFocus;
+        toggle.GotFocus += PaneToggleFocus;
+        Arrange();
+    }
+
+    internal void DetachPaneToggle(Button toggle)
+    {
+        toggle.Enter -= PaneToggleFocus;
+        toggle.GotFocus -= PaneToggleFocus;
+        if (toggle.Parent == _footer) _footer.Controls.Remove(toggle);
+        Arrange();
+    }
+
+    private void PaneToggleFocus(object? sender, EventArgs e)
+    {
+        if (sender is Control action) RevealAction(action);
+    }
+
     internal void SetModels(IReadOnlyList<V269HomeModel> models)
     {
         if (models.Count != 5 || !_cards.Select(x => x.Key).SequenceEqual(models.Select(x => x.Key)))
@@ -741,10 +910,10 @@ internal sealed class V269HomeDashboard : Panel
     {
         _appearance = appearance.Normalize();
         var palette = V269VisualTokens.ForTheme(_appearance.Theme);
-        BackColor = palette.Content;
+        BackColor = Color.Transparent;
         ForeColor = palette.Text;
         _notice.ForeColor = _status.ForeColor = palette.SecondaryText;
-        _footer.BackColor = palette.Content;
+        _footer.BackColor = Color.Transparent;
         foreach (Control child in _footer.Controls)
             if (child is Button) { child.BackColor = palette.Card; child.ForeColor = palette.Text; }
         foreach (var card in _cards) card.ApplyAppearance(_appearance, BackColor);
@@ -861,7 +1030,8 @@ internal sealed class V269HomeCard : Control
         Name = "V269HomeCard_" + key;
         AccessibleRole = AccessibleRole.Grouping;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-            ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw |
+            ControlStyles.SupportsTransparentBackColor, true);
     }
 
     internal void SetModel(V269HomeModel model)

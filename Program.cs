@@ -743,7 +743,7 @@ internal sealed partial class MainForm : Form
         MaximumSize = StartupWindowSizing.MaximumSizeFor(display);
         Bounds = opening;
 
-        var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 2, Padding = new Padding(8, 4, 8, 4), BackColor = AppServices.Background };
+        var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 2, Padding = Padding.Empty, BackColor = AppServices.Background };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         Controls.Add(root);
@@ -754,7 +754,7 @@ internal sealed partial class MainForm : Form
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            int caption = _caption?.Height ?? 0;
+            int caption = _nav.SelectedPage == V269Page.Inicio ? 0 : _caption?.Height ?? 0;
             var bounds = new Rectangle(
                 0, caption, Math.Max(1, ClientSize.Width),
                 Math.Max(1, ClientSize.Height - caption));
@@ -763,7 +763,29 @@ internal sealed partial class MainForm : Form
         Resize += (_, _) => CenterWorkspace();
         DpiChanged += (_, _) => CenterWorkspace();
         CenterWorkspace();
-        root.Controls.Add(BuildHeader(), 0, 0);
+        var brandHeader = (V269BrandHeader)BuildHeader();
+        root.Controls.Add(brandHeader, 0, 0);
+        bool homeChrome = true;
+        if (_caption is not null) _caption.Visible = false;
+        void ApplyHomeChrome()
+        {
+            bool home = _nav.SelectedPage == V269Page.Inicio;
+            if (homeChrome != home)
+            {
+                // Nos testes de viewport a superfície interna tem largura
+                // independente do Form. Não desfazer o tamanho simulado.
+                bool followsWindow = root.Width == ClientSize.Width &&
+                    root.Height == Math.Max(1, ClientSize.Height -
+                        (homeChrome ? 0 : _caption?.Height ?? 0));
+                homeChrome = home;
+                if (_caption is not null) _caption.Visible = !home;
+                root.Padding = home ? Padding.Empty : new Padding(8, 4, 8, 4);
+                if (followsWindow) CenterWorkspace();
+                else root.Top = home ? 0 : _caption?.Height ?? 0;
+            }
+            FitWorkspace();
+            ApplyV269ContentAppearance(brandHeader);
+        }
 
         _nav.SetPageContent(V269Page.Inicio, BuildV269Home());
         _nav.SetPageContent(V269Page.Aplicativos, BuildProgramsPanel());
@@ -774,6 +796,7 @@ internal sealed partial class MainForm : Form
         _nav.SetOperationContent(BuildOperationsPanel());
         _nav.NavigationChanged += async (_, e) =>
         {
+            ApplyHomeChrome();
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
@@ -794,8 +817,13 @@ internal sealed partial class MainForm : Form
         {
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
-            if (Math.Abs(root.RowStyles[0].Height - rows.Header) > 1)
-                root.RowStyles[0].Height = rows.Header;
+            bool home = _nav.SelectedPage == V269Page.Inicio;
+            int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
+            int headerHeight = home ? Math.Max(1, (int)Math.Round(
+                (logicalWidth <= 850 ? 70 : 80) * DeviceDpi / 96d)) : rows.Header;
+            if (Math.Abs(root.RowStyles[0].Height - headerHeight) > 1)
+                root.RowStyles[0].Height = headerHeight;
+            brandHeader.Configure(home, logicalWidth, _v269Appearance);
         }
         void RestoreWithinMonitor(bool recomputeForDisplay = false)
         {
@@ -997,10 +1025,11 @@ internal sealed partial class MainForm : Form
 
     private Control BuildHeader()
     {
-        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
+        var panel = new V269BrandHeader { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 2, Margin = Padding.Empty };
         panel.Name = "V269BrandHeader";
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
@@ -1012,19 +1041,44 @@ internal sealed partial class MainForm : Form
         panel.Controls.Add(mark, 0, 0);
         panel.SetRowSpan(mark, 2);
         panel.BackColorChanged += (_, _) => mark.Invalidate();
-        panel.Controls.Add(new Label
+        var brandTitle = new Label
         {
             Name = "V269BrandTitle", Text = "GERENCIADOR FINAL", Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 15.5F, FontStyle.Bold), ForeColor = Ink,
             Margin = new Padding(13, 0, 0, 0), TextAlign = ContentAlignment.MiddleLeft
-        }, 1, 0);
-        panel.Controls.Add(new Label
+        };
+        panel.Controls.Add(brandTitle, 1, 0);
+        var brandSubtitle = new Label
         {
             Name = "V269BrandSubtitle", Text = "Manutenção e otimização do Windows · V2.6.9",
             Dock = DockStyle.Fill, Margin = new Padding(13, 0, 0, 0),
             ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft,
             AutoEllipsis = true
-        }, 1, 1);
+        };
+        panel.Controls.Add(brandSubtitle, 1, 1);
+        var chrome = new FlowLayoutPanel { Name = "V269HomeChrome", Dock = DockStyle.Fill,
+            WrapContents = false, FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(0, 12, 18, 0), Margin = Padding.Empty,
+            Visible = false, BackColor = Color.Transparent };
+        var minimize = CaptionButton("−", "Minimizar para a bandeja do sistema", false,
+            (_, _) => MinimizeToTray());
+        minimize.Name = "V269HomeMinimize";
+        var close = CaptionButton("×", "Fechar o Gerenciador Final", true,
+            (_, _) => Close());
+        close.Name = "V269HomeClose";
+        foreach (var button in new[] { minimize, close })
+        {
+            button.Size = new Size(34, 28);
+            button.Margin = new Padding(0, 0, 5, 0);
+            chrome.Controls.Add(button);
+        }
+        panel.Controls.Add(chrome, 3, 0);
+        panel.SetRowSpan(chrome, 2);
+        panel.InitializeBrand(mark, brandTitle, brandSubtitle, chrome);
+        panel.MouseDown += MoveFromCaption;
+        mark.MouseDown += MoveFromCaption;
+        brandTitle.MouseDown += MoveFromCaption;
+        brandSubtitle.MouseDown += MoveFromCaption;
 #if !GF_BETA
         _privacyStatusButton = CreateSecondaryButton("Configurar privacidade");
         _privacyStatusButton.Name = "PrivacyStatusButton";
@@ -4496,9 +4550,135 @@ internal static class NativeMethods
 
 
 // Marca GF da especificação visual; não cria ações de janela.
+// Início usa o cabeçalho único do HTML, mantendo as ações reais de
+// minimizar/fechar e a política nativa que impede maximização/tela cheia.
+internal sealed class V269BrandHeader : TableLayoutPanel
+{
+    private V269BrandMark? _mark;
+    private Label? _title, _subtitle;
+    private FlowLayoutPanel? _chrome;
+    private Font? _legacyTitle, _legacySubtitle;
+    private Color _legacyTitleInk, _legacySubtitleInk;
+    internal bool IsHomePresentation => _home;
+    private readonly Dictionary<(float, FontStyle), Font> _fonts = new();
+    private V269Theme _theme;
+    private bool _home;
+    private int _width;
+    private V269AppearanceOptions? _options;
+
+    internal V269BrandHeader()
+    {
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+    }
+
+    internal void InitializeBrand(V269BrandMark mark, Label title, Label subtitle, FlowLayoutPanel chrome)
+    {
+        _mark = mark; _title = title; _subtitle = subtitle; _chrome = chrome;
+        _legacyTitle = title.Font; _legacySubtitle = subtitle.Font;
+        _legacyTitleInk = title.ForeColor; _legacySubtitleInk = subtitle.ForeColor;
+    }
+
+    internal void RefreshHomeTheme(V269AppearanceOptions options)
+    {
+        if (_home) Configure(true, _width, options);
+    }
+
+    internal void Configure(bool home, int width, V269AppearanceOptions options)
+    {
+        if (_mark is null || _title is null || _subtitle is null || _chrome is null) return;
+        if (_options == options && _home == home && _width == width) return;
+        _options = options; _home = home; _width = width; _theme = options.Theme;
+        int D(int n) => Math.Max(1, (int)Math.Round(n * DeviceDpi / 96d));
+        Font F(int pixels, FontStyle style)
+        {
+            float size = pixels * .75f * options.TextPercent / 100f;
+            if (_fonts.TryGetValue((size, style), out var existing)) return existing;
+            return _fonts[(size, style)] = new Font("Segoe UI", size, style);
+        }
+        SuspendLayout();
+        try
+        {
+            _chrome.Visible = home;
+            ColumnStyles[3].Width = home ? D(100) : 0;
+            if (home)
+            {
+                bool compact = width <= 850;
+                int logo = compact ? 45 : 55;
+                _mark.LogicalSize = logo;
+                ColumnStyles[0].Width = D(18 + logo);
+                _mark.Margin = new Padding(D(18), 0, 0, 0);
+                RowStyles[0].SizeType = SizeType.Percent; RowStyles[0].Height = 54;
+                RowStyles[1].SizeType = SizeType.Percent; RowStyles[1].Height = 46;
+                _title.Margin = new Padding(D(compact ? 9 : 14), 0, 0, 0);
+                _subtitle.Margin = _title.Margin;
+                _title.TextAlign = ContentAlignment.BottomLeft;
+                _subtitle.TextAlign = ContentAlignment.TopLeft;
+                _title.Font = F(compact ? 17 : width <= 1250 ? 20 : 23, FontStyle.Bold);
+                _subtitle.Font = F(compact ? 10 : 12, FontStyle.Regular);
+                _title.BackColor = _subtitle.BackColor = Color.Transparent;
+                _title.ForeColor = ColorTranslator.FromHtml(_theme switch {
+                    V269Theme.Dark => "#e0e3e6", V269Theme.Claro => "#17354e", _ => "#e4edf6" });
+                _subtitle.ForeColor = ColorTranslator.FromHtml(_theme switch {
+                    V269Theme.Dark => "#a5afb8", V269Theme.Claro => "#3f627a", _ => "#becddd" });
+                _chrome.Padding = new Padding(0, D(12), D(18), 0);
+                foreach (Button button in _chrome.Controls.OfType<Button>())
+                {
+                    button.Size = new Size(D(34), D(28));
+                    button.Margin = new Padding(0, 0, D(5), 0);
+                    button.BackColor = ColorTranslator.FromHtml(_theme switch {
+                        V269Theme.Dark => "#1b1d20", V269Theme.Claro => "#d8e9f7", _ => "#102234" });
+                    button.ForeColor = _title.ForeColor;
+                }
+            }
+            else
+            {
+                ColumnStyles[0].Width = 66;
+                RowStyles[0].SizeType = SizeType.Absolute; RowStyles[0].Height = 30;
+                RowStyles[1].SizeType = SizeType.Absolute; RowStyles[1].Height = 22;
+                _mark.LogicalSize = 55;
+                _mark.Margin = new Padding(11, 0, 0, 0);
+                _title.Margin = _subtitle.Margin = new Padding(13, 0, 0, 0);
+                _title.TextAlign = _subtitle.TextAlign = ContentAlignment.MiddleLeft;
+                if (_legacyTitle is not null) _title.Font = _legacyTitle;
+                if (_legacySubtitle is not null) _subtitle.Font = _legacySubtitle;
+                _title.ForeColor = _legacyTitleInk; _subtitle.ForeColor = _legacySubtitleInk;
+            }
+        }
+        finally { ResumeLayout(true); Invalidate(true); }
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        if (!_home || Width <= 1 || Height <= 1) { base.OnPaintBackground(e); return; }
+        Color H(string hex) => ColorTranslator.FromHtml(hex);
+        var (first, last, border, angle) = _theme switch
+        {
+            V269Theme.Dark => (H("#292c30"), H("#16181b"), H("#41464b"), 25f),
+            V269Theme.Claro => (H("#e6f2fc"), H("#d8e9f7"), H("#a2c2d8"), 30f),
+            _ => (H("#13293f"), H("#0a1826"), H("#1f3b52"), 90f)
+        };
+        using var gradient = new System.Drawing.Drawing2D.LinearGradientBrush(
+            ClientRectangle, first, last, angle);
+        e.Graphics.FillRectangle(gradient, ClientRectangle);
+        using var line = new Pen(border);
+        e.Graphics.DrawLine(line, 0, Height - 1, Width - 1, Height - 1);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            foreach (var font in _fonts.Values) font.Dispose();
+            _fonts.Clear();
+        }
+    }
+}
+
 internal sealed class V269BrandMark : Control
 {
     private readonly Func<V269Theme> _theme;
+    internal int LogicalSize = 55;
     internal V269BrandMark(Func<V269Theme> theme)
     {
         _theme = theme;
@@ -4510,7 +4690,7 @@ internal sealed class V269BrandMark : Control
     {
         var g = e.Graphics;
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        int n = Math.Min(Math.Min(Width,Height)-2,Math.Max(1,55*DeviceDpi/96));
+        int n = Math.Min(Math.Min(Width,Height)-2,Math.Max(1,LogicalSize*DeviceDpi/96));
         if(n < 8) return;
         var r = new Rectangle((Width-n)/2,(Height-n)/2,n,n);
         Color H(string hex) => ColorTranslator.FromHtml(hex);
