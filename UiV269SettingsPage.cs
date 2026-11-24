@@ -98,7 +98,7 @@ internal class V269SettingsCard : Panel
     protected override void OnPaintBackground(PaintEventArgs e)
     {
         base.OnPaintBackground(e);
-        if (Width <= 2 || Height <= 2) return;
+        if (!PaintCard || Width <= 2 || Height <= 2) return;
         var (first,last,border,angle) = Options.Theme switch
         {
             V269Theme.Dark => (H("#303438"), H("#282c30"), H("#565c62"), 65f),
@@ -113,6 +113,8 @@ internal class V269SettingsCard : Panel
         e.Graphics.FillPath(fill,shape);
         e.Graphics.DrawPath(line,shape);
     }
+
+    protected virtual bool PaintCard => true;
 
     protected override void Dispose(bool disposing)
     {
@@ -382,6 +384,11 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
     private readonly Label[] _descriptions;
     private readonly Control[][] _actions;
     private readonly Rectangle[] _rows = new Rectangle[6];
+    private V269SettingsTab? _generalTab, _monitorTab;
+    private V269MonitorOptions? _monitor;
+    private bool _monitorSelected;
+    internal bool MonitorSelected => _monitorSelected;
+    internal event EventHandler? SectionChanged;
     internal readonly V269SettingsSwitch Administrator = new("V269Administrator","Modo Administrador");
     internal readonly V269SettingsSwitch StartWindows = new("V269StartWindows","Iniciar com o Windows");
     internal readonly V269SettingsSwitch Notifications = new("V269Notifications","Mostrar notificações");
@@ -417,6 +424,36 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
     private static Button ActionButton(string name,string text) =>
         new V269SettingsButton(name,text,name switch {"V269PrivacyInfo"=>8,"V269GenerateDiagnostic"=>9,_=>10});
 
+    internal void AddMonitor(V269MonitorOptions monitor)
+    {
+        _monitor = monitor;
+        _generalTab = new V269SettingsTab("V269GeneralTab", "Geral") { Selected = true };
+        _monitorTab = new V269SettingsTab("V269MonitorTab", "Monitor");
+        _generalTab.Click += (_, _) => SelectMonitor(false);
+        _monitorTab.Click += (_, _) => SelectMonitor(true);
+        Controls.AddRange([_generalTab, _monitorTab, monitor]);
+        _generalTab.TabIndex = 0;
+        _monitorTab.TabIndex = 1;
+        monitor.Visible = false;
+        _title.Visible = false;
+    }
+
+    private void SelectMonitor(bool monitor)
+    {
+        if (_monitor is null || _monitorSelected == monitor) return;
+        _monitorSelected = monitor;
+        SuspendLayout();
+        _generalTab!.Selected = !monitor;
+        _monitorTab!.Selected = monitor;
+        foreach (var label in _names.Concat(_descriptions)) label.Visible = !monitor;
+        foreach (var action in _actions.SelectMany(row => row)) action.Visible = !monitor;
+        _monitor.Visible = monitor;
+        ResumeLayout(false);
+        SectionChanged?.Invoke(this, EventArgs.Empty);
+        Parent?.PerformLayout();
+        Invalidate();
+    }
+
     internal void SetObserved(bool? administrator, bool? startup, V269GeneralOptions general,
         TelemetryConsent consent, bool canChange, bool canCollect = true)
     {
@@ -445,6 +482,28 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
         int left=S(14), right=Math.Max(left+1,width-S(14)), y=S(12);
         StyleLabel(_title,15,true);
         _title.Bounds=new Rectangle(left+S(33),y,Math.Max(1,right-left-S(33)),S(24));
+        if (_generalTab is { } general && _monitorTab is { } tab && _monitor is { } monitor)
+        {
+            int x = _title.Left;
+            foreach (var section in new[] { general, tab })
+            {
+                section.Font = _title.Font;
+                section.ForeColor = Ink;
+                section.Accent = V269VisualTokens.ForTheme(Options.Theme).Accent;
+                int tabWidth = TextRenderer.MeasureText(section.Text, section.Font).Width + S(12);
+                section.Bounds = new Rectangle(x, y, tabWidth, S(24));
+                x += tabWidth + S(9);
+                section.Invalidate();
+            }
+            if (_monitorSelected)
+            {
+                int contentWidth = Math.Max(1, right - left);
+                monitor.ApplyOptions(Options);
+                int contentHeight = monitor.ArrangeRows(contentWidth);
+                monitor.Bounds = new Rectangle(left, y + S(35), contentWidth, contentHeight);
+                return monitor.Bottom + S(12);
+            }
+        }
         y+=S(35);
         for(int i=0;i<_rows.Length;i++)
         {
@@ -508,6 +567,7 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
         {V269Theme.Dark=>"#b998f2",V269Theme.Claro=>"#7046c1",_=>"#b7a5f5"}));
         using var pen=new Pen(Rule);
         g.DrawLine(pen,S(14),S(41),Math.Max(S(14),Width-S(14)),S(41));
+        if (_monitorSelected) return;
         for(int i=0;i<_rows.Length;i++)
         {
             var row=_rows[i]; if(row.Height<=0)continue;
@@ -581,9 +641,11 @@ internal static class V269SettingsGlyph
 
 internal sealed class V269SettingsPage : Panel
 {
+    private const string DefaultNotice = "As preferências são locais. Operações administrativas continuam sujeitas à confirmação.";
     internal readonly V269GeneralSettingsPanel General = new();
     internal readonly V269AppearancePanel Appearance = new();
-    private readonly Label _hint = new() {Name="V269SettingsHint", Text="As preferências são locais. Operações administrativas continuam sujeitas à confirmação.",BackColor=Color.Transparent};
+    private readonly Label _hint = new() {Name="V269SettingsHint", Text=DefaultNotice,BackColor=Color.Transparent};
+    private string? _notice, _monitorNotice;
     private V269AppearanceOptions _options=V269AppearanceOptions.Default;
     private int _scroll,_height,_wheel;
     private bool _arranging;
@@ -605,6 +667,15 @@ internal sealed class V269SettingsPage : Panel
             WireFocus(child);
         }
     }
+    internal void AddMonitor(V269MonitorOptions monitor)
+    {
+        General.AddMonitor(monitor);
+        General.SectionChanged += (_, _) => UpdateNotice();
+        WireFocus(monitor);
+        foreach (var tab in General.Controls.OfType<V269SettingsTab>())
+            tab.GotFocus += (_, _) => Reveal(tab);
+        Arrange();
+    }
     private void Reveal(Control child)
     {
         if(!IsHandleCreated || IsDisposed || !child.ContainsFocus)return;
@@ -625,7 +696,17 @@ internal sealed class V269SettingsPage : Panel
     private void PaneFocus(object? sender,EventArgs e){if(sender is Control c)Reveal(c);}
     internal void SetNotice(string? message)
     {
-        _hint.Text=message??"As preferências são locais. Operações administrativas continuam sujeitas à confirmação.";
+        _notice = message;
+        UpdateNotice();
+    }
+    internal void SetMonitorNotice(string? message)
+    {
+        _monitorNotice = message;
+        UpdateNotice();
+    }
+    private void UpdateNotice()
+    {
+        _hint.Text = (General.MonitorSelected ? _monitorNotice : _notice) ?? DefaultNotice;
         Arrange();
     }
     internal int ContentHeight=>_height;

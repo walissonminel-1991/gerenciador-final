@@ -16,6 +16,7 @@ internal sealed partial class MainForm
     private readonly SemaphoreSlim _v269CaptureGate = new(1, 1);
     private CancellationTokenSource? _v269LiveQuery;
     private HardwareSensorPortfolio? _v269LastSnapshot;
+    private HardwareSensorPortfolio? _v269MonitorSnapshot;
     private long _v269NextGpuSample;
     private IReadOnlyList<V269HomeModel>? _v269LastHomeModels;
     private readonly Label _v269HardwareStatus = new() { Dock = DockStyle.Fill, AutoEllipsis = true };
@@ -78,10 +79,11 @@ internal sealed partial class MainForm
         {
             if (!_v269Home.Visible)
             {
-                _v269LiveQuery?.Cancel();
+                if (!V269MonitorWantsCollection()) _v269LiveQuery?.Cancel();
                 _v269HardwareQuery?.Cancel();
                 if (!_v269HardwareLoaded) _v269InitialAttempted = false;
             }
+            else if (_v269LastHomeModels is { } models) _v269Home.SetModels(models);
         };
         _v269Home.SetModels(V269HomeModels(null));
         _v269Home.ApplyAppearance(_v269Appearance);
@@ -135,27 +137,29 @@ internal sealed partial class MainForm
 
     private async Task RefreshV269HardwareAsync()
     {
-        if (_v269HardwareQuery is not null || IsDisposed || Disposing) return;
+        if (_v269HardwareQuery is not null || IsDisposed || Disposing || !V269OwnsMonitorSession()) return;
         _v269InitialAttempted = true;
         using var request = new CancellationTokenSource();
         _v269HardwareQuery = request;
         _v269LiveQuery?.Cancel();
         bool ownsGate = false;
+        HardwareSensorPortfolio? publish = null;
         _v269HardwareStatus.Text = "Consultando sensores e inventário locais…";
         try
         {
             await _v269CaptureGate.WaitAsync(request.Token);
             ownsGate = true;
-            _ = await Task.Run(() => _v269Monitor.Capture(), request.Token);
+            _ = await Task.Run(() => GfMonitorSessionLease.Capture(_v269Monitor.Capture, request.Token), request.Token);
             await Task.Delay(250, request.Token);
-            var snapshot = await StaWorker.Run(() =>
+            var snapshot = await StaWorker.Run(() => GfMonitorSessionLease.Capture(() =>
                 HardwareSensorPortfolioReader.CaptureOnDemand(_v269Monitor, request.Token,
-                    existingInventory: null, probeCpuVisibleVram: true));
+                    existingInventory: null, probeCpuVisibleVram: true), request.Token));
             // Cancelamento no retorno da última chamada também deve passar pelo catch,
             // senão o texto do botão pode ficar em "Cancelar consulta".
             request.Token.ThrowIfCancellationRequested();
             if (IsDisposed || Disposing) return;
             _v269LastSnapshot = snapshot;
+            publish = snapshot;
             _v269NextGpuSample = Environment.TickCount64 + 8000;
             _v269LastHomeModels = V269HomeModels(snapshot);
             _v269Home?.SetModels(_v269LastHomeModels);
@@ -182,6 +186,8 @@ internal sealed partial class MainForm
         {
             if (ownsGate) _v269CaptureGate.Release();
             _v269HardwareQuery = null;
+            if (publish is not null && !request.IsCancellationRequested && V269CollectionAllowed())
+                PublishV269Monitor(publish);
         }
     }
 
@@ -192,19 +198,20 @@ internal sealed partial class MainForm
     {
         if (_v269LiveTimer is not null) return;
         _v269LiveTimer = new System.Windows.Forms.Timer { Interval = 2000 };
-        bool CanEnter() => _v269HardwareQuery is null &&
-            !_busy && !_v269Confirming && !IsDisposed && !Disposing && !_betaClose.IsClosing &&
+        bool HomeDemand() =>
             !IsInTray && Visible && Enabled && WindowState != FormWindowState.Minimized &&
             _nav.SelectedPage == V269Page.Inicio;
-        bool CanSample() => CanEnter() && _v269HardwareLoaded && _v269LastHomeModels is not null;
+        bool CanSample() => _v269HardwareQuery is null && V269CollectionAllowed() &&
+            (HomeDemand() && _v269HardwareLoaded || V269MonitorWantsCollection());
         _v269LiveTimer.Tick += async (_, _) =>
         {
-            if (_v269LiveSampling || !CanEnter()) return;
+            AcceptV269MonitorLaunch();
+            if (_v269LiveSampling || _v269HardwareQuery is not null || !V269CollectionAllowed()) return;
             // Inicialização oculta não consulta hardware. Ao restaurar
             // diretamente em Início, iniciar a primeira consulta uma vez.
-            if (!_v269HardwareLoaded)
+            if (HomeDemand() && !_v269HardwareLoaded && !_v269InitialAttempted)
             {
-                if (!_v269InitialAttempted) await RefreshV269HardwareAsync();
+                await RefreshV269HardwareAsync();
                 return;
             }
             if (!CanSample()) return;
@@ -212,48 +219,41 @@ internal sealed partial class MainForm
             _v269LiveQuery = request;
             _v269LiveSampling = true;
             bool ownsGate = false, lightweightCompleted = false, gpuRefreshStarted = false;
+            HardwareSensorPortfolio? publish = null;
             try
             {
                 await _v269CaptureGate.WaitAsync(request.Token);
                 ownsGate = true;
                 if (!CanSample()) return;
-                var baseline = _v269LastSnapshot;
-                var sample = await Task.Run(() => _v269Monitor.Capture(), request.Token);
+                var baseline = _v269LastSnapshot ?? _v269MonitorSnapshot;
+                var sample = await Task.Run(() => GfMonitorSessionLease.Capture(_v269Monitor.Capture, request.Token), request.Token);
                 if (!CanSample() || request.IsCancellationRequested) return;
                 lightweightCompleted = true;
-                _v269LastHomeModels = UpdateV269LiveRows(_v269LastHomeModels!, sample);
-                if (baseline is not null)
+                baseline = baseline is null ? GfMonitorSampling.CountersOnly(sample) : baseline with { WindowsCounters = sample };
+                RememberV269MonitorSample(baseline);
+                publish = baseline;
+                if (_v269LastHomeModels is { } homeModels)
                 {
-                    baseline = baseline with { WindowsCounters = sample };
-                    _v269LastSnapshot = baseline;
+                    _v269LastHomeModels = UpdateV269LiveRows(homeModels, sample);
+                    if (HomeDemand()) _v269Home?.SetModels(_v269LastHomeModels);
                 }
-                _v269Home?.SetModels(_v269LastHomeModels);
-                if (baseline is null || Environment.TickCount64 < _v269NextGpuSample) return;
+                if (Environment.TickCount64 < _v269NextGpuSample) return;
                 gpuRefreshStarted = true;
                 try
                 {
-                    var refreshed = await StaWorker.Run(() =>
-                    {
-                        request.Token.ThrowIfCancellationRequested();
-                        var nvml = NvidiaNvmlSensorProvider.Capture();
-                        request.Token.ThrowIfCancellationRequested();
-                        var dxgi = DxgiGpuIdentityProvider.RetainUploadHeapCapability(
-                            DxgiGpuIdentityProvider.Capture(), baseline.DxgiAdapters);
-                        request.Token.ThrowIfCancellationRequested();
-                        var d3dkmt = D3dKmtGpuSensorProvider.Capture(dxgi, request.Token);
-                        request.Token.ThrowIfCancellationRequested();
-                        var wddm = WindowsWddmGpuProvider.Capture(request.Token);
-                        request.Token.ThrowIfCancellationRequested();
-                        return baseline with { WindowsCounters = sample, NvidiaGpus = nvml,
-                            DxgiAdapters = dxgi, D3dKmtGpuSensors = d3dkmt, WindowsGpuCounters = wddm };
-                    });
+                    var refreshed = await StaWorker.Run(() => GfMonitorSessionLease.Capture(
+                        () => GfMonitorSampling.RefreshGpu(baseline, request.Token), request.Token));
                     if (!CanSample() || request.IsCancellationRequested ||
-                        !ReferenceEquals(baseline, _v269LastSnapshot)) return;
-                    _v269LastSnapshot = refreshed;
-                    var current = _v269LastHomeModels!.ToArray();
-                    current[1] = V269GpuModel(refreshed);
-                    _v269LastHomeModels = current;
-                    _v269Home?.SetModels(current);
+                        !ReferenceEquals(baseline, _v269LastSnapshot ?? _v269MonitorSnapshot)) return;
+                    RememberV269MonitorSample(refreshed);
+                    publish = refreshed;
+                    if (_v269LastHomeModels is { } currentModels)
+                    {
+                        var current = currentModels.ToArray();
+                        current[1] = V269GpuModel(refreshed);
+                        _v269LastHomeModels = current;
+                        if (HomeDemand()) _v269Home?.SetModels(current);
+                    }
                 }
                 finally { _v269NextGpuSample = Environment.TickCount64 + 8000; }
             }
@@ -262,30 +262,34 @@ internal sealed partial class MainForm
             {
                 // Invalidar apenas a leitura que falhou (e GPU vencida), também na
                 // fotografia usada pelos detalhes; conservar o inventário estático.
-                if (CanSample() && _v269LastHomeModels is { } models && !request.IsCancellationRequested)
+                if (CanSample() && !request.IsCancellationRequested)
                 {
-                    var current = models;
-                    var snapshot = _v269LastSnapshot;
+                    var current = _v269LastHomeModels;
+                    var snapshot = _v269LastSnapshot ?? _v269MonitorSnapshot;
                     if (!lightweightCompleted)
                     {
                         var unavailable = V269UnavailableLiveCounters(DateTimeOffset.UtcNow);
-                        current = UpdateV269LiveRows(current, unavailable);
-                        if (snapshot is not null) snapshot = snapshot with { WindowsCounters = unavailable };
+                        if (current is not null) current = UpdateV269LiveRows(current, unavailable);
+                        snapshot = snapshot is null ? GfMonitorSampling.CountersOnly(unavailable) : snapshot with { WindowsCounters = unavailable };
                     }
                     if (gpuRefreshStarted || Environment.TickCount64 >= _v269NextGpuSample)
                     {
-                        var updated = current.ToArray();
                         if (snapshot is not null)
-                        {
                             snapshot = V269WithoutGpuReadings(snapshot, DateTimeOffset.UtcNow);
+                        if (current is not null)
+                        {
+                            var updated = current.ToArray();
                             updated[1] = V269GpuModel(snapshot);
+                            current = updated;
                         }
-                        else updated[1] = V269GpuModel(null);
-                        current = updated;
                     }
-                    _v269LastSnapshot = snapshot;
-                    _v269LastHomeModels = current;
-                    _v269Home?.SetModels(current);
+                    if (snapshot is not null) RememberV269MonitorSample(snapshot);
+                    publish = snapshot;
+                    if (current is not null)
+                    {
+                        _v269LastHomeModels = current;
+                        if (HomeDemand()) _v269Home?.SetModels(current);
+                    }
                 }
             }
             finally
@@ -293,6 +297,8 @@ internal sealed partial class MainForm
                 if (ownsGate) _v269CaptureGate.Release();
                 _v269LiveQuery = null;
                 _v269LiveSampling = false;
+                if (publish is not null && !request.IsCancellationRequested && V269CollectionAllowed())
+                    PublishV269Monitor(publish);
             }
         };
         FormClosed += (_, _) =>
@@ -301,18 +307,22 @@ internal sealed partial class MainForm
             _v269LiveTimer?.Stop();
             _v269LiveTimer?.Dispose();
             _v269LiveTimer = null;
+            StopV269Monitor();
         };
         _v269LiveTimer.Start();
     }
 
-    internal static LiveHardwareSample V269UnavailableLiveCounters(DateTimeOffset at) => new(at,
-        MonitorReading<double>.Unavailable("consulta local inconclusiva"),
-        MonitorReading<double>.Unavailable("consulta local inconclusiva"), null,
-        MonitorReading<TimeSpan>.Unavailable("consulta local inconclusiva"), LiveHardwareSensors.Unavailable);
+    private void RememberV269MonitorSample(HardwareSensorPortfolio snapshot)
+    {
+        if (_v269LastSnapshot is not null) _v269LastSnapshot = snapshot;
+        else _v269MonitorSnapshot = snapshot;
+    }
+
+    internal static LiveHardwareSample V269UnavailableLiveCounters(DateTimeOffset at) =>
+        GfMonitorSampling.UnavailableCounters(at);
 
     internal static HardwareSensorPortfolio V269WithoutGpuReadings(HardwareSensorPortfolio snapshot, DateTimeOffset at) =>
-        snapshot with { NvidiaGpus = new NvidiaGpuSensorSnapshot(at, false, [], "consulta GPU inconclusiva"),
-            WindowsGpuCounters = null, D3dKmtGpuSensors = null };
+        GfMonitorSampling.WithoutGpuReadings(snapshot, at);
 
     internal static IReadOnlyList<V269HomeModel> UpdateV269LiveRows(
         IReadOnlyList<V269HomeModel> models, LiveHardwareSample sample)
@@ -813,6 +823,7 @@ internal sealed partial class MainForm
         {
             int previousInterface=_v269Appearance.InterfacePercent;
             _v269Appearance=appearance.GetOptions().Normalize();
+            _v269MonitorHost?.Configure(_v269Appearance.Theme, CanAnimateV269);
             if(previousInterface!=_v269Appearance.InterfacePercent)_v269ResizeFromSettings?.Invoke();
             _programList.V269Options().AnimateButtonFeedback=CanAnimateV269;
             ApplyV269ContentAppearance(this);
@@ -861,6 +872,7 @@ internal sealed partial class MainForm
                 _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
         };
         view.VisibleChanged+=(_,_)=>{if(view.Visible)RefreshV269General();};
+        if (loadPreferences) BindV269Monitor(view);
         view.ApplyAppearance(_v269Appearance);RefreshV269General();
         return view;
     }

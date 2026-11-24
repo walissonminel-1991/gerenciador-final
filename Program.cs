@@ -24,6 +24,8 @@ internal static class Program
             return WorkerHost.RunAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
         if (args.Length > 0 && args[0] == DriverElevatedUninstall.Command)
             return DriverElevatedUninstall.RunAsync(args).GetAwaiter().GetResult();
+        if (args.Length == 1 && args[0] == StartupTrayRegistration.MonitorArgument)
+            return GfMonitorStandalone.Run();
 
         if (!DiagnosticTrace.Start() || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
         {
