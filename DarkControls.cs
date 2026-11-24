@@ -520,7 +520,12 @@ internal sealed class DarkProgramList : Control
         _pulseProgress = 0;
         Invalidate();
         if (!IsDisposed && _actionsEnabled && !_multiSelectMode && _items.Contains(item))
+        {
+            // A autorização visual pode ter mudado durante o feedback.
+            if(_tableMode && ((action is "update" or "terminal") && !AllowsUpdate(item) ||
+                (action is "uninstall" or "uninstall-manual" or "msix-uninstall") && !AllowsRemoval(item)))return;
             ItemActionClicked?.Invoke(item, action);
+        }
     }
 
     protected override void Dispose(bool disposing)

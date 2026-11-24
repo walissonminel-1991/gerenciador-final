@@ -1557,6 +1557,16 @@ internal sealed partial class MainForm : Form
                 using var progress=new SolidBrush(V269Palette.EnabledUpdate);
                 g.FillRectangle(progress,status.X,status.Bottom-S(5),status.Width*Math.Clamp(percent,0,100)/100,S(3));
             }
+            else if(uninstall?.Active==true||update?.Active==true)
+            {
+                // Atividade indeterminada: não converter tempo decorrido em porcentagem.
+                using var track=new SolidBrush(colors.Border);
+                using var activity=new SolidBrush(colors.Rail);
+                int segment=Math.Max(1,status.Width/3);
+                int x=CanAnimateV269?Math.Max(0,status.Width-segment)*_programList.OperationFrame/17:0;
+                g.FillRectangle(track,status.X,status.Bottom-S(5),status.Width,S(3));
+                g.FillRectangle(activity,status.X+x,status.Bottom-S(5),segment,S(3));
+            }
         }
         else Text(state,status);
         if(!_multiSelectMode)

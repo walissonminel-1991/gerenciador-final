@@ -183,12 +183,18 @@ internal static class V269IntegrationTests
             {
                 surface.Size=size;theme.SelectedIndex=index;
                 shell.PresentPanel(null);render.Invoke(form,[]);
-                list.SelectedIndex=0;surface.PerformLayout();Application.DoEvents();
+                list.SelectedIndex=0;
+                if(list.SelectedItem is {} selected)
+                    typeof(MainForm).GetMethod("PresentV269AppDetails",flags)!.Invoke(form,[selected]);
+                surface.PerformLayout();Application.DoEvents();
                 Require(list.TableHeaderHeight>0&&list.Items.Count==5,"cabeçalho fixo e inventário preservado");
                 var rowMethod=typeof(DarkProgramList).GetMethod("RowBounds",flags)!;
                 var row=(Rectangle)rowMethod.Invoke(list,[0])!;
                 var cells=V269AppTable.Columns(row,shell.InterfaceScalePercent,list.DeviceDpi);
                 Require(cells.Length==6&&cells.Sum(x=>x.Width)==row.Width,"geometria das colunas");
+                var origin=surface.PointToScreen(Point.Empty);
+                Rectangle Relative(Control x)=>new(surface.PointToClient(x.PointToScreen(Point.Empty)),x.Size);
+                Console.WriteLine($"V269-APPS-GEOMETRY {size.Width}x{size.Height} theme={(V269Theme)index} dpi={list.DeviceDpi} toolbar={Relative(form.Controls.Find("V269AppsSearch",true).Single().Parent!)} list={Relative(list)} header={list.TableHeaderHeight} row={row.Height} pane={Relative(shell.RightPane)} paneVisible={shell.RightPane.Visible}");
                 using(var image=new Bitmap(surface.Width,surface.Height))
                 {surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");}
                 if(size.Width<=1040)
