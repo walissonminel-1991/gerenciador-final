@@ -36,6 +36,7 @@ internal sealed class V269AppDetailPanel : Panel
         ColumnCount=2,Margin=Padding.Empty};
     private V269Palette _palette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
     private V269AppDetailModel? _model;
+    private int _visibleFieldCount;
     private bool _arranging;
     private int _interfacePercent=100;
     private V269Theme _theme=V269Theme.AzulGf;
@@ -60,7 +61,7 @@ internal sealed class V269AppDetailPanel : Panel
         _table.RowCount=1;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _table.Controls.Add(_identity,0,0);_table.SetColumnSpan(_identity,2);_identity.Visible=false;
         _table.CellPaint+=(_,e)=>{
-            if(_model is null||e.Row>_model.Fields.Count)return;
+            if(_model is null||e.Row>_visibleFieldCount)return;
             using var line=new Pen(V269AppDetailStyle.Divider(_theme));
             e.Graphics.DrawLine(line,e.CellBounds.Left,e.CellBounds.Bottom-1,e.CellBounds.Right-1,e.CellBounds.Bottom-1);
         };
@@ -79,6 +80,10 @@ internal sealed class V269AppDetailPanel : Panel
     {
         if(Equals(_model,model))return;
         _model=model;
+        _visibleFieldCount=0;
+        AccessibleDescription=model is null?"":string.Join(Environment.NewLine,
+            new[]{model.Name,model.Publisher}.Concat(model.Fields.Select(field=>$"{field.Label}: {field.Value}"))
+                .Concat(new[]{model.Description,model.Reasons,"Enter ou botão direito: ações disponíveis."}));
         _scroll.Value=0;
         _table.SuspendLayout();
         try
@@ -101,8 +106,11 @@ internal sealed class V269AppDetailPanel : Panel
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 var label=Make(value,strong);_table.Controls.Add(label,0,row);_table.SetColumnSpan(label,2);
             }
-             foreach(var field in model.Fields)
+            // A especificação HTML apresenta quatro campos. Versão e data
+            // já estão na tabela; a oferta real permanece na nota quando existe.
+            foreach(var field in model.Fields.Where(field=>field.Label is "Tipo" or "Origem" or "Arquitetura" or "Local"))
             {
+                _visibleFieldCount++;
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 _table.Controls.Add(Make(field.Label,false),0,row);
                 var value=Make(field.Value,true);
@@ -112,9 +120,13 @@ internal sealed class V269AppDetailPanel : Panel
             }
             AddFull("Descrição",true);
             AddFull(string.IsNullOrWhiteSpace(model.Description)?"Não informada pela fonte local.":model.Description,false);
-            AddFull("Elegibilidade e evidência",true);
-            AddFull(model.Reasons,false);
-            AddFull("Enter ou botão direito: ações disponíveis.",false);
+            var offer=model.Fields.FirstOrDefault(field=>field.Label=="Oferta").Value;
+            string note=model.Reasons;
+            if(!string.IsNullOrWhiteSpace(offer)&&!offer.Equals("não informada",StringComparison.OrdinalIgnoreCase))
+                note=$"Oferta: {offer}. {note}";
+            // A nota única do HTML preserva o motivo real; informações
+            // completas continuam no modelo e na descrição acessível.
+            AddFull(note,false);
         }
         finally{_table.ResumeLayout(true);FitLabels();}
     }

@@ -228,7 +228,15 @@ internal static class V269IntegrationTests
                         shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
                         "painel estruturado expõe fatos locais e motivos");
                     var scrollbar=shell.RightPane.Controls.Find("V269AppDetailsScroll",true).OfType<DarkVScrollBar>().Single();
-                    var fields=shell.RightPane.Controls.Find("V269AppDetailsFields",true).Single();
+                    var fields=shell.RightPane.Controls.Find("V269AppDetailsFields",true).OfType<TableLayoutPanel>().Single();
+                    var structure=shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single();
+                    Require(fields.RowCount==8&&
+                        fields.Controls.OfType<Label>().Where(x=>fields.GetColumn(x)==0&&fields.GetColumnSpan(x)==1)
+                            .Select(x=>x.Text).SequenceEqual(new[]{"Tipo","Origem","Arquitetura","Local"})&&
+                        structure.AccessibleDescription?.Contains("Data declarada:") == true&&
+                        structure.AccessibleDescription?.Contains("Versão:")==true&&
+                        structure.AccessibleDescription?.Contains("Oferta:")==true,
+                        "quatro campos do HTML sem perda dos dados completos na acessibilidade");
                     Require(scrollbar.Visible==(scrollbar.MaximumValue>0)&&scrollbar.AccessibleRole==AccessibleRole.ScrollBar,
                         "painel compacto mostra rolagem temática somente quando necessária");
                     Require(shell.RightPane.BackColor==V269AppDetailStyle.Palette((V269Theme)index).RightPanel,
