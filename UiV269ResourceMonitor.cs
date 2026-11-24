@@ -52,7 +52,7 @@ internal sealed class GfResourceMonitorForm : Form
         var strip = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 9,
             Margin = Padding.Empty, Padding = new(3) };
         _surfaces.Add(strip);
-        foreach (int w in new[] { 30, 74, 74, 74, 65, 65, 25, 25 })
+        foreach (int w in new[] { 30, 74, 74, 74, 83, 83, 25, 25 })
             strip.ColumnStyles.Add(new(SizeType.Absolute, w));
         strip.ColumnStyles.Add(new(SizeType.Percent, 100));
         _compactLogo = Logo();
@@ -127,7 +127,7 @@ internal sealed class GfResourceMonitorForm : Form
             if (_arrivedAt is DateTimeOffset at && DateTimeOffset.UtcNow - at > TimeSpan.FromSeconds(10))
                 ClearReadings();
         };
-        VisibleChanged += (_, _) => { if (Visible) _freshness.Start(); else _freshness.Stop(); };
+        VisibleChanged += (_, _) => { if (IsDisposed || Disposing) return; if (Visible) _freshness.Start(); else _freshness.Stop(); };
         Configure(V269Theme.AzulGf, true);
         SetExpanded(false);
         ClearReadings();
@@ -209,7 +209,7 @@ internal sealed class GfResourceMonitorForm : Form
         {
             _compact.Visible = !value; _expanded.Visible = value;
             (value ? _expanded : _compact).BringToFront();
-            ClientSize = new(SizeFor(value ? 412 : 444), SizeFor(value ? 194 : 36));
+            ClientSize = new(SizeFor(value ? 412 : 480), SizeFor(value ? 194 : 36));
         }
         finally { ResumeLayout(true); }
         if (changed) ModeChanged?.Invoke(this, EventArgs.Empty);
