@@ -231,6 +231,14 @@ internal static class V269IntegrationTests
                     Require(LayoutTests.FullyVisible(general.History),"foco revela histórico no viewport");
                     page.ScrollTo(int.MaxValue);
                     Require(page.ScrollOffset==Math.Max(0,page.ContentHeight-page.ClientSize.Height),"rolagem alcança rodapé");
+                    int previousOffset=page.ScrollOffset,previousScale=range.Value;
+                    if(previousOffset>0)
+                    {
+                        page.ScrollByWheel(60);page.ScrollByWheel(60);
+                        Require(page.ScrollOffset<previousOffset&&range.Value==previousScale,
+                            "roda fracionada rola Configurações sem alterar escala");
+                        page.ScrollTo(int.MaxValue);
+                    }
                     using(var shot=new Bitmap(surface.Width,surface.Height))
                     {
                         surface.DrawToBitmap(shot,new Rectangle(Point.Empty,surface.Size));

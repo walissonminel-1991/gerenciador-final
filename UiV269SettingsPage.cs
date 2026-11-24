@@ -216,7 +216,17 @@ internal sealed class V269SettingsRange : TrackBar
     }
     protected override void WndProc(ref Message m)
     {
-        const int LeftDown=0x0201,LeftUp=0x0202,MouseMove=0x0200,CaptureChanged=0x0215;
+        const int LeftDown=0x0201,LeftUp=0x0202,MouseMove=0x0200,CaptureChanged=0x0215,MouseWheel=0x020A;
+        if(m.Msg==MouseWheel)
+        {
+            // A roda pertence à página, como no protótipo. A escala muda
+            // pelo arraste/clique ou pelo teclado, nunca ao rolar o formulário.
+            for(Control? parent=Parent;parent is not null;parent=parent.Parent)
+                if(parent is V269SettingsPage page)
+                {
+                    page.ScrollByWheel(unchecked((short)(m.WParam.ToInt64()>>16)));return;
+                }
+        }
         int x=unchecked((short)m.LParam.ToInt64());
         if(Enabled&&m.Msg==LeftDown){Focus();_dragging=true;Capture=true;Value=ValueAtPosition(x);return;}
         if(_dragging&&m.Msg==MouseMove){Value=ValueAtPosition(x);return;}
@@ -532,10 +542,14 @@ internal sealed class V269SettingsPage : Panel
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         if(e is HandledMouseEventArgs handled && handled.Handled)return;
-        _wheel+=e.Delta;int steps=_wheel/120;_wheel%=120;
-        if(steps!=0)ScrollTo(_scroll-steps*Math.Max(24,48*DeviceDpi/96));
+        ScrollByWheel(e.Delta);
         if(e is HandledMouseEventArgs accepted)accepted.Handled=true;
         base.OnMouseWheel(e);
+    }
+    internal void ScrollByWheel(int delta)
+    {
+        _wheel+=delta;int steps=_wheel/120;_wheel%=120;
+        if(steps!=0)ScrollTo(_scroll-steps*Math.Max(24,48*DeviceDpi/96));
     }
     protected override bool ProcessCmdKey(ref Message m,Keys key)
     {
