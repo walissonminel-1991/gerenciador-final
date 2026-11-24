@@ -267,6 +267,34 @@ internal static class V269IntegrationTests
                     }
                 }
             }
+            // Exercitar extremos das duas escalas reais, mantendo a página
+            // alcançável em viewport compacto. Nenhuma preferência real é salva.
+            surface.Size=new Size(760,596);
+            var textRange=page.Appearance.Controls.Find("V269TextScale",true).OfType<TrackBar>().Single();
+            try
+            {
+                foreach(var (ui,text) in new[]{(90,115),(110,90),(110,115)})
+                {
+                    range.Value=ui;textRange.Value=text;
+                    Application.DoEvents();
+                    Require(shell.InterfaceScalePercent==ui&&shell.TextScalePercent==text&&
+                        page.Appearance.GetOptions().InterfacePercent==ui&&page.Appearance.GetOptions().TextPercent==text,
+                        "escalas independentes aplicadas pelo binder da MainForm");
+                    foreach(Control action in new Control[]{general.Administrator,general.StartWindows,
+                        general.Notifications,general.Tray,general.Collect,general.Privacy,general.Diagnostic,general.History,
+                        themeChoice,range,textRange,page.Appearance.Controls.Find("V269Animations",true).Single()})
+                    {
+                        Require(action.Focus(),"controle de Configurações acessível em escala extrema: "+action.Name);
+                        Application.DoEvents();
+                        Require(LayoutTests.FullyVisible(action),"foco revela controle na escala extrema: "+action.Name);
+                    }
+                }
+            }
+            finally
+            {
+                range.Value=100;textRange.Value=100;surface.Size=new Size(992,659);
+                page.ScrollTo(0);Application.DoEvents();
+            }
             // Acionar os três botões consultivos da view real, em MainForm
             // sem serviços, e inspecionar o painel produzido pelo controlador.
             // Não gravar Registro, não coletar dados e não solicitar UAC.
