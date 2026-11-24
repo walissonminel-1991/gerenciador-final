@@ -143,7 +143,7 @@ internal static class V269IntegrationTests
         var sort=form.Controls.Find("V269AppSort",true).OfType<ComboBox>().Single();
         var search=form.Controls.Find("V269AppsSearch",true).OfType<TextBox>().Single();
         var details=form.Controls.Find("V269AppsDetails",true).OfType<Button>().Single();
-        var more=form.Controls.Find("V269AppsMore",true).OfType<Button>().Single();
+        var apps=form.Controls.Find("V269AppsPage",true).OfType<TableLayoutPanel>().Single();
         var theme=form.Controls.Find("V269ThemeChoice",true).OfType<ComboBox>().Single();
         var surface=form.Controls.OfType<TableLayoutPanel>().Single();
         var originalSize=surface.Size;int originalTheme=theme.SelectedIndex;
@@ -266,23 +266,13 @@ internal static class V269IntegrationTests
                     Application.DoEvents();Require(shell.RightPane.Width>previous,"divisor real redimensiona painel por teclado");
                     typeof(V269AppSplitter).GetMethod("OnKeyDown",flags)!.Invoke(splitter,[new KeyEventArgs(Keys.Right)]);
                 }
-                more.PerformClick();Application.DoEvents();
-                Require(form.Controls.Find("V269AppsExtraCommands",true).Single().Visible,"comandos complementares alcançáveis");
-                var commandsHost=form.Controls.Find("V269AppsExtraScroll",true).OfType<Panel>().Single();
-                Require(!commandsHost.VerticalScroll.Visible&&!commandsHost.HorizontalScroll.Visible,
-                    "comandos se adaptam sem barras adicionais nos tamanhos de referência");
-                more.PerformClick();Application.DoEvents();
+                Require(apps.RowCount==2&&apps.Controls.Count==2&&
+                    apps.Controls.Find("V269AppsMore",true).Length==0&&
+                    apps.Controls.Find("V269AppsFooter",true).Length==0&&
+                    apps.Controls.Find("V269AppsExtraCommands",true).Length==0&&
+                    apps.Controls.Find("V269AppsExtraScroll",true).Length==0,
+                    "somente a barra superior e a tabela do HTML; sem rodapé ou comandos extras");
             }
-            more.PerformClick();Application.DoEvents();
-            var history=form.Controls.Find("V269AppsExtraCommands",true).Single().Controls.OfType<Button>()
-                .Single(x=>x.Text=="Histórico local");
-            history.PerformClick();Application.DoEvents();
-            Require(shell.RightPane.Current is {Kind:V269PanelKind.History} report&&
-                report.Description.Contains("RELATÓRIO LOCAL DE CONFIABILIDADE",StringComparison.Ordinal),
-                "histórico de Aplicativos usa o relatório local real, sem iniciar manutenção");
-            history.PerformClick();Application.DoEvents();
-            Require(shell.RightPane.Current?.Kind!=V269PanelKind.History,"retornar do histórico de aplicativos");
-            more.PerformClick();Application.DoEvents();
             // Testar o hit-test sem disparar nenhum executável, inclusive com
             // o deslocamento horizontal aplicado.
             var horizontal=list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single();
@@ -317,6 +307,18 @@ internal static class V269IntegrationTests
                     new UninstallOperationSnapshot(UninstallStage.Inspecting,"Verificando resíduos","Fixture consultiva"):null;
                 Require(list.AccessibilityObject.GetChild(2)?.Description?.Contains("Verificando resíduos",StringComparison.Ordinal)==true,
                     "estado de desinstalação legível sem depender de cor ou tooltip flutuante");
+                const string syntheticResult="Resultado sintético da seleção; nenhuma remoção executada.";
+                list.UninstallOperationFor=item=>ReferenceEquals(item,entries[0])?
+                    new UninstallOperationSnapshot(UninstallStage.Cancelled,"Operação cancelada",syntheticResult):null;
+                shell.PresentPanel(null);list.SelectedIndex=0;
+                var present=typeof(MainForm).GetMethod("PresentV269AppDetails",flags)!;
+                present.Invoke(form,[entries[0]]);
+                Require(shell.RightPane.Current?.Application?.Reasons.Contains(syntheticResult,StringComparison.Ordinal)==true,
+                    "resultado de sessão aparece na nota do painel direito, sem botão de histórico");
+                list.SelectedIndex=1;present.Invoke(form,[entries[1]]);
+                Require(shell.RightPane.Current?.Application is {} context&&
+                    !context.Reasons.Contains(syntheticResult,StringComparison.Ordinal),
+                    "resultado de outro aplicativo nunca é atribuído à seleção");
             }
             finally{list.UninstallOperationFor=previousOperation;}
             surface.Size=new Size(1200,659);surface.PerformLayout();
@@ -353,7 +355,7 @@ internal static class V269IntegrationTests
             render.Invoke(form,[]);shell.SelectPage(V269Page.Configuracoes);shell.PresentPanel(panel);
             surface.PerformLayout();Application.DoEvents();
         }
-        Console.WriteLine("PASS Aplicativos V2.6.9: tabela real, pesquisa, ordenação, detalhes, ações complementares e 15 capturas sintéticas.");
+        Console.WriteLine("PASS Aplicativos V2.6.9: tabela real, pesquisa, ordenação, detalhes, ausência de controles extras e 15 capturas sintéticas.");
     }
 
     private static void VerifyAppIconSources()

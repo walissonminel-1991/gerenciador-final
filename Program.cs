@@ -1164,13 +1164,11 @@ internal sealed partial class MainForm : Form
         }
         var root = new TableLayoutPanel
         {
-            Name="V269AppsPage",Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,
+            Name="V269AppsPage",Dock=DockStyle.Fill,ColumnCount=1,RowCount=2,
             Padding=Padding.Empty,Margin=Padding.Empty,BackColor=AppServices.Background
         };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,44));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute,0));
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute,34));
         var searchBar=new TableLayoutPanel{Name="V269AppsToolbar",Dock=DockStyle.Fill,
             ColumnCount=4,RowCount=1,Margin=Padding.Empty,BackColor=AppServices.Background};
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,100));
@@ -1217,44 +1215,8 @@ internal sealed partial class MainForm : Form
         searchBar.Controls.Add(_checkUpdatesButton,0,0);
         root.Controls.Add(searchBar,0,0);
 
-        // Recursos funcionais do GF que não existem no HTML de demonstração.
-        // Recolhidos por padrão; a operação em lote mantém acesso ao botão Parar.
-        var actionsHost=new Panel{Name="V269AppsExtraScroll",Dock=DockStyle.Fill,AutoScroll=false,
-            Margin=Padding.Empty,BackColor=AppServices.Background,Visible=false};
-        var actions=new TableLayoutPanel{Name="V269AppsExtraCommands",Dock=DockStyle.Top,
-            ColumnCount=2,RowCount=4,Margin=Padding.Empty,BackColor=AppServices.Background};
-        for(int i=0;i<2;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
-        for(int i=0;i<4;i++)actions.RowStyles.Add(new RowStyle(SizeType.Percent,25));
-        actionsHost.Controls.Add(actions);
-        Button MakeAction(string title,Color color,int slot,Action onClick)
-        {
-            var button=CreateButton(title,color,Color.White);button.Dock=DockStyle.Fill;
-            button.Margin=new Padding(2,2,2,2);
-            _toolTips.SetToolTip(button,title);button.Click+=(_,_)=>onClick();
-            actions.Controls.Add(button,slot%2,slot/2);_actionControls.Add(button);return button;
-        }
-        _updateAllButton=MakeAction("Atualizar todos",AppServices.Green,0,()=>_ = UpdateAllApprovedAsync());
-        _actionControls.Remove(_updateAllButton);
-        _toolTips.SetToolTip(_updateAllButton,"Atualizar todos os elegíveis; confirmação de todos os alvos; Parar lote impede as próximas tentativas.");
-        _selectManyButton=MakeAction("Selecionar vários",AppServices.Gray,1,ToggleMultiSelection);
-        _bulkUninstallButton=MakeAction("Desinstalar selecionados",AppServices.Red,2,
-            ()=>_ = ExecuteAsync("Desinstalando selecionados...",UninstallCheckedAsync));
-        _clearSelectionButton=MakeAction("Limpar seleção",AppServices.Gray,3,ClearMultiSelection);
-        var hiddenReview=MakeAction("Ocultos",AppServices.Gray,4,()=>_ = ReviewHiddenV269AppsAsync());
-        _v269HiddenReviewButton=hiddenReview;
-        _toolTips.SetToolTip(hiddenReview,"Consulta separada, somente leitura; não habilita remoção.");
-        MakeAction("Limpar pesquisa",AppServices.Gray,5,()=>_search.Clear());
-        MakeAction("Histórico local",AppServices.Gray,6,()=>{
-            if(_busy||_v269Confirming||_batchUpdatesActive||_betaClose.IsClosing)return;
-            if(_nav.RightPane.Current?.Kind==V269PanelKind.History)
-            {
-                _nav.PresentPanel(null);
-                if(_programList.SelectedItem is {} selected)PresentV269AppDetails(selected);
-            }
-            else PresentV269History();
-        });
-        root.Controls.Add(actionsHost,0,1);
-        bool expanded=false;
+        // HTML aprovado: somente barra superior e tabela. Nenhum comando
+        // complementar, rodapé, filtro extra ou atalho alternativo.
         void FitToolbar()
         {
             int S(int px)=>V269AppTable.Scale(px,_v269Appearance.InterfacePercent,root.DeviceDpi);
@@ -1276,102 +1238,11 @@ internal sealed partial class MainForm : Form
                 searchBar.SetCellPosition(_v269AppSortChoice,new TableLayoutPanelCellPosition(compact?1:2,compact?1:0));
                 searchBar.SetCellPosition(details,new TableLayoutPanelCellPosition(compact?0:3,compact?1:0));
                 root.RowStyles[0].Height=S(compact?84:44);
-                // Distribuir os sete comandos na largura disponível antes de
-                // tomar altura da lista; não criar rolagem de comandos por padrão.
-                int cols=root.ClientSize.Width>=S(660)?4:root.ClientSize.Width>=S(500)?3:2;
-                int rows=(actions.Controls.Count+cols-1)/cols;
-                if(actions.ColumnCount!=cols||actions.RowCount!=rows)
-                {
-                    actions.SuspendLayout();
-                    try
-                    {
-                        // Abrir a grade antes de reposicionar, encolher depois.
-                        actions.ColumnCount=Math.Max(actions.ColumnCount,cols);
-                        actions.RowCount=Math.Max(actions.RowCount,rows);
-                        for(int i=0;i<actions.Controls.Count;i++)
-                            actions.SetCellPosition(actions.Controls[i],new TableLayoutPanelCellPosition(i%cols,i/cols));
-                        actions.ColumnCount=cols;actions.RowCount=rows;
-                        actions.ColumnStyles.Clear();actions.RowStyles.Clear();
-                        for(int i=0;i<cols;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/cols));
-                        for(int i=0;i<rows;i++)actions.RowStyles.Add(new RowStyle(SizeType.Percent,100f/rows));
-                    }
-                    finally{actions.ResumeLayout(true);}
-                }
-                int desired=S(34)*rows;
-                actions.Height=desired;
-                int budget=Math.Max(S(34),root.ClientSize.Height-(int)root.RowStyles[0].Height-
-                    (int)root.RowStyles[3].Height-S(60));
-                actionsHost.AutoScroll=expanded&&budget<desired;
-                actionsHost.AutoScrollMinSize=actionsHost.AutoScroll?new Size(0,desired):Size.Empty;
-                root.RowStyles[1].Height=expanded?Math.Min(desired,budget):0;
             }
             finally{searchBar.ResumeLayout(true);}
         }
  
-        var heading = new TableLayoutPanel
-        {
-            Name="V269AppsFooter",Dock = DockStyle.Fill, ColumnCount = 4, RowCount=1, Margin = Padding.Empty
-        };
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
-        _listTitle.Dock = DockStyle.Fill;
-        _listTitle.AutoEllipsis = true;
-        _listTitle.SizeChanged += (_, _) => RenderTitle();
-        _listTitle.Font = new Font("Segoe UI", 10.0F, FontStyle.Bold);
-        _listTitle.ForeColor = Ink;
-        _listTitle.TextAlign = ContentAlignment.MiddleLeft;
-        heading.Controls.Add(_listTitle, 0, 0);
-        _allFilterButton = AddFilter(heading, "Todos", 1);
-        _selectedFilterButton = AddFilter(heading, "Marcados", 2);
-        _toolTips.SetToolTip(_allFilterButton,
-            "Mostra todos os aplicativos identificados na ordem selecionada. " +
-            "Entradas sem ação autorizada permanecem somente leitura.");
-        _toolTips.SetToolTip(_selectedFilterButton,
-            "Mostra apenas aplicativos marcados para operações autorizadas.");
-        var more=new V269AppToolbarButton("Mais ações"){Name="V269AppsMore"};
-        more.Dock=DockStyle.Fill;more.Margin=new Padding(2,3,0,3);
-        more.Click+=(_,_)=>{if(_batchUpdatesActive&&expanded)return;expanded=!expanded;
-            actionsHost.Visible=expanded;more.Text=expanded?"Recolher":"Mais ações";more.AccessibleName=more.Text;
-            if(!expanded)actionsHost.AutoScrollPosition=Point.Empty;
-            FitToolbar();};
-        heading.Controls.Add(more,3,0);
-        root.Controls.Add(heading,0,3);
-        void FitFooter()
-        {
-            int S(int value)=>V269AppTable.Scale(value,_v269Appearance.InterfacePercent,root.DeviceDpi);
-            int W(int value)=>V269AppTable.Scale(value,Math.Max(_v269Appearance.InterfacePercent,_v269Appearance.TextPercent),root.DeviceDpi);
-            int first=W(60),second=W(84),third=W(100),available=Math.Max(3,root.ClientSize.Width);
-            int sum=first+second+third;
-            bool stacked=available<sum+W(105);
-            if(available<sum)
-            {
-                first=Math.Max(1,available*first/sum);
-                second=Math.Max(1,available*second/sum);
-                third=Math.Max(1,available-first-second);
-            }
-            heading.SuspendLayout();
-            try
-            {
-                heading.SetColumnSpan(_listTitle,1);
-                heading.SetCellPosition(_listTitle,new TableLayoutPanelCellPosition(0,0));
-                heading.RowCount=stacked?2:1;
-                heading.RowStyles.Clear();
-                for(int i=0;i<heading.RowCount;i++)heading.RowStyles.Add(new RowStyle(SizeType.Percent,100f/heading.RowCount));
-                heading.ColumnStyles[1].Width=first;
-                heading.ColumnStyles[2].Width=second;
-                heading.ColumnStyles[3].Width=third;
-                heading.SetCellPosition(_allFilterButton,new TableLayoutPanelCellPosition(1,stacked?1:0));
-                heading.SetCellPosition(_selectedFilterButton,new TableLayoutPanelCellPosition(2,stacked?1:0));
-                heading.SetCellPosition(more,new TableLayoutPanelCellPosition(3,stacked?1:0));
-                if(stacked)heading.SetColumnSpan(_listTitle,4);
-                int height=Math.Max(S(32),W(30));
-                root.RowStyles[3].Height=height*(stacked?2:1);
-            }
-            finally{heading.ResumeLayout(true);}
-        }
-        void FitAppLayout(){FitFooter();FitToolbar();}
+        void FitAppLayout()=>FitToolbar();
         root.SizeChanged+=(_,_)=>FitAppLayout();root.DpiChangedAfterParent+=(_,_)=>FitAppLayout();
         root.Tag=(Action)FitAppLayout;
 
@@ -1436,7 +1307,7 @@ internal sealed partial class MainForm : Form
         _emptyState.Visible = false;
         host.Controls.Add(_programList);
         host.Controls.Add(_emptyState);
-        root.Controls.Add(host, 0, 2);
+        root.Controls.Add(host, 0, 1);
         root.SizeChanged+=(_,_)=>host.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
         FitAppLayout();
         UpdateBulkButtons();
@@ -1444,15 +1315,6 @@ internal sealed partial class MainForm : Form
         return root;
     }
 
-
-    private Button? _v269HiddenReviewButton;
-    private async Task ReviewHiddenV269AppsAsync()
-    {
-        if(_busy||_batchUpdatesActive||_betaClose.IsClosing||_v269Confirming||_v269HiddenReviewButton is not {Enabled:true} button)return;
-        button.Enabled=false;
-        try{await ShowHiddenAppsReviewAsync();}catch(Exception ex){ReportError(ex);}
-        finally{if(!button.IsDisposed)button.Enabled=true;}
-    }
 
     private async Task ShowHiddenAppsReviewAsync()
     {
@@ -1602,11 +1464,22 @@ internal sealed partial class MainForm : Form
         string location=Known(item.ObservedInstallLocation.Length>0?item.ObservedInstallLocation:item.InstallLocation);
         string kind=item.InventorySource.Contains("MSIX",StringComparison.OrdinalIgnoreCase)?"MSIX":
             item.MsiProductCode.Length>0?"MSI":item.InventorySource.StartsWith("Registro:",StringComparison.Ordinal)?"Win32 / registro":"Não confirmado";
+        var update=_programList.OperationFor?.Invoke(item);
+        string evidence=ApplicationCapabilityInspection.Describe(item,update);
+        // O relatório persistente contém apenas códigos/contagens; não
+        // atribuir eventos anônimos a um aplicativo. Usar só estados da
+        // sessão já associados pelos próprios motores. O motivo de uma
+        // operação pendente de família conserva a ressalva de identidade.
+        if(update is {Active:false})
+            evidence+="\r\nEstado da atualização nesta sessão: "+update.Details;
+        var uninstall=_programList.UninstallOperationFor?.Invoke(item);
+        if(uninstall is {Active:false})
+            evidence+="\r\nDesinstalação nesta sessão: "+uninstall.Details;
         string details=$"{item.Name}\r\n{Known(item.Publisher)}\r\n\r\n"+
             $"Tipo: {kind}\r\nOrigem: {Known(item.InventorySource)}\r\nArquitetura: {architecture}\r\n"+
             $"Versão instalada: {DisplayAppVersion(item.Version)}\r\nInstalado em (declarado): {item.InstallDate?.ToString("dd/MM/yyyy")??"Não informado"}\r\n"+
              $"Local: {location}\r\nOferta: {DisplayAppVersion(item.AvailableVersion)}\r\n\r\n"+
-            ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item))+
+            evidence+
             "\r\n\r\nEnter ou botão direito: ações disponíveis e orientação.";
         var fields=new (string Label,string Value)[]{
             ("Tipo",kind),("Origem",Known(item.InventorySource)),("Arquitetura",architecture),
@@ -1614,7 +1487,7 @@ internal sealed partial class MainForm : Form
             ("Local",location),("Oferta",DisplayAppVersion(item.AvailableVersion))};
         _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do aplicativo",details,Application:
             new V269AppDetailModel(item.Name,Known(item.Publisher),fields,
-                ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item)),
+                evidence,
                 _programList.LoadLocalAppIcons?item.DisplayIcon:"",
                 _programList.LoadLocalAppIcons?V269MsixIconSource.From(item):null,
                 item.DeclaredDescription)));
@@ -3074,8 +2947,8 @@ internal sealed partial class MainForm : Form
             ? (width < 220 ? $"Apps: {summary.Total} · PARCIAL" : $"Apps: {summary.Total} · inventário PARCIAL")
             : width < 220 ? $"Apps: {summary.Total}"
             : $"Apps: {summary.Total} · Possíveis atualizações: {count}";
-        _toolTips.SetToolTip(_listTitle, full);
         _listTitle.AccessibleDescription = full;
+        _programList.AccessibleDescription = full;
     }
 
     private string _windowsUpdateCheckingMessage()

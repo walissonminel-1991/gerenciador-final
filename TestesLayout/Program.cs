@@ -633,21 +633,11 @@ internal static class LayoutTests
                         if(!verify.Visible||!search.Visible||!sort.Visible||sort.Items.Count!=5||
                             toolbar.Controls.Cast<Control>().Any(x=>x.Visible&&x.Right>toolbar.ClientSize.Width+2))
                             throw new Exception("Barra do HTML de Aplicativos incompleta ou cortada.");
-                        var commands=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsExtraCommands");
-                        string[] expected={"Atualizar todos","Selecionar vários","Desinstalar selecionados","Limpar seleção","Ocultos","Limpar pesquisa","Histórico local"};
-                        if(!commands.Controls.OfType<Button>().Select(x=>x.Text).SequenceEqual(expected)||
-                            commands.Controls.OfType<Button>().Single(x=>x.Text=="Atualizar todos").Enabled)
-                            throw new Exception("Comandos adicionais perdidos ou lote liberado sem catálogo.");
-                        var more=Descendants(form).OfType<Button>().Single(x=>x.Name=="V269AppsMore");
-                        if(!more.Visible)throw new Exception("Comandos adicionais inacessíveis.");
-                        more.PerformClick();Application.DoEvents();
-                        if(!commands.Visible||commands.Controls.OfType<Button>().Any(x=>x.Right>commands.ClientSize.Width+2||x.Width<45))
-                            throw new Exception("Comandos adicionais cortados.");
-                        more.PerformClick();Application.DoEvents();
-                        var footer=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsFooter");
-                        if(!footer.Controls.OfType<Button>().Any(x=>x.Text=="Todos"&&x.Visible)||
-                            !footer.Controls.OfType<Button>().Any(x=>x.Text=="Marcados"&&x.Visible))
-                            throw new Exception("Filtros de aplicativos inacessíveis.");
+                        var apps=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsPage");
+                        if(apps.RowCount!=2||apps.Controls.Count!=2||
+                            Descendants(apps).OfType<Button>().Any(x=>x.Name!="V269AppsVerify"&&x.Name!="V269AppsDetails")||
+                            Descendants(apps).Any(x=>x.Name is "V269AppsMore" or "V269AppsFooter" or "V269AppsExtraCommands" or "V269AppsExtraScroll"))
+                            throw new Exception("Aplicativos contém controles fora do HTML aprovado.");
                     }
                     if (tab == V269Page.Sistema)
                     {
