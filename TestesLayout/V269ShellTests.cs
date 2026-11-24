@@ -61,6 +61,18 @@ internal static class V269ShellTests
             "As três regiões estruturais precisam existir.");
         Check(shell.Controls.Find("V269NavConfiguracoes", true).Length == 1,
             "As oito abas devem ser acessíveis no menu lateral.");
+        var dashboardColumns = shell.Controls.Find("V269Columns", true)
+            .OfType<TableLayoutPanel>().Single();
+        Check(!shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Início sem operação deve recuperar toda a largura prevista no HTML.");
+        shell.PresentPanel(new(V269PanelKind.Details, "Consulta", "Somente leitura."));
+        Check(!shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Detalhes de consulta não devem estreitar a página Início.");
+        shell.SelectPage(V269Page.Configuracoes);
+        Check(!shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Configurações sem operação deve ocupar a área útil.");
+        shell.SelectPage(V269Page.Inicio);
+        shell.PresentPanel(null);
         var navigation = shell.Controls.Find("V269Navigation", true)
             .OfType<TableLayoutPanel>().Single();
         Check(navigation.AccessibleName == "Navegação principal" &&
@@ -115,8 +127,9 @@ internal static class V269ShellTests
             .OfType<ProgressBar>().Single();
         Check(bar.Visible && bar.Value == 37, "Progresso deve permanecer no painel direito.");
         shell.SelectPage(V269Page.Configuracoes);
-        Check(ReferenceEquals(shell.RightPane.Current, progress),
-            "O painel não pode perder o progresso ao trocar de aba.");
+        Check(ReferenceEquals(shell.RightPane.Current, progress) && shell.RightPane.Visible &&
+            dashboardColumns.ColumnStyles[2].Width > 0,
+            "O painel não pode perder nem ocultar o progresso ao trocar de aba.");
 
         shell.ApplyAppearance(V269Theme.Claro, 90, 90);
         Check(shell.Theme == V269Theme.Claro &&
@@ -137,8 +150,9 @@ internal static class V269ShellTests
             otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Dark).Text,
             "Aba ativa do Dark deve conservar contraste sem brancura excessiva.");
         shell.PresentPanel(null);
-        Check(shell.RightPane.Current is null && !bar.Visible,
-            "O painel deve limpar estado sem simular sucesso.");
+        Check(shell.RightPane.Current is null && !bar.Visible &&
+            !shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Ao dispensar a operação, Configurações deve recuperar a largura sem simular sucesso.");
 
         bool rejected = false;
         try { shell.SetPageContent(V269Page.Inicio, apps); }
