@@ -159,6 +159,27 @@ internal static class V269ShellTests
         catch (InvalidOperationException) { rejected = true; }
         Check(rejected, "Uma view não pode ser associada a duas abas.");
 
+        // A troca de geometria não pode destruir fontes ainda retidas
+        // pelo WinForms quando a nova fonte possui valor equivalente.
+        using var lateView = new Panel();
+        using var lateLabel = new Label { Text = "Fonte herdada", Dock = DockStyle.Fill };
+        lateView.Controls.Add(lateLabel);
+        shell.SetPageContent(V269Page.Inicio, lateView);
+        foreach (int scale in new[] { 100, 115, 90, 100 })
+        {
+            shell.ApplyAppearance(V269Theme.AzulGf, 100, scale);
+            foreach (var page in new[] { V269Page.Inicio, V269Page.Aplicativos, V269Page.Inicio })
+            {
+                shell.SelectPage(page);
+                Application.DoEvents();
+                Check(TextRenderer.MeasureText("Fonte", lateLabel.Font).Width > 0,
+                    "Fonte herdada válida após alternância de geometria.");
+                foreach (var nav in AllDescendants(shell).OfType<Button>())
+                    Check(TextRenderer.MeasureText(nav.Text, nav.Font).Height > 0,
+                        "Fonte de navegação válida após alteração de escala.");
+            }
+        }
+
         // A etapa A não contém botão de instalar/desinstalar nem serviço de manutenção.
         Check(!AllDescendants(shell).OfType<Button>().Any(b =>
             b.Name.Contains("Install", StringComparison.OrdinalIgnoreCase) ||
