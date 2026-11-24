@@ -17,6 +17,7 @@ internal static class V269IntegrationTests
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
         VerifyAppOrdering();
+        VerifyAppTableGeometry();
         var homeSnapshot = VerifyHome(form, views[0]);
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
         Require(paneToggle.Parent?.Name == "V269HomeFooter",
@@ -130,6 +131,20 @@ internal static class V269IntegrationTests
         VerifySettings(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyAppTableGeometry()
+    {
+        foreach(int scale in new[]{90,100,110})
+        foreach(int dpi in new[]{96,120,144,192})
+        {
+            var row=new Rectangle(-30,42,V269AppTable.MinimumWidth(scale,dpi),V269AppTable.Scale(52,scale,dpi));
+            var cells=V269AppTable.Columns(row,scale,dpi);
+            var u=V269AppTable.Action(row,scale,dpi,false);var d=V269AppTable.Action(row,scale,dpi,true);
+            Require(cells.Length==6&&cells.Sum(c=>c.Width)==row.Width&&
+                cells[5].Contains(u)&&cells[5].Contains(d)&&!u.IntersectsWith(d),
+                "seis colunas e alvos binários disjuntos em escalas/DPI");
+        }
     }
 
     private static void VerifyAppOrdering()

@@ -1316,7 +1316,7 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(heading, 0, 2);
 
         _programList.Dock = DockStyle.Fill;
-        _programList.ItemHeight = 67;
+        _programList.ApplyV269Table(_v269Appearance);
         _programList.BackColor = PanelBackground;
         _programList.ForeColor = Ink;
         _programList.OperationFor = _updateOperations.Find;
@@ -1363,9 +1363,7 @@ internal sealed partial class MainForm : Form
             _itemHint.Text = _programList.SelectedItem is ProgramEntry entry
                 ? "Selecionado: " + entry.Name : "Selecione um aplicativo";
             if (_programList.SelectedItem is { } selected)
-                PresentV269Details(selected.Name, $"Versão: {DisplayAppVersion(selected.Version)}\r\n" +
-                    (selected.Publisher.Length > 0 ? "Fornecedor: " + selected.Publisher + "\r\n" : "") +
-                    "Pressione Enter na lista para abrir as ações do item.");
+                PresentV269AppDetails(selected);
         };
         var host = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
         _emptyState.Dock = DockStyle.Fill;
@@ -1523,98 +1521,93 @@ internal sealed partial class MainForm : Form
         return button;
     }
 
+    private void PresentV269AppDetails(ProgramEntry item)
+    {
+        if(_busy||_v269Confirming||_nav.SelectedPage!=V269Page.Aplicativos||
+            _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.Result or V269PanelKind.History)return;
+        string Known(string? value)=>string.IsNullOrWhiteSpace(value)?"Não informado":value;
+        string architecture=item.QueryArchitecture=="unknown"?"Não confirmada":Known(item.QueryArchitecture);
+        string kind=item.InventorySource.Contains("MSIX",StringComparison.OrdinalIgnoreCase)?"MSIX":
+            item.MsiProductCode.Length>0?"MSI":item.InventorySource.StartsWith("Registro:",StringComparison.Ordinal)?"Win32 / registro":"Não confirmado";
+        string details=$"{item.Name}\r\n{Known(item.Publisher)}\r\n\r\n"+
+            $"Tipo: {kind}\r\nOrigem: {Known(item.InventorySource)}\r\nArquitetura: {architecture}\r\n"+
+            $"Versão instalada: {DisplayAppVersion(item.Version)}\r\nInstalado em (declarado): {item.InstallDate?.ToString("dd/MM/yyyy")??"Não informado"}\r\n"+
+            $"Local: {Known(item.InstallLocation)}\r\nOferta: {DisplayAppVersion(item.AvailableVersion)}\r\n\r\n"+
+            ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item))+
+            "\r\n\r\nEnter ou botão direito: ações disponíveis e orientação.";
+        _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do aplicativo",details));
+    }
+
     private void DrawProgramCard(object? sender, DrawItemEventArgs e)
     {
-        if (e.Index < 0 || e.Index >= _programList.Items.Count) return;
-        ProgramEntry item = _programList.Items[e.Index];
-        bool selected = (e.State & DrawItemState.Selected) != 0;
-        var palette = V269Palette;
-        var card = new Rectangle(e.Bounds.X + 4, e.Bounds.Y + 3, e.Bounds.Width - 9, e.Bounds.Height - 6);
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using (var round = ModernButton.RoundRect(card, 8))
-        using (var brush = new SolidBrush(selected ? palette.Selection : palette.Card))
-        using (var pen = new Pen(selected ? palette.Accent : palette.Border, selected ? 1.8F : 0.9F))
+        if(e.Index<0||e.Index>=_programList.Items.Count)return;
+        ProgramEntry item=_programList.Items[e.Index];
+        bool selected=(e.State&DrawItemState.Selected)!=0;
+        var options=_v269Appearance;var g=e.Graphics;int dpi=_programList.DeviceDpi;
+        int S(int n)=>V269AppTable.Scale(n,options.InterfacePercent,dpi);
+        var colors=V269AppTable.Colors(options.Theme);
+        var bounds=e.Bounds;
+        if(bounds.Width<V269AppTable.MinimumWidth(options.InterfacePercent,dpi))
+            bounds.Width=V269AppTable.MinimumWidth(options.InterfacePercent,dpi);
+        var cells=V269AppTable.Columns(bounds,options.InterfacePercent,dpi);
+        using(var bg=new SolidBrush(selected?colors.Selected:e.Index%2==0?colors.Row:colors.Alternate))g.FillRectangle(bg,bounds);
+        using(var line=new Pen(colors.Border))g.DrawLine(line,bounds.X,bounds.Bottom-1,bounds.Right,bounds.Bottom-1);
+        if(selected)
         {
-            e.Graphics.FillPath(brush, round);
-            e.Graphics.DrawPath(pen, round);
+            using var rail=new SolidBrush(colors.Rail);g.FillRectangle(rail,bounds.X,bounds.Y+2,S(3),Math.Max(1,bounds.Height-4));
         }
-        if (selected)
+        using var font=new Font("Segoe UI",9f*options.TextPercent/100f);
+        using var bold=new Font(font,FontStyle.Bold);
+        void Text(string value,Rectangle area,Font? style=null,Color? color=null)
         {
-            using var accent = new SolidBrush(AppServices.Blue);
-            e.Graphics.FillRectangle(accent, card.X + 1, card.Y + 10, 4, card.Height - 20);
+            if(area.Width<1||area.Height<1)return;
+            TextRenderer.DrawText(g,value,style??font,area,color??colors.Ink,
+                TextFormatFlags.SingleLine|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|
+                TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping);
         }
-        bool multiselect = _multiSelectMode;
-        int prefix = multiselect ? 38 : 0;
-        if (multiselect && item.CanUninstall)
+        Rectangle Inset(int i)
+        {var cell=cells[i];cell.Inflate(-S(5),0);return cell;}
+        var grip=V269AppTable.Grip(bounds,options.InterfacePercent,dpi);
+        Text(_multiSelectMode?(item.CanUninstall?(_checkedApps.Contains(item)?"☑":"☐"):""):"⋮⋮",grip,bold);
+        int iconSize=Math.Min(S(30),bounds.Height-6);
+        var mark=new Rectangle(grip.Right+S(3),bounds.Y+(bounds.Height-iconSize)/2,iconSize,iconSize);
+        using(var shape=ModernButton.RoundRect(mark,S(5)))
+        using(var fill=new SolidBrush(colors.Head))
+        using(var border=new Pen(colors.Border))
+        {g.FillPath(fill,shape);g.DrawPath(border,shape);}
+        string initial=string.IsNullOrWhiteSpace(item.Name)?"?":item.Name.Trim()[0].ToString().ToUpperInvariant();
+        Text(initial,new Rectangle(mark.X+S(7),mark.Y,mark.Width-S(7),mark.Height),bold);
+        int nameX=mark.Right+S(5);
+        Text(item.Name,new Rectangle(nameX,bounds.Y,Math.Max(1,cells[0].Right-nameX-S(4)),bounds.Height),bold);
+        Text(DisplayAppVersion(item.Version),Inset(1));
+        Text(string.IsNullOrWhiteSpace(item.Publisher)?"Não informado":item.Publisher,Inset(2));
+        Text(item.InstallDate?.ToString("dd/MM/yyyy")??"Não informada",Inset(3));
+        var update=_updateOperations.Find(item);var uninstall=_uninstallOperations.Find(item);
+        string state=uninstall?.Text??update?.Text??(
+            item.UpdateRequiresReview||Matching.IsUncertain(item.ComparisonState)?"Revisão necessária":
+            item.IsUpdate?(_programList.AllowsUpdate(item)?"Atualização disponível":"Oferta consultiva"):
+            item.InventoryOnly?"Somente inventário":_inventoryIncomplete?"Inventário parcial":
+            !_catalogoVerificado?"Não verificado":"Sem oferta confirmada");
+        var status=Inset(4);
+        if(uninstall is not null||update is not null)
         {
-            Rectangle box = AppRowGeometry.Checkbox(e.Bounds);
-            bool marked = _checkedApps.Contains(item);
-            using var b = new SolidBrush(marked ? AppServices.Blue : Color.FromArgb(22, 32, 43));
-            using var border = new Pen(marked ? Accent : Muted, 1.3F);
-            e.Graphics.FillRectangle(b, box);
-            e.Graphics.DrawRectangle(border, box);
-            if (marked) TextRenderer.DrawText(e.Graphics, "✓", _rowInfo, box, Color.White,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            var label=status;label.Height=Math.Max(1,status.Height-S(7));Text(state,label);
+            if(update?.Progress.Percent is int percent)
+            {
+                using var progress=new SolidBrush(V269Palette.EnabledUpdate);
+                g.FillRectangle(progress,status.X,status.Bottom-S(5),status.Width*Math.Clamp(percent,0,100)/100,S(3));
+            }
         }
-        var mark = new Rectangle(e.Bounds.X + 18 + prefix, e.Bounds.Y + 18, 31, 31);
-        using (var markBrush = new SolidBrush(item.IsUpdate ? Color.FromArgb(23, 97, 151) : Color.FromArgb(54, 67, 81)))
-            e.Graphics.FillEllipse(markBrush, mark);
-        string initial = string.IsNullOrWhiteSpace(item.Name) ? "?" : item.Name.Trim()[0].ToString().ToUpperInvariant();
-        TextRenderer.DrawText(e.Graphics, initial, _rowMark, mark, item.IsUpdate ? palette.Accent : palette.Text,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
-
-        int left = e.Bounds.Left + 58 + prefix;
-        var operation = _updateOperations.Find(item);
-        var uninstall = _uninstallOperations.Find(item);
-        bool hasOperation = operation is not null || uninstall is not null;
-        Rectangle operationArea = AppRowGeometry.OperationArea(e.Bounds, prefix);
-        int width = Math.Max(18, AppRowGeometry.UpdateButton(e.Bounds).Left - left - 10);
-        if (hasOperation && e.Bounds.Width >= 940) width = Math.Max(18, operationArea.Left - left - 12);
-        TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
-            new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Color.White : palette.Text,
-            TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        string? updateAction=item.IsUpdate?VerifiedUpdaters.GetPrimaryAction(item):null;
-        string details = item.UpdateRequiresReview
-            ? "Fontes ou identidade exigem revisão · Enter para ações"
-            : item.IsUpdate
-            ? $"{DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} · {VerifiedUpdaters.UpdateAvailabilityText(item,item.Capabilities?.Update.Reason??"")}"
-            : item.ComparisonState == MatchState.SupersededRegistration
-            ? $"Registro anterior · versão {DisplayAppVersion(item.AvailableVersion)} também instalada; conferir duplicidade"
-            : item.ComparisonState == MatchState.DifferentMajor
-            ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
-            : Matching.IsUncertain(item.ComparisonState)
-            ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
-            : ProtectedApplications.IsExcludedFromManagement(item.Name)
-            ? $"Versão: {DisplayAppVersion(item.Version)} · Somente inventário"
-            : item.InventoryOnly && item.InventorySource.StartsWith("Biblioteca de jogos:", StringComparison.Ordinal)
-            ? $"Jogo da {item.InventorySource["Biblioteca de jogos:".Length..].Trim()} (somente leitura)"
-            : item.InventoryOnly && item.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase)
-            ? $"Versão: {DisplayAppVersion(item.Version)} · Microsoft Store/MSIX · " +
-                (!item.MsixInventoryComplete ? "inventário parcial ou anterior (somente leitura)" :
-                 CanRemoveMsix(item) ? "remoção por API do Windows" : "gerenciar pelo Windows")
-            : item.InventoryOnly
-            ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
-            : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
-        if (!hasOperation || e.Bounds.Width >= 940)
-        TextRenderer.DrawText(e.Graphics, details, _rowInfo,
-            new Rectangle(left, e.Bounds.Top + 34, width, 28),
-            selected ? Color.White : palette.SecondaryText,
-            TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-
-        if (uninstall is not null) DrawUninstallOperation(e.Graphics, operationArea, uninstall);
-        else if (operation is not null) DrawUpdateOperation(e.Graphics, operationArea, operation);
-        if (!multiselect)
+        else Text(state,status);
+        if(!_multiSelectMode)
         {
-            bool canUpdate = _programList.AllowsUpdate(item);
-            bool canRemove = _programList.AllowsRemoval(item);
-            DrawV269RowAction(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar",
-                V269ActionKind.Atualizar, canUpdate, _programList.ActionVisual(item, updateAction ?? ""));
-            DrawV269RowAction(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Remover",
-                V269ActionKind.Remover, canRemove, _programList.ActionVisual(item, item.UninstallAction));
-            if (canUpdate && VerifiedUpdaters.GetOfficialPage(item) is not null)
-                DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
-                    _programList.ActionVisual(item, "site"));
+            var u=_programList.ActionVisual(item,VerifiedUpdaters.GetPrimaryAction(item)??"");
+            var d=_programList.ActionVisual(item,item.UninstallAction);
+            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,false),options.Theme,false,_programList.AllowsUpdate(item),u.Hovered,u.Pressed);
+            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,true),options.Theme,true,_programList.AllowsRemoval(item),d.Hovered,d.Pressed);
         }
+        if(selected&&_programList.Focused)
+            ControlPaint.DrawFocusRectangle(g,new Rectangle(bounds.X+S(4),bounds.Y+1,Math.Max(1,bounds.Width-S(5)),Math.Max(1,bounds.Height-2)));
     }
 
     private void DrawV269RowAction(Graphics graphics, Rectangle area, string label, V269ActionKind kind,

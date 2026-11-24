@@ -55,7 +55,7 @@ internal static class V269AppTable
         var kind=remove?V269ActionKind.Remover:V269ActionKind.Atualizar;
         Color back=V269VisualTokens.ActionBackground(theme,kind,allowed),ink=V269VisualTokens.ActionColor(theme,kind,allowed);
         if(theme==V269Theme.Claro&&allowed)ink=Color.White;
-        if(allowed&&hover)back=ControlPaint.Light(back,pressed?.05f:.15f);
+        if(allowed&&hover)back=ControlPaint.Light(back,pressed ? .05f : .15f);
         using var path=ModernButton.RoundRect(new Rectangle(r.X,r.Y,r.Width-1,r.Height-1),6);
         using var fill=new SolidBrush(back);using var border=new Pen(V269VisualTokens.ActionBorder(theme,kind,allowed));
         g.FillPath(fill,path);g.DrawPath(border,path);
