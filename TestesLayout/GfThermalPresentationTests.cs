@@ -43,6 +43,10 @@ internal static class GfThermalPresentationTests
         Require(view.Update(mismatch, mismatch.CapturedAtUtc) == GfThermalAlert.Unknown &&
             !view.Frame(mismatch, 75, theme, mismatch.CapturedAtUtc).Immediate, "limite de outra GPU não classifica alerta");
         var fresh = Sample(80, 12);
+        var noTime = fresh with { MetricTimes = new(null, null, null, null, null, null) };
+        Require(view.Evidence(noTime, fresh.CapturedAtUtc) is null &&
+            view.Update(noTime, fresh.CapturedAtUtc) == GfThermalAlert.Unknown,
+            "timestamp explícito ausente não herda relógio de entrega para classificar limite");
         view.Update(fresh, fresh.CapturedAtUtc);
         view.Expire(t.AddSeconds(23));
         Require(!view.Frame(fresh, 80, theme, t.AddSeconds(23)).Immediate, "capacidade expirada não permanece crítica");

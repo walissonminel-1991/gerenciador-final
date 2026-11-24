@@ -18,8 +18,10 @@ internal sealed class GfThermalPresentation
     {
         var caps = snapshot.GpuThermalEvidence;
         if (caps is null || snapshot.Generation <= 0 ||
+            GfMonitorMetricTimes.At(snapshot, 5) is not DateTimeOffset measured ||
+            !GfResourceMonitorAdapter.IsFresh(measured, now) ||
             !string.Equals(snapshot.GpuIdentity, caps.Key.ToString(), StringComparison.Ordinal) ||
-            !caps.Matches(caps.Key, snapshot.Generation, GfMonitorMetricTimes.At(snapshot, 5) ?? snapshot.CapturedAtUtc, now)) return null;
+            !caps.Matches(caps.Key, snapshot.Generation, measured, now)) return null;
         return caps;
     }
 

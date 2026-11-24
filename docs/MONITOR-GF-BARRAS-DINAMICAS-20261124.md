@@ -84,3 +84,9 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 - O host rejeita timestamps de origem acima da tolerância de cinco segundos antes de registrar watermarks; comparação de projeção elimina reentrega do mesmo cache com hora de publicação diferente, mas permite invalidação de fontes. Não há novo coletor.
 - FreshAt retorna a própria instância no caminho ocioso. Teste determinístico de 10.000 passagens exige identidade de referência (não é medição de CPU/RAM em hardware). Fixtures adicionais cobrem expiração de identidade, publicação futura e recuperação legítima.
 - Aguardar aprovação integral de 028ad64 e depois 45c044d antes de publicar este incremento; não cancelar CI nem homologar por revisão estática. WORK segue responsável pela unificação e homologação física.
+
+
+## 24/11 — contrato de entrega ao WORK e cobertura ponta a ponta
+- Teste adicional do host usa portfólio de tipos reais com dados exclusivamente sintéticos, incluindo limites D3DKMT em décimos de grau: publicação anterior à abertura, replay na janela WinForms real, aviso térmico, atualização posterior, fechamento manual, persistência, reabertura única, descarte e restauração explícita sem janela residual.
+- Evidência térmica agora exige o timestamp explícito do sensor quando MetricTimes foi fornecido. Um timestamp ausente ou obsoleto não pode herdar o horário de entrega para classificar um limite. Snapshot legado sem MetricTimes mantém semântica já homologada.
+- Guia de integração isolada em docs/MONITOR-GF-INTEGRACAO-WORK.md: chamadas concretas do host, gates do coletor, publicação parcial, seleção de GPU, preferências, barras e lista de verificação. Não modifica o shell nem executa unificação. As etapas de homologação física e geração da candidata são exclusivamente do WORK, somente após conclusão das frentes.

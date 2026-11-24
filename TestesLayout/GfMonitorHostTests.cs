@@ -60,6 +60,55 @@ internal static class GfMonitorHostTests
             "não cruzar identidade térmica");
     }
 
+    // Percurso completo do host: produtor existente -> portfólio -> relay ->
+    // janela nativa -> preferências. Somente fixtures; sem leitura de hardware.
+    private static void VerifyWindowLifecycle(string path, WddmGpuKey key)
+    {
+        GfResourceMonitorForm Window() => Application.OpenForms.OfType<GfResourceMonitorForm>().Single();
+        Label Metric(int index) => (Label)Window().Controls.Find("MonitorCompactMetric" + index, true).Single();
+        var now = DateTimeOffset.UtcNow;
+        var enabled = GfResourceMonitorPreferences.Default with { Enabled = true, OpacityPercent = 75 };
+        using (var host = new GfMonitorHost(path))
+        {
+            var generation = host.BeginGeneration(key);
+            var caps = GfThermalEvidence.FromD3dKmt(key, generation, key, generation, true, 700, 800, now);
+            Require(host.Publish(generation, Fixture(now, key), now, caps), "publicar antes da janela");
+            Require(host.Apply(enabled, now), "abrir monitor pelo host");
+            Application.DoEvents();
+            Require(Metric(0).Text == "CPU 14%" && Metric(1).Text == "GPU 80%" &&
+                Metric(2).Text == "RAM 42%" && Metric(5).Text == "GPU 70°C",
+                "replay apresenta dados de todas as fontes disponíveis");
+            Require(Metric(5).ForeColor == GfMeterScale.Colors(V269Theme.AzulGf).Yellow,
+                "evidência do produtor chega ao aviso térmico da janela");
+            var newer = now.AddSeconds(1);
+            var p = Fixture(newer, key);
+            p = p with { WindowsCounters = p.WindowsCounters with
+                { CpuUsagePercent = MonitorReading<double>.Available(25, "fixture") } };
+            Require(host.Publish(generation, p, newer,
+                GfThermalEvidence.FromD3dKmt(key, generation, key, generation, true, 700, 800, newer)) &&
+                Metric(0).Text == "CPU 25%", "publicação chega à janela aberta");
+            Window().Close();
+            Require(!host.WantsCollection(false, true) && !host.Preferences().Enabled &&
+                !GfResourceMonitorPreferencesStore.Load(path).Enabled, "fechar manualmente desabilita e persiste");
+            Require(host.Apply(enabled, newer), "reabertura explícita");
+            Require(Application.OpenForms.OfType<GfResourceMonitorForm>().Count() == 1,
+                "não criar janelas duplicadas");
+            // Descarte pelo shell deve preservar habilitação para restauração.
+        }
+        Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any() &&
+            GfResourceMonitorPreferencesStore.Load(path).Enabled, "encerramento libera janela e conserva opção");
+        using (var restored = new GfMonitorHost(path))
+        {
+            Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any() &&
+                !restored.WantsCollection(false, true), "construtor não abre ou coleta implicitamente");
+            restored.Restore(DateTimeOffset.UtcNow);
+            Require(Window().Visible && restored.WantsCollection(false, true), "restauração explícita do shell");
+            Require(restored.Apply(enabled with { Enabled = false }, DateTimeOffset.UtcNow),
+                "limpar fixture de preferência");
+        }
+        Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any(), "nenhuma janela residual");
+    }
+
     internal static void Run()
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -123,6 +172,7 @@ internal static class GfMonitorHostTests
                     "desativar libera consumidor e demanda");
             }
             Require(!GfResourceMonitorPreferencesStore.Load(path).Enabled, "desativação persistida");
+            VerifyWindowLifecycle(path, key);
         }
         finally { Directory.Delete(folder, recursive: true); }
 
