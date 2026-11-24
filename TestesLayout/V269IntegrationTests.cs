@@ -313,6 +313,13 @@ internal static class V269IntegrationTests
                 var row=(Rectangle)rowMethod.Invoke(list,[0])!;
                 var cells=V269AppTable.Columns(row,shell.InterfaceScalePercent,list.DeviceDpi,list.TableCompact);
                 Require(cells.Length==6&&cells.Sum(x=>x.Width)==row.Width,"geometria das colunas");
+                using var headerFont=new Font("Segoe UI",9f*shell.TextScalePercent/100f,FontStyle.Bold);
+                using var headerGraphics=list.CreateGraphics();
+                var dateHeading=V269AppTable.AppInstallDateHeaderBounds(headerGraphics,cells[3],headerFont,list.DeviceDpi,list.TableCompact);
+                int dateHeadingWidth=TextRenderer.MeasureText(headerGraphics,"Instalado em",headerFont,Size.Empty,
+                    TextFormatFlags.NoPrefix|TextFormatFlags.SingleLine|TextFormatFlags.NoPadding).Width;
+                Require(cells[3].Contains(dateHeading)&&dateHeading.Width>=dateHeadingWidth,
+                    "Instalado em legível por inteiro com fonte padrão, sem invadir outra coluna");
                 var origin=surface.PointToScreen(Point.Empty);
                 Rectangle Relative(Control x)=>new(surface.PointToClient(x.PointToScreen(Point.Empty)),x.Size);
                 Console.WriteLine($"V269-APPS-GEOMETRY {size.Width}x{size.Height} theme={(V269Theme)index} dpi={list.DeviceDpi} toolbar={Relative(form.Controls.Find("V269AppsSearch",true).Single().Parent!)} list={Relative(list)} header={list.TableHeaderHeight} row={row.Height} pane={Relative(shell.RightPane)} paneVisible={shell.RightPane.Visible}");
@@ -460,6 +467,19 @@ internal static class V269IntegrationTests
                     note.Padding.Left>0&&historyHeading.Padding.Top>0,
                     "hierarquia tipográfica, nota destacada e separação do histórico do HTML");
                 var historyTable=shell.RightPane.Controls.Find("V269AppDetailsFields",true).OfType<TableLayoutPanel>().Single();
+                var detailPane=shell.RightPane.Controls.Find("V269StructuredAppDetails",true).OfType<V269AppDetailPanel>().Single();
+                Require(Enumerable.Range(0,5).All(detailPane.HasAppFieldDivider)&&!detailPane.HasAppFieldDivider(5),
+                    "divisores do HTML limitados à identidade e aos quatro campos");
+                int halfGap=V269AppTable.Scale(6,100,detailPane.DeviceDpi);
+                for(int fieldRow=1;fieldRow<=4;fieldRow++)
+                {
+                    Require(historyTable.GetControlFromPosition(0,fieldRow) is Label caption&&caption.Margin.Right==halfGap&&
+                        historyTable.GetControlFromPosition(1,fieldRow) is Label value&&value.Margin.Left==halfGap,
+                        "intervalo horizontal de 12 px entre rótulo e valor");
+                }
+                Require(historyTable.ColumnStyles[0].SizeType==SizeType.Absolute&&
+                    historyTable.ColumnStyles[0].Width<historyTable.ClientSize.Width*.4,
+                    "rótulos reservam a largura necessária e deixam o restante para os valores");
                 var lastHistoryRow=historyTable.Controls.OfType<V269AppHistoryRow>().Single();
                 Require(historyHeading.Width>=historyTable.ClientSize.Width-2&&!lastHistoryRow.HasBottomDivider,
                     "divisor de largura integral e ausência de borda após o último resultado, conforme HTML");

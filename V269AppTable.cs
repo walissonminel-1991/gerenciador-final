@@ -103,6 +103,15 @@ internal static class V269AppTable
         V269Theme.Claro=>(H("#bcdcf3"),H("#eaf4fb"),H("#e4f2fd"),H("#c3dff3"),H("#20435f"),H("#9bbacf"),H("#2374ab")),
         _=>(H("#17364a"),H("#091d2d"),H("#0c273a"),H("#1c4666"),H("#e4edf6"),H("#25445f"),H("#7bc2ff"))
     };
+    internal static Rectangle AppInstallDateHeaderBounds(IDeviceContext context, Rectangle cell, Font font, int dpi, bool compact)
+    {
+        const TextFormatFlags flags = TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
+        int titleWidth = TextRenderer.MeasureText(context, Headers[3], font, Size.Empty, flags).Width;
+        int padding = Math.Min(CellPadding(100, dpi, compact), Math.Max(0, (cell.Width-titleWidth)/2));
+        cell.Inflate(-padding, 0);
+        return cell;
+    }
+
     internal static void DrawHeader(Graphics g,Rectangle bounds,V269AppearanceOptions options,Font font,int dpi,bool compact=false,bool drivers=false)
     {
         if(bounds.Width<1||bounds.Height<1)return;
@@ -117,7 +126,9 @@ internal static class V269AppTable
         var headers = drivers ? DriverHeaders : Headers;
         for(int i=0;i<headers.Length;i++)
         {
-            var rect=columns[i];rect.Inflate(-CellPadding(options.InterfacePercent,dpi,compact),0);
+            var rect=columns[i];
+            if (!drivers && i==3) rect=AppInstallDateHeaderBounds(g,rect,font,dpi,compact);
+            else rect.Inflate(-CellPadding(options.InterfacePercent,dpi,compact),0);
             TextRenderer.DrawText(g,headers[i],font,rect,ink,TextFormatFlags.VerticalCenter|
                 TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|TextFormatFlags.PreserveGraphicsClipping);
         }

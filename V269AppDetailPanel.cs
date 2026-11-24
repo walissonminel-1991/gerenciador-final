@@ -370,9 +370,12 @@ internal sealed class V269AppDetailPanel : Panel
         _table.RowCount=1;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _table.Controls.Add(_identity,0,0);_table.SetColumnSpan(_identity,2);_identity.Visible=false;
         _table.CellPaint+=(_,e)=>{
-            if(_model is null||e.Row>_visibleFieldCount)return;
+            if(_model is null||e.Row>_visibleFieldCount||e.CellBounds.Width<1||e.CellBounds.Height<1)return;
+            int bottom=e.CellBounds.Bottom-1;
+            if(e.Row==0&&HasAppFieldDivider(e.Row))
+                bottom-=Math.Min(e.CellBounds.Height-1,V269AppTable.Scale(5,100,DeviceDpi));
             using var line=new Pen(V269AppDetailStyle.Divider(_theme));
-            e.Graphics.DrawLine(line,e.CellBounds.Left,e.CellBounds.Bottom-1,e.CellBounds.Right-1,e.CellBounds.Bottom-1);
+            e.Graphics.DrawLine(line,e.CellBounds.Left,bottom,e.CellBounds.Right-1,bottom);
         };
         _viewport.Controls.Add(_table);Controls.Add(_viewport);Controls.Add(_scroll);
         _scroll.ValueChanged+=(_,_)=>PositionContent();
@@ -452,8 +455,11 @@ internal sealed class V269AppDetailPanel : Panel
             {
                 _visibleFieldCount++;
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                _table.Controls.Add(Make(field.Label,false),0,row);
+                var caption=Make(field.Label,false);
+                ApplyFieldMetrics(caption);
+                _table.Controls.Add(caption,0,row);
                 var value=Make(field.Value,true);
+                ApplyFieldMetrics(value);
                 value.Anchor=AnchorStyles.Top|AnchorStyles.Right;
                 value.TextAlign=ContentAlignment.TopRight;
                 _table.Controls.Add(value,1,row);
@@ -485,6 +491,17 @@ internal sealed class V269AppDetailPanel : Panel
         }
         finally{_table.ResumeLayout(true);FitLabels();}
     }
+    internal bool HasAppFieldDivider(int row) =>
+        _model is { DriverGlyph: null } && row >= 0 && row <= _visibleFieldCount;
+
+    private void ApplyFieldMetrics(Label label)
+    {
+        int vertical=V269AppTable.Scale(11,_interfacePercent,DeviceDpi);
+        int gap=_model is {DriverGlyph:null}?V269AppTable.Scale(6,100,DeviceDpi):0;
+        bool value=label.Tag is true;
+        label.Margin=new Padding(value?gap:0,vertical,value?0:gap,vertical);
+    }
+
     private void FitLabels()
     {
         if(_arranging||IsDisposed||Disposing)return;_arranging=true;
@@ -492,18 +509,34 @@ internal sealed class V269AppDetailPanel : Panel
         {
             int barWidth=Math.Max(12,_scroll.Width);
             int height=Math.Max(1,ClientSize.Height);
+            bool app = _model is { DriverGlyph: null };
+            var labels = _table.Controls.OfType<Label>().ToArray();
+            int captionWidth = app
+                ? labels.Where(label => _table.GetColumnSpan(label) == 1 && _table.GetColumn(label) == 0)
+                    .Select(label => TextRenderer.MeasureText(label.Text, label.Font, Size.Empty,
+                        TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine).Width + label.Margin.Horizontal)
+                    .DefaultIfEmpty(0).Max()
+                : 0;
+
             int Measure(int width)
             {
                 _table.Width=width;
                 _identity.MaximumSize=new Size(width,0);
                 int identityText=Math.Max(20,width-(int)_identity.ColumnStyles[0].Width);
                 _name.MaximumSize=_publisher.MaximumSize=new Size(identityText,0);
-                foreach(Label label in _table.Controls.OfType<Label>())
+                // Reservar a largura dos rótulos para deixar a origem e o local
+                // usarem a área que sobra, com os 12 px de intervalo do HTML.
+                int leftWidth=Math.Min(captionWidth,Math.Max(1,(int)(width*.4)));
+                _table.ColumnStyles[0].SizeType=app?SizeType.Absolute:SizeType.Percent;
+                _table.ColumnStyles[0].Width=app?leftWidth:40;
+                foreach(Label label in labels)
                 {
                     int column=_table.GetColumn(label);
-                    int max=label.Name=="V269AppHistoryHeading"?width:
-                        _table.GetColumnSpan(label)==2?width-6:
-                        (int)(width*(column==0 ? .4 : .6))-6;
+                    bool spansTable=_table.GetColumnSpan(label)==2;
+                    int max=app
+                        ? (spansTable?width:column==0?leftWidth:width-leftWidth)-label.Margin.Horizontal
+                        : label.Name=="V269AppHistoryHeading"?width:
+                            spansTable?width-6:(int)(width*(column==0 ? .4 : .6))-6;
                     label.MaximumSize=new Size(Math.Max(20,max),0);
                 }
                 foreach(var history in _table.Controls.OfType<V269AppHistoryRow>())
@@ -526,6 +559,7 @@ internal sealed class V269AppDetailPanel : Panel
     private void PositionContent()
     {
         _table.Location=new Point(0,-_scroll.Value);
+        if (_model is { DriverGlyph: null }) _table.Invalidate();
         _scroll.AccessibleDescription=$"Posição {_scroll.Value} de {_scroll.MaximumValue}";
     }
     private void ScrollContent(object? sender,MouseEventArgs e)
@@ -573,7 +607,6 @@ internal sealed class V269AppDetailPanel : Panel
     internal void ApplyInterfaceScale(int percent)
     {
         _interfacePercent=percent;
-        int S(int n)=>V269AppTable.Scale(n,percent,DeviceDpi);
         int D(int n)=>V269AppTable.Scale(n,100,DeviceDpi);
         int size=D(48),gap=D(10);
         _identity.Margin=new Padding(0,D(4),0,D(13)+D(5));
@@ -581,7 +614,7 @@ internal sealed class V269AppDetailPanel : Panel
         _publisher.Margin=new Padding(0,D(5),0,0);
         foreach(Label label in _table.Controls.OfType<Label>())
             if(_table.GetColumnSpan(label)==2)ApplyFullMetrics(label);
-            else label.Margin=new Padding(0,S(11),0,S(11));
+            else ApplyFieldMetrics(label);
         _icon.Size=new Size(size,size);
         _identity.ColumnStyles[0].Width=size+gap;
         FitLabels();
