@@ -1220,6 +1220,7 @@ internal sealed partial class MainForm : Form
         void FitToolbar()
         {
             int S(int px)=>V269AppTable.Scale(px,_v269Appearance.InterfacePercent,root.DeviceDpi);
+            _programList.SetV269WindowWidth(_nav.LayoutWindowWidth);
             bool compact=root.ClientSize.Width<S(430);
             bool showDetails=_nav.LayoutWindowWidth<=1040;
             details.Visible=showDetails;
@@ -1502,9 +1503,11 @@ internal sealed partial class MainForm : Form
         int S(int n)=>V269AppTable.Scale(n,options.InterfacePercent,dpi);
         var colors=V269AppTable.Colors(options.Theme);
         var bounds=e.Bounds;
-        if(bounds.Width<V269AppTable.MinimumWidth(options.InterfacePercent,dpi))
-            bounds.Width=V269AppTable.MinimumWidth(options.InterfacePercent,dpi);
-        var cells=V269AppTable.Columns(bounds,options.InterfacePercent,dpi);
+        bool compact=_programList.TableCompact;
+        int minimum=V269AppTable.MinimumWidth(options.InterfacePercent,dpi,compact);
+        if(bounds.Width<minimum)bounds.Width=minimum;
+        int padding=V269AppTable.CellPadding(options.InterfacePercent,dpi,compact);
+        var cells=V269AppTable.Columns(bounds,options.InterfacePercent,dpi,compact);
         V269AppTable.DrawRowBackground(g,bounds,options.Theme,selected,e.Index%2!=0,options.InterfacePercent,dpi);
         using var font=new Font("Segoe UI",9f*options.TextPercent/100f);
         using var bold=new Font(font,FontStyle.Bold);
@@ -1513,10 +1516,10 @@ internal sealed partial class MainForm : Form
             if(area.Width<1||area.Height<1)return;
             TextRenderer.DrawText(g,value,style??font,area,color??V269AppTable.RowInk(options.Theme,selected),
                 TextFormatFlags.SingleLine|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|
-                TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping);
+                TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|TextFormatFlags.PreserveGraphicsClipping);
         }
         Rectangle Inset(int i)
-        {var cell=cells[i];cell.Inflate(-S(5),0);return cell;}
+        {var cell=cells[i];cell.Inflate(-padding,0);return cell;}
         var grip=V269AppTable.Grip(bounds,options.InterfacePercent,dpi);
         Text(_multiSelectMode?(item.CanUninstall?(_checkedApps.Contains(item)?"☑":"☐"):""):"⋮⋮",grip,bold);
         int iconSize=Math.Max(1,Math.Min(Math.Min(S(30),bounds.Height-6),cells[0].Width/4));
@@ -1529,8 +1532,8 @@ internal sealed partial class MainForm : Form
         if(_programList.LocalAppIcon(item) is {} icon)
         {var inset=mark;inset.Inflate(-S(3),-S(3));if(inset.Width>0&&inset.Height>0)g.DrawImage(icon,inset);}
         else Text(initial,new Rectangle(mark.X+S(7),mark.Y,mark.Width-S(7),mark.Height),bold);
-        int nameX=mark.Right+S(5);
-        Text(item.Name,new Rectangle(nameX,bounds.Y,Math.Max(1,cells[0].Right-nameX-S(4)),bounds.Height),bold);
+        int nameX=mark.Right+S(9);
+        Text(item.Name,new Rectangle(nameX,bounds.Y,Math.Max(1,cells[0].Right-nameX-padding),bounds.Height),bold);
         Text(DisplayAppVersion(item.Version),Inset(1));
         Text(string.IsNullOrWhiteSpace(item.Publisher)?"Não informado":item.Publisher,Inset(2));
         Text(item.InstallDate?.ToString("dd/MM/yyyy")??"Não informada",Inset(3));
@@ -1565,8 +1568,8 @@ internal sealed partial class MainForm : Form
         {
             var u=_programList.ActionVisual(item,VerifiedUpdaters.GetPrimaryAction(item)??"");
             var d=_programList.ActionVisual(item,item.UninstallAction);
-            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,false),options.Theme,false,_programList.AllowsUpdate(item),u.Hovered,u.Pressed);
-            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,true),options.Theme,true,_programList.AllowsRemoval(item),d.Hovered,d.Pressed);
+            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,false,compact),options.Theme,false,_programList.AllowsUpdate(item),u.Hovered,u.Pressed);
+            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,true,compact),options.Theme,true,_programList.AllowsRemoval(item),d.Hovered,d.Pressed);
         }
         if(selected&&_programList.Focused)
             ControlPaint.DrawFocusRectangle(g,new Rectangle(bounds.X+S(4),bounds.Y+1,Math.Max(1,bounds.Width-S(5)),Math.Max(1,bounds.Height-2)));

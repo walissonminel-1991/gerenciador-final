@@ -7,27 +7,50 @@ internal static class V269AppTable
 {
     internal static readonly string[] Headers=["Aplicativo","Versão","Editor","Instalado em","Situação","Ações"];
     internal static int Scale(int px,int scale,int dpi)=>Math.Max(1,(int)Math.Round(px*scale*dpi/9600d));
-    // As seis colunas adaptam-se antes de exigir deslocamento horizontal.
-    // A coluna de ações conserva alvos completos, mesmo na largura mínima.
-    private static readonly int[] CompactWidths=[126,46,61,68,55,65];
-    internal static int MinimumWidth(int scale,int dpi)=>CompactWidths.Sum(n=>Scale(n,scale,dpi));
-    internal static Rectangle[] Columns(Rectangle bounds,int scale,int dpi)
+    // CSS congelado da PR109: minmax(min,fr), não min + fração do excedente.
+    private static readonly int[] WideWidths=[185,70,100,88,98,75];
+    private static readonly int[] CompactWidths=[150,68,96,80,90,65];
+    internal static bool IsCompact(int windowWidth)=>windowWidth<=1050;
+    internal static int MinimumWidth(int scale,int dpi,bool compact=false)=>
+        (compact?CompactWidths:WideWidths).Sum(n=>Scale(n,scale,dpi));
+    internal static int CellPadding(int scale,int dpi,bool compact)=>Scale(compact?5:9,scale,dpi);
+    internal static Rectangle[] Columns(Rectangle bounds,int scale,int dpi,bool compact=false)
     {
-        int[] minimum=CompactWidths;
-        double[] weights=[2.2,.8,1.1,.9,1,.2];
-        int[] sizes=minimum.Select(x=>Scale(x,scale,dpi)).ToArray();
-        int extra=Math.Max(0,bounds.Width-sizes.Sum());
-        for(int i=0;i<sizes.Length;i++)sizes[i]+=(int)(extra*weights[i]/weights.Sum());
-        sizes[0]+=Math.Max(0,bounds.Width-sizes.Sum());
+        double[] weights=compact?[2,.8,1.1,.9,1,.6]:[2.1,.8,1.1,.9,1,.65];
+        int[] minimum=(compact?CompactWidths:WideWidths).Select(x=>Scale(x,scale,dpi)).ToArray();
+        int target=Math.Max(bounds.Width,minimum.Sum());
+        double remaining=target, fractions=weights.Sum();
+        var fixedTrack=new bool[minimum.Length];
+        // Tracks abaixo do mínimo são congeladas; recalcular o fr restante.
+        for(int pass=0;pass<minimum.Length;pass++)
+        {
+            bool changed=false;
+            double unit=fractions>0?remaining/fractions:0;
+            for(int i=0;i<minimum.Length;i++)
+                if(!fixedTrack[i]&&unit*weights[i]<minimum[i])
+                {fixedTrack[i]=true;remaining-=minimum[i];fractions-=weights[i];changed=true;}
+            if(!changed)break;
+        }
+        double finalUnit=fractions>0?remaining/fractions:0;
+        var sizes=new int[minimum.Length];
+        for(int i=0;i<sizes.Length;i++)
+            sizes[i]=fixedTrack[i]?minimum[i]:Math.Max(minimum[i],(int)Math.Floor(finalUnit*weights[i]+1e-8));
+        for(int i=0;target>sizes.Sum();i=(i+1)%sizes.Length)
+            if(!fixedTrack[i]||fractions<=0)sizes[i]++;
         int left=bounds.Left;
         return sizes.Select(w=>{var rect=new Rectangle(left,bounds.Top,w,bounds.Height);left+=w;return rect;}).ToArray();
     }
-    internal static Rectangle Action(Rectangle bounds,int scale,int dpi,bool remove)
+    internal static Rectangle Action(Rectangle bounds,int scale,int dpi,bool remove,bool compact=false)
     {
-        var cell=Columns(bounds,scale,dpi)[5];
-        int gap=Scale(2,scale,dpi),width=Math.Min(Scale(32,scale,dpi),(cell.Width-gap)/2);
+        var cell=Columns(bounds,scale,dpi,compact)[5];
+        int width=Scale(32,scale,dpi);
+        // O CSS compacto reserva 65px para dois alvos de 32px.
+        // Reduzir só folga/padding se necessário, nunca sobrepor alvos.
+        int gap=Math.Max(0,Math.Min(Scale(2,scale,dpi),cell.Width-width*2));
+        width=Math.Min(width,(cell.Width-gap)/2);
+        int padding=Math.Max(0,Math.Min(Scale(3,scale,dpi),cell.Width-width*2-gap));
         int height=Math.Min(bounds.Height-2,Scale(30,scale,dpi));
-        int start=cell.Right-width*2-gap;
+        int start=cell.Right-padding-width*2-gap;
         return new Rectangle(start+(remove?width+gap:0),bounds.Top+(bounds.Height-height)/2,width,height);
     }
     internal static Rectangle Grip(Rectangle bounds,int scale,int dpi)=>
@@ -48,7 +71,7 @@ internal static class V269AppTable
         V269Theme.Claro=>(H("#bcdcf3"),H("#eaf4fb"),H("#e4f2fd"),H("#c3dff3"),H("#20435f"),H("#9bbacf"),H("#2374ab")),
         _=>(H("#17364a"),H("#091d2d"),H("#0c273a"),H("#1c4666"),H("#e4edf6"),H("#25445f"),H("#7bc2ff"))
     };
-    internal static void DrawHeader(Graphics g,Rectangle bounds,V269AppearanceOptions options,Font font,int dpi)
+    internal static void DrawHeader(Graphics g,Rectangle bounds,V269AppearanceOptions options,Font font,int dpi,bool compact=false)
     {
         if(bounds.Width<1||bounds.Height<1)return;
         var colors=Colors(options.Theme);
@@ -58,12 +81,12 @@ internal static class V269AppTable
         g.FillRectangle(bg,bounds);
         Color ink=options.Theme switch
         {V269Theme.Dark=>H("#cdd3d9"),V269Theme.Claro=>H("#143e60"),_=>H("#bfd2df")};
-        var columns=Columns(bounds,options.InterfacePercent,dpi);
+        var columns=Columns(bounds,options.InterfacePercent,dpi,compact);
         for(int i=0;i<Headers.Length;i++)
         {
-            var rect=columns[i];rect.Inflate(-Scale(5,options.InterfacePercent,dpi),0);
+            var rect=columns[i];rect.Inflate(-CellPadding(options.InterfacePercent,dpi,compact),0);
             TextRenderer.DrawText(g,Headers[i],font,rect,ink,TextFormatFlags.VerticalCenter|
-                TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping);
+                TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|TextFormatFlags.PreserveGraphicsClipping);
         }
         using var line=new Pen(options.Theme switch
         {V269Theme.Dark=>H("#656b72"),V269Theme.Claro=>H("#b7d1e2"),_=>H("#355067")});

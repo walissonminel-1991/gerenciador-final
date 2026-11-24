@@ -274,6 +274,13 @@ internal sealed class DarkProgramList : Control
     internal Bitmap? LocalAppIcon(ProgramEntry item)=>LoadLocalAppIcons?
         (_appIcons??=new V269AppIconCache(this)).Get(item.DisplayIcon,V269MsixIconSource.From(item)):null;
     internal bool V269TableMode=>_tableMode;
+    internal bool TableCompact {get;private set;}
+    internal void SetV269WindowWidth(int logicalWidth)
+    {
+        bool compact=V269AppTable.IsCompact(logicalWidth);
+        if(TableCompact==compact)return;
+        TableCompact=compact;UpdateMetrics();
+    }
     private string _emptyMessage="Nenhum aplicativo identificado.";
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal string EmptyMessage {get=>_emptyMessage;set{_emptyMessage=value;Invalidate();}}
@@ -282,7 +289,7 @@ internal sealed class DarkProgramList : Control
     private int HorizontalHeight=>_tableMode&&_horizontal.Visible?_horizontal.Height:0;
     private int RowsHeight=>Math.Max(1,ClientSize.Height-TableHeaderHeight-HorizontalHeight);
     private int ContentWidth=>Math.Max(1,ClientSize.Width-(_scrollbar.Visible?_scrollbar.Width:0));
-    private int LogicalWidth=>_tableMode?Math.Max(ContentWidth,V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi)):ContentWidth;
+    private int LogicalWidth=>_tableMode?Math.Max(ContentWidth,V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi,TableCompact)):ContentWidth;
     private int HorizontalOffset=>_tableMode?_horizontal.Value:0;
     private Rectangle RowBounds(int index)=>new(-HorizontalOffset,TableHeaderHeight+index*_itemHeight-_scrollOffset,LogicalWidth,_itemHeight);
     private int RowAt(Point point)=>point.Y<TableHeaderHeight||point.Y>=TableHeaderHeight+RowsHeight||
@@ -444,7 +451,7 @@ internal sealed class DarkProgramList : Control
             {
                 int index=owner._items.IndexOf(item);
                 if(index<0)return Rectangle.Empty;
-                Rectangle area=V269AppTable.Action(owner.RowBounds(index),owner.TableInterfacePercent,owner.DeviceDpi,remove);
+                Rectangle area=V269AppTable.Action(owner.RowBounds(index),owner.TableInterfacePercent,owner.DeviceDpi,remove,owner.TableCompact);
                 area.Intersect(new Rectangle(0,owner.TableHeaderHeight,owner.ContentWidth,owner.RowsHeight));
                 return area.Width>0&&area.Height>0?owner.RectangleToScreen(area):Rectangle.Empty;
             }
@@ -507,9 +514,9 @@ internal sealed class DarkProgramList : Control
         var bounds = RowBounds(index);
         if(_tableMode)
         {
-            if(this.AllowsRemoval(item)&&V269AppTable.Action(bounds,_tableOptions.InterfacePercent,DeviceDpi,true).Contains(point))
+            if(this.AllowsRemoval(item)&&V269AppTable.Action(bounds,_tableOptions.InterfacePercent,DeviceDpi,true,TableCompact).Contains(point))
                 return (item,item.UninstallAction);
-            if(this.AllowsUpdate(item)&&V269AppTable.Action(bounds,_tableOptions.InterfacePercent,DeviceDpi,false).Contains(point))
+            if(this.AllowsUpdate(item)&&V269AppTable.Action(bounds,_tableOptions.InterfacePercent,DeviceDpi,false,TableCompact).Contains(point))
                 return (item,VerifiedUpdaters.GetPrimaryAction(item)!);
             return (null,"");
         }
@@ -616,7 +623,7 @@ internal sealed class DarkProgramList : Control
             {
                 _scrollbar.Dock=DockStyle.None;
                 int width=Math.Max(1,ClientSize.Width);
-                int minimum=V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi);
+                int minimum=V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi,TableCompact);
                 int h=Math.Max(12,_horizontal.Height);
                 int v=Math.Max(12,_scrollbar.Width);
                 bool horizontal=minimum>width;
@@ -664,7 +671,7 @@ internal sealed class DarkProgramList : Control
             e.Graphics.SetClip(new Rectangle(0,0,contentWidth,TableHeaderHeight),CombineMode.Intersect);
             using var headerFont=new Font(Font,FontStyle.Bold);
             V269AppTable.DrawHeader(e.Graphics,new Rectangle(-HorizontalOffset,0,LogicalWidth,TableHeaderHeight),
-                _tableOptions,headerFont,DeviceDpi);
+                _tableOptions,headerFont,DeviceDpi,TableCompact);
             e.Graphics.Clip=original;
         }
         e.Graphics.SetClip(new Rectangle(0,TableHeaderHeight,contentWidth,RowsHeight),CombineMode.Intersect);

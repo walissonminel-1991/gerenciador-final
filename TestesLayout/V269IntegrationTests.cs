@@ -205,13 +205,18 @@ internal static class V269IntegrationTests
                     typeof(MainForm).GetMethod("PresentV269AppDetails",flags)!.Invoke(form,[selected]);
                 surface.PerformLayout();Application.DoEvents();
                 Require(list.TableHeaderHeight>0&&list.Items.Count==5,"cabeçalho fixo e inventário preservado");
-                Require(!list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single().Visible,
-                    "seis colunas adaptadas sem rolagem horizontal nas janelas de referência");
+                var hScroll=list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single();
+                var vScroll=list.Controls.Find("V269AppsVerticalScroll",false).OfType<DarkVScrollBar>().Single();
+                int contentWidth=list.ClientSize.Width-(vScroll.Visible?vScroll.Width:0);
+                int minWidth=V269AppTable.MinimumWidth(shell.InterfaceScalePercent,list.DeviceDpi,list.TableCompact);
+                Require(list.TableCompact==V269AppTable.IsCompact(shell.LayoutWindowWidth)&&
+                    hScroll.Visible==(minWidth>contentWidth),
+                    "breakpoint CSS e rolagem somente quando as larguras mínimas não cabem");
                 Require(list.BackColor==V269AppTable.EmptySurface((V269Theme)index),
                     "aplicação geral de temas conserva a superfície exclusiva de Aplicativos");
                 var rowMethod=typeof(DarkProgramList).GetMethod("RowBounds",flags)!;
                 var row=(Rectangle)rowMethod.Invoke(list,[0])!;
-                var cells=V269AppTable.Columns(row,shell.InterfaceScalePercent,list.DeviceDpi);
+                var cells=V269AppTable.Columns(row,shell.InterfaceScalePercent,list.DeviceDpi,list.TableCompact);
                 Require(cells.Length==6&&cells.Sum(x=>x.Width)==row.Width,"geometria das colunas");
                 var origin=surface.PointToScreen(Point.Empty);
                 Rectangle Relative(Control x)=>new(surface.PointToClient(x.PointToScreen(Point.Empty)),x.Size);
@@ -284,7 +289,7 @@ internal static class V269IntegrationTests
             if(shell.RightPane.Visible)details.PerformClick();
             if(horizontal.Visible)horizontal.Value=horizontal.MaximumValue;
             var bounds=(Rectangle)typeof(DarkProgramList).GetMethod("RowBounds",flags)!.Invoke(list,[2])!;
-            var action=V269AppTable.Action(bounds,shell.InterfaceScalePercent,list.DeviceDpi,true);
+            var action=V269AppTable.Action(bounds,shell.InterfaceScalePercent,list.DeviceDpi,true,list.TableCompact);
             var hit=((ProgramEntry? Item,string Action))typeof(DarkProgramList).GetMethod("HitAction",flags)!.Invoke(list,
                 [new Point(action.X+action.Width/2,action.Y+action.Height/2)])!;
             Require(hit.Item is null,"remoção bloqueada também após deslocamento horizontal");
@@ -476,12 +481,17 @@ internal static class V269IntegrationTests
             V269AppTable.ActionColors(V269Theme.Dark,true,true).Back==V269AppTable.H("#772d39")&&
             V269AppTable.ActionColors(V269Theme.Claro,false,false).Back==V269AppTable.H("#f0f8fd"),
             "paleta da última cascata V2.6.9, sem sobrescrever tokens compartilhados");
+        Require(V269AppTable.MinimumWidth(100,96)==616&&V269AppTable.MinimumWidth(100,96,true)==549&&
+            V269AppTable.IsCompact(1050)&&!V269AppTable.IsCompact(1051),"mínimos e breakpoint congelados do HTML");
+        Require(V269AppTable.Columns(new Rectangle(0,0,616,52),100,96).Select(c=>c.Width).SequenceEqual(new[]{185,70,100,88,98,75})&&
+            V269AppTable.Columns(new Rectangle(0,0,549,52),100,96,true).Select(c=>c.Width).SequenceEqual(new[]{150,68,96,80,90,65}),"seis tracks com medidas CSS exatas");
+        foreach(bool compact in new[]{false,true})
         foreach(int scale in new[]{90,100,110})
         foreach(int dpi in new[]{96,120,144,192})
         {
-            var row=new Rectangle(-30,42,V269AppTable.MinimumWidth(scale,dpi),V269AppTable.Scale(52,scale,dpi));
-            var cells=V269AppTable.Columns(row,scale,dpi);
-            var u=V269AppTable.Action(row,scale,dpi,false);var d=V269AppTable.Action(row,scale,dpi,true);
+            var row=new Rectangle(-30,42,V269AppTable.MinimumWidth(scale,dpi,compact),V269AppTable.Scale(52,scale,dpi));
+            var cells=V269AppTable.Columns(row,scale,dpi,compact);
+            var u=V269AppTable.Action(row,scale,dpi,false,compact);var d=V269AppTable.Action(row,scale,dpi,true,compact);
             Require(cells.Length==6&&cells.Sum(c=>c.Width)==row.Width&&
                 cells[5].Contains(u)&&cells[5].Contains(d)&&!u.IntersectsWith(d),
                 "seis colunas e alvos binários disjuntos em escalas/DPI");

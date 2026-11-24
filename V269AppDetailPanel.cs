@@ -97,14 +97,17 @@ internal sealed class V269AppDetailPanel : Panel
             Label Make(string value,bool strong)
             {
                 var label=new Label{Text=value,AutoSize=true,
-                    Margin=new Padding(3,3,3,3),ForeColor=strong?_palette.Text:_palette.SecondaryText,
+                    Margin=new Padding(0,V269AppTable.Scale(11,_interfacePercent,DeviceDpi),0,V269AppTable.Scale(11,_interfacePercent,DeviceDpi)),ForeColor=strong?_palette.Text:_palette.SecondaryText,
                     AccessibleName=value,Tag=strong,UseMnemonic=false};
                 label.MouseWheel+=ScrollContent;return label;
             }
             void AddFull(string value,bool strong)
             {
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                var label=Make(value,strong);_table.Controls.Add(label,0,row);_table.SetColumnSpan(label,2);
+                var label=Make(value,strong);
+                int S(int n)=>V269AppTable.Scale(n,_interfacePercent,DeviceDpi);
+                label.Margin=new Padding(0,S(strong?16:4),0,S(strong?8:7));
+                _table.Controls.Add(label,0,row);_table.SetColumnSpan(label,2);
             }
             // A especificação HTML apresenta quatro campos. Versão e data
             // já estão na tabela; a oferta real permanece na nota quando existe.
@@ -185,14 +188,20 @@ internal sealed class V269AppDetailPanel : Panel
     {
         if(IsDisposed||Disposing)return;
         if(_identityFont is not null&&_identityFont.FontFamily.Equals(Font.FontFamily)&&
-            Math.Abs(_identityFont.SizeInPoints-Font.SizeInPoints)<.01f)return;
-        var old=_identityFont;_identityFont=new Font(Font,FontStyle.Bold);
+            Math.Abs(_identityFont.SizeInPoints-Font.SizeInPoints*16f/12f)<.01f)return;
+        var old=_identityFont;_identityFont=new Font(Font.FontFamily,Font.SizeInPoints*16f/12f,FontStyle.Bold);
         _name.Font=_identityFont;old?.Dispose();FitLabels();
     }
     internal void ApplyInterfaceScale(int percent)
     {
         _interfacePercent=percent;
-        int size=V269AppTable.Scale(48,percent,DeviceDpi),gap=V269AppTable.Scale(8,percent,DeviceDpi);
+        int S(int n)=>V269AppTable.Scale(n,percent,DeviceDpi);
+        int size=S(48),gap=S(10);
+        _identity.Margin=new Padding(0,S(4),0,S(13));
+        foreach(Label label in _table.Controls.OfType<Label>())
+            label.Margin=_table.GetColumnSpan(label)==2
+                ?new Padding(0,S(label.Tag is true?16:4),0,S(label.Tag is true?8:7))
+                :new Padding(0,S(11),0,S(11));
         _icon.Size=new Size(size,size);
         _identity.ColumnStyles[0].Width=size+gap;
         FitLabels();
