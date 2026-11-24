@@ -319,7 +319,6 @@ internal sealed class V269Shell : UserControl
     private Button? _paneToggle;
     private bool _compactPaneOpen;
     private bool? _appPaneOpen;
-    private readonly V269AppToolbarButton _appBack=new("Voltar à lista"){Name="V269AppsBackToList",Visible=false};
     private int _appPanePlacement;
     private int _appPaneWidth=305;
     private V269AppSplitter? _appSplitter;
@@ -452,11 +451,6 @@ internal sealed class V269Shell : UserControl
         heading.SetRowSpan(_homeGlyph, 2);
         heading.Controls.Add(_pageTitle, 1, 0);
         heading.Controls.Add(_pageSubtitle, 1, 1);
-        _appBack.Margin=new Padding(4,6,0,6);
-        _appBack.Click+=(_,_)=>ShowV269AppPane();
-        heading.ColumnCount=3;
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,0));
-        heading.Controls.Add(_appBack,2,0);heading.SetRowSpan(_appBack,2);
         _bodyHost = new Panel
         {
             Name = "V269BodyHost", Dock = DockStyle.Fill,
@@ -533,8 +527,6 @@ internal sealed class V269Shell : UserControl
         if(SelectedPage!=V269Page.Aplicativos)return;
         if(_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)return;
         _appPaneOpen=!_rightPane.Visible;ApplyDimensions();
-        if(_appPaneOpen==false)
-            _bodyHost.Controls.Find("V269AppsDetails",true).FirstOrDefault()?.Focus();
     }
 
     internal void PresentPanel(V269PanelPresentation? presentation) =>
@@ -694,14 +686,7 @@ internal sealed class V269Shell : UserControl
         }
         bool below=apps&&windowWidth<=1040&&showRight;
         if(!showRight||apps)right=0;
-        // Em consulta de detalhes numa janela compacta, ocupar o espaço
-        // da lista em vez de comprimir duas áreas roláveis simultaneamente.
-        // Fluxos de confirmação/progresso conservam o arranjo operacional.
-        bool singleDetail=below&&_rightPane.Current is {Kind:V269PanelKind.Details,Application:not null};
-        PlaceV269AppPane(apps&&showRight?singleDetail?3:below?2:1:0);
-        _appBack.Visible=singleDetail;
-        _headingLayout.ColumnStyles[2].Width=singleDetail?S(116):0;
-        if(singleDetail)_appBack.ApplyOptions(new V269AppearanceOptions(Theme,InterfaceScalePercent,TextScalePercent,false));
+        PlaceV269AppPane(apps&&showRight?below?2:1:0);
         if (home)
         {
             // As medidas CSS já incluem borda e padding da barra lateral.
@@ -805,12 +790,10 @@ internal sealed class V269Shell : UserControl
             {
                 _rightPane.Parent?.Controls.Remove(_rightPane);
                 if(_appSplitter?.Parent is not null)_appSplitter.Parent.Controls.Remove(_appSplitter);
-                _bodyHost.Visible=placement!=3;
                 _centralLayout.SetColumnSpan(_headingLayout,1);
                 _centralLayout.ColumnCount=1;_centralLayout.RowCount=2;
                 while(_centralLayout.ColumnStyles.Count>1)_centralLayout.ColumnStyles.RemoveAt(1);
                 while(_centralLayout.RowStyles.Count>2)_centralLayout.RowStyles.RemoveAt(2);
-                _centralLayout.RowStyles[1].SizeType=SizeType.Percent;
                 _centralLayout.RowStyles[1].Height=100;
                 if(placement==1)
                 {
@@ -829,14 +812,6 @@ internal sealed class V269Shell : UserControl
                     }
                     _centralLayout.Controls.Add(_appSplitter,1,1);
                     _centralLayout.Controls.Add(_rightPane,2,1);
-                }
-                else if(placement==3)
-                {
-                    _centralLayout.RowCount=3;
-                    _centralLayout.RowStyles[1].SizeType=SizeType.Absolute;
-                    _centralLayout.RowStyles[1].Height=0;
-                    _centralLayout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-                    _centralLayout.Controls.Add(_rightPane,0,2);
                 }
                 else if(placement==2)
                 {

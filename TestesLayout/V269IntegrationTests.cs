@@ -220,10 +220,10 @@ internal static class V269IntegrationTests
                     details.PerformClick();Application.DoEvents();
                     Require(shell.RightPane.Visible&&shell.RightPane.Current?.Kind==V269PanelKind.Details,"detalhes compactos acessíveis");
                     var columns=(TableLayoutPanel)shell.RightPane.Parent!;
-                    Require(columns.Name=="V269MainLayout"&&columns.GetRow(shell.RightPane)==2&&columns.GetColumn(shell.RightPane)==0&&!list.Visible,
-                        "painel compacto ocupa área principal sem rolagem simultânea da lista");
-                    var back=form.Controls.Find("V269AppsBackToList",true).OfType<Button>().Single();
-                    Require(back.Visible,"retorno à lista pelo cabeçalho permanece acessível");
+                    Require(columns.Name=="V269MainLayout"&&columns.GetRow(shell.RightPane)==2&&columns.GetColumn(shell.RightPane)==0&&list.Visible,
+                        "painel compacto usa o arranjo original do HTML");
+                    Require(form.Controls.Find("V269AppsBackToList",true).Length==0,
+                        "nenhum botão de retorno adicional ao HTML");
                     Require(shell.RightPane.Current?.Application is {Fields.Count:7,Description:"Descrição sintética declarada para testar apresentação."}&&
                         shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
                         "painel estruturado expõe fatos locais e motivos");
@@ -247,8 +247,8 @@ internal static class V269IntegrationTests
                         "identidade visual do painel vinculada à seleção, sem arte fictícia");
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-DETALHES-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");
-                    back.PerformClick();Application.DoEvents();
-                    Require(list.Visible&&!shell.RightPane.Visible,"retorno restaura tabela e fecha detalhes");
+                    details.PerformClick();Application.DoEvents();
+                    Require(list.Visible&&!shell.RightPane.Visible,"botão Detalhes do HTML fecha painel");
                 }
                 if(size.Width>1040)
                 {
@@ -694,6 +694,15 @@ internal static class V269IntegrationTests
                     Require(shell.InterfaceScalePercent==ui&&shell.TextScalePercent==text&&
                         page.Appearance.GetOptions().InterfacePercent==ui&&page.Appearance.GetOptions().TextPercent==text,
                         "escalas independentes aplicadas pelo binder da MainForm");
+                    var screen=Screen.FromControl(form);
+                    var expectedWindow=StartupWindowSizing.Fit(screen.WorkingArea,screen.Bounds.Height,ui);
+                    Require(form.Size==expectedWindow.Size&&form.MinimumSize==expectedWindow.Size&&
+                        form.MaximumSize==expectedWindow.Size&&screen.WorkingArea.Contains(form.Bounds)&&!form.MaximizeBox,
+                        "controle de Configurações ajusta a janela real e mantém dimensão fixa no monitor");
+                    // A janela real mudou; manter o viewport compacto explícito
+                    // para que os testes de acesso não passem por área maior.
+                    surface.Size=new Size(760,596);
+                    surface.PerformLayout();Application.DoEvents();
                     foreach(Control action in new Control[]{general.Administrator,general.StartWindows,
                         general.Notifications,general.Tray,general.Collect,general.Privacy,general.Diagnostic,general.History,
                         themeChoice,range,textRange,page.Appearance.Controls.Find("V269Animations",true).Single()})

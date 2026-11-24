@@ -263,7 +263,7 @@ internal sealed class DarkProgramList : Control
         if (_operationTimer is not null) RefreshOperations();
         if(_tableMode&&Visible)UpdateMetrics();
     }
-    private readonly DarkVScrollBar _scrollbar = new();
+    private readonly DarkVScrollBar _scrollbar = new(){Name="V269AppsVerticalScroll"};
     private readonly DarkVScrollBar _horizontal=new(){Name="V269AppsHorizontalScroll",Visible=false,TabStop=true,AccessibleName="Rolagem horizontal de aplicativos"};
     private V269AppearanceOptions _tableOptions=V269AppearanceOptions.Default;
     private bool _tableMode,_tableLayout;

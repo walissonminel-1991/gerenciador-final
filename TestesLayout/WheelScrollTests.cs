@@ -33,7 +33,10 @@ internal static class WheelScrollTests
 
         using var list = new DarkProgramList { Size = new Size(800, 260), ItemHeight = 67 };
         list.SetItems(Enumerable.Range(0, 80).Select(i => new ProgramEntry { Name = "Fixture " + i }));
-        var listBar = list.Controls.OfType<DarkVScrollBar>().Single();
+        var listBar = list.Controls.Find("V269AppsVerticalScroll",false).OfType<DarkVScrollBar>().Single();
+        var horizontalBar=list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single();
+        Check(!horizontalBar.Visible&&horizontalBar.MaximumValue==0,
+            "modo legado nao deve ativar a barra horizontal");
         Check(listBar.MaximumValue > 600, "fixture de lista nao tem rolagem");
         for (int i = 0; i < 3; i++) Wheel(list, -30);
         Check(listBar.Value == 0, "deltas parciais nao podem saltar tres linhas de cada vez");

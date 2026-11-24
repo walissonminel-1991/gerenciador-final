@@ -24,6 +24,7 @@ internal sealed partial class MainForm
     private readonly Label _v269StartupTitle = new() { Dock = DockStyle.Fill, AutoEllipsis = true,
         Text = "Consulte os itens de inicialização do Windows." };
     private V269AppearanceOptions _v269Appearance = V269AppearanceOptions.Default;
+    private Action? _v269ResizeFromSettings;
     private bool _v269Confirming;
     private readonly ConditionalWeakTable<Control, LegacyColors> _v269Colors = new();
 
@@ -810,7 +811,9 @@ internal sealed partial class MainForm
         }
         appearance.AppearanceChanged+=(_,_)=>
         {
+            int previousInterface=_v269Appearance.InterfacePercent;
             _v269Appearance=appearance.GetOptions().Normalize();
+            if(previousInterface!=_v269Appearance.InterfacePercent)_v269ResizeFromSettings?.Invoke();
             _programList.V269Options().AnimateButtonFeedback=CanAnimateV269;
             ApplyV269ContentAppearance(this);
             if(_progress.Style==ProgressBarStyle.Marquee&&!CanAnimateV269)

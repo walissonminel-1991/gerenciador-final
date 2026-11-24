@@ -762,17 +762,20 @@ internal sealed partial class MainForm : Form
             ControlStyles.AllPaintingInWmPaint, true);
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        // Abre proporcionalmente a area util em qualquer resolucao.
-        // Nunca exceder 60% e nao restaurar tamanhos antigos.
-        var display = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
-        Rectangle opening = StartupWindowSizing.Fit(display);
+        // Tamanho fixo por monitor; a escala já existente em Configurações
+        // ajusta o tamanho sem adicionar controles nem maximização.
+        if(startServices)_v269Appearance=ReadV269Appearance();
+        var startupScreen=Screen.PrimaryScreen;
+        var display=startupScreen?.WorkingArea??SystemInformation.WorkingArea;
+        Rectangle opening=StartupWindowSizing.Fit(display,startupScreen?.Bounds.Height??display.Height,
+            _v269Appearance.InterfacePercent);
         StartPosition = FormStartPosition.Manual;
         _diagnoseWindowLifecycle = startServices;
         InitializeWindowChrome();
         // Evita exibir a janela no arranque automatico antes do primeiro Hide().
         if (startInTray) Opacity = 0;
         MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
-        MaximumSize = StartupWindowSizing.MaximumSizeFor(display);
+        MaximumSize = opening.Size;
         Bounds = opening;
 
         var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 2, Padding = Padding.Empty, BackColor = AppServices.Background };
@@ -859,22 +862,40 @@ internal sealed partial class MainForm : Form
                 root.RowStyles[0].Height = headerHeight;
             brandHeader.Configure(home, logicalWidth, _v269Appearance);
         }
+        bool adjustingWindow=false;
         void RestoreWithinMonitor(bool recomputeForDisplay = false)
         {
-            if (IsDisposed) return;
-            var area = Screen.FromControl(this).WorkingArea;
-            var fitting = StartupWindowSizing.Fit(area);
-            var minimum = StartupWindowSizing.AllowedMinimum(fitting);
-            var maximum = StartupWindowSizing.MaximumSizeFor(area);
-            if (MinimumSize != minimum) MinimumSize = minimum;
-            if (MaximumSize != maximum) MaximumSize = maximum;
-            var visible = recomputeForDisplay
-                ? fitting : StartupWindowSizing.KeepVisible(Bounds, area);
-            if (Bounds != visible) Bounds = visible;
+            if(IsDisposed||Disposing||adjustingWindow||WindowState!=FormWindowState.Normal)return;
+            adjustingWindow=true;
+            try
+            {
+                var screen=Screen.FromControl(this);
+                var area=screen.WorkingArea;
+                var fitting=StartupWindowSizing.Fit(area,screen.Bounds.Height,_v269Appearance.InterfacePercent);
+                var visible=recomputeForDisplay?fitting:StartupWindowSizing.KeepVisible(Bounds,area,
+                    screen.Bounds.Height,_v269Appearance.InterfacePercent);
+                if(MinimumSize!=fitting.Size||MaximumSize!=fitting.Size)
+                {
+                    MinimumSize=Size.Empty;MaximumSize=Size.Empty;
+                    Bounds=visible;
+                    MinimumSize=MaximumSize=fitting.Size;
+                }
+                else if(Bounds!=visible)Bounds=visible;
+            }
+            finally{adjustingWindow=false;}
         }
+        _v269ResizeFromSettings=()=>{RestoreWithinMonitor(recomputeForDisplay:true);FitWorkspace();};
         root.SizeChanged += (_, _) => FitWorkspace();
         DpiChanged += (_, _) => { RestoreWithinMonitor(recomputeForDisplay: true); FitWorkspace(); };
         ResizeEnd += (_, _) => RestoreWithinMonitor();
+        string currentMonitor=Screen.FromControl(this).DeviceName;
+        LocationChanged+=(_,_)=>{
+            if(IsDisposed||WindowState!=FormWindowState.Normal)return;
+            string nextMonitor=Screen.FromControl(this).DeviceName;
+            if(nextMonitor==currentMonitor)return;
+            currentMonitor=nextMonitor;
+            RestoreWithinMonitor(recomputeForDisplay:true);
+        };
         // Alteracoes de resolucao podem enviar varios eventos consecutivos.
         // Consolidar para nao redesenhar a arvore da janela repetidamente.
         var displayUpdate = new System.Windows.Forms.Timer { Interval = 170 };

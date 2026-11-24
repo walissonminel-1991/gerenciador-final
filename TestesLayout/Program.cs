@@ -326,7 +326,7 @@ internal static class LayoutTests
         {
             if (resolution.Width < 1280 || resolution.Height < 720) continue;
             var window = StartupWindowSizing.Fit(new Rectangle(0, 0,
-                resolution.Width, Math.Max(300, resolution.Height - 48)));
+                resolution.Width, Math.Max(300, resolution.Height - 48)),resolution.Height);
             foreach (int dpi in new[] { 96, 120, 144, 192 })
             {
                 // Simular padding da janela/sistema e scrollbar; conferir
@@ -556,7 +556,7 @@ internal static class LayoutTests
             // testar limites no modelo e rolagem no viewport acessivel.
             var monitor = new Rectangle(0, 0, resolution.Width,
                 Math.Max(300, resolution.Height - 48));
-            var opening = StartupWindowSizing.Fit(monitor);
+            var opening = StartupWindowSizing.Fit(monitor,resolution.Height);
             surface.Size = new Size(
                 Math.Clamp(opening.Width - 16, 520, 1400),
                 Math.Clamp(opening.Height - 39, 400, 1040));
@@ -914,7 +914,7 @@ internal static class LayoutTests
                 // Simular o viewport, como na matriz acima. Redimensionar o
                 // Form seria limitado pelo monitor fisico do runner (e pela
                 // politica de 60%), nao pelo monitor sintetico deste cenario.
-                var opening = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48));
+                var opening = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48),screen.Height);
                 surface.Size = new Size(opening.Width - 16, opening.Height - 39);
                 surface.PerformLayout(); Application.DoEvents();
                 var row = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(c => c.Top))
@@ -1127,67 +1127,31 @@ internal static class LayoutTests
     {
         if (StartupWindowSizing.ValidationMatrix.Length != 21)
             throw new Exception("A matriz precisa de 21 resolucoes.");
-        var referenceArea = new Rectangle(0, 0, 1440, 852);
-        var reference = StartupWindowSizing.Fit(referenceArea);
-        if (reference.Size != new Size(1008, 698) ||
-            reference.X != 216 || reference.Y != 77)
-            throw new Exception("1440x900: dimensao deve acompanhar area util e ocupar cerca de 57%.");
-        var wxga = new Rectangle(0, 0, 1366, 720);
-        var wxgaWindow = StartupWindowSizing.Fit(wxga);
-        if (wxgaWindow.Size != new Size(956, 590))
-            throw new Exception("1366x768: nao abriu com tamanho proporcional.");
-        var lowResolution = new Rectangle(0, 0, 800, 552);
-        var lowWindow = StartupWindowSizing.Fit(lowResolution);
-        if (!StartupWindowSizing.ApplyAreaLimit(lowResolution) ||
-            lowWindow.Size != new Size(560, 452))
-            throw new Exception("800x600 tambem deve respeitar a regra universal de 60%.");
-        var hugeArea = new Rectangle(0, 0, 2560, 1392);
-        var quadHd = StartupWindowSizing.Fit(hugeArea);
-        if (quadHd.Size != new Size(1792, 1141))
-            throw new Exception("2560x1440 deve ampliar a janela proporcionalmente; DPI nao define resolucao.");
-        if (quadHd.Width <= reference.Width || quadHd.Height <= reference.Height)
-            throw new Exception("Janela em 1440p permanece artificialmente pequena.");
-        var resized = StartupWindowSizing.KeepVisible(
-            new Rectangle(0, 0, 4000, 4000), hugeArea);
-        if (resized.Width * (long)resized.Height >
-            3L * hugeArea.Width * hugeArea.Height / 5L)
-            throw new Exception("Troca de monitor permitiu exceder o limite de 60%.");
-        var largestArea = new Rectangle(0, 0, 7680, 4272);
-        if (StartupWindowSizing.Fit(largestArea).Width <= quadHd.Width)
-            throw new Exception("8K nao está utilizando proporcionalmente a area do monitor.");
-        foreach (var (name, resolution) in StartupWindowSizing.ValidationMatrix)
+        foreach(var (name,resolution) in StartupWindowSizing.ValidationMatrix.Concat(
+            new[]{("PC FRACO",new Size(1440,900))}))
         {
-            // Simular barra de tarefas de 48 pixels e area util com origem
-            // deslocada, como ocorre em um monitor secundario.
-            var workArea = new Rectangle(100, 64, resolution.Width, resolution.Height - 48);
-            Rectangle opening = StartupWindowSizing.Fit(workArea);
-            long pixels = (long)opening.Width * opening.Height;
-            long available = (long)workArea.Width * workArea.Height;
-            if (!StartupWindowSizing.ApplyAreaLimit(workArea) ||
-                pixels > 3L * available / 5L)
-                throw new Exception($"Area acima de 60%: {name} {opening}");
-            if (pixels < 55L * available / 100L)
-                throw new Exception($"Janela ficou pequena demais: {name} {opening}");
-            if (!workArea.Contains(opening) ||
-                opening.Width > workArea.Width || opening.Height > workArea.Height)
-                throw new Exception($"Janela inicial fora da tela: {name} {opening}");
-            Size min = StartupWindowSizing.AllowedMinimum(opening);
-            if (min.Width > opening.Width || min.Height > opening.Height)
-                throw new Exception($"Tamanho minimo impede abertura: {name}");
-            var outside = new Rectangle(-3000, -3000, 2000, 1400);
-            Rectangle recovered = StartupWindowSizing.KeepVisible(outside, workArea);
-            if (!workArea.Contains(recovered))
-                throw new Exception($"Nao recuperou a janela apos troca de monitor: {name}");
-            Size maximum = StartupWindowSizing.MaximumSizeFor(workArea);
-            if (opening.Width > maximum.Width || opening.Height > maximum.Height)
-                throw new Exception($"Janela ultrapassou tamanho maximo: {name}");
-            if ((long)maximum.Width * maximum.Height > 3L * available / 5L)
-                throw new Exception($"Redimensionamento excederia 60%: {name}");
-            // Ao mover para monitor menor, o tamanho e limitado sem alterar os
-            // limites das janelas ja validas.
-            if (StartupWindowSizing.KeepVisible(opening, workArea) != opening)
-                throw new Exception($"Posicao valida alterada: {name}");
-            Console.WriteLine($"Fit OK {name}: {resolution.Width}x{resolution.Height}");
+            var area=new Rectangle(100,64,resolution.Width,resolution.Height-48);
+            int expected=resolution.Height>=1080?60:resolution.Height>=720?80:90;
+            if(StartupWindowSizing.BasePercent(resolution.Height)!=expected)
+                throw new Exception($"Faixa de janela incorreta: {name}");
+            foreach(int scale in new[]{90,100,110})
+            {
+                var opening=StartupWindowSizing.Fit(area,resolution.Height,scale);
+                int W(int n)=>Math.Clamp((int)(((long)n*expected*scale+5000L)/10000L),1,n);
+                if(opening.Size!=new Size(W(area.Width),W(area.Height))||
+                    opening.X!=area.Left+(area.Width-opening.Width)/2||
+                    opening.Y!=area.Top+(area.Height-opening.Height)/2||!area.Contains(opening))
+                    throw new Exception($"Dimensão fixa incorreta: {name} escala {scale}: {opening}");
+                if(StartupWindowSizing.AllowedMinimum(opening)!=opening.Size||
+                    StartupWindowSizing.MaximumSizeFor(area,resolution.Height,scale)!=opening.Size)
+                    throw new Exception($"Limites de tamanho fixo incorretos: {name}");
+                var recovered=StartupWindowSizing.KeepVisible(new Rectangle(-3000,-3000,9000,9000),
+                    area,resolution.Height,scale);
+                if(recovered.Size!=opening.Size||!area.Contains(recovered)||
+                    StartupWindowSizing.KeepVisible(opening,area,resolution.Height,scale)!=opening)
+                    throw new Exception($"Recuperação de monitor incorreta: {name}");
+            }
+            Console.WriteLine($"Fit OK {name}: {resolution.Width}x{resolution.Height} faixa={expected}%");
         }
     }
 
