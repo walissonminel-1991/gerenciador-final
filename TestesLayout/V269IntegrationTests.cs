@@ -77,6 +77,14 @@ internal static class V269IntegrationTests
         Require(home.Cards.Select(x => x.Key).SequenceEqual(keys),
             "cinco cartões do HTML em ordem, sem duplicar um cartão por provedor");
         int[] lengths = [4268, 6516, 8300, 12772, 11864];
+        int[] pngLengths = [17661, 27275, 39960, 54991, 62218];
+        Size[] dimensions = [new(134,131), new(146,140), new(188,143), new(156,141), new(320,139)];
+        string[] pngHashes = [
+            "0a5d21217f7fde5a9d8d5cfdec4e5bdbb5a758307ac30c22471b67390b592dfc",
+            "053edb738433c9c71526655ec4d5d714ca5ed1474270229033613113c03c4e56",
+            "d64f414cbe1ed91f051f641375fcd276eb8f92dd7e1e2acb7165c78a54d7e4ab",
+            "911466eee92df36798767e6a46574e38fe7af363664b9d0e09e9485344c6bc37",
+            "db7e4d6e03f640ea320ca75e45ed67b823b561486b6cc7e2087b6b2449d02eb4"];
         for (int i = 0; i < keys.Length; i++)
         {
             var bytes = V269HomeArt.Original(keys[i]);
@@ -84,6 +92,13 @@ internal static class V269IntegrationTests
                 System.Text.Encoding.ASCII.GetString(bytes, 8, 4) == "WEBP" &&
                 Convert.ToBase64String(bytes).Length == lengths[i],
                 "arte WebP original " + keys[i]);
+            var png = V269HomeArt.PortablePng(keys[i]);
+            Require(png.Length == pngLengths[i] &&
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png))
+                    .Equals(pngHashes[i], StringComparison.OrdinalIgnoreCase),
+                "identidade do PNG convertido " + keys[i]);
+            using var art = V269HomeArt.DecodeAsync(keys[i]).GetAwaiter().GetResult();
+            Require(art.Size == dimensions[i], "decodificação PNG nativa " + keys[i]);
         }
         var empty = MainForm.V269HomeModels(null);
         Require(empty.SelectMany(x => x.Specs.Concat(x.Sensors)).All(x => x.Value == "N/D"),
