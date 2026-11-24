@@ -348,7 +348,7 @@ internal static class V269IntegrationTests
         }
 
         // O dashboard real conserva instâncias e permite comparação nos três temas.
-        var identity = home.Cards.ToArray();
+        var cardIdentity = home.Cards.ToArray();
         home.SetModels(models);
         var clock = System.Diagnostics.Stopwatch.StartNew();
         while (home.Cards.Any(x => !x.ArtReady && x.ArtError is null) &&
@@ -380,7 +380,7 @@ internal static class V269IntegrationTests
             home.AutoScrollPosition = Point.Empty;
             home.PerformLayout();
             Application.DoEvents();
-            Require(home.Cards.SequenceEqual(identity), "tema não recria cartões");
+            Require(home.Cards.SequenceEqual(cardIdentity), "tema não recria cartões");
             var cards = home.Cards;
             Require(cards.All(c => c.Width > 0 && c.Height > 0) &&
                 cards[4].Width >= cards[0].Width &&
@@ -437,9 +437,9 @@ internal static class V269IntegrationTests
         try
         {
             home.SetModels(visualFixture);
-            foreach (Size dimensions in new[] { new Size(716,596), new Size(992,659) })
+            foreach (Size viewportSize in new[] { new Size(716,596), new Size(992,659) })
             {
-                surface.Size = dimensions;
+                surface.Size = viewportSize;
                 foreach (var theme in Enum.GetValues<V269Theme>())
                 {
                     themeChoice.SelectedIndex = (int)theme;
@@ -447,11 +447,11 @@ internal static class V269IntegrationTests
                     home.AutoScrollPosition = Point.Empty;
                     surface.PerformLayout(); home.PerformLayout(); Application.DoEvents();
                     Require(home.Cards[0].Width > 0 && home.Cards[0].Height > 0 &&
-                        (dimensions.Width >= 940) == (home.Cards[0].Top == home.Cards[1].Top),
-                        "colunas do viewport de referência " + dimensions);
+                        (viewportSize.Width >= 940) == (home.Cards[0].Top == home.Cards[1].Top),
+                        "colunas do viewport de referência " + viewportSize);
                     using var same = new Bitmap(surface.Width, surface.Height);
                     surface.DrawToBitmap(same, new Rectangle(Point.Empty, surface.Size));
-                    same.Save($"LayoutCaptures/v269-inicio-REFERENCIA-SINTETICA-{theme}-{dimensions.Width}x{dimensions.Height}.png");
+                    same.Save($"LayoutCaptures/v269-inicio-REFERENCIA-SINTETICA-{theme}-{viewportSize.Width}x{viewportSize.Height}.png");
                 }
             }
         }
