@@ -221,7 +221,7 @@ internal sealed partial class MainForm
                 mem is { TotalBytes: > 0 } ? Gib(mem.UsedBytes) : "N/D"), "Disponível",
                 mem is { TotalBytes: > 0 } ? Gib(mem.AvailableBytes) : "N/D") },
             "windows" => model with { Specs = Replace(model.Specs, "Tempo de atividade",
-                Show(sample.SystemUptime, x => $"{(int)x.TotalDays}d {x.Hours}h {x.Minutes}min")) },
+                Show(sample.SystemUptime, V269WindowsPresentation.Uptime)) },
             _ => model
         }).ToArray();
     }
@@ -390,10 +390,13 @@ internal sealed partial class MainForm
         var ramSensors = new V269HomeRow[] {
             R("Uso atual", mem is { TotalBytes: > 0 } ? Gib(mem.UsedBytes) : nd),
             R("Disponível", mem is { TotalBytes: > 0 } ? Gib(mem.AvailableBytes) : nd) };
+        var boardNominal = platform?.MotherboardsState == HardwareDiscoveryState.Complete && boards.Count == 1
+            ? V269BoardSpecCatalog.Resolve(boards[0]) : null;
         var boardRows = new V269HomeRow[] { R("Fabricante", Join(boards.Select(x => x.Manufacturer))),
-            R("Modelo", Join(boards.Select(x => x.Product))), R("Chipset", nd),
+            R("Modelo", Join(boards.Select(x => x.Product))), R("Chipset", boardNominal is null ? nd : boardNominal.Chipset + " (ASUS)"),
             R("BIOS", platform?.ReportedBiosVersion),
-            R("Soquete", nominal?.Socket is { } socket ? socket + " (CPU, AMD)" :
+            R("Soquete", boardNominal is not null ? boardNominal.Socket + " (ASUS)" :
+                nominal?.Socket is { } socket ? socket + " (CPU, AMD)" :
                 Join(cpu.Select(x => x.ReportedSocketDesignation is { } designation
                     ? "Designação: " + designation : null))) };
         var boardSensors = new V269HomeRow[] {
@@ -407,7 +410,7 @@ internal sealed partial class MainForm
         {
             var os = Environment.OSVersion.Version;
             build = os.Build.ToString();
-            architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString();
+            architecture = V269WindowsPresentation.Architecture(System.Runtime.InteropServices.RuntimeInformation.OSArchitecture);
             version = Environment.OSVersion.VersionString;
             try
             {
@@ -415,7 +418,8 @@ internal sealed partial class MainForm
                     @"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
                 string edition = osKey?.GetValue("EditionID") as string ?? "";
                 string display = osKey?.GetValue("DisplayVersion") as string ?? "";
-                version = Join(new[] { version, edition, display });
+                string installation = osKey?.GetValue("InstallationType") as string ?? "";
+                version = V269WindowsPresentation.Version(os, installation, edition, display);
                 if (osKey?.GetValue("UBR") is int ubr && ubr >= 0) build += "." + ubr;
                 using var bootKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
                     @"SYSTEM\CurrentControlSet\Control\SecureBoot\State");
@@ -427,7 +431,7 @@ internal sealed partial class MainForm
         }
         var windowsRows = new V269HomeRow[] { R("Versão", version), R("Compilação", build),
             R("Arquitetura", architecture),
-            R("Tempo de atividade", M(sample?.SystemUptime, x => $"{(int)x.TotalDays}d {x.Hours}h {x.Minutes}min")) };
+            R("Tempo de atividade", M(sample?.SystemUptime, V269WindowsPresentation.Uptime)) };
         string virtualization = nd;
         if (cpu.Count > 0 && platform?.CpuSocketsState == HardwareDiscoveryState.Complete &&
             cpu.All(x => x.FirmwareVirtualizationEnabled.HasValue))
@@ -762,6 +766,60 @@ internal static class V269CpuSpecCatalog
             threads != value.Threads) return null;
         return value;
     }
+}
+
+internal sealed record V269BoardNominal(string Chipset, string Socket, string Source);
+internal static class V269BoardSpecCatalog
+{
+    internal static V269BoardNominal? Resolve(WindowsMotherboard board)
+    {
+        if (board.Manufacturer is not { } manufacturer ||
+            !(manufacturer.Equals("ASUSTeK COMPUTER INC.", StringComparison.OrdinalIgnoreCase) ||
+              manufacturer.Equals("ASUS", StringComparison.OrdinalIgnoreCase)))
+            return null;
+        if (string.Equals(board.Product, "TUF GAMING B550-PLUS", StringComparison.OrdinalIgnoreCase))
+            return new("AMD B550", "AM4", "https://www.asus.com/us/motherboards-components/motherboards/all-series/tuf-gaming-b550-plus/techspec/");
+        if (string.Equals(board.Product, "TUF GAMING B550-PLUS (WI-FI)", StringComparison.OrdinalIgnoreCase))
+            return new("AMD B550", "AM4", "https://www.asus.com/us/motherboards-components/motherboards/all-series/tuf-gaming-b550-plus-wi-fi/techspec/");
+        return null;
+    }
+}
+
+internal static class V269WindowsPresentation
+{
+    internal static string Architecture(System.Runtime.InteropServices.Architecture value) => value switch
+    {
+        System.Runtime.InteropServices.Architecture.X64 => "64 bits (x64)",
+        System.Runtime.InteropServices.Architecture.X86 => "32 bits (x86)",
+        System.Runtime.InteropServices.Architecture.Arm64 => "64 bits (ARM64)",
+        System.Runtime.InteropServices.Architecture.Arm => "32 bits (ARM)",
+        _ => value.ToString()
+    };
+
+    internal static string Version(Version os, string installation, string edition, string display)
+    {
+        // Windows Server e builds não reconhecidos não viram Windows 11.
+        string? family = installation.Equals("Client", StringComparison.OrdinalIgnoreCase) && os.Major == 10
+            ? os.Build >= 22000 ? "Windows 11" : os.Build >= 10240 ? "Windows 10" : null
+            : null;
+        string? suffix = edition switch
+        {
+            "Professional" => "Pro", "ProfessionalN" => "Pro N",
+            "ProfessionalWorkstation" => "Pro for Workstations",
+            "Core" => "Home", "CoreN" => "Home N", "CoreSingleLanguage" => "Home Single Language",
+            "Enterprise" => "Enterprise", "EnterpriseN" => "Enterprise N",
+            "Education" => "Education", "EducationN" => "Education N", _ => null
+        };
+        if (family is null)
+            return string.Join(" / ", new[] { "Windows " + os, edition, display }
+                .Where(x => !string.IsNullOrWhiteSpace(x)));
+        string result = family + (suffix is not null ? " " + suffix :
+            string.IsNullOrWhiteSpace(edition) ? "" : " (" + edition + ")");
+        return string.IsNullOrWhiteSpace(display) ? result : result + " (" + display + ")";
+    }
+
+    internal static string Uptime(TimeSpan time) =>
+        time < TimeSpan.Zero ? "N/D" : $"{time.Days} {(time.Days == 1 ? "dia" : "dias")}, {time.Hours} h e {time.Minutes} min";
 }
 
 internal sealed class V269ProgramListOptions

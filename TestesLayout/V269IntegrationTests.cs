@@ -152,6 +152,17 @@ internal static class V269IntegrationTests
         var snapshot = new HardwareSensorPortfolio(at, sample, pnp, gpu, storage, acpi,
             PlatformHardware: platform)
             { TpmDescription = V269TpmReader.Describe(0, 1, 2) };
+        Require(V269BoardSpecCatalog.Resolve(new WindowsMotherboard("fixture", "ASUSTeK COMPUTER INC.", "TUF GAMING B550-PLUS", null))?.Chipset == "AMD B550" &&
+            V269BoardSpecCatalog.Resolve(new WindowsMotherboard("fixture", "ASUS", "TUF GAMING B550-PLUS (WI-FI)", null))?.Socket == "AM4" &&
+            V269BoardSpecCatalog.Resolve(new WindowsMotherboard("fixture", "Outro fabricante", "TUF GAMING B550-PLUS", null)) is null &&
+            V269BoardSpecCatalog.Resolve(new WindowsMotherboard("fixture", "ASUS", "TUF GAMING B550-PLUS II", null)) is null,
+            "chipset nominal exige fabricante e modelo exatos");
+        Require(V269WindowsPresentation.Version(new Version(10, 0, 26100), "Client", "Professional", "24H2") == "Windows 11 Pro (24H2)" &&
+            V269WindowsPresentation.Version(new Version(10, 0, 19045), "Client", "Core", "22H2") == "Windows 10 Home (22H2)" &&
+            !V269WindowsPresentation.Version(new Version(10, 0, 26100), "Server", "ServerStandard", "").Contains("Windows 11", StringComparison.Ordinal) &&
+            V269WindowsPresentation.Architecture(System.Runtime.InteropServices.Architecture.X64) == "64 bits (x64)" &&
+            V269WindowsPresentation.Uptime(new TimeSpan(2, 14, 27, 0)) == "2 dias, 14 h e 27 min",
+            "apresentação do Windows fiel à referência, sem confundir cliente e servidor");
         var models = MainForm.V269HomeModels(snapshot);
         Require(models[4].Sensors.Single(x => x.Label == "TPM").Value == "Presente (2.0)" &&
             V269TpmReader.Describe(0, 1, 1) == "Presente (1.2)" &&
@@ -190,7 +201,7 @@ internal static class V269IntegrationTests
         });
         Require(live[0].Sensors.Single(x => x.Label == "Uso").Value == "37%" &&
             live[2].Sensors.Single(x => x.Label == "Disponível").Value == "4 GiB" &&
-            live[4].Specs.Single(x => x.Label == "Tempo de atividade").Value == "0d 4h 0min" &&
+            live[4].Specs.Single(x => x.Label == "Tempo de atividade").Value == "0 dias, 4 h e 0 min" &&
             live[0].Specs.SequenceEqual(models[0].Specs) &&
             ReferenceEquals(live[1], models[1]) && ReferenceEquals(live[3], models[3]) &&
             live[4].Sensors.SequenceEqual(models[4].Sensors),
