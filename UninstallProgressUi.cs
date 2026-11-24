@@ -57,9 +57,11 @@ internal sealed partial class MainForm
     internal void ShowUninstallResult(string summary)
     {
         if (IsDisposed || Disposing) return;
+        var presentation=new V269PanelPresentation(V269PanelKind.Result,"Resultado da desinstalação",summary);
+        if(_v269AppExecutionActive)_v269AppExecutionResult=presentation;
         if (IsInTray || !Visible)
         { pendingUninstallSummary = pendingUninstallSummary is null ? summary : pendingUninstallSummary + "\n\n" + summary; return; }
-        _nav.PresentPanel(new(V269PanelKind.Result, "Resultado da desinstalação", summary));
+        _nav.PresentPanel(presentation);
     }
     private void ResumeUninstallResult()
     {

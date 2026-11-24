@@ -330,6 +330,29 @@ internal static class V269IntegrationTests
                     "resultado de outro aplicativo nunca é atribuído à seleção");
             }
             finally{list.UninstallOperationFor=previousOperation;}
+            // Só estados de apresentação; nenhum comando, rede ou manutenção.
+            surface.Size=new Size(1200,659);surface.PerformLayout();
+            shell.PresentPanel(null);list.SelectedIndex=0;
+            var record=typeof(MainForm).GetMethod("RecordV269AppResult",flags)!;
+            var oldResult=new V269PanelPresentation(V269PanelKind.Result,"Resultado de fixture","Resultado real da fixture, sem execução.");
+            shell.PresentPanel(oldResult);record.Invoke(form,[oldResult.Title,oldResult.Description,oldResult]);
+            Require(shell.RightPane.Current?.Application?.PreviousResults is {Count:1},
+                "resultado retido migra para seção contextual sem bloquear a seleção");
+            list.SelectedIndex=1;Application.DoEvents();
+            Require(shell.RightPane.Current?.Application is {Name:"Discord",PreviousResults:{Count:1}} contextHistory&&
+                contextHistory.PreviousResults[0].Description==oldResult.Description&&
+                !contextHistory.Reasons.Contains(oldResult.Description,StringComparison.Ordinal),
+                "seleção independente; resultado anterior não atribuído ao novo aplicativo");
+            var previousRow=shell.RightPane.Controls.Find("V269AppPreviousResult",true).Single();
+            var dismiss=previousRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+            Require(dismiss.Enabled&&dismiss.AccessibleName?.Contains(oldResult.Title,StringComparison.Ordinal)==true,
+                "Dispensar contextual acessível e associado à identidade do resultado");
+            // PerformClick exige que a janela e a linha estejam visíveis.
+            var historyScroll=shell.RightPane.Controls.Find("V269AppDetailsScroll",true).OfType<DarkVScrollBar>().Single();
+            historyScroll.Value=historyScroll.MaximumValue;Application.DoEvents();dismiss.PerformClick();
+            Require(shell.RightPane.Current?.Application?.PreviousResults is {Count:0}&&
+                shell.RightPane.Controls.Find("V269AppPreviousResult",true).Length==0,
+                "dispensar remove somente o resultado da apresentação");
             surface.Size=new Size(1200,659);surface.PerformLayout();
             var cancelField=typeof(MainForm).GetField("_uninstallCts",flags)!;
             var showCancel=typeof(MainForm).GetMethod("ShowUninstallCancellation",flags)!;

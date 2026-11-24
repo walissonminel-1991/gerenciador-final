@@ -3,8 +3,10 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 namespace GerenciadorAplicativos;
 
+internal sealed record V269AppPreviousResult(Guid Id,string Title,string Description);
 internal sealed record V269AppDetailModel(string Name,string Publisher,
-    IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null,string Description="");
+    IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null,string Description="",
+    IReadOnlyList<V269AppPreviousResult>? PreviousResults=null,Action<Guid>? DismissResult=null);
 
 // Superfícies exclusivas do painel estruturado, derivadas da cascata final
 // do HTML. Os motores e painéis de confirmação/progresso não usam estas cores.
@@ -24,6 +26,73 @@ internal static class V269AppDetailStyle
     }
     internal static Color Divider(V269Theme theme)=>V269AppTable.H(theme switch
     {V269Theme.Dark=>"#3c4249",V269Theme.Claro=>"#b7d1e2",_=>"#1c354b"});
+}
+
+// Linha contextual baseada em gf-history-row. A ação descarta apenas
+// a apresentação, e nunca um evento do motor ou do registro local.
+internal sealed class V269AppHistoryRow : TableLayoutPanel
+{
+    private readonly Label _symbol=new(){Text="•",AutoSize=true,Margin=Padding.Empty};
+    private readonly Label _heading=new(){AutoSize=true,UseMnemonic=false,Margin=Padding.Empty};
+    private readonly Label _message=new(){AutoSize=true,UseMnemonic=false,Margin=Padding.Empty};
+    private readonly Button _dismiss=new(){Name="V269AppDismissResult",Text="Dispensar",FlatStyle=FlatStyle.Flat,
+        AutoSize=false,UseVisualStyleBackColor=false,Anchor=AnchorStyles.Top|AnchorStyles.Right,Margin=Padding.Empty};
+    private Font? _headingFont,_messageFont;
+    private Color _line;
+    internal V269AppHistoryRow(V269AppPreviousResult result,Action<Guid>? dismiss)
+    {
+        Name="V269AppPreviousResult";AccessibleName=result.Title;AccessibleDescription=result.Description;
+        AutoSize=true;AutoSizeMode=AutoSizeMode.GrowAndShrink;Dock=DockStyle.Top;ColumnCount=3;RowCount=2;
+        ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,23));ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,68));
+        RowStyles.Add(new RowStyle(SizeType.AutoSize));RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _heading.Text=result.Title;_message.Text=result.Description;
+        _dismiss.AccessibleName="Dispensar resultado anterior de "+result.Title;
+        _dismiss.Enabled=dismiss is not null;_dismiss.Click+=(_,_)=>dismiss?.Invoke(result.Id);
+        Controls.Add(_symbol,0,0);SetRowSpan(_symbol,2);
+        Controls.Add(_heading,1,0);Controls.Add(_message,1,1);
+        Controls.Add(_dismiss,2,0);SetRowSpan(_dismiss,2);
+        FontChanged+=(_,_)=>ApplyFonts();
+        ApplyFonts();
+    }
+    private void ApplyFonts()
+    {
+        if(IsDisposed||Disposing)return;
+        var h=_headingFont;var m=_messageFont;
+        _headingFont=new Font(Font.FontFamily,Math.Max(1f,Font.SizeInPoints*11f/12f),FontStyle.Bold);
+        _messageFont=new Font(Font.FontFamily,Math.Max(1f,Font.SizeInPoints*10f/12f));
+        _heading.Font=_headingFont;_message.Font=_dismiss.Font=_messageFont;
+        h?.Dispose();m?.Dispose();
+    }
+    internal void ApplyMetrics(int percent,int width)
+    {
+        int S(int n)=>V269AppTable.Scale(n,percent,DeviceDpi);
+        Margin=Padding.Empty;Padding=new Padding(0,S(8),0,S(8));
+        int symbol=S(23),button=Math.Max(S(65),TextRenderer.MeasureText(_dismiss.Text,_dismiss.Font).Width+S(12));
+        ColumnStyles[0].Width=symbol;ColumnStyles[2].Width=button;
+        MaximumSize=new Size(Math.Max(1,width),0);
+        _heading.MaximumSize=_message.MaximumSize=new Size(Math.Max(1,width-symbol-button-S(7)),0);
+        _message.Margin=new Padding(0,S(4),S(7),0);_heading.Margin=new Padding(0,0,S(7),0);
+        _dismiss.Size=new Size(button,Math.Max(S(25),_dismiss.Font.Height+S(6)));
+    }
+    internal void ApplyPalette(V269Palette palette)
+    {
+        BackColor=palette.RightPanel;_heading.ForeColor=palette.Text;
+        _symbol.ForeColor=_message.ForeColor=palette.SecondaryText;_line=palette.Border;
+        _dismiss.BackColor=palette.Card;_dismiss.ForeColor=palette.Text;
+        _dismiss.FlatAppearance.BorderColor=palette.Border;
+        _dismiss.FlatAppearance.MouseOverBackColor=palette.Card;
+        _dismiss.FlatAppearance.MouseDownBackColor=palette.Card;Invalidate();
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);if(Width<1||Height<1)return;
+        using var pen=new Pen(_line);e.Graphics.DrawLine(pen,0,Height-1,Width-1,Height-1);
+    }
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);if(disposing){_headingFont?.Dispose();_messageFont?.Dispose();}
+    }
 }
 
 internal sealed class V269AppDetailPanel : Panel
@@ -130,6 +199,20 @@ internal sealed class V269AppDetailPanel : Panel
             // A nota única do HTML preserva o motivo real; informações
             // completas continuam no modelo e na descrição acessível.
             AddFull(note,false);
+            if(model.PreviousResults is {Count:>0} previous)
+            {
+                AddFull("Resultados anteriores",true);
+                foreach(var result in previous)
+                {
+                    int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    var history=new V269AppHistoryRow(result,model.DismissResult);
+                    history.ApplyMetrics(_interfacePercent,Math.Max(1,ClientSize.Width));
+                    history.ApplyPalette(_palette);
+                    history.MouseWheel+=ScrollContent;
+                    foreach(Control child in history.Controls)child.MouseWheel+=ScrollContent;
+                    _table.Controls.Add(history,0,row);_table.SetColumnSpan(history,2);
+                }
+            }
         }
         finally{_table.ResumeLayout(true);FitLabels();}
     }
@@ -153,6 +236,8 @@ internal sealed class V269AppDetailPanel : Panel
                         (int)(width*(column==0 ? .4 : .6))-6;
                     label.MaximumSize=new Size(Math.Max(20,max),0);
                 }
+                foreach(var history in _table.Controls.OfType<V269AppHistoryRow>())
+                    history.ApplyMetrics(_interfacePercent,width);
                 return Math.Max(1,_table.GetPreferredSize(new Size(width,0)).Height);
             }
             // Primeiro medir com a largura inteira; só reservar a trilha
@@ -215,6 +300,7 @@ internal sealed class V269AppDetailPanel : Panel
         _icon.ApplyPalette(palette);_table.Invalidate();
         foreach(Label label in _table.Controls.OfType<Label>())
             label.ForeColor=label.Tag is true?palette.Text:palette.SecondaryText;
+        foreach(var history in _table.Controls.OfType<V269AppHistoryRow>())history.ApplyPalette(palette);
     }
     protected override void Dispose(bool disposing)
     {

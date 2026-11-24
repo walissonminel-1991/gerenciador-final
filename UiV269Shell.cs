@@ -529,6 +529,12 @@ internal sealed class V269Shell : UserControl
         _appPaneOpen=!_rightPane.Visible;ApplyDimensions();
     }
 
+    internal void EnsureV269AppPane()
+    {
+        if(SelectedPage!=V269Page.Aplicativos)return;
+        _appPaneOpen=true;ApplyDimensions();
+    }
+
     internal void PresentPanel(V269PanelPresentation? presentation) =>
         _rightPane.Present(presentation);
 

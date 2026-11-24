@@ -1410,6 +1410,7 @@ internal sealed partial class MainForm : Form
             return;
         }
         if (_busy || _betaClose.IsClosing) return;
+        bool appVerification=_nav.SelectedPage==V269Page.Aplicativos;
         bool loaded = false;
         if (_checkUpdatesButton is { IsDisposed: false } initial)
         {
@@ -1434,7 +1435,10 @@ internal sealed partial class MainForm : Form
         }
         if (!loaded || IsDisposed) return;
         _appFilter = "Todos";
+        bool catalogWillRun=_consultaCatalogoCts is null&&_installed.Count>0;
         await LoadUpdatesAsync(forceRefresh: true);
+        if(appVerification&&catalogWillRun&&!IsDisposed&&!Disposing)
+            RecordV269AppResult("Verificação de atualizações",_operationResult);
         // Não selecionar automaticamente somente os candidatos: preservar
         // a lista inteira, com possíveis atualizações no topo.
         if (!IsDisposed) RenderPrograms();
@@ -1455,10 +1459,41 @@ internal sealed partial class MainForm : Form
         return button;
     }
 
-    private void PresentV269AppDetails(ProgramEntry item)
+    // Sessão visual de Aplicativos; jamais modifica o histórico persistente
+    // ou atribui o resultado de uma operação à linha atualmente selecionada.
+    private readonly List<V269AppPreviousResult> _v269AppPreviousResults = new();
+    private bool _v269AppExecutionActive;
+    private V269PanelPresentation? _v269AppExecutionResult;
+    private V269PanelPresentation? _v269AppRetainedResult;
+
+    private void RecordV269AppResult(string title,string description,V269PanelPresentation? owned=null)
+    {
+        if(IsDisposed||Disposing)return;
+        _v269AppPreviousResults.Insert(0,new(Guid.NewGuid(),title,description));
+        // O HTML exibe os quatro últimos; este limite não alcança o
+        // registro persistente nem os estados reais de atualização/remoção.
+        if(_v269AppPreviousResults.Count>4)_v269AppPreviousResults.RemoveAt(4);
+        if(owned is not null)_v269AppRetainedResult=owned;
+        if(_nav.SelectedPage==V269Page.Aplicativos&&_programList.SelectedItem is {} item)
+        {
+            PresentV269AppDetails(item);
+            if(_nav.RightPane.Current?.Application is not null)_nav.EnsureV269AppPane();
+        }
+    }
+    private void DismissV269AppResult(Guid id)
     {
         if(_busy||_v269Confirming||_nav.SelectedPage!=V269Page.Aplicativos||
-            _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.Result or V269PanelKind.History)return;
+            _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)return;
+        _v269AppPreviousResults.RemoveAll(x=>x.Id==id);
+        if(_programList.SelectedItem is {} item)PresentV269AppDetails(item);
+    }
+
+    private void PresentV269AppDetails(ProgramEntry item)
+    {
+        var current=_nav.RightPane.Current;
+        if(_busy||_v269Confirming||_nav.SelectedPage!=V269Page.Aplicativos||
+            current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.History||
+            (current?.Kind==V269PanelKind.Result&&!ReferenceEquals(current,_v269AppRetainedResult)))return;
         string Known(string? value)=>string.IsNullOrWhiteSpace(value)?"Não informado":value;
         string architecture=item.ObservedPackageArchitecture.Length>0?item.ObservedPackageArchitecture:
             item.QueryArchitecture=="unknown"?"Não confirmada":Known(item.QueryArchitecture);
@@ -1491,7 +1526,7 @@ internal sealed partial class MainForm : Form
                 evidence,
                 _programList.LoadLocalAppIcons?item.DisplayIcon:"",
                 _programList.LoadLocalAppIcons?V269MsixIconSource.From(item):null,
-                item.DeclaredDescription)));
+                item.DeclaredDescription,_v269AppPreviousResults.ToArray(),DismissV269AppResult)));
     }
 
     private void DrawProgramCard(object? sender, DrawItemEventArgs e)
@@ -2443,6 +2478,8 @@ internal sealed partial class MainForm : Form
     {
         if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
             allowDuringBatch) || _v269Confirming || _betaClose.IsClosing) return;
+        bool appExecution=!quietStartup&&_nav.SelectedPage==V269Page.Aplicativos;
+        if(appExecution){_v269AppExecutionActive=true;_v269AppExecutionResult=null;}
         _busy = true;
         if (!quietStartup)
         {
@@ -2463,6 +2500,7 @@ internal sealed partial class MainForm : Form
         finally
         {
             _busy = false;
+            if(appExecution)_v269AppExecutionActive=false;
             if (!IsDisposed && !Disposing)
             {
                 if (!quietStartup)
@@ -2479,6 +2517,15 @@ internal sealed partial class MainForm : Form
                         _operationResult == description
                             ? "Nenhum desfecho adicional foi reportado. Consulte o registro."
                             : _operationResult));
+                if(appExecution)
+                {
+                    var result=_v269AppExecutionResult;
+                    _v269AppExecutionResult=null;
+                    string outcome=result?.Description??(_operationResult==description
+                        ?"Nenhum desfecho adicional foi reportado. Consulte o registro."
+                        :_operationResult);
+                    RecordV269AppResult(result?.Title??description,outcome,result);
+                }
                 UpdateBulkButtons();
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
                     _checkUpdatesButton.Enabled = !_batchUpdatesActive;
