@@ -6,14 +6,39 @@ namespace GerenciadorAplicativos;
 internal sealed record V269AppDetailModel(string Name,string Publisher,
     IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null,string Description="");
 
+// Superfícies exclusivas do painel estruturado, derivadas da cascata final
+// do HTML. Os motores e painéis de confirmação/progresso não usam estas cores.
+internal static class V269AppDetailStyle
+{
+    internal static V269Palette Palette(V269Theme theme)
+    {
+        var p=V269VisualTokens.ForTheme(theme);
+        Color H(string s)=>V269AppTable.H(s);
+        return theme switch
+        {
+            V269Theme.Dark=>p with {RightPanel=H("#2a2e32"),Border=H("#60666d"),
+                Text=H("#dce0e4"),SecondaryText=H("#aab4bd"),Card=H("#30353a")},
+            V269Theme.Claro=>p with {RightPanel=H("#eaf4fc"),Border=H("#9bbacf")},
+            _=>p with {RightPanel=H("#0b2032"),Border=H("#25445f"),Card=H("#11283b")}
+        };
+    }
+    internal static Color Divider(V269Theme theme)=>V269AppTable.H(theme switch
+    {V269Theme.Dark=>"#3c4249",V269Theme.Claro=>"#b7d1e2",_=>"#1c354b"});
+}
+
 internal sealed class V269AppDetailPanel : Panel
 {
-    private readonly TableLayoutPanel _table=new(){Dock=DockStyle.Top,AutoSize=true,
-        AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,Margin=Padding.Empty};
+    private readonly Panel _viewport=new(){Name="V269AppDetailsViewport",AutoScroll=false,Margin=Padding.Empty};
+    private readonly DarkVScrollBar _scroll=new(){Name="V269AppDetailsScroll",
+        AccessibleName="Rolagem dos detalhes do aplicativo",Visible=false};
+    private readonly WheelDeltaAccumulator _wheel=new();
+    private readonly TableLayoutPanel _table=new(){Name="V269AppDetailsFields",Dock=DockStyle.None,AutoSize=false,
+        ColumnCount=2,Margin=Padding.Empty};
     private V269Palette _palette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
     private V269AppDetailModel? _model;
     private bool _arranging;
     private int _interfacePercent=100;
+    private V269Theme _theme=V269Theme.AzulGf;
     private readonly TableLayoutPanel _identity=new(){Dock=DockStyle.Top,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,
         ColumnCount=2,RowCount=2,Margin=new Padding(3,3,3,8)};
     private readonly V269AppDetailIcon _icon=new();
@@ -23,7 +48,7 @@ internal sealed class V269AppDetailPanel : Panel
     internal V269AppDetailPanel()
     {
         Name="V269StructuredAppDetails";AccessibleName="Informações verificáveis e elegibilidade do aplicativo";
-        Dock=DockStyle.Fill;AutoScroll=true;Margin=Padding.Empty;Visible=false;
+        Dock=DockStyle.Fill;AutoScroll=false;Margin=Padding.Empty;Visible=false;
         _table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,40));
         _table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,60));
         _identity.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,56));
@@ -36,18 +61,25 @@ internal sealed class V269AppDetailPanel : Panel
         _table.Controls.Add(_identity,0,0);_table.SetColumnSpan(_identity,2);_identity.Visible=false;
         _table.CellPaint+=(_,e)=>{
             if(_model is null||e.Row>_model.Fields.Count)return;
-            using var line=new Pen(_palette.Border);
+            using var line=new Pen(V269AppDetailStyle.Divider(_theme));
             e.Graphics.DrawLine(line,e.CellBounds.Left,e.CellBounds.Bottom-1,e.CellBounds.Right-1,e.CellBounds.Bottom-1);
         };
-        Controls.Add(_table);SizeChanged+=(_,_)=>FitLabels();
+        _viewport.Controls.Add(_table);Controls.Add(_viewport);Controls.Add(_scroll);
+        _scroll.ValueChanged+=(_,_)=>PositionContent();
+        _table.FontChanged+=(_,_)=>FitLabels();
+        SizeChanged+=(_,_)=>FitLabels();VisibleChanged+=(_,_)=>FitLabels();
+        foreach(Control control in new Control[]{_viewport,_table,_identity,_icon,_name,_publisher})
+            control.MouseWheel+=ScrollContent;
+        _scroll.MouseWheel+=ScrollContent;
         FontChanged+=(_,_)=>RefreshIdentityFont();
         DpiChangedAfterParent+=(_,_)=>ApplyInterfaceScale(_interfacePercent);
-        RefreshIdentityFont();ApplyInterfaceScale(100);ApplyPalette(_palette);
+        RefreshIdentityFont();ApplyInterfaceScale(100);ApplyPalette(V269AppDetailStyle.Palette(_theme),_theme);
     }
     internal void Present(V269AppDetailModel? model)
     {
         if(Equals(_model,model))return;
         _model=model;
+        _scroll.Value=0;
         _table.SuspendLayout();
         try
         {
@@ -57,9 +89,13 @@ internal sealed class V269AppDetailPanel : Panel
             _name.Text=model?.Name??"";_publisher.Text=model?.Publisher??"";
             _icon.SetIdentity(model?.Name??"",model?.IconSource??"",model?.MsixIcon);
             if(model is null)return;
-            Label Make(string value,bool strong)=>new(){Text=value,AutoSize=true,
-                Margin=new Padding(3,5,3,5),ForeColor=strong?_palette.Text:_palette.SecondaryText,
-                AccessibleName=value,Tag=strong,UseMnemonic=false};
+            Label Make(string value,bool strong)
+            {
+                var label=new Label{Text=value,AutoSize=true,
+                    Margin=new Padding(3,5,3,5),ForeColor=strong?_palette.Text:_palette.SecondaryText,
+                    AccessibleName=value,Tag=strong,UseMnemonic=false};
+                label.MouseWheel+=ScrollContent;return label;
+            }
             void AddFull(string value,bool strong)
             {
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -84,10 +120,14 @@ internal sealed class V269AppDetailPanel : Panel
     }
     private void FitLabels()
     {
-        if(_arranging||IsDisposed)return;_arranging=true;
+        if(_arranging||IsDisposed||Disposing)return;_arranging=true;
         try
         {
-            int width=Math.Max(60,ClientSize.Width-SystemInformation.VerticalScrollBarWidth-6);
+            int barWidth=Math.Max(12,_scroll.Width);
+            int width=Math.Max(1,ClientSize.Width-barWidth-3);
+            int height=Math.Max(1,ClientSize.Height);
+            _viewport.Bounds=new Rectangle(0,0,width,height);
+            _scroll.Bounds=new Rectangle(Math.Max(0,ClientSize.Width-barWidth),0,barWidth,height);
             _table.Width=width;
             _identity.MaximumSize=new Size(width,0);
             int identityText=Math.Max(20,width-(int)_identity.ColumnStyles[0].Width-12);
@@ -99,8 +139,30 @@ internal sealed class V269AppDetailPanel : Panel
                     (int)(width*(column==0 ? .4 : .6))-6;
                 label.MaximumSize=new Size(Math.Max(20,max),0);
             }
+            // Altura medida pelo conteúdo a cada seleção/escala, não pela
+            // altura anterior: uma descrição longa não deixa extensão vazia.
+            int content=Math.Max(1,_table.GetPreferredSize(new Size(width,0)).Height);
+            _table.Size=new Size(width,content);
+            _table.PerformLayout();
+            _scroll.SetMetrics(content,height);PositionContent();
         }
         finally{_arranging=false;}
+    }
+    private void PositionContent()
+    {
+        _table.Location=new Point(0,-_scroll.Value);
+        _scroll.AccessibleDescription=$"Posição {_scroll.Value} de {_scroll.MaximumValue}";
+    }
+    private void ScrollContent(object? sender,MouseEventArgs e)
+    {
+        if(e is HandledMouseEventArgs {Handled:true}||_scroll.MaximumValue==0)return;
+        int notches=_wheel.Consume(e.Delta);
+        if(notches!=0)_scroll.Value-=notches*Math.Max(24,Font.Height*3);
+        if(e is HandledMouseEventArgs handled)handled.Handled=true;
+    }
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        ScrollContent(this,e);base.OnMouseWheel(e);
     }
     private void RefreshIdentityFont()
     {
@@ -118,9 +180,11 @@ internal sealed class V269AppDetailPanel : Panel
         _identity.ColumnStyles[0].Width=size+gap;
         FitLabels();
     }
-    internal void ApplyPalette(V269Palette palette)
+    internal void ApplyPalette(V269Palette palette,V269Theme theme)
     {
-        _palette=palette;BackColor=_table.BackColor=_identity.BackColor=palette.RightPanel;
+        _theme=theme;_palette=palette;
+        BackColor=_viewport.BackColor=_table.BackColor=_identity.BackColor=palette.RightPanel;
+        _scroll.ApplyAppScrollTheme(theme);
         _name.ForeColor=palette.Text;_publisher.ForeColor=palette.SecondaryText;
         _icon.ApplyPalette(palette);_table.Invalidate();
         foreach(Label label in _table.Controls.OfType<Label>())

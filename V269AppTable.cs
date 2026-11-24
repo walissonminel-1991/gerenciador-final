@@ -30,6 +30,15 @@ internal static class V269AppTable
     internal static Rectangle Grip(Rectangle bounds,int scale,int dpi)=>
         new(bounds.X,bounds.Y,Scale(19,scale,dpi),bounds.Height);
     internal static Color H(string s)=>ColorTranslator.FromHtml(s);
+    // Cores do HTML, somente para a área de inventário e suas barras.
+    internal static Color EmptySurface(V269Theme theme)=>H(theme switch
+    {V269Theme.Dark=>"#24272b",V269Theme.Claro=>"#eaf4fb",_=>"#081b2b"});
+    internal static (Color Track,Color Thumb,Color Hot) ScrollColors(V269Theme theme)=>theme switch
+    {
+        V269Theme.Dark=>(H("#24272b"),H("#686f77"),H("#9ca6af")),
+        V269Theme.Claro=>(H("#eaf4fc"),H("#8db1ca"),H("#5f97bf")),
+        _=>(H("#0a1f30"),H("#3a5c79"),H("#6598bf"))
+    };
     internal static (Color Head,Color Row,Color Alternate,Color Selected,Color Ink,Color Border,Color Rail) Colors(V269Theme theme)=>theme switch
     {
         V269Theme.Dark=>(H("#34383d"),H("#282b2f"),H("#2d3136"),H("#50575f"),H("#cbd1d6"),H("#51575e"),H("#c8d0d7")),

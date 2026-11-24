@@ -1336,7 +1336,7 @@ internal sealed partial class MainForm : Form
         _programList.Dock = DockStyle.Fill;
         _programList.ApplyV269Table(_v269Appearance);
         _programList.LoadLocalAppIcons=loadPreferences;
-        _programList.BackColor = PanelBackground;
+        _programList.BackColor = V269AppTable.EmptySurface(_v269Appearance.Theme);
         _programList.ForeColor = Ink;
         _programList.OperationFor = _updateOperations.Find;
         _programList.UninstallOperationFor = _uninstallOperations.Find;

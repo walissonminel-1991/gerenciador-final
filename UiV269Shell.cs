@@ -66,6 +66,10 @@ internal sealed class V269RightPane : UserControl
     private readonly V269AppDetailPanel _applicationDetails=new();
     private readonly Panel _descriptionHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
     private bool _hasOperationContent;
+    private bool _structuredApp;
+    private V269Palette _basePanePalette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
+    private V269Theme _appPaneTheme=V269Theme.AzulGf;
+    private int _appInterfacePercent=100;
     private readonly FlowLayoutPanel _choices;
     private TaskCompletionSource<bool>? _confirmation;
 
@@ -115,6 +119,11 @@ internal sealed class V269RightPane : UserControl
             Margin = Padding.Empty,
             AccessibleName = "Descrição e estado da operação"
         };
+        _title.Paint+=(_,e)=>{
+            if(!_structuredApp||_title.Width<2)return;
+            using var line=new Pen(V269AppDetailStyle.Divider(_appPaneTheme));
+            e.Graphics.DrawLine(line,0,_title.Height-1,_title.Width-1,_title.Height-1);
+        };
         _layout.Controls.Add(_title, 0, 0);
         _layout.Controls.Add(_progress, 0, 1);
         _descriptionHost.Controls.Add(_description);
@@ -135,6 +144,7 @@ internal sealed class V269RightPane : UserControl
         _layout.Controls.Add(_choices, 0, 3);
         _layout.Controls.Add(_operationContent, 0, 4);
         Controls.Add(_layout);
+        Resize+=(_,_)=>{if(_structuredApp)Invalidate();};
         Present(null);
     }
 
@@ -188,6 +198,7 @@ internal sealed class V269RightPane : UserControl
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
         bool structured=presentation is {Kind:V269PanelKind.Details,Application:not null};
+        _structuredApp=structured;ApplyPaneSurface();
         _applicationDetails.Present(structured?presentation!.Application:null);
         _description.Visible=!structured;_applicationDetails.Visible=structured;
         if(structured)_applicationDetails.BringToFront();
@@ -206,6 +217,14 @@ internal sealed class V269RightPane : UserControl
 
     internal void ApplyPalette(V269Palette palette)
     {
+        _basePanePalette=palette;
+        _appPaneTheme=palette==V269VisualTokens.ForTheme(V269Theme.Dark)?V269Theme.Dark:
+            palette==V269VisualTokens.ForTheme(V269Theme.Claro)?V269Theme.Claro:V269Theme.AzulGf;
+        ApplyPaneSurface();
+    }
+    private void ApplyPaneSurface()
+    {
+        var palette=_structuredApp?V269AppDetailStyle.Palette(_appPaneTheme):_basePanePalette;
         BackColor = palette.RightPanel;
         _layout.BackColor = palette.RightPanel;
         ForeColor = palette.Text;
@@ -213,10 +232,33 @@ internal sealed class V269RightPane : UserControl
         _description.BackColor = palette.RightPanel;
         _descriptionHost.BackColor=palette.RightPanel;
         _description.ForeColor = palette.SecondaryText;
-        _applicationDetails.ApplyPalette(palette);
+        _applicationDetails.ApplyPalette(V269AppDetailStyle.Palette(_appPaneTheme),_appPaneTheme);
+        Padding=_structuredApp?new Padding(V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
+            V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi),
+            V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
+            V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi)):new Padding(13);
+        _title.Invalidate();Invalidate();
     }
-
-    internal void ApplyAppInterfaceScale(int percent)=>_applicationDetails.ApplyInterfaceScale(percent);
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if(!_structuredApp||Width<3||Height<3)return;
+        var state=e.Graphics.Save();
+        try
+        {
+            e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+            using var path=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),
+                V269AppTable.Scale(11,_appInterfacePercent,DeviceDpi));
+            using var outline=new Pen(V269AppDetailStyle.Palette(_appPaneTheme).Border);
+            e.Graphics.DrawPath(outline,path);
+        }
+        finally{e.Graphics.Restore(state);}
+    }
+    internal void ApplyAppInterfaceScale(int percent)
+    {
+        _appInterfacePercent=percent;_applicationDetails.ApplyInterfaceScale(percent);
+        if(_structuredApp)ApplyPaneSurface();
+    }
 
     internal void SetFonts(Font title, Font body)
     {

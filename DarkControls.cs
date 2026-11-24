@@ -24,6 +24,16 @@ internal sealed class DarkVScrollBar : Control
     private static readonly Color Track = Color.FromArgb(29, 38, 49);
     private static readonly Color Thumb = Color.FromArgb(87, 110, 134);
     private static readonly Color ThumbHot = Color.FromArgb(117, 157, 196);
+    private (Color Track,Color Thumb,Color Hot)? _appColors;
+    // Opt-in por instância: barras legadas de Drivers, histórico e outras
+    // ferramentas mantêm exatamente as cores e a geometria anteriores.
+    internal void ApplyAppScrollTheme(V269Theme theme)
+    {
+        _appColors=V269AppTable.ScrollColors(theme);
+        BackColor=_appColors.Value.Track;
+        AccessibleRole=AccessibleRole.ScrollBar;
+        Invalidate();
+    }
 
     public event EventHandler? ValueChanged;
 
@@ -86,14 +96,19 @@ internal sealed class DarkVScrollBar : Control
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(Track);
+        e.Graphics.Clear(_appColors?.Track??Track);
         if (!Visible || MaximumValue == 0) return;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         Rectangle rect = ThumbBounds();
         using var path = ModernButton.RoundRect(rect, 5);
-        using var brush = new SolidBrush(_hot || _dragging ? ThumbHot : Thumb);
+        using var brush = new SolidBrush(_hot || _dragging ? (_appColors?.Hot??ThumbHot) : (_appColors?.Thumb??Thumb));
         e.Graphics.FillPath(brush, path);
+        if(_appColors is not null&&Focused)
+            ControlPaint.DrawFocusRectangle(e.Graphics,Rectangle.Inflate(rect,-1,-1));
     }
+
+    protected override void OnGotFocus(EventArgs e){base.OnGotFocus(e);if(_appColors is not null)Invalidate();}
+    protected override void OnLostFocus(EventArgs e){base.OnLostFocus(e);if(_appColors is not null)Invalidate();}
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
@@ -260,6 +275,8 @@ internal sealed class DarkProgramList : Control
     internal void ApplyV269Table(V269AppearanceOptions options)
     {
         _tableMode=true;_tableOptions=options.Normalize();
+        _scrollbar.ApplyAppScrollTheme(_tableOptions.Theme);
+        _scrollbar.AccessibleName="Rolagem vertical de aplicativos";
         _itemHeight=V269AppTable.Scale(52,_tableOptions.InterfacePercent,DeviceDpi);
         float fontSize=9f*_tableOptions.TextPercent/100f;
         if(_tableFont is null||Math.Abs(_tableFont.Size-fontSize)>.01f)

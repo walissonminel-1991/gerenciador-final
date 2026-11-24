@@ -1080,7 +1080,8 @@ internal sealed partial class MainForm
         if(root.Name=="V269AppsPage"&&root.Tag is Action fitApps)fitApps();
         if (root is DarkProgramList or DarkDriverList)
         {
-            root.BackColor = palette.Content;
+            root.BackColor = root is DarkProgramList
+                ? V269AppTable.EmptySurface(_v269Appearance.Theme) : palette.Content;
             root.ForeColor = palette.Text;
         }
         else if (root is ModernButton)

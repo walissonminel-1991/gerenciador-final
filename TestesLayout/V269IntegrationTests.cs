@@ -201,6 +201,8 @@ internal static class V269IntegrationTests
                     typeof(MainForm).GetMethod("PresentV269AppDetails",flags)!.Invoke(form,[selected]);
                 surface.PerformLayout();Application.DoEvents();
                 Require(list.TableHeaderHeight>0&&list.Items.Count==5,"cabeçalho fixo e inventário preservado");
+                Require(list.BackColor==V269AppTable.EmptySurface((V269Theme)index),
+                    "aplicação geral de temas conserva a superfície exclusiva de Aplicativos");
                 var rowMethod=typeof(DarkProgramList).GetMethod("RowBounds",flags)!;
                 var row=(Rectangle)rowMethod.Invoke(list,[0])!;
                 var cells=V269AppTable.Columns(row,shell.InterfaceScalePercent,list.DeviceDpi);
@@ -220,6 +222,21 @@ internal static class V269IntegrationTests
                     Require(shell.RightPane.Current?.Application is {Fields.Count:7,Description:"Descrição sintética declarada para testar apresentação."}&&
                         shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
                         "painel estruturado expõe fatos locais e motivos");
+                    var scrollbar=shell.RightPane.Controls.Find("V269AppDetailsScroll",true).OfType<DarkVScrollBar>().Single();
+                    var fields=shell.RightPane.Controls.Find("V269AppDetailsFields",true).Single();
+                    Require(scrollbar.Visible&&scrollbar.MaximumValue>0&&scrollbar.AccessibleRole==AccessibleRole.ScrollBar,
+                        "painel compacto conserva rolagem temática e acessível");
+                    Require(shell.RightPane.BackColor==V269AppDetailStyle.Palette((V269Theme)index).RightPanel,
+                        "superfície do detalhe segue apenas o tema de Aplicativos");
+                    scrollbar.Value=scrollbar.MaximumValue;
+                    Require(fields.Top==-scrollbar.Value&&fields.Bottom==fields.Parent!.ClientSize.Height,
+                        "rolagem alcança fim exato do conteúdo sem extensão vazia");
+                    var key=typeof(DarkVScrollBar).GetMethod("OnKeyDown",flags)!;
+                    key.Invoke(scrollbar,[new KeyEventArgs(Keys.Home)]);
+                    Require(fields.Top==0&&scrollbar.Value==0,"tecla Home retorna ao início");
+                    key.Invoke(scrollbar,[new KeyEventArgs(Keys.End)]);
+                    Require(scrollbar.Value==scrollbar.MaximumValue,"tecla End alcança último conteúdo");
+                    scrollbar.Value=0;
                     var icon=shell.RightPane.Controls.Find("V269AppDetailIcon",true).Single();
                     Require(icon.Visible&&icon.AccessibleName?.Contains("7-Zip",StringComparison.Ordinal)==true,
                         "identidade visual do painel vinculada à seleção, sem arte fictícia");
