@@ -67,5 +67,13 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 - GfUniversalMeter fornece frames para bytes ocupados/total e operações determinadas/indeterminadas, inversão e sucesso confirmado; não edita outras abas.
 - Suíte GfMonitorHostTests cobre demanda, preferências, replay parcial, expiração, evidência posterior e estados de barras. Nova CI obrigatória. O host não está instanciado no shell principal; unificação e homologação física exclusivamente WORK na última etapa.
 
+
+## 24/11 — próximo incremento preparado, condicionado à CI do host
+- Componente independente GfMonitorSettingsPanel para Configurações > Geral: habilitação, modo expandido, sempre no topo, encaixe e opacidade; três temas, teclado, hidratação sem eventos, posição atual fornecida pelo host. Sem tocar na aba existente, sem abrir janela ou gravar preferências pelo controle.
+- A coleta da GPU na PR #113 tem cadência de 8 s. A histerese agora tolera lacunas dentro da janela de frescor de 10 s e exige amostras distintas para recuperação; testes incluem cadência de 8 s e expiração após 11 s.
+- Testes do host passam por portfólio real de tipos existentes, timestamps parciais, fonte vencida, D3DKMT sem WDDM, identidade incorreta, publicação duplicada e geração antiga; fixtures sem acesso ao hardware.
+- Este incremento só poderá avançar a branch após CI Windows e integridade do HEAD 3d5eb0d concluírem; compilação e homologação do novo código permanecem pendentes.
+
+
 ## 24/11 — atualização da fixture para o contrato de timestamps
 - CI Windows 45422807310, regressão job 138546611839: falha na fixture explícita de GPU identificada durante reprodução dos contratos BETA LOCAL. O teste adicionava valores GPU/VRAM/temperatura a FromCounters sem os novos instantes por fonte. A rejeição é o comportamento esperado do contrato. Correção exclusivamente na fixture: declarar instantes distintos nas amostras com e sem identidade. Sem alterar regra de frescor ou aceitar GPU sem identidade. A nova CI deve comprovar a correção.

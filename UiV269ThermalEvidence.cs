@@ -104,7 +104,9 @@ internal sealed class GfThermalAlertLatch
             Reset(); _selected = selected; _generation = generation;
         }
         if (_last is DateTimeOffset old && capturedAt <= old) return _state;
-        bool gap = _last is DateTimeOffset last && capturedAt - last > TimeSpan.FromSeconds(5);
+        // A coleta compartilhada da GPU pode ocorrer a cada 8 s. Uma lacuna
+        // dentro do mesmo orçamento de frescor não reinicia a histerese.
+        bool gap = _last is DateTimeOffset last && capturedAt - last > TimeSpan.FromSeconds(10);
         _last = capturedAt;
         if (evidence is null || !evidence.Matches(selected, generation, capturedAt, now) ||
             !GfMeterScale.Valid(rawC, GfMeterKind.Temperature))

@@ -64,5 +64,14 @@ internal static class GfThermalEvidenceTests
         Require(latch.Update(85, t.AddSeconds(44), t.AddSeconds(44), b, generation + 1, next) == GfThermalAlert.Warning,
             "nova geração aceita a GPU selecionada");
         Require(Read(65, 45) == GfThermalAlert.Warning, "geração anterior não reabre seleção antiga");
+
+        latch.Reset();
+        Require(Read(81, 0) == GfThermalAlert.MaximumReached, "máximo na coleta compartilhada");
+        Require(Read(60, 8) == GfThermalAlert.MaximumReached, "o primeiro intervalo de 8 s não limpa o máximo");
+        Require(Read(60, 16) == GfThermalAlert.Warning, "recuperação em duas etapas na cadência real");
+        Require(Read(60, 24) == GfThermalAlert.Warning &&
+            Read(60, 32) == GfThermalAlert.BelowWarning, "recuperação confirmada por amostras distintas");
+        Require(Read(81, 40) == GfThermalAlert.MaximumReached &&
+            Read(60, 51) == GfThermalAlert.BelowWarning, "lacuna maior que frescor inicia classificação nova");
     }
 }

@@ -8,6 +8,45 @@ internal static class GfMonitorHostTests
         if (!ok) throw new InvalidOperationException("Host Monitor GF: " + message);
     }
 
+    private static HardwareSensorPortfolio Fixture(DateTimeOffset now, WddmGpuKey key)
+    {
+        var cpu = new LiveHardwareSample(now, MonitorReading<double>.Available(14, "fixture"),
+            MonitorReading<double>.Unavailable("fixture"), new MemoryRamSample(now.UtcDateTime, 1000, 580),
+            MonitorReading<TimeSpan>.Unavailable("fixture"), LiveHardwareSensors.Unavailable);
+        var inventory = new HardwareDiscoverySnapshot(now, HardwareDiscoveryState.Complete, [], "fixture", null);
+        var nvml = new NvidiaGpuSensorSnapshot(now, false, [], "fixture");
+        var disk = WindowsStorageSensorProvider.Join([], []);
+        var acpi = new AcpiThermalZoneSnapshot(now, HardwareDiscoveryState.Unavailable, [], "fixture");
+        var dxgi = new DxgiGpuSnapshot(now, HardwareDiscoveryState.Complete,
+            [new DxgiGpuIdentity(key.LuidHigh, key.LuidLow, "fixture", 0x8086, 1, 1, 1000, false)], null);
+        var wddm = new WddmGpuSnapshot(now, HardwareDiscoveryState.Complete,
+            [new WddmGpuAdapterSample(key, MonitorReading<double>.Available(80, "fixture"),
+                MonitorReading<ulong>.Available(750, "fixture"), MonitorReading<ulong>.Unavailable("fixture"))], null);
+        var absent = MonitorReading<double>.Unavailable("fixture");
+        var thermal = new D3dKmtGpuSnapshot(now, HardwareDiscoveryState.Complete,
+            [new D3dKmtGpuReading(key, MonitorReading<double>.Available(70, "fixture"), absent, absent, absent)], null);
+        return new(now, cpu, inventory, nvml, disk, acpi, wddm, dxgi, null, thermal);
+    }
+
+    private static void VerifyPortfolio(DateTimeOffset now, WddmGpuKey key)
+    {
+        var portfolio = Fixture(now, key);
+        var newer = portfolio with { WindowsCounters = portfolio.WindowsCounters with
+            { CapturedAtUtc = now.AddSeconds(8), Memory = new MemoryRamSample(now.AddSeconds(8).UtcDateTime, 1000, 500) } };
+        var s = GfResourceMonitorAdapter.FromPortfolio(newer, key, now.AddSeconds(8));
+        Require(s.CpuPercent == 14 && s.RamPercent == 50 && s.GpuPercent == 80 &&
+            s.VramPercent == 75 && s.GpuTemperature == 70, "portfólio com relógio antigo mantém fontes válidas");
+        Require(s.MetricTimes?.GpuTemperature == now && s.MetricTimes?.Cpu == now.AddSeconds(8),
+            "instantes reais por fonte");
+        s = GfResourceMonitorAdapter.FromPortfolio(newer, key, now.AddSeconds(11));
+        Require(s.CpuPercent == 14 && s.RamPercent == 50 && s.GpuPercent is null && s.GpuTemperature is null,
+            "CPU nova não renova identidade e GPU vencidas");
+        s = GfResourceMonitorAdapter.FromPortfolio(portfolio with { WindowsGpuCounters = null }, key, now);
+        Require(s.GpuPercent is null && s.GpuTemperature == 70, "falha WDDM não apaga sensor D3DKMT independente");
+        Require(GfResourceMonitorAdapter.FromPortfolio(portfolio, new WddmGpuKey(9, 9, 0), now).GpuTemperature is null,
+            "não cruzar identidade térmica");
+    }
+
     internal static void Run()
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -33,6 +72,7 @@ internal static class GfMonitorHostTests
             using var binding = relay.Attach(s => Require(s.CpuPercent == 14 && s.GpuTemperature is null && s.GpuPercent is null,
                 "replay expira fontes independentemente"), now.AddSeconds(2), () => throw new Exception("replay global ainda fresco"));
         }
+        VerifyPortfolio(now, key);
         var folder = Path.Combine(Path.GetTempPath(), "gf-monitor-host-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, "monitor.json");
@@ -42,7 +82,12 @@ internal static class GfMonitorHostTests
             {
                 Require(!host.WantsCollection(false, true) && host.WantsCollection(true, true) &&
                     !host.WantsCollection(true, false), "demanda não contorna gates");
-                Require(host.BeginGeneration(key) == 1 && host.BeginGeneration(null) == 2, "gerações explícitas");
+                Require(host.BeginGeneration(key) == 1, "geração explícita");
+                var portfolio = Fixture(now, key);
+                Require(host.Publish(1, portfolio, now), "publicar dados já coletados");
+                Require(!host.Publish(1, portfolio, now), "rejeitar entrega duplicada");
+                Require(!host.Publish(1, Fixture(now.AddSeconds(-1), key), now.AddSeconds(1)), "não regredir fonte");
+                Require(host.BeginGeneration(null) == 2 && !host.Publish(1, portfolio, now), "geração anterior rejeitada");
                 var enabled = GfResourceMonitorPreferences.Default with { Enabled = true, OpacityPercent = 75 };
                 Require(host.Apply(enabled, now), "habilitação explícita");
                 Application.DoEvents();
