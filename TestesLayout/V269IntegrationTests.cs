@@ -92,8 +92,18 @@ internal static class V269IntegrationTests
                 detailButton.Enabled = true;
                 detailButton.Focus();
                 Application.DoEvents();
+                // ModernButton dispara Click somente após 145 ms de feedback.
+                // Manter a fotografia e o timer até o despacho real e fechamento.
+                Require(detailButton.Visible && detailButton.Enabled && detailButton.CanSelect,
+                    "botão de leituras alcançável com resultado preservado");
                 closeDialog.Start();
                 detailButton.PerformClick();
+                var dispatchClock = System.Diagnostics.Stopwatch.StartNew();
+                while (!openedReadOnly && dispatchClock.Elapsed < TimeSpan.FromSeconds(5))
+                {
+                    Application.DoEvents();
+                    Thread.Sleep(10);
+                }
             }
             finally
             {
