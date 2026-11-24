@@ -26,7 +26,9 @@ internal static class StartupTrayRegistration
         return "\"" + executable + "\" " + arguments;
     }
 
-    internal static bool IsMonitorEnabled()
+    // A chave Run é o registro solicitado pelo GF. A configuração efetiva
+    // de Aplicativos de inicialização do Windows pode impedir o lançamento.
+    internal static bool IsMonitorStartupRegistered()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunPath, false);
         return string.Equals(key?.GetValue(MonitorValueName) as string,
@@ -34,7 +36,7 @@ internal static class StartupTrayRegistration
             StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static void SetMonitorEnabled(bool enabled)
+    internal static void SetMonitorStartupRegistered(bool enabled)
     {
         if (!enabled)
         {

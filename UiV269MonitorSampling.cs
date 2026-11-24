@@ -35,16 +35,30 @@ internal static class GfMonitorSampling
             D3dKmtGpuSensors = d3dkmt, WindowsGpuCounters = wddm };
     }
 
-    internal static WddmGpuKey? SelectGpu(HardwareSensorPortfolio snapshot)
+    internal static WddmGpuKey? SelectGpu(HardwareSensorPortfolio snapshot, WddmGpuKey? current, DateTimeOffset now)
     {
-        if (snapshot.DxgiAdapters is not { State: HardwareDiscoveryState.Complete } dxgi) return null;
-        var hardware = dxgi.Adapters.Where(x => !x.IsSoftware).ToArray();
-        if (hardware.Length != 1) return null;
-        var selected = hardware[0];
-        var candidates = (snapshot.WindowsGpuCounters?.Adapters.Select(x => x.Key) ?? [])
-            .Concat(snapshot.D3dKmtGpuSensors?.Adapters.Select(x => x.Key) ?? [])
-            .Where(x => x.LuidHigh == selected.LuidHigh && x.LuidLow == selected.LuidLow)
-            .Distinct().Take(2).ToArray();
-        return candidates.Length == 1 ? candidates[0] : null;
+        if (snapshot.DxgiAdapters is not { State: HardwareDiscoveryState.Complete } dxgi ||
+            !GfResourceMonitorAdapter.IsFresh(dxgi.CapturedAtUtc, now)) return null;
+
+        IEnumerable<WddmGpuKey> wddmKeys = snapshot.WindowsGpuCounters is { } wddm &&
+            GfResourceMonitorAdapter.IsFresh(wddm.CapturedAtUtc, now) ? wddm.Adapters.Select(x => x.Key) : [];
+        IEnumerable<WddmGpuKey> thermalKeys = snapshot.D3dKmtGpuSensors is { } thermal &&
+            GfResourceMonitorAdapter.IsFresh(thermal.CapturedAtUtc, now) ? thermal.Adapters.Select(x => x.Key) : [];
+        var keys = wddmKeys.Concat(thermalKeys).Distinct();
+        // Um LUID com mais de um índice físico exige identificação adicional
+        // para que todos os indicadores possam referir-se ao mesmo dispositivo.
+        return keys.GroupBy(key => (key.LuidHigh, key.LuidLow))
+            .Where(group => group.Count() == 1)
+            .Select(group => group.Single())
+            .Select(key => (Key: key, Readings: GfResourceMonitorAdapter.FromPortfolio(snapshot, key, now)))
+            .Where(candidate => candidate.Readings.GpuPercent.HasValue || candidate.Readings.VramPercent.HasValue ||
+                candidate.Readings.GpuTemperature.HasValue)
+            .OrderByDescending(candidate => candidate.Readings.GpuPercent.GetValueOrDefault())
+            .ThenByDescending(candidate => candidate.Key == current)
+            .ThenByDescending(candidate => candidate.Readings.GpuPercent.HasValue)
+            .ThenBy(candidate => candidate.Key.LuidHigh)
+            .ThenBy(candidate => candidate.Key.LuidLow)
+            .Select(candidate => (WddmGpuKey?)candidate.Key)
+            .FirstOrDefault();
     }
 }

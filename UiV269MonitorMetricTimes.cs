@@ -41,7 +41,8 @@ internal sealed record GfMonitorMetricTimes(DateTimeOffset? Cpu, DateTimeOffset?
             CpuThermalLimit = cpuTemp ? s.CpuThermalLimit : null,
             GpuThermalLimit = gpuTemp ? s.GpuThermalLimit : null,
             GpuThermalEvidence = gpuTemp ? s.GpuThermalEvidence : null,
-            GpuIdentity = identity ? s.GpuIdentity : null
+            GpuIdentity = identity ? s.GpuIdentity : null,
+            GpuDisplayName = identity ? s.GpuDisplayName : null
         };
     }
 }

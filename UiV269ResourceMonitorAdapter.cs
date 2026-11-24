@@ -55,6 +55,7 @@ internal static class GfResourceMonitorAdapter
         {
             GpuPercent = gpu is null ? null : Read(gpu.BusiestEnginePercent),
             VramPercent = vram, GpuTemperature = temperature, GpuIdentity = key.ToString(),
+            GpuDisplayName = dxgi.Adapters.Count(adapter => !adapter.IsSoftware) > 1 ? identities[0].Name : null,
             MetricTimes = result.MetricTimes! with
             {
                 Gpu = wddm?.CapturedAtUtc, Vram = wddm?.CapturedAtUtc,

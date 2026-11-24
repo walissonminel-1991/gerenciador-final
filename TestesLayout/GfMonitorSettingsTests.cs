@@ -89,6 +89,10 @@ internal static class GfMonitorSettingsTests
             "sete opções no shell, sem efeitos durante hidratação");
         var startup = options.Controls.Find("V269MonitorStartup", true).OfType<CheckBox>().Single();
         Require(!startup.Enabled, "inicialização desconhecida é indisponível");
+        options.LoadObserved(preferences, true);
+        Require(startup.Checked && startup.Enabled && startup.AccessibleDescription?.Contains("depende") == true &&
+            options.Controls.Find("V269MonitorLabel3", true).Single().Text.Contains("registrado"),
+            "registro observado é apresentado separado da execução efetiva no Windows");
         options.LoadObserved(preferences, false);
         typeof(CheckBox).GetMethod("OnClick", System.Reflection.BindingFlags.Instance |
             System.Reflection.BindingFlags.NonPublic)!.Invoke(startup, [EventArgs.Empty]);

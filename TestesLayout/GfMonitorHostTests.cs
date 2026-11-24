@@ -60,6 +60,47 @@ internal static class GfMonitorHostTests
             "não cruzar identidade térmica");
     }
 
+    private static void VerifyGpuSelection(DateTimeOffset now, WddmGpuKey first)
+    {
+        var second = first with { LuidLow = first.LuidLow + 1 };
+        var portfolio = Fixture(now, first);
+        var firstCounter = portfolio.WindowsGpuCounters!.Adapters.Single();
+        var firstSensor = portfolio.D3dKmtGpuSensors!.Adapters.Single();
+        var dxgi = portfolio.DxgiAdapters!.Adapters.Single();
+        var secondCounter = firstCounter with { Key = second,
+            BusiestEnginePercent = MonitorReading<double>.Available(92, "fixture"),
+            DedicatedUsedBytes = MonitorReading<ulong>.Available(500, "fixture") };
+        var dual = portfolio with
+        {
+            DxgiAdapters = portfolio.DxgiAdapters with
+                { Adapters = [dxgi, dxgi with { LuidLow = second.LuidLow, Name = "GPU dedicada" }] },
+            WindowsGpuCounters = portfolio.WindowsGpuCounters with { Adapters = [secondCounter, firstCounter] },
+            D3dKmtGpuSensors = portfolio.D3dKmtGpuSensors with { Adapters = [firstSensor, firstSensor with
+                { Key = second, TemperatureC = MonitorReading<double>.Available(61, "fixture") }] }
+        };
+        Require(GfMonitorSampling.SelectGpu(dual, first, now) == second, "GPU ativa selecionada em topologia híbrida");
+        var projection = GfResourceMonitorAdapter.FromPortfolio(dual, second, now);
+        Require(projection.GpuPercent == 92 && projection.VramPercent == 50 &&
+            projection.GpuTemperature == 61 && projection.GpuDisplayName == "GPU dedicada",
+            "uso, VRAM, temperatura e nome pertencem à mesma GPU");
+        var tied = dual with { WindowsGpuCounters = dual.WindowsGpuCounters with { Adapters = [firstCounter,
+            secondCounter with { BusiestEnginePercent = firstCounter.BusiestEnginePercent }] } };
+        Require(GfMonitorSampling.SelectGpu(tied, second, now) == second, "empate conserva a GPU observada");
+        var ambiguous = dual with { WindowsGpuCounters = dual.WindowsGpuCounters with { Adapters =
+            [secondCounter, firstCounter, secondCounter with { Key = second with { Physical = 1 } }] } };
+        Require(GfMonitorSampling.SelectGpu(ambiguous, second, now) == first, "LUID com índices ambíguos não cruza sensores");
+        var thermalOnly = ambiguous with { WindowsGpuCounters = ambiguous.WindowsGpuCounters with
+            { CapturedAtUtc = now.AddSeconds(-11) } };
+        Require(GfMonitorSampling.SelectGpu(thermalOnly, second, now) == second,
+            "fonte WDDM expirada não invalida sensor térmico atual");
+        Require(GfMonitorSampling.SelectGpu(dual, second, now.AddSeconds(11)) is null,
+            "contadores e adaptadores expirados não selecionam GPU");
+        var genericZone = dual with { AcpiPlatform = new(now, HardwareDiscoveryState.Complete,
+            [new AcpiThermalZone("TZ00", MonitorReading<double>.Available(66, "fixture"))], null) };
+        Require(GfResourceMonitorAdapter.FromPortfolio(genericZone, second, now).CpuTemperature is null,
+            "zona térmica ACPI genérica não preenche a temperatura da CPU");
+    }
+
     // Percurso completo do host: produtor existente -> portfólio -> relay ->
     // janela nativa -> preferências. Somente fixtures; sem leitura de hardware.
     private static void VerifyWindowLifecycle(string path, WddmGpuKey key)
@@ -275,6 +316,7 @@ internal static class GfMonitorHostTests
                 "replay expira fontes independentemente"), now.AddSeconds(2), () => throw new Exception("replay global ainda fresco"));
         }
         VerifyPortfolio(now, key);
+        VerifyGpuSelection(now, key);
         var folder = Path.Combine(Path.GetTempPath(), "gf-monitor-host-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, "monitor.json");

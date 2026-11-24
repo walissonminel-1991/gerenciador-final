@@ -114,7 +114,7 @@ internal sealed class V269MonitorOptions : V269SettingsCard
         _labels[5].Text = $"Transparência ({_transparency.Value}%)";
     }
 
-    internal void LoadObserved(GfResourceMonitorPreferences preferences, bool? startup)
+    internal void LoadObserved(GfResourceMonitorPreferences preferences, bool? startupRegistered)
     {
         _loading = true;
         try
@@ -122,8 +122,12 @@ internal sealed class V269MonitorOptions : V269SettingsCard
             _enabled.Checked = preferences.Enabled;
             _fixed.Checked = preferences.Fixed;
             _overlay.Checked = preferences.AlwaysOnTop;
-            _startup.Checked = startup == true;
-            _startup.Enabled = startup.HasValue;
+            _startup.Checked = startupRegistered == true;
+            _startup.Enabled = startupRegistered.HasValue;
+            _labels[3].Text = startupRegistered == true ? "Iniciar com o Windows (registrado)" : "Iniciar com o Windows";
+            _startup.AccessibleDescription = startupRegistered == true
+                ? "Registro criado. A execução depende das configurações de Aplicativos de inicialização do Windows."
+                : null;
             _scale.Value = preferences.ScalePercent;
             _transparency.Value = 100 - preferences.OpacityPercent;
             _theme.SelectedIndex = Array.IndexOf(Themes, preferences.MonitorTheme);

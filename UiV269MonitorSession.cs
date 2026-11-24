@@ -202,14 +202,15 @@ internal sealed class GfMonitorStandalone : ApplicationContext
             if (GfMonitorSessionLease.IsPresent(GfMonitorSessionLease.Shell)) ReleaseMonitor();
             else if (_host is { } host && snapshot is not null && !token.IsCancellationRequested)
             {
-                var gpu = GfMonitorSampling.SelectGpu(snapshot);
+                var now = DateTimeOffset.UtcNow;
+                var gpu = GfMonitorSampling.SelectGpu(snapshot, _selectedGpu, now);
                 if (_generation == 0 || gpu != _selectedGpu)
                 {
                     _selectedGpu = gpu;
                     _generation = host.BeginGeneration(gpu);
                 }
                 _snapshot = snapshot;
-                host.Publish(_generation, snapshot, DateTimeOffset.UtcNow);
+                host.Publish(_generation, snapshot, now);
             }
         }
     }

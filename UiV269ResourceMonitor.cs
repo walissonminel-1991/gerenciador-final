@@ -11,7 +11,7 @@ internal sealed record GfResourceMonitorSnapshot(DateTimeOffset CapturedAtUtc,
     double? CpuTemperature, double? GpuTemperature,
     double? CpuThermalLimit = null, double? GpuThermalLimit = null,
     string? GpuIdentity = null, GfThermalEvidence? GpuThermalEvidence = null, long Generation = 0,
-    GfMonitorMetricTimes? MetricTimes = null);
+    GfMonitorMetricTimes? MetricTimes = null, string? GpuDisplayName = null);
 
 internal sealed class GfResourceMonitorForm : Form
 {
@@ -34,7 +34,7 @@ internal sealed class GfResourceMonitorForm : Form
     private readonly List<(RowStyle Style, float Height)> _rows = [];
     private int _geometryDpi, _geometryScale, _fontScale = 100;
     private readonly List<GfMonitorGlyph> _glyphs = [];
-    private readonly Label _compactLogo, _expandedLogo;
+    private readonly Label _compactLogo, _expandedLogo, _expandedTitle;
     private readonly List<TableLayoutPanel> _outlined = [];
     private readonly List<TableLayoutPanel> _separated = [];
     private readonly System.Windows.Forms.Timer _freshness;
@@ -125,12 +125,12 @@ internal sealed class GfResourceMonitorForm : Form
         header.ColumnStyles.Add(new(SizeType.Absolute, 26));
         _surfaces.Add(header);
         _expandedLogo = Logo();
-        var title = MakeLabel("Monitor GF", "Monitor GF");
-        Emphasize(title, 11f);
-        header.Controls.Add(_expandedLogo, 0, 0); header.Controls.Add(title, 1, 0);
+        _expandedTitle = MakeLabel("Monitor GF", "Monitor GF");
+        Emphasize(_expandedTitle, 11f);
+        header.Controls.Add(_expandedLogo, 0, 0); header.Controls.Add(_expandedTitle, 1, 0);
         header.Controls.Add(Chrome("⌄", "Recolher monitor", () => SetExpanded(false)), 2, 0);
         header.Controls.Add(Chrome("×", "Fechar monitor", Close), 3, 0);
-        AttachDrag(header); AttachDrag(title); AttachDrag(_expandedLogo);
+        AttachDrag(header); AttachDrag(_expandedTitle); AttachDrag(_expandedLogo);
         layout.Controls.Add(header, 0, 0);
 
         var panels = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2, Margin = new(0, 3, 0, 3) };
@@ -490,7 +490,7 @@ internal sealed class GfResourceMonitorForm : Form
         }
         // Não exibir métricas de GPU que não tenham uma identidade selecionada.
         if (string.IsNullOrWhiteSpace(snapshot.GpuIdentity))
-            snapshot = snapshot with { GpuPercent = null, VramPercent = null, GpuTemperature = null, GpuThermalLimit = null, GpuThermalEvidence = null };
+            snapshot = snapshot with { GpuPercent = null, VramPercent = null, GpuTemperature = null, GpuThermalLimit = null, GpuThermalEvidence = null, GpuDisplayName = null };
         snapshot = GfMonitorMetricTimes.FreshAt(snapshot, now);
         _last = snapshot; _lastAcceptedAt = snapshot.CapturedAtUtc;
         // Descontar idade anterior à entrega, usando relógio monotônico depois dela.
@@ -507,6 +507,7 @@ internal sealed class GfResourceMonitorForm : Form
         if (updateFilters) _gpuThermal.Update(s, now);
         else _gpuThermal.Expire(now);
         var evidence = _gpuThermal.Evidence(s, now);
+        _expandedTitle.Text = s.GpuDisplayName is { Length: > 0 } name ? "Monitor GF · " + name : "Monitor GF";
         double?[] data = [s.CpuPercent, s.GpuPercent, s.RamPercent, s.VramPercent, s.CpuTemperature, s.GpuTemperature];
         for (int i = 0; i < data.Length; i++)
         {
@@ -522,6 +523,8 @@ internal sealed class GfResourceMonitorForm : Form
             string description = _values[i].AccessibleName + ": " + number +
                 (i == 5 && s.GpuThermalEvidence is not null ? _gpuThermal.Description(s, now) :
                     i >= 4 && !GfMeterScale.ValidThermalLimit(limit) ? " (escala térmica de referência)" : "");
+            if (i is 1 or 3 or 5 && s.GpuDisplayName is { Length: > 0 } gpuName) description += " · " + gpuName;
+            if (i == 4 && data[i] is null) description = "Temperatura da CPU indisponível. Nenhum sensor de CPU verificável.";
             _values[i].Text = number; _values[i].ForeColor = frame.Color; _values[i].AccessibleDescription = description;
             if (_compactValues[i] is Label compact)
             {
@@ -547,6 +550,7 @@ internal sealed class GfResourceMonitorForm : Form
     {
         _gpuThermal.Reset();
         _arrivedTick = null; _last = null;
+        _expandedTitle.Text = "Monitor GF";
         for (int i = 0; i < 6; i++)
         {
             _filters[i].Reset(); _smoothed[i] = null;
