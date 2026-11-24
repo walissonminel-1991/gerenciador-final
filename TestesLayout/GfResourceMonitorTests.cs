@@ -297,11 +297,16 @@ internal static class GfResourceMonitorTests
         form.Present(snapshot);
         Require(All(form).OfType<Label>().Any(x => x.Text == "24%") &&
             All(form).OfType<Label>().Any(x => x.Text == "42%"), "apresentação de valores reais adaptados");
-        form.Present(snapshot with { CapturedAtUtc = now.AddSeconds(1), GpuPercent = 80, VramPercent = 90, GpuTemperature = 70 });
+        // Fixture de GPU: declarar instantes de origem, sem emprestar o relógio da CPU.
+        var gpuAt = now.AddSeconds(1);
+        form.Present(snapshot with { CapturedAtUtc = gpuAt, GpuPercent = 80, VramPercent = 90, GpuTemperature = 70,
+            MetricTimes = snapshot.MetricTimes! with { Gpu = gpuAt, Vram = gpuAt, GpuTemperature = gpuAt } });
         Require(!All(form).OfType<Label>().Any(x => x.Text == "80%" || x.Text == "90%" || x.Text == "70°C"),
             "não aceitar GPU sem identidade");
-        form.Present(snapshot with { CapturedAtUtc = now.AddSeconds(2), GpuPercent = 80, VramPercent = 90,
-            GpuTemperature = 70, GpuIdentity = "fixture selecionada" });
+        gpuAt = now.AddSeconds(2);
+        form.Present(snapshot with { CapturedAtUtc = gpuAt, GpuPercent = 80, VramPercent = 90,
+            GpuTemperature = 70, GpuIdentity = "fixture selecionada",
+            MetricTimes = snapshot.MetricTimes! with { Gpu = gpuAt, Vram = gpuAt, GpuTemperature = gpuAt } });
         Require(All(form).OfType<Label>().Any(x => x.Text == "80%") &&
             All(form).OfType<Label>().Any(x => x.Text == "90%") &&
             All(form).OfType<Label>().Any(x => x.Text == "70°C"), "fixture explícita de GPU identificada");
