@@ -16,6 +16,7 @@ internal static class V269IntegrationTests
             throw new InvalidOperationException($"View ausente: {page}")).ToArray();
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
+        VerifyHome(form, views[0]);
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
         Require(!shell.RightPane.Visible && paneToggle.Visible && paneToggle.Enabled,
             "Início usa toda a largura, mas mantém acesso explícito ao painel");
@@ -66,6 +67,106 @@ internal static class V269IntegrationTests
             "tema Claro preserva contraste do registro e o resultado publicado");
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyHome(MainForm form, Control view)
+    {
+        Require(view is V269HomeDashboard, "Início deve usar o dashboard nativo reconstruído");
+        var home = (V269HomeDashboard)view;
+        string[] keys = ["cpu", "gpu", "ram", "motherboard", "windows"];
+        Require(home.Cards.Select(x => x.Key).SequenceEqual(keys),
+            "cinco cartões do HTML em ordem, sem duplicar um cartão por provedor");
+        int[] lengths = [4268, 6516, 8300, 12772, 11864];
+        for (int i = 0; i < keys.Length; i++)
+        {
+            var bytes = V269HomeArt.Original(keys[i]);
+            Require(System.Text.Encoding.ASCII.GetString(bytes, 0, 4) == "RIFF" &&
+                System.Text.Encoding.ASCII.GetString(bytes, 8, 4) == "WEBP" &&
+                Convert.ToBase64String(bytes).Length == lengths[i],
+                "arte WebP original " + keys[i]);
+        }
+        var empty = MainForm.V269HomeModels(null);
+        Require(empty.SelectMany(x => x.Specs.Concat(x.Sensors)).All(x => x.Value == "N/D"),
+            "nenhum sensor ou dado ilustrativo antes de uma consulta");
+        var at = DateTimeOffset.UtcNow;
+        var missing = MonitorReading<double>.Unavailable("fixture");
+        var available = MonitorReading<double>.Available(0, "fixture");
+        var sample = new LiveHardwareSample(at, available,
+            MonitorReading<double>.Available(3600, "fixture"),
+            new MemoryRamSample(DateTime.UtcNow, 16UL << 30, 8UL << 30),
+            MonitorReading<TimeSpan>.Available(TimeSpan.FromHours(3), "fixture"),
+            LiveHardwareSensors.Unavailable);
+        var pnp = new HardwareDiscoverySnapshot(at, HardwareDiscoveryState.Complete,
+            [], "fixture", null);
+        var gpu = new NvidiaGpuSensorSnapshot(at, true,
+            [new NvidiaGpuSensorSample(0, "GPU fixture NVML", null,
+                available, MonitorReading<double>.Available(61, "fixture"),
+                missing, MonitorReading<double>.Available(35, "fixture"),
+                MonitorReading<ulong>.Available(2UL << 30, "fixture"))], null);
+        var storage = WindowsStorageSensorProvider.Join([], []);
+        var acpi = new AcpiThermalZoneSnapshot(at, HardwareDiscoveryState.Unavailable, [], null);
+        var platform = WindowsPlatformHardwareProvider.Join(
+            [new WmiCpuSocketRaw("CPU0", "CPU fixture", 8U, 16U, 3600U)],
+            [new WmiRamModuleRaw("BANK0", "DIMM0", 16UL << 30, 3200U, 26U)],
+            [new WmiMotherboardRaw("Base Board", "Fabricante fixture", "Modelo fixture", "Rev 1")],
+            []);
+        var snapshot = new HardwareSensorPortfolio(at, sample, pnp, gpu, storage, acpi,
+            PlatformHardware: platform);
+        var models = MainForm.V269HomeModels(snapshot);
+        Require(models[0].Name == "CPU fixture" &&
+            models[0].Specs.Any(x => x.Label == "Núcleos / Threads" && x.Value == "8 / 16") &&
+            models[0].Sensors.Any(x => x.Label == "Uso" && x.Value == "0%") &&
+            models[0].Sensors.Any(x => x.Label == "Temperatura" && x.Value == "N/D"),
+            "zero real não é ausência; núcleos e temperatura respeitam as fontes");
+        Require(models[1].Name == "GPU fixture NVML" &&
+            models[1].Sensors.Any(x => x.Label == "Ventoinha (%)" && x.Value == "35%") &&
+            models[1].Sensors.All(x => !x.Value.Contains("RPM", StringComparison.Ordinal)),
+            "NVML percentual não vira RPM");
+        Require(models[2].Specs.Any(x => x.Label == "Tipo" && x.Value == "DDR4") &&
+            models[2].Specs.Any(x => x.Label == "Capacidade" && x.Value == "16 GiB") &&
+            models[3].Specs.Any(x => x.Label == "Modelo" && x.Value == "Modelo fixture") &&
+            models[3].Sensors.All(x => x.Value == "N/D"),
+            "RAM e placa-mãe vêm das fontes reais; nenhuma temperatura é inventada");
+
+        // O dashboard real conserva instâncias e permite comparação nos três temas.
+        var identity = home.Cards.ToArray();
+        home.SetModels(models);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (home.Cards.Any(x => !x.ArtReady && x.ArtError is null) &&
+            clock.Elapsed < TimeSpan.FromSeconds(15))
+        { Application.DoEvents(); Thread.Sleep(10); }
+        var failures = home.Cards.Where(x => !x.ArtReady)
+            .Select(x => x.Key + "=" + (x.ArtError ?? "timeout")).ToArray();
+        Require(failures.Length == 0, "decodificação das cinco artes originais: " + string.Join(", ", failures));
+        Directory.CreateDirectory("LayoutCaptures");
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            home.ApplyAppearance(new V269AppearanceOptions(theme, 100, 100, true));
+            home.AutoScrollPosition = Point.Empty;
+            home.PerformLayout();
+            Application.DoEvents();
+            Require(home.Cards.SequenceEqual(identity), "tema não recria cartões");
+            var cards = home.Cards;
+            Require(cards.All(c => c.Width > 0 && c.Height > 0) &&
+                cards[4].Width >= cards[0].Width &&
+                cards[4].Top >= cards[3].Bottom,
+                "cartão Windows ocupa linha própria e não sobrepõe os outros");
+            if (cards[0].Top == cards[1].Top)
+                Require(cards[0].Right < cards[1].Left &&
+                    cards[4].Width > cards[0].Width, "duas colunas e Windows de largura integral");
+            using var capture = new Bitmap(home.Width, home.Height);
+            home.DrawToBitmap(capture, new Rectangle(Point.Empty, home.Size));
+            capture.Save($"LayoutCaptures/v269-inicio-{theme}.png");
+            foreach (var card in cards)
+            {
+                using var detail = new Bitmap(card.Width, card.Height);
+                card.DrawToBitmap(detail, new Rectangle(Point.Empty, card.Size));
+                detail.Save($"LayoutCaptures/v269-inicio-{theme}-{card.Key}.png");
+            }
+        }
+        home.SetModels(empty);
+        home.ApplyAppearance(V269AppearanceOptions.Default);
+        Console.WriteLine("PASS Início V2.6.9: cinco cartões, artes originais, fontes reais, três temas, geometria e capturas.");
     }
 
     private static T? Find<T>(Control control) where T : Control
