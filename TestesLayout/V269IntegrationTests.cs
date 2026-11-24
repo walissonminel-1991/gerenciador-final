@@ -37,25 +37,34 @@ internal static class V269IntegrationTests
         paneToggle.PerformClick();
         Application.DoEvents();
         Require(!shell.RightPane.Visible, "fechar painel restaura o dashboard");
-        var confirm = typeof(MainForm).GetMethod("ConfirmV269Async",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-        var waiting = (Task<bool>)confirm.Invoke(form, ["Revisão de teste",
-            "Alvo sintético. Nenhuma manutenção.", CancellationToken.None])!;
-        shell.SelectPage(V269Page.Drivers);
-        Require(form.Controls.Find("V269HomeMinimize", true).Single().Visible && !paneToggle.Visible,
-            "Drivers reutiliza a barra do HTML e o acesso contextual ao painel");
-        Require(!waiting.IsCompleted && shell.RightPane.Visible &&
-            shell.RightPane.Current?.Kind == V269PanelKind.Confirmation && !views[2].Enabled,
-            "troca de aba conserva a confirmação e impede uma operação concorrente");
-        shell.RightPane.ResolveConfirmation(false);
-        Pump(waiting);
-        Require(!waiting.Result && views[2].Enabled,
-            "cancelamento explícito reabilita a aba sem autorizar operação");
-        using var token = new CancellationTokenSource();
-        waiting = (Task<bool>)confirm.Invoke(form, ["Segunda revisão", "Fixture", token.Token])!;
-        token.Cancel();
-        Pump(waiting);
-        Require(!waiting.Result, "cancelamento do motor encerra a espera de confirmação");
+        // A suíte bombeia mensagens com DoEvents sem Application.Run.
+        // Fixar o contexto neste trecho para entregar as duas continuações ao STA.
+        var previousContext = SynchronizationContext.Current;
+        using var confirmationContext = new WindowsFormsSynchronizationContext();
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(confirmationContext);
+            var confirm = typeof(MainForm).GetMethod("ConfirmV269Async",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var waiting = (Task<bool>)confirm.Invoke(form, ["Revisão de teste",
+                "Alvo sintético. Nenhuma manutenção.", CancellationToken.None])!;
+            shell.SelectPage(V269Page.Drivers);
+            Require(form.Controls.Find("V269HomeMinimize", true).Single().Visible && !paneToggle.Visible,
+                "Drivers reutiliza a barra do HTML e o acesso contextual ao painel");
+            Require(!waiting.IsCompleted && shell.RightPane.Visible &&
+                shell.RightPane.Current?.Kind == V269PanelKind.Confirmation && !views[2].Enabled,
+                "troca de aba conserva a confirmação e impede uma operação concorrente");
+            shell.RightPane.ResolveConfirmation(false);
+            Pump(waiting);
+            Require(!waiting.Result && views[2].Enabled,
+                "cancelamento explícito reabilita a aba sem autorizar operação");
+            using var token = new CancellationTokenSource();
+            waiting = (Task<bool>)confirm.Invoke(form, ["Segunda revisão", "Fixture", token.Token])!;
+            token.Cancel();
+            Pump(waiting);
+            Require(!waiting.Result, "cancelamento do motor encerra a espera de confirmação");
+        }
+        finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
 
         form.ShowUninstallResult("Resultado preservado");
         foreach (var page in pages)
