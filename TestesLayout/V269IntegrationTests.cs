@@ -16,6 +16,7 @@ internal static class V269IntegrationTests
             throw new InvalidOperationException($"View ausente: {page}")).ToArray();
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
+        VerifyAppOrdering();
         var homeSnapshot = VerifyHome(form, views[0]);
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
         Require(paneToggle.Parent?.Name == "V269HomeFooter",
@@ -129,6 +130,35 @@ internal static class V269IntegrationTests
         VerifySettings(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyAppOrdering()
+    {
+        var a=new ProgramEntry{Name="Alfa",InventoryId="A",InstallDate=V269AppOrdering.ParseRegistryDate("20260101")};
+        var b=new ProgramEntry{Name="Beta",InventoryId="B",InstallDate=V269AppOrdering.ParseRegistryDate("20261124"),IsUpdate=true};
+        var z=new ProgramEntry{Name="Zeta",InventoryId="Z"};
+        ProgramEntry[] entries=[z,b,a];
+        Require(V269AppOrdering.ParseRegistryDate("20260230") is null&&V269AppOrdering.ParseRegistryDate(20261124) is null&&
+            V269AppOrdering.ParseRegistryDate("24/11/2026") is null,"datas ARP estritas e ausências explícitas");
+        Require(V269AppOrdering.Sort(entries,V269AppSort.NameAscending,[]).SequenceEqual(new[]{a,b,z})&&
+            V269AppOrdering.Sort(entries,V269AppSort.NameDescending,[]).SequenceEqual(new[]{z,b,a})&&
+            V269AppOrdering.Sort(entries,V269AppSort.RecentlyInstalled,[]).SequenceEqual(new[]{b,a,z})&&
+            V269AppOrdering.Sort(entries,V269AppSort.UpdatesFirst,[]).SequenceEqual(new[]{b,a,z}),"quatro ordenações consultivas");
+        var manual=V269AppOrdering.Move(entries,[],z,a)??throw new InvalidOperationException("ordem manual");
+        Require(V269AppOrdering.Sort(entries,V269AppSort.Manual,manual).SequenceEqual(new[]{z,a,b}),"ordem manual por identidade");
+        Require(V269AppOrdering.Move([a,new ProgramEntry{Name="Outra",InventoryId="A"},z],[],a,z) is null,
+            "identidade ambígua não permite mover");
+        string directory=Path.Combine(Path.GetTempPath(),"GF-app-order-"+Guid.NewGuid().ToString("N"));
+        string path=Path.Combine(directory,"order.json");
+        try
+        {
+            V269AppOrderStore.Write(path,manual);
+            Require(V269AppOrderStore.Read(path).SequenceEqual(manual),"ordem manual persistente em fixture");
+            File.WriteAllText(path,"{}");
+            Require(V269AppOrderStore.Read(path).Length==0,"ordem corrompida não impede inventário");
+        }
+        finally{if(Directory.Exists(directory))Directory.Delete(directory,true);}
+        Console.WriteLine("PASS Aplicativos V2.6.9: datas consultivas e cinco ordenações.");
     }
 
     private static void VerifySettings(MainForm form,V269Shell shell)

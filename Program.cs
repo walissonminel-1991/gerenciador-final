@@ -95,6 +95,7 @@ internal sealed class ProgramEntry
     public string Version { get; init; } = "";
     public string Publisher { get; init; } = "";
     public string DisplayIcon { get; init; } = "";
+    internal DateOnly? InstallDate { get; init; }
     public string UninstallString { get; init; } = "";
     public string QuietUninstallString { get; init; } = "";
     public string InstallLocation { get; init; } = "";
@@ -427,6 +428,7 @@ internal static class AppServices
                             UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
                             DisplayIcon = Convert.ToString(child.GetValue("DisplayIcon")) ?? "",
+                            InstallDate = V269AppOrdering.ParseRegistryDate(child.GetValue("InstallDate", null, RegistryValueOptions.DoNotExpandEnvironmentNames)),
                             QuietUninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
                             InstallLocation = protectedApp && !includeHidden ? "" :
@@ -799,7 +801,7 @@ internal sealed partial class MainForm : Form
         }
 
         _nav.SetPageContent(V269Page.Inicio, BuildV269Home());
-        _nav.SetPageContent(V269Page.Aplicativos, BuildProgramsPanel());
+        _nav.SetPageContent(V269Page.Aplicativos, BuildProgramsPanel(startServices));
         _nav.SetPageContent(V269Page.Drivers, BuildDriversPlaceholder());
         AddToolsPages();
         _nav.SetPageContent(V269Page.Inicializacao, BuildV269StartupPage());
@@ -1105,8 +1107,15 @@ internal sealed partial class MainForm : Form
         return panel;
     }
 
-    private Control BuildProgramsPanel()
+    private V269AppSort _v269AppSort=V269AppSort.NameAscending;
+    private string[] _v269ManualOrder=[];
+    private bool _v269OrderLive;
+    private readonly ComboBox _v269AppSortChoice=new() { Name="V269AppSort", DropDownStyle=ComboBoxStyle.DropDownList };
+
+    private Control BuildProgramsPanel(bool loadPreferences)
     {
+        _v269OrderLive=loadPreferences;
+        if(loadPreferences)_v269ManualOrder=V269AppOrderStore.Read(V269AppOrderStore.PathForUser);
         // Uma única lista: atualização disponível no topo, outras instalações abaixo.
         var root = new TableLayoutPanel
         {
@@ -1163,6 +1172,14 @@ internal sealed partial class MainForm : Form
             finally { if (!hiddenReview.IsDisposed) hiddenReview.Enabled = true; }
         };
         searchBar.Controls.Add(hiddenReview, 3, 0);
+        searchBar.ColumnCount=5;
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,142));
+        _v269AppSortChoice.AccessibleName="Ordenar aplicativos";
+        _v269AppSortChoice.Items.AddRange(["Nome (A–Z)","Nome (Z–A)","Instalados recentemente","Atualizações primeiro","Ordem manual"]);
+        _v269AppSortChoice.SelectedIndex=0;
+        _v269AppSortChoice.Dock=DockStyle.Fill;
+        _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{if(_v269AppSortChoice.SelectedIndex>=0){_v269AppSort=(V269AppSort)_v269AppSortChoice.SelectedIndex;RenderPrograms();}};
+        searchBar.Controls.Add(_v269AppSortChoice,4,0);
         // A consulta de ocultos nao altera a lista principal nem a fila de acoes.
         root.Controls.Add(searchBar, 0, 0);
 
@@ -1305,6 +1322,7 @@ internal sealed partial class MainForm : Form
         _programList.OperationFor = _updateOperations.Find;
         _programList.UninstallOperationFor = _uninstallOperations.Find;
         _programList.DrawItem += DrawProgramCard;
+        _programList.ReorderRequested+=MoveV269App;
         _toolTips.SetToolTip(_programList,
             "Atualizar usa um instalador oficial verificado quando há integração validada. " +
             "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
@@ -2915,11 +2933,8 @@ internal sealed partial class MainForm : Form
             "Selecionados" => filtered.Where(x => _checkedApps.Contains(x)),
             _ => filtered
         };
-        var match = filtered.OrderByDescending(x => x.IsUpdate)
-            .ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(x => x.Version, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        var match = V269AppOrdering.Sort(filtered,_v269AppSort,_v269ManualOrder);
         _programList.SetItems(match);
-        _programList.ScrollToTop();
         _emptyState.Text = query.Length > 0
             ? "Nenhum aplicativo corresponde à pesquisa."
             : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
@@ -2931,6 +2946,27 @@ internal sealed partial class MainForm : Form
         RenderTitle();
         UpdateBulkButtons();
         ApplyFilterAppearance();
+    }
+
+    private void MoveV269App(ProgramEntry item,ProgramEntry target)
+    {
+        if(_busy||_batchUpdatesActive||_v269Confirming||_betaClose.IsClosing||_multiSelectMode||
+            _inventoryIncomplete||_consultaCatalogoCts is not null)return;
+        var order=_v269AppSort==V269AppSort.Manual?_v269ManualOrder:
+            V269AppOrdering.Sort(_installed,_v269AppSort,_v269ManualOrder).Select(V269AppOrdering.Key)
+                .Where(k=>k.Length==64).Distinct(StringComparer.Ordinal).ToArray();
+        var changed=V269AppOrdering.Move(_installed,order,item,target);
+        if(changed is null)return;
+        try
+        {
+            if(_v269OrderLive)V269AppOrderStore.Write(V269AppOrderStore.PathForUser,changed);
+            _v269ManualOrder=changed;_v269AppSort=V269AppSort.Manual;
+            _v269AppSortChoice.SelectedIndex=(int)V269AppSort.Manual;
+            RenderPrograms();
+            _programList.SelectedIndex=_programList.Items.ToList().FindIndex(x=>ReferenceEquals(x,item));
+        }
+        catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or System.Security.SecurityException)
+        {Status("Não foi possível salvar a ordem manual; ordem anterior preservada.");}
     }
 
     internal static string InventoryCoverageTitle(bool incomplete) =>

@@ -253,6 +253,7 @@ internal sealed class DarkProgramList : Control
     public event DrawItemEventHandler? DrawItem;
     public event Action<ProgramEntry, string>? ItemActionClicked;
     public event Action<ProgramEntry>? ItemCheckboxClicked;
+    internal event Action<ProgramEntry,ProgramEntry>? ReorderRequested;
     private bool _multiSelectMode;
     private bool _actionsEnabled = true;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -403,8 +404,14 @@ internal sealed class DarkProgramList : Control
         _tipRow = -1;
         int oldSelected = _selectedIndex;
         _selectedIndex = prior is null ? -1 : _items.FindIndex(x => ReferenceEquals(x, prior));
+        if(_selectedIndex<0&&prior is not null&&!string.IsNullOrEmpty(prior.InventoryId))
+        {
+            var matches=_items.Select((item,index)=>(item,index)).Where(x=>
+                string.Equals(x.item.InventoryId,prior.InventoryId,StringComparison.OrdinalIgnoreCase)).ToArray();
+            if(matches.Length==1)_selectedIndex=matches[0].index;
+        }
         UpdateMetrics();
-        if (oldSelected != _selectedIndex) SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        if (oldSelected != _selectedIndex || !ReferenceEquals(prior,SelectedItem)) SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
         Invalidate();
     }
 
@@ -580,6 +587,12 @@ internal sealed class DarkProgramList : Control
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if(e.Alt&&e.KeyCode is Keys.Up or Keys.Down&&_actionsEnabled&&!_multiSelectMode&&SelectedItem is {} moving)
+        {
+            int destination=_selectedIndex+(e.KeyCode==Keys.Up?-1:1);
+            if(destination>=0&&destination<_items.Count)ReorderRequested?.Invoke(moving,_items[destination]);
+            e.Handled=true;e.SuppressKeyPress=true;return;
+        }
         if (e.KeyCode is Keys.Enter or Keys.Apps || e.KeyCode == Keys.F10 && e.Shift)
         {
             OpenAppActions(new Point(30, Math.Clamp(_selectedIndex * _itemHeight - _scrollOffset + 18,
