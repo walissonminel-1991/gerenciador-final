@@ -29,7 +29,6 @@ internal sealed class GfResourceMonitorForm : Form
     private readonly List<Font> _ownedFonts = [];
     private readonly List<GfMonitorGlyph> _glyphs = [];
     private readonly Label _compactLogo, _expandedLogo;
-    private readonly GfMonitorLegend _legend;
     private readonly List<TableLayoutPanel> _outlined = [];
     private readonly List<TableLayoutPanel> _separated = [];
     private readonly System.Windows.Forms.Timer _freshness;
@@ -94,12 +93,11 @@ internal sealed class GfResourceMonitorForm : Form
         AttachDrag(strip); AttachDrag(_compactLogo);
         _compact.Controls.Add(strip);
 
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+        var layout = new TableLayoutPanel { Name = "MonitorExpandedLayout", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
             Margin = Padding.Empty, Padding = new(5) };
         layout.ColumnStyles.Add(new(SizeType.Percent, 100));
         layout.RowStyles.Add(new(SizeType.Absolute, 30));
         layout.RowStyles.Add(new(SizeType.Percent, 100));
-        layout.RowStyles.Add(new(SizeType.Absolute, 46));
         _surfaces.Add(layout);
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Margin = Padding.Empty };
         header.RowStyles.Add(new(SizeType.Percent, 100));
@@ -125,9 +123,6 @@ internal sealed class GfResourceMonitorForm : Form
         panels.Controls.Add(PanelFor("Uso dos recursos", [0, 2, 1, 3]), 0, 0);
         panels.Controls.Add(PanelFor("Temperaturas", [4, 5]), 1, 0);
         layout.Controls.Add(panels, 0, 1);
-        _legend = new GfMonitorLegend { Dock = DockStyle.Fill, Margin = new(2, 0, 2, 0),
-            AccessibleName = "Escalas cromáticas de utilização e temperatura" };
-        layout.Controls.Add(_legend, 0, 2);
         _expanded.Controls.Add(layout);
         // Somente a superfície ativa fica na árvore visual: evita sobreposição
         // de painéis Dock.Fill e captura de filhos do modo oculto.
@@ -282,7 +277,6 @@ internal sealed class GfResourceMonitorForm : Form
         foreach (var g in _glyphs) { g.ForeColor = p.Text; g.Invalidate(); }
         foreach (var l in _compactValues.OfType<GfMonitorCompactLabel>()) l.SetCaptionColor(p.Text);
         _compactLogo.BackColor = _expandedLogo.BackColor = p.Selection;
-        _legend.Configure(theme);
         foreach (var surface in _outlined.Concat(_separated)) surface.Invalidate();
         foreach (var bar in _bars) bar.Configure(theme, _animate);
         if (_last is not null) Render(_last, updateFilters: false); else ClearReadings();
@@ -298,7 +292,7 @@ internal sealed class GfResourceMonitorForm : Form
             Panel inactive = value ? _compact : _expanded;
             inactive.Visible = false;
             if (inactive.Parent == this) Controls.Remove(inactive);
-            ClientSize = new(SizeFor(552), SizeFor(value ? 232 : 38));
+            ClientSize = new(SizeFor(552), SizeFor(value ? 186 : 38));
             if (active.Parent != this) Controls.Add(active);
             active.Visible = true;
             active.BringToFront();
@@ -494,58 +488,6 @@ internal sealed class GfMonitorGlyph(int kind) : Control
                 g.DrawEllipse(p, 7, 12, 6, 6); g.DrawLine(p, 8, 13, 8, 4); g.DrawLine(p, 12, 13, 12, 4); g.DrawArc(p, 8, 2, 4, 4, 180, 180);
                 break;
         }
-    }
-}
-
-
-// Legenda enxuta, com âncoras de uso e indicação explícita da referência
-// térmica. Não transforma carga alta em diagnóstico de defeito.
-internal sealed class GfMonitorLegend : Control
-{
-    private V269Theme _theme;
-    internal GfMonitorLegend()
-    {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-            ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        TabStop = false;
-    }
-
-    internal void Configure(V269Theme theme)
-    {
-        _theme = theme;
-        var p = V269VisualTokens.ForTheme(theme);
-        BackColor = p.Card; ForeColor = p.Text;
-        AccessibleDescription = "Uso: azul até 40%, verde em 60%, amarelo em 75%, vermelho em 100%. " +
-            "Temperatura adaptada ao limite comprovado; quando ausente, referência genérica.";
-        Invalidate();
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        if (Width < 20 || Height < 20) return;
-        var p = V269VisualTokens.ForTheme(_theme);
-        var (blue, green, yellow, red) = GfMeterScale.Colors(_theme);
-        Color[] colors = [blue, green, yellow, red];
-        using var border = new Pen(p.Border);
-        GfMonitorShape.DrawOutline(e.Graphics, ClientRectangle, p.Border, 6f * DeviceDpi / 96f);
-        e.Graphics.DrawLine(border, Width / 2, 4, Width / 2, Height - 5);
-        void Group(int x, int width, string title, string[] labels)
-        {
-            int header = Height * 2 / 5;
-            var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
-            TextRenderer.DrawText(e.Graphics, title, Font, new Rectangle(x + 3, 0, width - 6, header), p.Text, flags);
-            for (int i = 0; i < 4; i++)
-            {
-                int cell = width / 4, left = x + i * cell;
-                using var brush = new SolidBrush(colors[i]);
-                using var path = GfMonitorShape.Rounded(new RectangleF(left + cell / 2f - 8, header, 16, 5), 2.5f);
-                e.Graphics.FillPath(brush, path);
-                TextRenderer.DrawText(e.Graphics, labels[i], Font, new Rectangle(left + 1, header + 6, Math.Max(1, cell - 2), Height - header - 7), p.Text, flags);
-            }
-        }
-        Group(0, Width / 2, "Escala de uso · 40 / 60 / 75 / 100%", ["Baixo", "Normal", "Alto", "Muito alto"]);
-        Group(Width / 2, Width - Width / 2, "Temperatura · limite ou referência", ["Fria", "Normal", "Alta", "Limite"]);
     }
 }
 

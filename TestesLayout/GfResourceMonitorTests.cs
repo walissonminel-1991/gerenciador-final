@@ -87,6 +87,19 @@ internal static class GfResourceMonitorTests
         var all = All(form).Where(x => x.Visible).ToArray();
         var bars = all.OfType<GfDynamicProgressBar>().ToArray();
         Require(bars.Length == 6, "expandido exige seis barras");
+        // A decisão visual final do proprietário exclui a legenda inteira,
+        // inclusive sua linha e a altura antes reservada a ela.
+        var expanded = all.OfType<TableLayoutPanel>().Single(x => x.Name == "MonitorExpandedLayout");
+        int Scaled(int px) => Math.Max(1, (int)Math.Round(px * form.DeviceDpi / 96d));
+        Require(form.ClientSize == new Size(Scaled(552), Scaled(186)),
+            "expandido sem legenda deve medir 552 x 186 em 96 DPI");
+        Require(expanded.RowCount == 2 && expanded.RowStyles.Count == 2 &&
+            expanded.Controls.Count == 2 && expanded.GetControlFromPosition(0, 0) is TableLayoutPanel &&
+            expanded.GetControlFromPosition(0, 1) is TableLayoutPanel,
+            "somente cabeçalho e painéis, sem linha ou controle de legenda");
+        Require(!all.Any(x => x.GetType().Name == "GfMonitorLegend" ||
+            x.AccessibleName == "Escalas cromáticas de utilização e temperatura"),
+            "legenda cromática não pode reaparecer");
         (string Name, string Value)[] expected = [
             ("Utilização CPU", "14%"), ("Utilização RAM", "42%"),
             ("Utilização GPU", "12%"), ("Utilização VRAM", "15%"),
@@ -113,6 +126,8 @@ internal static class GfResourceMonitorTests
     // Gate de pixels: um PNG com os painéis presentes mas sem texto não passa.
     private static void VerifyCompactCapture(GfResourceMonitorForm form, Bitmap bitmap)
     {
+        int Scaled(int px) => Math.Max(1, (int)Math.Round(px * form.DeviceDpi / 96d));
+        Require(form.ClientSize == new Size(Scaled(552), Scaled(38)), "dimensões do compacto preservadas");
         var labels = All(form).OfType<Label>().Where(x => x.Name.StartsWith("MonitorCompactMetric", StringComparison.Ordinal)).ToArray();
         Require(labels.Length == 5 && labels.All(x => x.Visible && x.Width > 0 && x.Height > 0), "compacto exige cinco métricas visíveis");
         Require(All(form).OfType<GfMonitorGlyph>().Count(x => x.Visible) == 5, "compacto exige cinco pictogramas");
@@ -194,7 +209,7 @@ internal static class GfResourceMonitorTests
         Require(invalid.Normalize().OpacityPercent == 40 && invalid.Normalize().X is null,
             "limitar transparência e rejeitar coordenadas absurdas");
         var work = new Rectangle(-1440, 0, 1440, 900);
-        Require(GfResourceMonitorPreferences.Fit(new Point(-1440, 880), new Size(552, 232), work, 10) ==
+        Require(GfResourceMonitorPreferences.Fit(new Point(-1440, 880), new Size(552, 186), work, 10) ==
             new Point(-1440, 668), "reencaixar após mudança de modo ou tela");
         var folder = Path.Combine(Path.GetTempPath(), "gf-monitor-fixture-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);

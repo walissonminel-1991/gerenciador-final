@@ -4,7 +4,7 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 
 ## Escopo
 - Monitor opcional e consultivo: modo compacto em linha única, ícones, CPU/GPU/RAM %, temperaturas CPU/GPU, expandir e fechar. Sem barras nesse modo.
-- Expandido em dois painéis compactos: CPU/RAM/GPU/VRAM %, duas temperaturas, barras e legenda discreta. Sem GB, frequência, discos, uptime, manutenção, abas ou encerramento de processos.
+- Expandido em dois painéis compactos: CPU/RAM/GPU/VRAM %, duas temperaturas e barras. Sem legenda, GB, frequência, discos, uptime, manutenção, abas ou encerramento de processos.
 - Azul GF, Dark e Claro reutilizam tokens V269VisualTokens; modo claro tem cores de estado mais escuras para leitura.
 - Janela flutuante nativa, arrastável, alternância de modo, menu de sempre no topo, sem serviço, driver ou elevação. O host futuro controlará preferência, posição, visibilidade e bandeja.
 - GfDynamicProgressBar independente: utilização 0–40 azul, 40–60 azul→verde, 60–75 verde→amarelo, 75–100 amarelo→vermelho; interpolação uniforme da cor do preenchimento. Escala não é alerta de falha para CPU/GPU em alta carga.
@@ -90,3 +90,9 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 - Teste adicional do host usa portfólio de tipos reais com dados exclusivamente sintéticos, incluindo limites D3DKMT em décimos de grau: publicação anterior à abertura, replay na janela WinForms real, aviso térmico, atualização posterior, fechamento manual, persistência, reabertura única, descarte e restauração explícita sem janela residual.
 - Evidência térmica agora exige o timestamp explícito do sensor quando MetricTimes foi fornecido. Um timestamp ausente ou obsoleto não pode herdar o horário de entrega para classificar um limite. Snapshot legado sem MetricTimes mantém semântica já homologada.
 - Guia de integração isolada em docs/MONITOR-GF-INTEGRACAO-WORK.md: chamadas concretas do host, gates do coletor, publicação parcial, seleção de GPU, preferências, barras e lista de verificação. Não modifica o shell nem executa unificação. As etapas de homologação física e geração da candidata são exclusivamente do WORK, somente após conclusão das frentes.
+
+
+## 24/11 — correção visual final solicitada pelo proprietário
+- O HEAD 9da1186 teve as CIs Windows 45430301465 e integridade 45430301248 integralmente aprovadas, inclusive ciclo ponta a ponta, etapas 38/46 e x64. O proprietário rejeitou explicitamente a legenda cromática inferior ao inspecionar as capturas finais.
+- Removidos integralmente o controle GfMonitorLegend, sua terceira linha de 46 px e a configuração associada. Modo expandido 552 x 186 px a 96 DPI (antes 552 x 232); compacto permanece 552 x 38. O cabeçalho e os dois painéis conservam suas dimensões úteis. Sem substituição por outro texto, ícone, tooltip ou rodapé. Escalas, alertas, acessibilidade por métrica, host e motores preservados.
+- Testes exigem dois filhos e duas linhas no layout expandido, ausência de legenda e dimensões em função do DPI, além dos testes existentes de seis métricas, pixels, contraste e recorte nativo nos três temas. Esta correção substitui as capturas e instruções anteriores que incluíam a legenda. Aprovação do novo HEAD condicionada a CI e novas capturas; nenhuma unificação ou homologação física nesta frente.

@@ -38,3 +38,7 @@ Em Início/Sistema, GfMeterScale.Frame(Usage, percent, theme) para percentuais r
 - Progresso confirmado e indeterminado, estados de falha/cancelamento; barras ocultas ou estáticas sem timer ativo.
 - CIs existentes em SHA exato, testes automatizados do monitor e regressões das outras frentes. A aprovação isolada não substitui teste integrado.
 - Só depois da unificação autorizada: homologação física no PC FORTE e PC FRACO, com inventário e métricas reais, consumo de CPU/RAM e estabilidade durante uso prolongado/jogos. Registrar limitações sem identificadores. Não executar manutenção física ou instalação sem autorização específica.
+
+
+## Correção visual obrigatória posterior à entrega inicial
+O proprietário rejeitou toda a legenda cromática inferior. Preservar o Monitor GF sem legenda, sem rodapé substituto e sem espaço reservado. O modo expandido deve medir 552 x 186 px em 96 DPI; o compacto permanece 552 x 38. A lógica de cores e alertas e as descrições acessíveis de cada métrica continuam existentes, sem texto explicativo adicional na janela. O HEAD corrigido deve substituir 9da1186 nos documentos de integração somente depois da aprovação das suas CIs. Não reintroduzir a legenda de versões anteriores ou da referência histórica.
