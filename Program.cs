@@ -2031,6 +2031,36 @@ internal sealed partial class MainForm : Form
 #endif
         previewRow.Controls.Add(modePanel, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
+        bool? previewCompact = null;
+        void FitPreviewCommands()
+        {
+            bool compact = CleanupPreviewCompact(root.ClientSize.Width - root.Padding.Horizontal);
+            if (previewCompact == compact) return;
+            previewCompact = compact;
+            previewRow.SuspendLayout();
+            try
+            {
+                var first = previewRow.ColumnStyles[0];
+                var second = previewRow.ColumnStyles[1];
+                var summary = previewRow.ColumnStyles[2];
+                first.SizeType = second.SizeType = compact ? SizeType.Percent : SizeType.Absolute;
+                first.Width = compact ? 50 : 159;
+                second.Width = compact ? 50 : 204;
+                summary.SizeType = compact ? SizeType.Absolute : SizeType.Percent;
+                summary.Width = compact ? 0 : 100;
+                previewRow.SetColumnSpan(modePanel, 1);
+                previewRow.SetCellPosition(modePanel, new TableLayoutPanelCellPosition(compact ? 0 : 2, compact ? 1 : 0));
+                previewRow.SetColumnSpan(modePanel, compact ? 2 : 1);
+                previewRow.RowCount = compact ? 2 : 1;
+                previewRow.RowStyles.Clear();
+                previewRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                if (compact) previewRow.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(32 * dpiFactor)));
+                root.RowStyles[1].Height = (float)Math.Ceiling((compact ? 70 : 38) * dpiFactor);
+            }
+            finally { previewRow.ResumeLayout(true); }
+        }
+        root.SizeChanged += (_, _) => FitPreviewCommands();
+        FitPreviewCommands();
         root.Controls.Add(BuildCleanupReport(reportRow), 0, 2);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
         _diskSummary.Dock = DockStyle.Fill;

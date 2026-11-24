@@ -20,6 +20,8 @@ internal sealed partial class MainForm
         return (int)Math.Ceiling(logical * Math.Max(1d, DeviceDpi / 96d));
     }
 
+    private static bool CleanupPreviewCompact(int availableWidth) => availableWidth < 500;
+
     private int DiskPanelHeight(int width)
     {
         int count = _diskCards.Content.Controls.Count;
@@ -27,7 +29,8 @@ internal sealed partial class MainForm
         int columns = usable >= 1050 ? 3 : usable >= 740 ? 2 : 1;
         int rows = Math.Max(1, (Math.Max(1, count) + columns - 1) / columns);
         float scale = Math.Max(1f, DeviceDpi / 96f);
-        int fixedRows = 34 + 38 + 20 + 8 + 2 + 4;
+        int previewHeight = CleanupPreviewCompact(width - 32) ? 70 : 38;
+        int fixedRows = 34 + previewHeight + 20 + 8 + 2 + 4;
         int cards = rows * (98 + 7);
         return (int)Math.Ceiling((fixedRows + cards) * scale) + CleanupReportHeight(width);
     }
