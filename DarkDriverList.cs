@@ -107,6 +107,7 @@ internal sealed partial class DarkDriverList : Control
     internal DriverInventoryEntry? SelectedItem =>
         _selectedIndex >= 0 && _selectedIndex < _items.Count ? _items[_selectedIndex] : null;
     internal bool ActionsCurrent => _actionsCurrent;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     internal bool CanCopySummary { get; set; }
     internal event Action? CopySummaryRequested;
     internal bool HasConsultativeOffer(DriverInventoryEntry item) => _offeredDevices.Contains(item.DeviceId);

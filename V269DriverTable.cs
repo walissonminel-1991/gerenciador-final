@@ -164,6 +164,7 @@ internal sealed partial class DarkDriverList
     private Point _dragOrigin;
 
     private string _emptyMessage = "";
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     internal string EmptyMessage
     {
         get => _emptyMessage;
