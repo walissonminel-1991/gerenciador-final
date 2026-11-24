@@ -437,7 +437,9 @@ internal static class V269IntegrationTests
         try
         {
             home.SetModels(visualFixture);
-            foreach (Size viewportSize in new[] { new Size(716,596), new Size(992,659) })
+            // 716px é um teste de estresse nativo; o HTML impõe min-width:760px.
+            // Conservar o estresse e acrescentar os dois tamanhos efetivamente comparáveis.
+            foreach (Size viewportSize in new[] { new Size(716,596), new Size(760,596), new Size(992,659) })
             {
                 surface.Size = viewportSize;
                 foreach (var theme in Enum.GetValues<V269Theme>())
@@ -449,9 +451,11 @@ internal static class V269IntegrationTests
                     Require(home.Cards[0].Width > 0 && home.Cards[0].Height > 0 &&
                         (viewportSize.Width >= 940) == (home.Cards[0].Top == home.Cards[1].Top),
                         "colunas do viewport de referência " + viewportSize);
+                    Require(surface.Size == viewportSize, "dimensão efetiva da captura " + viewportSize);
                     using var same = new Bitmap(surface.Width, surface.Height);
                     surface.DrawToBitmap(same, new Rectangle(Point.Empty, surface.Size));
-                    same.Save($"LayoutCaptures/v269-inicio-REFERENCIA-SINTETICA-{theme}-{viewportSize.Width}x{viewportSize.Height}.png");
+                    string captureKind = viewportSize.Width < 760 ? "ESTRESSE-SINTETICO" : "REFERENCIA-SINTETICA";
+                    same.Save($"LayoutCaptures/v269-inicio-{captureKind}-{theme}-{viewportSize.Width}x{viewportSize.Height}.png");
                 }
             }
         }
