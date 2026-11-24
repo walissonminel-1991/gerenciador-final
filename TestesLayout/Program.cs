@@ -13,6 +13,8 @@ internal static class LayoutTests
             _ => Environment.FailFast("Timeout no teste de layout"),
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
+        if (args.Contains("--monitor-gf")) { GfResourceMonitorTests.Run(); return; }
+        GfResourceMonitorTests.Run(); // somente fixtures e janela consultiva; sem coleta ou manutenção.
         BundlewareReviewTests.Run(); // política ARP: nenhum comando de desinstalação é iniciado.
         if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
             uninstallPath != @"C:\cache.exe_folder\uninstall.exe" || uninstallArgs != "/S" ||
