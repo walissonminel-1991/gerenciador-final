@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -18,6 +19,17 @@ internal sealed partial class MainForm
     private readonly Label _networkDetails = new();
     private Button? _repairNetworkButton;
     private NetworkScan? _lastNetworkScan;
+    private readonly Label _repairReport = new()
+    {
+        Name = "RepairDiagnosticResult", Dock = DockStyle.Fill, Visible = false,
+        Margin = new Padding(15, 2, 15, 4), Padding = new Padding(16, 8, 16, 8),
+        BackColor = PanelBackground, ForeColor = Ink, UseMnemonic = false,
+        AccessibleName = "Resultado do diagnóstico"
+    };
+    private Task<PrinterQueueDiagnosis>? _printerQuery;
+    private Task<UsbPnpDiagnosis>? _usbQuery;
+    private Task<ChipsetPnpDiagnosis>? _chipsetQuery;
+    private Task<BlueScreenDiagnosis>? _blueScreenQuery;
 
     private Control BuildNetworkResultPanel()
     {
@@ -56,7 +68,7 @@ internal sealed partial class MainForm
     private async Task RunNetworkDiagnosticAsync()
     {
         if (_busy) return;
-        await ExecuteAsync("Verificando conexão, gateway, DNS e acesso HTTPS...", async () =>
+        await ExecuteAsync("Verificando adaptador, gateway, DNS e conexão TCP/443...", async () =>
         {
             var result = await NetworkDiagnostics.AnalyzeAsync();
             _lastNetworkScan = result;
@@ -65,7 +77,7 @@ internal sealed partial class MainForm
             _networkSummary.Text = !result.HasWarnings
                 ? "Rede sem falhas nos testes disponíveis. Não há reparo indicado."
                 : actionable
-                    ? "Foram encontrados alertas. O botão Reparar rede pode aplicar uma correção específica."
+                    ? "A resolução DNS falhou. Reparar rede oferece a limpeza do cache DNS."
                     : "Há alertas, mas nenhuma correção automática segura foi identificada. Confira os detalhes.";
             var lines = result.Checks.Select(check => $"{check.Name}: {check.Detail}").ToArray();
             _networkDetails.Text = string.Join(Environment.NewLine, lines.Take(5)) +
@@ -75,28 +87,135 @@ internal sealed partial class MainForm
             {
                 Log($"Rede [{check.State}]: {check.Name} — {check.Detail}");
             }
-            Log("Diagnóstico de rede somente consultivo. Falha isolada pode resultar de firewall, proxy ou bloqueio de ICMP.");
-            Log(actionable ? "Uma correção orientada está disponível mediante confirmação." : "Nenhuma correção automática indicada nesta análise.");
+            Log("Diagnóstico de rede somente consultivo. Os testes TCP/443 e ICMP se limitam aos destinos consultados.");
+            Log(actionable ? "A limpeza do cache DNS está disponível mediante confirmação." : "Nenhum reparo guiado indicado nesta análise.");
             Status(result.HasWarnings ? "Rede: consulte os alertas do diagnóstico" : "Diagnóstico de rede concluído");
         });
     }
 
-    // Não confunde gateway/ICMP bloqueado com problema que precisa ser corrigido.
-    // Só sugere correções quando a interface e o gateway foram identificados.
-    private static string? GetSuggestedNetworkRepair(NetworkScan? scan)
+    // Delegar a recomendação ao contrato testado de rede, mantendo a UI.
+    // Um único destino TCP/443 nunca justifica sugerir Winsock.
+    private static string? GetSuggestedNetworkRepair(NetworkScan? scan) =>
+        NetworkDiagnostics.SuggestTargetedRepair(scan);
+
+    private Task RunAudioDiagnosticAsync() => ExecuteAsync("Consultando saídas de áudio...", async () =>
     {
-        if (scan is null) return null;
-        bool localReady = scan.Checks.Any(c => c.Name == "Adaptador" && c.State == "OK") &&
-                          scan.Checks.Any(c => c.Name == "Gateway" && c.State == "OK");
-        if (!localReady) return null;
-        if (scan.Checks.Any(c => c.Name == "DNS" && c.State == "Atenção"))
-            return "flush-dns";
-        // Somente quando DNS passou e a conectividade TCP/443 falhou; pode ser
-        // proxy/firewall e, portanto, a ação requer confirmação explícita.
-        if (scan.Checks.Any(c => c.Name == "DNS" && c.State == "OK") &&
-            scan.Checks.Any(c => c.Name == "Conexão HTTPS" && c.State == "Atenção"))
-            return "network-repair-winsock";
-        return null;
+        var diagnosis = await Task.Run(AudioOutputDiagnostic.Read);
+        ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+    });
+
+    private Task RunPrinterDiagnosticAsync() => ExecuteAsync("Consultando a impressora padrão...", async () =>
+    {
+        try
+        {
+            var diagnosis = await WaitForRepairQueryAsync(ref _printerQuery, ReadDefaultPrinter);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+        }
+        catch (TimeoutException)
+        {
+            var diagnosis = new PrinterQueueDiagnosis(PrinterQueueState.Inconclusive);
+            ShowRepairDiagnostic(diagnosis.Summary,
+                diagnosis.Describe() + "\n\nO Windows ainda está respondendo à consulta.");
+        }
+    });
+
+    private Task RunUsbDiagnosticAsync() => ExecuteAsync("Consultando dispositivos USB...", async () =>
+    {
+        try
+        {
+            var diagnosis = await WaitForRepairQueryAsync(ref _usbQuery, ReadUsbDiagnosis);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+        }
+        catch (TimeoutException)
+        {
+            var diagnosis = UsbPnpDiagnostic.Evaluate([], partial: true);
+            ShowRepairDiagnostic(diagnosis.Summary,
+                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.");
+        }
+    });
+
+    private Task RunChipsetDiagnosticAsync() => ExecuteAsync("Consultando controladores do chipset...", async () =>
+    {
+        try
+        {
+            var diagnosis = await WaitForRepairQueryAsync(ref _chipsetQuery,
+                () => ChipsetPnpDiagnostic.Evaluate(DriverInventory.Capture(CancellationToken.None)));
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+        }
+        catch (TimeoutException)
+        {
+            var diagnosis = new ChipsetPnpDiagnosis([], Partial: true);
+            ShowRepairDiagnostic(diagnosis.Summary,
+                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.");
+        }
+    });
+
+    private Task RunBlueScreenDiagnosticAsync() => ExecuteAsync("Consultando registros de tela azul...", async () =>
+    {
+        try
+        {
+            var diagnosis = await WaitForRepairQueryAsync(ref _blueScreenQuery, BlueScreenEventLog.Read);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+        }
+        catch (TimeoutException)
+        {
+            var diagnosis = new BlueScreenDiagnosis([], Partial: true);
+            ShowRepairDiagnostic(diagnosis.Summary,
+                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.");
+        }
+    });
+
+    private static Task<T> WaitForRepairQueryAsync<T>(ref Task<T>? query, Func<T> read)
+    {
+        // Depois de encerrar a espera da interface, não iniciar outra leitura
+        // do mesmo tipo enquanto o Windows ainda processa a primeira.
+        if (query is not { IsCompleted: false }) query = Task.Run(read);
+        return query.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    private static UsbPnpDiagnosis ReadUsbDiagnosis()
+    {
+        var observations = new List<UsbPnpObservation>();
+        var snapshot = MaintenanceAudit.ReadPnpDevices((id, present, code) =>
+        {
+            if (UsbPnpDiagnostic.IsUsbInstance(id)) observations.Add(new(id, present, code));
+        });
+        return UsbPnpDiagnostic.Evaluate(observations, snapshot.Partial || !snapshot.Supported);
+    }
+
+    private static PrinterQueueDiagnosis ReadDefaultPrinter()
+    {
+        try
+        {
+            return PrinterQueueDiagnostic.Evaluate(DetailedHardware.ReadLocalWmi(
+                "SELECT PrinterStatus, ExtendedPrinterStatus, DetectedErrorState FROM Win32_Printer WHERE Default = TRUE",
+                "PrinterStatus", "ExtendedPrinterStatus", "DetectedErrorState"));
+        }
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or
+            InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            return new(PrinterQueueState.Inconclusive);
+        }
+    }
+
+    private void ShowRepairDiagnostic(string summary, string report)
+    {
+        if (IsDisposed || Disposing || _betaClose.IsClosing) return;
+        _repairReport.Text = report;
+        _repairReport.Visible = true;
+        _relayoutRepair?.Invoke();
+        Log(report);
+        Status(summary);
+        _nav.PresentPanel(new(V269PanelKind.Result, summary, report));
+    }
+
+    private int RepairDiagnosticHeight(int pageWidth)
+    {
+        if (_repairReport.Text.Length == 0) return 0;
+        var padding = _repairReport.Padding;
+        var margin = _repairReport.Margin;
+        int width = Math.Max(1, pageWidth - padding.Horizontal - margin.Horizontal);
+        return ReportTextHeight(_repairReport, width) + padding.Vertical + margin.Vertical;
     }
 
     private async Task RepairNetworkAfterDiagnosisAsync()
@@ -106,35 +225,79 @@ internal sealed partial class MainForm
         if (task is null)
         {
             MessageBox.Show(this,
-                "Execute Analisar rede primeiro. Se a análise estiver normal ou não indicar uma correção segura, " +
-                "nenhuma configuração será alterada. Verifique os alertas antes de usar a redefinição avançada.",
+                "Confira o diagnóstico. O reparo guiado exige uma rota IPv4 inequívoca e evidências concordantes nos dois testes.",
                 "Reparar rede", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
         bool dnsRepair = task == "flush-dns";
         string confirmation = dnsRepair
-            ? "O teste detectou uma falha na resolução DNS. Deseja limpar apenas o cache DNS do Windows? " +
-              "Isso não altera os servidores DNS configurados. O teste será repetido depois da operação."
-            : "O DNS respondeu, mas a conexão TCP/443 ao endereço de teste falhou. Isso pode ocorrer por proxy, firewall " +
-              "ou bloqueio do servidor, e não comprova um defeito no Windows.\n\n" +
+            ? "Dois nomes de teste independentes não resolveram. Isso pode ocorrer por rede indisponível, " +
+              "firewall ou DNS e NÃO comprova que o cache esteja corrompido.\n\n" +
+              "Deseja limpar apenas o cache DNS do Windows? Isso não altera os servidores DNS " +
+              "configurados nem reinicia o Windows. Ambos os nomes serão consultados novamente."
+            : "O DNS respondeu, mas dois destinos TCP/443 independentes falharam. Isso pode ocorrer por proxy, firewall " +
+              "ou bloqueio externo e não comprova defeito no catálogo Winsock.\n\n" +
               "Deseja tentar redefinir APENAS o catálogo Winsock? A rede pode ser interrompida e será necessário " +
               "reiniciar o Windows para completar a alteração. Nenhum reinício automático será feito.";
-        if (MessageBox.Show(this, confirmation, "Confirmar reparo orientado de rede",
-            MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+        if (!await ConfirmV269Async("Confirmar reparo orientado de rede", confirmation))
         {
             Log("Reparo de rede orientado cancelado pelo usuário.");
             return;
         }
 
         Log("Reparo orientado selecionado pelo diagnóstico: " + (dnsRepair ? "cache DNS" : "Winsock") + ".");
+        var workerResult = NetworkRepairWorkerState.NotConfirmed;
         await ExecuteAsync(dnsRepair ? "Limpando cache DNS..." : "Redefinindo catálogo Winsock...",
-            () => RunElevatedAsync(task));
+            () => RunElevatedAsync(task,
+                networkRepairCompletion: outcome => workerResult = outcome));
+
+        if (IsDisposed || Disposing || _betaClose.IsClosing) return;
+        if (workerResult != NetworkRepairWorkerState.CommandReturnedZero)
+        {
+            // UAC recusado, conexão interrompida e exit code não zero não
+            // autorizam mostrar "reset solicitado" nem repetir às cegas.
+            _lastNetworkScan = null;
+            _networkSummary.ForeColor = Muted;
+            _networkSummary.Text = workerResult == NetworkRepairWorkerState.CommandReturnedError
+                ? "O Windows informou erro na operação. Nenhum reparo foi confirmado."
+                : "Operação sem retorno conclusivo. Confira o registro antes de repetir.";
+            _networkDetails.Text = "O GF não comprova qualquer mudança na rede. Refaça a análise antes de decidir outra operação.";
+            if (_repairNetworkButton is not null) _repairNetworkButton.Enabled = false;
+            Log("Resultado de manutenção de rede não confirmado (" + workerResult +
+                "); nenhuma repetição automática.");
+            return;
+        }
 
         if (dnsRepair)
         {
-            // Reexecutar os testes: não declarar sucesso apenas porque o comando terminou.
+            // Código zero comprova somente o flush, não recuperação.
+            // Reconsultar os mesmos dois nomes após a operação e preservar
+            // estados mistos como parciais, jamais sucesso pleno.
+            var before = _lastNetworkScan;
+            _lastNetworkScan = null; // impedir reutilização de consulta anterior
             await RunNetworkDiagnosticAsync();
+            var checkedDns = NetworkRepairOutcome.ReviewDnsAfterFlush(
+                before, _lastNetworkScan, workerResult);
+            switch (checkedDns)
+            {
+                case NetworkDnsVerification.TestRecovered:
+                    Log("Pós-flush DNS: os dois nomes resolveram na nova consulta; não prova que o flush foi a causa.");
+                    Status("Pós-reparo: resolução dos dois nomes de teste observada.");
+                    break;
+                case NetworkDnsVerification.PartiallyRecovered:
+                    Log("Pós-flush DNS: somente um dos dois nomes resolveu. Resultado parcial; não repetir automaticamente.");
+                    Status("Pós-reparo DNS parcial; confira os alertas sem inferir correção geral.");
+                    break;
+                case NetworkDnsVerification.TestStillFailing:
+                    Log("Pós-flush DNS: nenhum dos dois nomes resolveu. Não repetir automaticamente.");
+                    Status("Pós-reparo: alerta DNS permanece; confira rede, proxy ou servidor.");
+                    break;
+                default:
+                    Log("Pós-flush DNS: observação incompleta. Não declarar correção.");
+                    Status("Pós-reparo DNS inconclusivo; consulte o registro.");
+                    break;
+            }
         }
         else
         {
@@ -185,7 +348,7 @@ internal sealed partial class MainForm
         int row = 0;
         foreach (var pair in _cleanupRows.Values)
         {
-            int height = Math.Max(CleanupTextHeight(pair.Title, left), CleanupTextHeight(pair.State, right)) + 5;
+            int height = Math.Max(ReportTextHeight(pair.Title, left), ReportTextHeight(pair.State, right)) + 5;
             _cleanupReport.RowStyles[row++].Height = height;
             total += height;
         }
@@ -193,7 +356,7 @@ internal sealed partial class MainForm
         return total;
     }
 
-    private static int CleanupTextHeight(Label label, int width) =>
+    private static int ReportTextHeight(Label label, int width) =>
         TextRenderer.MeasureText(label.Text, label.Font, new Size(width, int.MaxValue),
             TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix).Height;
 
@@ -371,8 +534,8 @@ internal sealed partial class MainForm
     private async Task EmptyRecycleBinAsync()
     {
         if (_busy || _betaClose.IsClosing) return;
-        if (DarkConfirmDialog.Confirm(this, "Esvaziar a Lixeira de todas as unidades deste usuário? A exclusão é permanente.",
-            "Esvaziar Lixeira") != DialogResult.Yes)
+        if (!await ConfirmV269Async("Esvaziar Lixeira",
+            "Esvaziar a Lixeira de todas as unidades deste usuário? A exclusão é permanente."))
         {
             Status("Operação cancelada");
             return;

@@ -214,9 +214,7 @@ internal static class DriverListIdentityTests
         if (requested != 2 || !ReferenceEquals(lastRequested, b) ||
             lastAction != DriverCardAction.Uninstall)
             throw new Exception("UX Drivers: desinstalação não identificou objeto selecionado.");
-        // O botão existe também no cartão de dispositivo protegido.
-        // O handler de produção é responsável pelo encaminhamento manual;
-        // o motor de remoção continua recusando a operação direta.
+        // A ação direta fica neutra e o encaminhamento manual continua no menu.
         actionsList.SetActionPolicy(true, _ =>
             new DriverSilentUninstallDecision(false, "Dispositivo protegido"));
         if (actionsList.AccessibleDescription?.Contains(
@@ -225,9 +223,19 @@ internal static class DriverListIdentityTests
                 "sem remoção automática pelo GF", StringComparison.Ordinal) != true)
             throw new Exception("UX Drivers: ação de protegido promete desinstalação em vez de gestão manual.");
         ClickUninstall(0);
-        if (requested != 3 || !ReferenceEquals(lastRequested, a) ||
-            lastAction != DriverCardAction.Uninstall || actionsList.CanUninstall(a))
-            throw new Exception("UX Drivers: ação manual em protegido foi omitida ou autorizou remoção.");
+        if (requested != 2 || actionsList.CanUninstall(a))
+            throw new Exception("UX Drivers: ação direta disparou para item protegido.");
+        const BindingFlags menuFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(DarkDriverList).GetMethod("OpenActionsMenu", menuFlags)!
+            .Invoke(actionsList, [new Point(55, 26)]);
+        var manual = (ToolStripMenuItem)typeof(DarkDriverList).GetField("_uninstallMenu", menuFlags)!
+            .GetValue(actionsList)!;
+        if (!manual.Enabled || manual.Text != "Gerenciar no Windows")
+            throw new Exception("UX Drivers: encaminhamento manual ausente.");
+        manual.PerformClick();
+        if (requested != 3 || !ReferenceEquals(lastRequested, a) || lastAction != DriverCardAction.Uninstall)
+            throw new Exception("UX Drivers: encaminhamento manual perdeu a seleção.");
+        manual.GetCurrentParent()?.Hide();
         actionsList.SetActionPolicy(false, _ =>
             new DriverSilentUninstallDecision(true, "Fixture"));
         ClickUninstall(0);

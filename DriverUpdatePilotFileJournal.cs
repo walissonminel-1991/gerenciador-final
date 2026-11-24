@@ -4,6 +4,24 @@ using System.Text.Json;
 
 namespace GerenciadorAplicativos;
 
+// Consulta sem efeito colateral para coordenação WUA com os demais motores.
+// O estado consultivo nunca concede permissão de instalação, nem reabre
+// uma intenção pendente. O caminho físico usa os gates existentes.
+internal enum DriverWuaJournalDisposition
+{
+    NeverStarted, Verified, PendingReconciliation, InvalidOrUnsafe
+}
+internal sealed record DriverWuaJournalSnapshot(
+    DriverWuaJournalDisposition Disposition, string Phase,
+    DateTimeOffset? LastWrittenUtc, string Message)
+{
+    internal bool RequiresSupervisedReview =>
+        Disposition is DriverWuaJournalDisposition.PendingReconciliation or
+            DriverWuaJournalDisposition.InvalidOrUnsafe;
+    internal bool AuthorizesInstallation => false;
+    internal bool OtherProcessHoldsLock { get; init; }
+}
+
 // Journal experimental para impedir repeticao apos queda, timeout ou resultado
 // incerto. Arquivo local separado do historico v1 de consultas.
 internal sealed class DriverUpdatePilotFileJournal(string path) :
@@ -35,6 +53,80 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
             return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
+    }
+
+    private enum LockObservation { Free, Held, Unsafe }
+
+    // FileMode.Open nunca cria o .lock. O executor real o mantém com
+    // FileShare.None até persistir o resultado; em caso de dúvida, falha fechado.
+    private static LockObservation ObserveLockReadOnly(string journalPath)
+    {
+        try
+        {
+            string lockPath = journalPath + ".lock";
+            if (Directory.Exists(lockPath)) return LockObservation.Unsafe;
+            if (!File.Exists(lockPath)) return LockObservation.Free;
+            using var probe = new FileStream(lockPath, FileMode.Open,
+                FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return LockObservation.Free;
+        }
+        catch (IOException) { return LockObservation.Held; }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        { return LockObservation.Unsafe; }
+    }
+
+    // Novo contrato consultivo: snapshot tipado do diário local. Nunca
+    // lista IDs de dispositivo, caminhos ou metadados de identificação.
+    // Cuidado: "Verified" atesta só o registro guardado, não a situação
+    // PnP atual nem uma nova autorização de manutenção.
+    internal static DriverWuaJournalSnapshot InspectReadOnly(string journalPath)
+    {
+        DriverWuaJournalSnapshot Invalid(string reason) => new(
+            DriverWuaJournalDisposition.InvalidOrUnsafe, "",
+            null, reason);
+        try
+        {
+            if (!SafeStorage(journalPath))
+                return Invalid("Diário WUA inseguro ou inacessível; operação bloqueada.");
+            var lockObservation = ObserveLockReadOnly(journalPath);
+            if (lockObservation == LockObservation.Unsafe)
+                return Invalid("Trava do diário WUA indisponível; nenhuma operação autorizada.");
+            bool locked = lockObservation == LockObservation.Held;
+            if (!File.Exists(journalPath))
+                return locked
+                    ? new(DriverWuaJournalDisposition.PendingReconciliation, "", null,
+                        "Outra sessão WUA mantém o bloqueio; não iniciar nova operação.")
+                        { OtherProcessHoldsLock = true }
+                    : new(DriverWuaJournalDisposition.NeverStarted, "", null,
+                        "Nenhuma intenção WUA observada nesta localização.");
+            using var input = new FileStream(journalPath, FileMode.Open, FileAccess.Read,
+                FileShare.Read);
+            if (input.Length is <= 0 or > 4096)
+                return Invalid("Diário WUA vazio ou fora do limite; preservar.");
+            var bytes = new byte[(int)input.Length];
+            input.ReadExactly(bytes);
+            if (input.ReadByte() != -1)
+                return Invalid("Diário WUA alterado durante leitura; preservar.");
+            var ledger = JsonSerializer.Deserialize<Ledger>(bytes);
+            if (ledger is null || !Valid(ledger) ||
+                ledger.Timestamp == default ||
+                ledger.Timestamp > DateTimeOffset.UtcNow.AddMinutes(5))
+                return Invalid("Diário WUA inválido; não sobrescrever.");
+            bool verified = ledger.Phase == nameof(DriverUpdatePilotState.Verified);
+            return new(!locked && verified ? DriverWuaJournalDisposition.Verified :
+                DriverWuaJournalDisposition.PendingReconciliation,
+                ledger.Phase, ledger.Timestamp, locked
+                    ? "Outra sessão WUA está ativa; não iniciar uma operação concorrente."
+                    : verified
+                        ? "Última operação registrada como verificada; nova operação ainda exige consulta e consentimento."
+                        : "Intenção WUA não verificada; conciliação supervisionada necessária.")
+                { OtherProcessHoldsLock = locked };
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return Invalid("Diário WUA indisponível (" + ex.GetType().Name +
+                "); nenhuma operação liberada.");
+        }
     }
 
     // G3.1: inspeção passiva e limitada a 4 KiB. Nunca cria, limpa ou
@@ -72,7 +164,9 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
     {
         try
         {
-            if (!SafeStorage(journalPath)) return false;
+            if (!SafeStorage(journalPath) ||
+                ObserveLockReadOnly(journalPath) != LockObservation.Free)
+                return false;
             if (!File.Exists(journalPath)) return true;
             var info = new FileInfo(journalPath);
             if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
@@ -102,7 +196,9 @@ internal sealed class DriverUpdatePilotFileJournal(string path) :
     private static bool Valid(Ledger value) =>
         value is not null && value.Revision >= 1 &&
         (value.Phase == "InstallationStarted" ||
-         Enum.TryParse<DriverUpdatePilotState>(value.Phase, out _)) &&
+         Enum.TryParse<DriverUpdatePilotState>(value.Phase, out var phase) &&
+         Enum.IsDefined(phase) &&
+         string.Equals(value.Phase, phase.ToString(), StringComparison.Ordinal)) &&
         Guid.TryParseExact(value.UpdateId, "D", out _) &&
         !string.IsNullOrWhiteSpace(value.DeviceId) &&
         value.Sha256 == Hash(value.UpdateId, value.Revision, value.DeviceId,

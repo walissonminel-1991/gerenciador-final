@@ -18,6 +18,164 @@ static void Check(bool ok, string why)
 {
     if (!ok) throw new Exception("Seguranca: " + why);
 }
+
+static void VerifyPrinterQueue()
+{
+    var cases = new[]
+    {
+        ("7", "", PrinterQueueState.Offline),
+        ("3", "7", PrinterQueueState.Offline),
+        ("3", "8", PrinterQueueState.PausedOrStopped),
+        ("6", "2", PrinterQueueState.PausedOrStopped),
+        ("3", "9", PrinterQueueState.Attention),
+        ("2", "11", PrinterQueueState.Attention),
+        ("3", "", PrinterQueueState.NoOfflineIndication),
+        ("2", "12", PrinterQueueState.NoOfflineIndication),
+        ("", "2", PrinterQueueState.Inconclusive),
+        ("99", "inválido", PrinterQueueState.Inconclusive)
+    };
+    foreach (var (status, extended, expected) in cases)
+    {
+        var queue = new Dictionary<string, string>
+        {
+            ["PrinterStatus"] = status, ["ExtendedPrinterStatus"] = extended,
+            ["WorkOffline"] = "True"
+        };
+        var result = PrinterQueueDiagnostic.Evaluate([queue]);
+        Check(result.State == expected && result.Describe().Contains("Impressoras e scanners", StringComparison.Ordinal),
+            $"VF03: estado da fila {expected} e orientação para as configurações.");
+    }
+    var reportedOffline = new Dictionary<string, string>
+    {
+        ["PrinterStatus"] = "3",
+        ["ExtendedPrinterStatus"] = "2",
+        ["DetectedErrorState"] = "9"
+    };
+    Check(PrinterQueueDiagnostic.Evaluate([reportedOffline]).State == PrinterQueueState.Offline,
+        "VF03: DetectedErrorState 9 informa offline mesmo quando PrinterStatus retorna ociosa.");
+    reportedOffline["DetectedErrorState"] = "7";
+    Check(PrinterQueueDiagnostic.Evaluate([reportedOffline]).State != PrinterQueueState.Offline,
+        "VF03: DetectedErrorState segue sua própria tabela. Código 7 indica porta aberta.");
+    Check(PrinterQueueDiagnostic.Evaluate([]).State == PrinterQueueState.NoDefault,
+        "VF03: consulta concluída sem fila padrão é um resultado explícito.");
+    Check(PrinterQueueDiagnostic.Evaluate(null).State == PrinterQueueState.Inconclusive,
+        "VF03: provedor indisponível não descarta a existência de impressora.");
+    Check(PrinterQueueDiagnostic.Evaluate([new(), new()]).State == PrinterQueueState.Inconclusive,
+        "VF03: duas filas que se dizem padrão não permitem escolher uma.");
+    Console.WriteLine($"OK VF03: {cases.Length + 5} verificações do diagnóstico de impressora padrão.");
+}
+
+if (args is ["--printer-queue"])
+{
+    VerifyPrinterQueue();
+    return;
+}
+
+static void VerifyUsbPnp()
+{
+    var healthy = new UsbPnpObservation(@"USB\VID_ABCD&PID_1200\FIXTURE", true, 0);
+    var missing = new UsbPnpObservation(@"USBSTOR\Disk\MISSING", true, 28);
+    var stopped = new UsbPnpObservation(@"USB\UNKNOWN\STOPPED", true, 43);
+    var disabled = new UsbPnpObservation(@"USBPRINT\Printer\DISABLED", true, 22);
+    var other = new UsbPnpObservation(@"USB\VID_ABCD&PID_1201\OTHER", true, 10);
+    var healthyDiagnosis = UsbPnpDiagnostic.Evaluate([healthy], partial: false);
+    Check(healthyDiagnosis is { Present: 1, Partial: false } &&
+          healthyDiagnosis.Summary.Contains("não informou códigos", StringComparison.Ordinal),
+        "VF03 USB: código zero em uma instância presente descreve apenas a evidência PnP.");
+    var mixed = UsbPnpDiagnostic.Evaluate([healthy, missing, stopped, disabled, other], partial: false);
+    Check(mixed is { Present: 5, Disabled: 1, MissingDriver: 1, StoppedWithProblem: 1, OtherProblems: 1, Partial: false },
+        "VF03 USB: códigos 22, 28 e 43 e outros problemas são distinguidos.");
+    string report = mixed.Describe();
+    Check(report.Contains("Gerenciador de Dispositivos", StringComparison.Ordinal) &&
+          !report.Contains(healthy.DeviceId, StringComparison.Ordinal) && !report.Contains(disabled.DeviceId, StringComparison.Ordinal),
+        "VF03 USB: resumo orienta a conferência sem divulgar identificadores locais.");
+    var unrelated = UsbPnpDiagnostic.Evaluate([new(@"PCI\VID_FFFF\OTHER", true, 43)], partial: false);
+    Check(unrelated is { Present: 0, StoppedWithProblem: 0, Partial: false } &&
+          unrelated.Summary.Contains("não confirmou registros USB", StringComparison.Ordinal),
+        "VF03 USB: falha de outro barramento não é atribuída ao USB.");
+    Check(UsbPnpDiagnostic.Evaluate([stopped with { Present = false }], partial: false) is
+          { Present: 0, StoppedWithProblem: 0, Partial: false },
+        "VF03 USB: registro histórico ausente não é ocorrência ativa.");
+    Check(UsbPnpDiagnostic.Evaluate([stopped with { Present = null }], partial: false) is
+          { Present: 0, StoppedWithProblem: 0, Partial: true },
+        "VF03 USB: presença indeterminada não autoriza ligar o código a uma instância presente.");
+    Check(UsbPnpDiagnostic.Evaluate([healthy with { ProblemCode = null }], partial: false) is
+          { Present: 1, Partial: true }, "VF03 USB: ausência do código não se transforma em código zero.");
+    Check(UsbPnpDiagnostic.Evaluate([stopped with { ProblemCode = 45 }], partial: false) is
+          { Present: 0, StoppedWithProblem: 0, OtherProblems: 0, Partial: true },
+        "VF03 USB: indicação de desconexão e presença declarada tornam a leitura inconclusiva.");
+    Check(UsbPnpDiagnostic.Evaluate([stopped, stopped with { Present = false }], partial: false) is
+          { Present: 0, StoppedWithProblem: 0, Partial: true },
+        "VF03 USB: duplicatas com presença conflitante não contam como problema atual.");
+    Check(UsbPnpDiagnostic.Evaluate([stopped, stopped with { ProblemCode = 0 }], partial: false) is
+          { Present: 1, StoppedWithProblem: 0, Partial: true },
+        "VF03 USB: duplicatas com códigos conflitantes não definem um erro.");
+    Check(UsbPnpDiagnostic.Evaluate([stopped, stopped with { DeviceId = stopped.DeviceId.ToLowerInvariant() }], partial: false) is
+          { Present: 1, StoppedWithProblem: 1, Partial: false },
+        "VF03 USB: linhas idênticas contam somente uma instância, independente de caixa.");
+    var partialEmpty = UsbPnpDiagnostic.Evaluate([], partial: true);
+    Check(partialEmpty.Summary.Contains("inconclusiva", StringComparison.Ordinal) &&
+          !partialEmpty.Describe().Contains("presença confirmada: 0", StringComparison.Ordinal),
+        "VF03 USB: consulta parcial sem registros não afirma ausência de USB.");
+    Check(UsbPnpDiagnostic.Evaluate([missing], partial: true) is
+          { Present: 1, MissingDriver: 1, Partial: true },
+        "VF03 USB: leitura parcial conserva as ocorrências explícitas observadas.");
+    Console.WriteLine("OK VF03: 13 verificações do diagnóstico PnP de USB.");
+}
+
+if (args is ["--usb-pnp"])
+{
+    VerifyUsbPnp();
+    return;
+}
+
+if (args is ["--blue-screen"])
+{
+    BlueScreenDiagnosticTests.Run();
+    return;
+}
+
+if (args is ["--windows-file-repair"])
+{
+    await WindowsFileRepairTests.RunAsync();
+    return;
+}
+
+if (args is ["--network-repair-follow-up"])
+{
+    NetworkRepairFollowUpTests.Run();
+    return;
+}
+
+const int accessDenied = unchecked((int)0x80070005);
+foreach (var (count, status, endpoint, expected) in new[]
+{
+    (2u, 0, true, AudioOutputState.DefaultAvailable),
+    (0u, AudioOutputDiagnostic.EndpointNotFound, false, AudioOutputState.NoActiveOutput),
+    (2u, AudioOutputDiagnostic.EndpointNotFound, false, AudioOutputState.NoDefaultOutput),
+    (0u, 0, true, AudioOutputState.Inconclusive),
+    (1u, 0, false, AudioOutputState.Inconclusive),
+    (0u, accessDenied, false, AudioOutputState.Inconclusive),
+    (0u, AudioOutputDiagnostic.EndpointNotFound, true, AudioOutputState.Inconclusive)
+})
+{
+    var diagnosis = AudioOutputDiagnostic.Evaluate(count, status, endpoint);
+    Check(diagnosis.State == expected && diagnosis.ActiveOutputs == count &&
+          diagnosis.Describe().Contains("Configurações > Sistema > Som", StringComparison.Ordinal),
+        $"VF03: estado de áudio {expected} e orientação do Windows.");
+}
+Check(AudioOutputDiagnostic.Evaluate(0, accessDenied, false).Describe().Contains("0x80070005", StringComparison.Ordinal),
+    "VF03: falha da API preserva código sem concluir ausência.");
+if (!OperatingSystem.IsWindows())
+    Check(AudioOutputDiagnostic.Read() is { State: AudioOutputState.Inconclusive, ActiveOutputs: null },
+        "VF03: ambiente sem Core Audio não apresenta zero saídas como evidência.");
+Console.WriteLine("OK VF03: diagnóstico consultivo de áudio distingue disponibilidade, ausência e falha.");
+if (args is ["--audio-output"]) return;
+VerifyPrinterQueue();
+VerifyUsbPnp();
+BlueScreenDiagnosticTests.Run();
+NetworkRepairFollowUpTests.Run();
+
 Check(SingleVolumeOptimization.TaskForRoot(@"C:\") == "optimize-volume:C" &&
     SingleVolumeOptimization.TaskForRoot(@"D:\") == "optimize-volume:D" &&
     SingleVolumeOptimization.TryParseTask("optimize-volume:C", out var onlyC) &&
@@ -64,7 +222,276 @@ Check(WindowsIntegrityAssessment.Interpret(0, "Completed successfully.", 0,
     WindowsIntegrityAssessment.Interpret(0, "No component store corruption detected.", 1,
         "Windows Resource Protection did not find any integrity violations.") == IntegrityState.Inconclusive,
     "Saida desconhecida ou erro nao autoriza reparo.");
+Check(WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Healthy) == "WINREPAIR:HEALTHY" &&
+    WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Repairable) == "WINREPAIR:REPAIRABLE" &&
+    WindowsIntegrityAssessment.PostRepairWire(IntegrityState.Inconclusive) == "WINREPAIR:INCONCLUSIVE",
+    "Pós-reparo transmite estado explícito, nunca o exit code como prova.");
+Check(WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:HEALTHY", out var repairedState) &&
+    repairedState == IntegrityState.Healthy &&
+    WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:REPAIRABLE", out var persisting) &&
+    persisting == IntegrityState.Repairable &&
+    !WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:HEALTHY|INCONCLUSIVE", out _) &&
+    !WindowsIntegrityAssessment.TryReadPostRepairWire("WINREPAIR:UNKNOWN", out _) &&
+    !WindowsIntegrityAssessment.TryReadPostRepairWire("", out _),
+    "Pós-reparo rejeita valores arbitrários, truncados ou adulterados.");
+var separateHealthy = WindowsIntegrityAssessment.Assess(0,
+    "No component store corruption detected.", 0,
+    "Windows Resource Protection did not find any integrity violations.");
+Check(separateHealthy.FullyVerified &&
+    separateHealthy.ComponentStore == IntegrityState.Healthy &&
+    separateHealthy.ProtectedFiles == IntegrityState.Healthy &&
+    separateHealthy.Overall == IntegrityState.Healthy,
+    "Diagnostico por componente: DISM e SFC saudaveis somente com duas evidencias.");
+var dismIssue = WindowsIntegrityAssessment.Assess(0,
+    "The component store is repairable.", 0,
+    "Windows Resource Protection did not find any integrity violations.");
+Check(!dismIssue.FullyVerified && dismIssue.HasConfirmedDamage &&
+    dismIssue.ComponentStore == IntegrityState.Repairable &&
+    dismIssue.ProtectedFiles == IntegrityState.Healthy &&
+    dismIssue.Overall == IntegrityState.Repairable,
+    "Diagnostico por componente: DISM reparavel nao equivale a arquivos SFC corrompidos.");
+var sfcIssue = WindowsIntegrityAssessment.Assess(0,
+    "No component store corruption detected.", 0,
+    "Windows Resource Protection found integrity violations.");
+Check(!sfcIssue.FullyVerified && sfcIssue.HasConfirmedDamage &&
+    sfcIssue.ComponentStore == IntegrityState.Healthy &&
+    sfcIssue.ProtectedFiles == IntegrityState.Repairable,
+    "Diagnostico por componente: violacao SFC nao falsifica corrupcao do Store.");
+var partialIntegrity = WindowsIntegrityAssessment.Assess(0,
+    "No component store corruption detected.", 0,
+    "Verification 100% complete.");
+var failedDism = WindowsIntegrityAssessment.Assess(5,
+    "The component store is repairable.", 0,
+    "Windows Resource Protection did not find any integrity violations.");
+Check(!partialIntegrity.FullyVerified &&
+    partialIntegrity.ProtectedFiles == IntegrityState.Inconclusive &&
+    partialIntegrity.Overall == IntegrityState.Inconclusive &&
+    !failedDism.FullyVerified &&
+    failedDism.ComponentStore == IntegrityState.Inconclusive &&
+    failedDism.Overall == IntegrityState.Inconclusive,
+    "Diagnostico por componente: texto vago e exit nao zero nunca comprovam integridade.");
+Check(WindowsIntegrityAssessment.AssessReboot(false, false) ==
+        WindowsRepairRebootState.Clear &&
+    WindowsIntegrityAssessment.AssessReboot(true, false) ==
+        WindowsRepairRebootState.Pending &&
+    WindowsIntegrityAssessment.AssessReboot(false, true) ==
+        WindowsRepairRebootState.Pending &&
+    WindowsIntegrityAssessment.AssessReboot(true, null) ==
+        WindowsRepairRebootState.Pending &&
+    WindowsIntegrityAssessment.AssessReboot(false, null) ==
+        WindowsRepairRebootState.Inconclusive &&
+    WindowsIntegrityAssessment.AssessReboot(null, null) ==
+        WindowsRepairRebootState.Inconclusive,
+    "Reparo Windows: reinício CBS/WU bloqueia; ausência parcial de evidência nunca libera.");
+Console.WriteLine("OK: gate read-only de reinicio antes do consentimento e no worker elevado.");
 Console.WriteLine("OK: DISM e SFC consultivos com gating conservador.");
+Check(NetworkRepairOutcome.FromWire("DONE|0") == NetworkRepairWorkerState.CommandReturnedZero &&
+    NetworkRepairOutcome.FromWire("DONE|5") == NetworkRepairWorkerState.CommandReturnedError &&
+    NetworkRepairOutcome.FromWire("DONE|1223") == NetworkRepairWorkerState.CommandReturnedError &&
+    NetworkRepairOutcome.FromWire("DONE|") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire("DONE|-1") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire("DONE|0\nDONE|0") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire("LOG|0") == NetworkRepairWorkerState.NotConfirmed &&
+    NetworkRepairOutcome.FromWire(null) == NetworkRepairWorkerState.NotConfirmed,
+    "Reparo de rede: somente DONE|0 exato prova encerramento sem erro do comando.");
+Console.WriteLine("OK: desfechos de manutencao de rede sem falso sucesso em UAC ou falha.");
+var priorDns = new NetworkScan([
+    new NetworkCheck("DNS", "Atenção", "Fixture sem resolução"),
+    new NetworkCheck("DNS alternativo", "Atenção", "Outro nome sem resolução"),
+    new NetworkCheck("Gateway", "OK", "Fixture")], true);
+var afterResolved = new NetworkScan([
+    new NetworkCheck("DNS", "OK", "Fixture de nome resolvido"),
+    new NetworkCheck("DNS alternativo", "OK", "Segundo nome resolvido"),
+    new NetworkCheck("Conexão HTTPS", "Atenção", "Outros problemas persistem")], true);
+var afterProblem = new NetworkScan([
+    new NetworkCheck("DNS", "Atenção", "Fixture sem resolução"),
+    new NetworkCheck("DNS alternativo", "Atenção", "Outro nome sem resolução")], true);
+var afterPartial = new NetworkScan([
+    new NetworkCheck("DNS", "OK", "Primeiro nome resolveu"),
+    new NetworkCheck("DNS alternativo", "Atenção", "Segundo nome falhou")], true);
+Check(NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterResolved, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.TestRecovered &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterProblem, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.TestStillFailing &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterPartial, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.PartiallyRecovered &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, new NetworkScan([
+            new NetworkCheck("DNS", "Info", "Não foi possível consultar"),
+            new NetworkCheck("DNS alternativo", "OK", "Fixture")], true),
+        NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, null, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, afterResolved, NetworkRepairWorkerState.NotConfirmed) ==
+            NetworkDnsVerification.NotEvaluated &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        new NetworkScan([new NetworkCheck("DNS", "OK", "Fixture")], false),
+        afterResolved, NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, new NetworkScan([
+            new NetworkCheck("DNS", "OK", "Duplicado"),
+            new NetworkCheck("DNS", "OK", "Duplicado"),
+            new NetworkCheck("DNS alternativo", "OK", "Fixture")], false),
+        NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive &&
+    NetworkRepairOutcome.ReviewDnsAfterFlush(
+        priorDns, new NetworkScan([
+            new NetworkCheck("DNS", "OK", "Fixture")], false),
+        NetworkRepairWorkerState.CommandReturnedZero) ==
+            NetworkDnsVerification.Inconclusive,
+    "Pós-DNS: exigir dois nomes únicos, distinguir recuperação completa, parcial, persistente ou inconclusiva.");
+// Um adaptador UP com IPv4 ausente, APIPA, loopback ou multicast não
+// comprova rota local; não deve liberar sugestão de manutenção de rede.
+Check(!NetworkDiagnostics.HasUsableIpv4(null) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("::1")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("0.0.0.0")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("127.0.0.1")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("169.254.10.24")) &&
+    !NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("224.0.0.1")) &&
+    NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("192.0.2.24")) &&
+    NetworkDiagnostics.HasUsableIpv4(System.Net.IPAddress.Parse("10.0.0.24")),
+    "Diagnóstico de rede: UP sem IPv4 útil não equivale a adaptador OK.");
+// Gateway configurado não equivale a gateway utilizável: validar
+// APIPA, endereço zero, loopback, IPv6 e unicast válido sem rede real.
+var invalidGateway = NetworkDiagnostics.ClassifyIpv4Gateway(
+    System.Net.IPAddress.Parse("0.0.0.0"));
+Check(invalidGateway.Name == "Gateway" && invalidGateway.State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("169.254.1.1")).State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("127.0.0.1")).State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("::1")).State == "Atenção" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(
+        System.Net.IPAddress.Parse("192.168.1.1")).State == "OK" &&
+    NetworkDiagnostics.ClassifyIpv4Gateway(null).State == "Atenção" &&
+    NetworkDiagnostics.SuggestTargetedRepair(new NetworkScan([
+        new NetworkCheck("Adaptador", "OK", "fixture"),
+        invalidGateway,
+        new NetworkCheck("DNS", "Atenção", "fixture"),
+        new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null,
+    "Diagnóstico: gateway inválido não pode liberar reparo DNS.");
+// Rotas locais simuladas: enumeração não indica prioridade do Windows.
+// VPN/Ethernet/Wi-Fi concorrentes devem deixar sugestão inconclusiva.
+Check(NetworkDiagnostics.FindUniqueIpv4Route([]) == -1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("169.254.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1"))]) == -1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("192.168.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1"))]) == 0 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("169.254.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1")),
+        (System.Net.IPAddress.Parse("10.0.0.10"),
+         System.Net.IPAddress.Parse("10.0.0.1"))]) == 1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route([
+        (System.Net.IPAddress.Parse("10.0.0.10"),
+         System.Net.IPAddress.Parse("10.0.0.1")),
+        (System.Net.IPAddress.Parse("192.168.0.10"),
+         System.Net.IPAddress.Parse("192.168.0.1"))]) == -2 &&
+    NetworkDiagnostics.SuggestTargetedRepair(new NetworkScan([
+        new NetworkCheck("Adaptador", "Atenção", "Duas rotas elegíveis"),
+        new NetworkCheck("Gateway", "Atenção", "Rota indefinida"),
+        new NetworkCheck("DNS", "Atenção", "fixture"),
+        new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null,
+    "Rede: múltiplas rotas elegíveis ou nenhuma rota não permitem reparo orientado.");
+// Dois gateways distintos na MESMA interface também são caminhos
+// concorrentes; nenhum endereço pode ser escolhido pela ordem de enumeração.
+var localRoute = System.Net.IPAddress.Parse("192.168.50.10");
+var twoGatewayCandidates = NetworkDiagnostics.Ipv4RouteCandidates(localRoute, [
+    System.Net.IPAddress.Parse("192.168.50.1"),
+    System.Net.IPAddress.Parse("192.168.50.254")]);
+var oneRepeatedGateway = NetworkDiagnostics.Ipv4RouteCandidates(localRoute, [
+    System.Net.IPAddress.Parse("192.168.50.1"),
+    System.Net.IPAddress.Parse("192.168.50.1")]);
+var invalidOnlyGateway = NetworkDiagnostics.Ipv4RouteCandidates(localRoute, [
+    System.Net.IPAddress.Parse("0.0.0.0"),
+    System.Net.IPAddress.Parse("169.254.1.1")]);
+Check(twoGatewayCandidates.Length == 2 &&
+    NetworkDiagnostics.FindUniqueIpv4Route(twoGatewayCandidates) == -2 &&
+    oneRepeatedGateway.Length == 1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route(oneRepeatedGateway) == 0 &&
+    invalidOnlyGateway.Length == 1 &&
+    invalidOnlyGateway[0].Gateway is null &&
+    NetworkDiagnostics.FindUniqueIpv4Route(invalidOnlyGateway) == -1,
+    "Rede: gateways distintos da mesma interface bloqueiam rota arbitrária; duplicata não cria rota.");
+// Duas origens IPv4 distintas no mesmo adaptador e apenas um gateway
+// não comprovam uma única rota. Repetições não criam ambiguidade artificial.
+var localA = System.Net.IPAddress.Parse("192.168.50.10");
+var localB = System.Net.IPAddress.Parse("192.168.50.20");
+var gatewayA = System.Net.IPAddress.Parse("192.168.50.1");
+var multiSourceCandidates = NetworkDiagnostics.Ipv4RouteCandidates(
+    [localA, localB], [gatewayA]);
+var repeatedSourceCandidates = NetworkDiagnostics.Ipv4RouteCandidates(
+    [localA, localA], [gatewayA]);
+var invalidSourceCandidates = NetworkDiagnostics.Ipv4RouteCandidates(
+    [System.Net.IPAddress.Parse("169.254.1.9"),
+     System.Net.IPAddress.Parse("127.0.0.1")], [gatewayA]);
+Check(multiSourceCandidates.Length == 2 &&
+    NetworkDiagnostics.FindUniqueIpv4Route(multiSourceCandidates) == -2 &&
+    repeatedSourceCandidates.Length == 1 &&
+    NetworkDiagnostics.FindUniqueIpv4Route(repeatedSourceCandidates) == 0 &&
+    invalidSourceCandidates.Length == 1 &&
+    invalidSourceCandidates[0].Local is null &&
+    NetworkDiagnostics.FindUniqueIpv4Route(invalidSourceCandidates) == -1,
+    "Rede: múltiplos IPv4 locais na mesma interface não autorizam rota arbitrária.");
+// Uma falha apenas em www.microsoft.com não autoriza sugerir Winsock.
+// Fixtures puras: nenhum teste de rede real é feito pelo runner.
+NetworkScan Probes(string dns, string alternative, string first, string second) => new([
+    new NetworkCheck("Adaptador", "OK", "fixture"),
+    new NetworkCheck("Gateway", "OK", "fixture"),
+    new NetworkCheck("DNS", dns, "fixture"),
+    new NetworkCheck("DNS alternativo", alternative, "fixture"),
+    new NetworkCheck("Conexão HTTPS", first, "fixture"),
+    new NetworkCheck("Conexão HTTPS alternativa", second, "fixture")],
+    true);
+Check(NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "Atenção", "OK")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "OK", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "Atenção", "Atenção")) ==
+        "network-repair-winsock" &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("Atenção", "Atenção", "Atenção", "Atenção")) ==
+        "flush-dns" &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("Atenção", "OK", "Atenção", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "Atenção", "Atenção", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("Info", "Atenção", "Atenção", "Atenção")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(Probes("OK", "OK", "OK", "OK")) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([new NetworkCheck("DNS", "OK", "fixture"),
+            new NetworkCheck("Conexão HTTPS", "Atenção", "fixture")], true)) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([
+            new NetworkCheck("Adaptador", "OK", "fixture"),
+            new NetworkCheck("Gateway", "OK", "fixture"),
+            new NetworkCheck("DNS", "OK", "fixture"),
+            new NetworkCheck("DNS alternativo", "OK", "fixture"),
+            new NetworkCheck("Conexão HTTPS", "Atenção", "fixture"),
+            new NetworkCheck("Conexão HTTPS alternativa", "Atenção", "fixture"),
+            new NetworkCheck("DNS", "OK", "duplicado")], true)) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([
+            new NetworkCheck("Adaptador", "OK", "fixture"),
+            new NetworkCheck("Adaptador", "Atenção", "contraditório"),
+            new NetworkCheck("Gateway", "OK", "fixture"),
+            new NetworkCheck("DNS", "Atenção", "fixture"),
+            new NetworkCheck("DNS alternativo", "Atenção", "fixture")], true)) is null &&
+    NetworkDiagnostics.SuggestTargetedRepair(
+        new NetworkScan([
+            new NetworkCheck("Adaptador", "OK", "fixture"),
+            new NetworkCheck("Gateway", "OK", "fixture"),
+            new NetworkCheck("DNS", "Atenção", "fixture"),
+            new NetworkCheck("DNS alternativo", "Atenção", "fixture"),
+            new NetworkCheck("DNS alternativo", "Atenção", "duplicado")], true)) is null,
+    "Diagnóstico: nenhum reparo com DNS isolado, evidência duplicada ou falha de um HTTPS.");
+Console.WriteLine("OK: decisão consultiva requer dois nomes DNS e dois destinos HTTPS independentes.");
+Console.WriteLine("OK: pós-flush diferencia duas resoluções, recuperação parcial e falha persistente.");
 var progressMonitor = new WindowsMaintenanceProgress();
 Check(!progressMonitor.Update("47.5%", out _) &&
     !progressMonitor.Update("Etapa 1/2 — DISM", out _) &&
@@ -75,6 +502,8 @@ Check(!progressMonitor.Update("47.5%", out _) &&
     phaseSfc == 92 &&
     !progressMonitor.Update("Etapa concluída", out _),
     "Barra de progresso so avanca em porcentagens reais de etapas DISM/SFC.");
+
+await WindowsFileRepairTests.RunAsync();
 Check(SafeMaintenanceAudit.Begin("clean-user-temp") == "LIMPEZA.INICIO tipo=temporarios_usuario",
     "inicio de limpeza deve usar tipo fixo");
 Check(SafeMaintenanceAudit.LocalResult("clean-user-temp", 47, 0, 17, 0, 0) ==

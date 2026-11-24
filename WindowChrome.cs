@@ -231,7 +231,7 @@ internal sealed partial class MainForm
         DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.FIM");
         ResumeUninstallCleanupConfirmation();
         // Recolher RAM global, sem enumeracao de PIDs na restauracao.
-        if (_nav.SelectedIndex == 5 && _activeSystemView == "memory")
+        if (_nav.SelectedPage == V269Page.Sistema && _activeSystemView == "memory")
         {
             DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.RAM_ATUALIZAR");
             _ = RefreshMemoryRamAsync();

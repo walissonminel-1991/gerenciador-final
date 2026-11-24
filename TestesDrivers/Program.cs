@@ -36,6 +36,12 @@ if (args is ["--hardware-catalog"])
     return;
 }
 
+if (args is ["--chipset-pnp"])
+{
+    ChipsetPnpDiagnosticTests.Run();
+    return;
+}
+
 if (args is ["--silent-uninstall"])
 {
     DriverSilentUninstallTests.Run();
@@ -66,6 +72,7 @@ if (args.Any(a => a.StartsWith("--f4-", StringComparison.Ordinal) ||
     return;
 }
 DriverHardwareCatalogTests.Run();
+ChipsetPnpDiagnosticTests.Run();
 DriverWuaF4VmHarnessTests.Run();
 DriverUxGuidanceTests.Run();
 DriverLabSimulationTests.Run();
@@ -219,6 +226,7 @@ DriverWuaPnpMatchingTests.Run(Check);
 DriverGamingCatalogTests.Run(Check);
 DriverHardwareSupportTests.Run(Check);
 Stage2DriverTests.Run(Check);
+DriverRecoveryVaultTests.Run(Check);
 G1EvidenceTests.Run(Check);
 G15CaptureTests.Run(Check);
 G16SessionTests.Run(Check);

@@ -565,7 +565,7 @@ internal sealed partial class MainForm
         // foi selecionado; nenhuma ação usa índice antigo nem nome do dispositivo.
         async Task RunDriverUninstall(DriverInventoryEntry requested)
         {
-            if (uninstallBusy || readForTest is not null ||
+            if (_busy || _v269Confirming || uninstallBusy || readForTest is not null ||
                 publishedSnapshotGeneration != inventoryGeneration ||
                 lastResult is not { } captured || list.SelectedItem is not { } selected ||
                 !ReferenceEquals(selected, requested))
@@ -577,9 +577,7 @@ internal sealed partial class MainForm
                     Environment.NewLine + assessment.Reason + Environment.NewLine +
                     Environment.NewLine + "Abrir o Gerenciador de Dispositivos do Windows para " +
                     "você decidir se deseja desinstalá-lo? Nenhum driver será removido pelo GF.";
-                if (MessageBox.Show(this, explanation, "GF — desinstalação manual de driver",
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
-                        MessageBoxDefaultButton.Button2) == DialogResult.Yes)
+                if (await ConfirmV269Async("Abrir Gerenciador de Dispositivos", explanation))
                 {
                     try
                     {
@@ -598,6 +596,11 @@ internal sealed partial class MainForm
             }
             if (!DriverSilentUninstall.IsElevated())
             {
+                if (!await ConfirmV269Async("Solicitar autorização para remoção OEM",
+                    $"Dispositivo: {selected.DeviceName}\r\nPacote: {selected.InfName}\r\n" +
+                    "O trabalhador elevado verificará o dispositivo e pedirá confirmação antes de exportar o pacote e removê-lo.") ||
+                    publishedSnapshotGeneration != inventoryGeneration || !ReferenceEquals(list.SelectedItem, selected))
+                    return;
                 // Solicitar UAC somente para esta remoção. O trabalhador
                 // recaptura todo o inventário e pede confirmação explícita;
                 // nenhum snapshot da interface vira autoridade administrativa.
@@ -610,7 +613,11 @@ internal sealed partial class MainForm
                 {
                     var elevation = await DriverElevatedUninstall.RequestAsync(selected);
                     started = elevation.Started;
-                    if (!root.IsDisposed) SetDriverStatus(elevation.Message);
+                    if (!root.IsDisposed)
+                    {
+                        SetDriverStatus(elevation.Message);
+                        _nav.PresentPanel(new(V269PanelKind.Result, "Solicitação administrativa de Drivers", elevation.Message));
+                    }
                 }
                 finally
                 {
@@ -634,14 +641,14 @@ internal sealed partial class MainForm
                 "Fornecedor: " + selected.Provider + Environment.NewLine + Environment.NewLine +
                 "O GF exportará um backup antes de remover. O Windows poderá exigir reinício." +
                 Environment.NewLine + "Nenhum outro pacote será removido deliberadamente.";
-            if (MessageBox.Show(this, question, "GF — confirmar desinstalação",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2)
-                != DialogResult.Yes) return;
+            if (!await ConfirmV269Async("Confirmar remoção OEM", question) ||
+                publishedSnapshotGeneration != inventoryGeneration || !ReferenceEquals(list.SelectedItem, selected)) return;
             uninstallBusy = true;
             bool refreshAfter = false;
             refresh.Enabled = false;
             SyncDriverActions();
             SetDriverStatus("Preparando backup e revalidação do driver...");
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Remoção OEM", "Preparando backup e revalidação do driver."));
             try
             {
                 var outcome = await DriverSilentUninstall.Execute(captured, selected, true,
@@ -663,11 +670,9 @@ internal sealed partial class MainForm
                     refreshAfter = true;
                 }
                 SetDriverStatus(outcome.Message);
-                MessageBox.Show(this, outcome.Message + (outcome.BackupPath is null ? "" :
-                    Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath),
-                    "GF — desinstalação " + outcome.State, MessageBoxButtons.OK,
-                    outcome.State == DriverSilentUninstallState.Verified ?
-                        MessageBoxIcon.Information : MessageBoxIcon.Warning);
+                _nav.PresentPanel(new(V269PanelKind.Result, "Remoção OEM · " + outcome.State,
+                    outcome.Message + (outcome.BackupPath is null ? "" :
+                        Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath)));
                 if (DriverResidualReviewPolicy.MayInspect(outcome.State))
                     SetDriverStatus("INF removido; resíduos protegidos, sem limpeza genérica.");
             }
@@ -1049,7 +1054,7 @@ internal sealed partial class MainForm
             if (root.IsDisposed) return;
             int dpi = root.DeviceDpi;
             int Scale(int px) => DriverRowGeometry.Scale(px, dpi);
-            bool tiny = root.ClientSize.Height < Scale(230);
+            bool tiny = root.ClientSize.Height < Scale(265);
             bool compact = root.ClientSize.Height < Scale(360);
             // Comparar largura física com dimensões físicas da fonte, e não
             // apenas com uma constante sem DPI.
@@ -1061,7 +1066,7 @@ internal sealed partial class MainForm
                 TextRenderer.MeasureText("Atualizar drivers", updateDrivers.Font).Width + Scale(20));
             bool narrow = root.ClientSize.Width < Math.Max(Scale(760),
                 refreshWidth + updateWidth + investigationWidth + Scale(110));
-            bool compactFilters = tiny || root.ClientSize.Width < Scale(800);
+            bool compactFilters = tiny || root.ClientSize.Width < Scale(760);
             bool showCopy = !tiny && !narrow;
             // A ação global ocupa uma coluna extra. Em janela estreita,
             // também nas fixtures com Simular, mover o filtro compacto para
@@ -1077,7 +1082,7 @@ internal sealed partial class MainForm
                     TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
                     TextFormatFlags.NoPrefix).Width + Scale(18));
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
-            root.RowStyles[1].Height = splitActions ? Scale(79) :
+            root.RowStyles[1].Height = splitActions ? Scale(tiny ? 68 : 79) :
                 tiny ? Scale(35) : Scale(44);
             root.RowStyles[2].Height = compactFilters ? 0 : Scale(36);
             // Em SVGA, devolver altura à lista; no modo tiny o histórico
@@ -1087,9 +1092,15 @@ internal sealed partial class MainForm
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
             heading.Visible = !compactFilters;
-            actionPanel.ColumnStyles[0].Width = refreshWidth;
-            actionPanel.ColumnStyles[1].Width = updateWidth;
-            actionPanel.ColumnStyles[2].Width = investigationWidth;
+            bool proportionalActions = splitActions && labOpen is null;
+            var widths = new[] { refreshWidth, updateWidth, investigationWidth };
+            for (int i = 0; i < widths.Length; i++)
+            {
+                actionPanel.ColumnStyles[i].SizeType = proportionalActions ? SizeType.Percent : SizeType.Absolute;
+                actionPanel.ColumnStyles[i].Width = proportionalActions ? 100f / widths.Length : widths[i];
+            }
+            actionPanel.ColumnStyles[3].SizeType = proportionalActions ? SizeType.Absolute : SizeType.Percent;
+            actionPanel.ColumnStyles[3].Width = proportionalActions ? 0 : 100;
             if (splitActions)
             {
                 if (actionPanel.RowCount != 2)

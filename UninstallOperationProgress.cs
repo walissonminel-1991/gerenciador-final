@@ -100,7 +100,8 @@ internal static class UninstallResultSummary
             : "Um local não pôde ser conferido com segurança; verificação parcial."
     };
 
-    internal static string Describe(IReadOnlyList<UninstallOutcome> outcomes, ResidualBatchResult? batch)
+    internal static string Describe(IReadOnlyList<UninstallOutcome> outcomes, ResidualBatchResult? batch,
+        IReadOnlyList<UninstallRequest>? selection = null)
     {
         var lines = new List<string>();
         foreach (var outcome in outcomes)
@@ -144,6 +145,19 @@ internal static class UninstallResultSummary
                 lines.AddRange(plan.Problems.Select(Problem).Distinct());
             }
             lines.Add("");
+        }
+        if (selection is not null)
+        {
+            var reported = outcomes.Select(outcome => outcome.Request.Original.InventoryId)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var request in selection)
+            {
+                var app = request.Original;
+                if (!reported.Add(app.InventoryId)) continue;
+                lines.Add(app.Name);
+                lines.Add("Desinstalação não iniciada. O lote foi interrompido antes deste aplicativo.");
+                lines.Add("");
+            }
         }
         if (batch?.Cancelled == true) lines.Add("Verificação ou limpeza interrompida pelo cancelamento.");
         lines.Add("Detalhes técnicos registrados no diagnóstico.");

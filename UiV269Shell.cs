@@ -45,9 +45,13 @@ internal sealed class V269RightPane : UserControl
 {
     private readonly TableLayoutPanel _layout;
     private readonly Label _title;
-    private readonly Label _description;
+    private readonly TextBox _description;
     private readonly ProgressBar _progress;
+    private readonly Panel _operationContent;
+    private readonly FlowLayoutPanel _choices;
+    private TaskCompletionSource<bool>? _confirmation;
 
+    internal event EventHandler? PresentationChanged;
     internal V269PanelPresentation? Current { get; private set; }
 
     internal V269RightPane()
@@ -60,7 +64,7 @@ internal sealed class V269RightPane : UserControl
             Name = "V269RightContent",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 5,
             Margin = Padding.Empty,
             BackColor = SystemColors.Control
         };
@@ -68,6 +72,8 @@ internal sealed class V269RightPane : UserControl
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         _layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
 
         _title = new Label
         {
@@ -83,30 +89,90 @@ internal sealed class V269RightPane : UserControl
             Margin = new Padding(0, 3, 0, 10),
             Style = ProgressBarStyle.Continuous
         };
-        _description = new Label
+        _description = new TextBox
         {
             Name = "V269PanelDescription", Dock = DockStyle.Fill,
-            AutoSize = false, TextAlign = ContentAlignment.TopLeft,
+            Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None,
+            ScrollBars = ScrollBars.Vertical,
             Margin = Padding.Empty,
             AccessibleName = "Descrição e estado da operação"
         };
         _layout.Controls.Add(_title, 0, 0);
         _layout.Controls.Add(_progress, 0, 1);
         _layout.Controls.Add(_description, 0, 2);
+        _choices = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false, Visible = false };
+        foreach (var (caption, accepted) in new[] { ("Cancelar", false), ("Confirmar", true) })
+        {
+            var button = new Button
+            {
+                Name = accepted ? "V269AcceptConfirmation" : "V269CancelConfirmation",
+                Text = caption, AutoSize = true, MinimumSize = new Size(70, 26)
+            };
+            button.Click += (_, _) => ResolveConfirmation(accepted);
+            _choices.Controls.Add(button);
+        }
+        _operationContent = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
+        _layout.Controls.Add(_choices, 0, 3);
+        _layout.Controls.Add(_operationContent, 0, 4);
         Controls.Add(_layout);
+        Present(null);
     }
 
+    internal void SetOperationContent(Control content)
+    {
+        _operationContent.Controls.Add(content);
+        _layout.RowStyles[4].SizeType = SizeType.Percent;
+        _layout.RowStyles[4].Height = 55;
+        _layout.RowStyles[2].Height = 45;
+    }
+
+    internal async Task<bool> ConfirmAsync(string title, string description, CancellationToken token)
+    {
+        if (_confirmation is not null || IsDisposed || token.IsCancellationRequested) return false;
+        var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var previous = Current;
+        _confirmation = pending;
+        try
+        {
+            _layout.RowStyles[3].Height = 38;
+            _choices.Visible = true;
+            PresentCore(new(V269PanelKind.Confirmation, title, description));
+            _layout.PerformLayout();
+            _choices.Controls[0].Focus();
+            return await pending.Task.WaitAsync(token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return false; }
+        finally
+        {
+            _confirmation = null;
+            if (!IsDisposed)
+            {
+                _choices.Visible = false;
+                _layout.RowStyles[3].Height = 0;
+                PresentCore(previous);
+            }
+        }
+    }
+
+    internal void ResolveConfirmation(bool accepted) => _confirmation?.TrySetResult(accepted);
+
     internal void Present(V269PanelPresentation? presentation)
+    {
+        if (_confirmation is null) PresentCore(presentation);
+    }
+
+    private void PresentCore(V269PanelPresentation? presentation)
     {
         Current = presentation;
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
-        bool inProgress = presentation?.Kind == V269PanelKind.Progress;
+        bool inProgress = presentation is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
         _progress.Visible = inProgress;
         _layout.RowStyles[1].Height = inProgress ? 34 : 0;
         _progress.Value = Math.Clamp(presentation?.ProgressPercent ?? 0, 0, 100);
         _progress.AccessibleDescription = inProgress ? _progress.Value + "%" : string.Empty;
-        AccessibleDescription = _description.Text;
+        AccessibleDescription = presentation?.Title ?? "";
+        PresentationChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void ApplyPalette(V269Palette palette)
@@ -115,6 +181,7 @@ internal sealed class V269RightPane : UserControl
         _layout.BackColor = palette.RightPanel;
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
+        _description.BackColor = palette.RightPanel;
         _description.ForeColor = palette.SecondaryText;
     }
 
@@ -147,6 +214,7 @@ internal sealed class V269Shell : UserControl
     private readonly Dictionary<V269Page, V269NavButton> _navigation = new();
     private readonly Dictionary<V269Page, Control> _pages = new();
     private readonly List<Font> _ownedFonts = [];
+    private int _appliedTextScale;
     private readonly TableLayoutPanel _columns;
     private readonly TableLayoutPanel _navigationLayout;
     private readonly Panel _sidebar;
@@ -162,6 +230,32 @@ internal sealed class V269Shell : UserControl
     internal int TextScalePercent { get; private set; } = 100;
     internal V269Page SelectedPage { get; private set; } = V269Page.Inicio;
     internal V269RightPane RightPane => _rightPane;
+    private Button? _paneToggle;
+    private bool _compactPaneOpen;
+
+    internal void SetOperationContent(Control content)
+    {
+        _rightPane.SetOperationContent(content);
+        var toggle = new Button { Name = "V269PaneToggle", Text = "Painel",
+            AccessibleName = "Mostrar ou ocultar painel de operações",
+            Dock = DockStyle.Top, Height = 30, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 3, 0, 0) };
+        _paneToggle = toggle;
+        toggle.Click += (_, _) =>
+        {
+            _compactPaneOpen = !_compactPaneOpen;
+            ApplyDimensions();
+        };
+        _navigationLayout.Controls.Add(toggle, 0, Pages.Length);
+        _rightPane.PresentationChanged += (_, _) =>
+        {
+            if (_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Result or V269PanelKind.History)
+                _compactPaneOpen = true;
+            ApplyDimensions();
+        };
+        ApplyDimensions();
+    }
+
+    internal void SetPageInteraction(bool enabled) => _bodyHost.Enabled = enabled;
 
     internal V269Shell()
     {
@@ -336,6 +430,8 @@ internal sealed class V269Shell : UserControl
 
     private void ApplyFonts()
     {
+        if (_appliedTextScale == TextScalePercent) return;
+        _appliedTextScale = TextScalePercent;
         var previous = _ownedFonts.ToArray();
         _ownedFonts.Clear();
         Font NewFont(float size, FontStyle style = FontStyle.Regular)
@@ -360,10 +456,27 @@ internal sealed class V269Shell : UserControl
         // São dimensões preliminares: a homologação completa de DPI virá ao final.
         int sidebar = V269VisualTokens.Scale(width < 1040 ? 166 : 210, InterfaceScalePercent);
         int right = V269VisualTokens.Scale(width < 1040 ? 240 : 310, InterfaceScalePercent);
+        if (_paneToggle is { } toggle)
+        {
+            bool compact = width < 1060;
+            toggle.Visible = compact;
+            var palette = V269VisualTokens.ForTheme(Theme);
+            toggle.BackColor = palette.Sidebar;
+            toggle.ForeColor = palette.Text;
+            bool confirmation = _rightPane.Current?.Kind == V269PanelKind.Confirmation;
+            toggle.Enabled = !confirmation;
+            bool showRight = !compact || _compactPaneOpen || confirmation;
+            toggle.Text = showRight ? "Fechar painel" : "Abrir painel";
+            if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
+            if (!showRight) right = 0;
+        }
         _columns.ColumnStyles[0].Width = sidebar;
         _columns.ColumnStyles[2].Width = right;
+        if (_paneToggle is not null) _rightPane.Visible = right > 0;
+        int navHeight = _paneToggle is null ? 48 :
+            Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
         for (int i = 0; i < Pages.Length; i++)
-            _navigationLayout.RowStyles[i].Height = V269VisualTokens.Scale(48, InterfaceScalePercent);
+            _navigationLayout.RowStyles[i].Height = V269VisualTokens.Scale(navHeight, InterfaceScalePercent);
     }
 
     private void RefreshVisiblePage()
@@ -422,12 +535,12 @@ internal sealed class V269Shell : UserControl
 
     protected override void Dispose(bool disposing)
     {
+        base.Dispose(disposing);
         if (disposing)
         {
             foreach (var font in _ownedFonts) font.Dispose();
             _ownedFonts.Clear();
         }
-        base.Dispose(disposing: disposing);
     }
 
     private sealed class V269NavButton : Button

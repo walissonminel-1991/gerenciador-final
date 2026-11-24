@@ -118,7 +118,7 @@ internal static class DriverMainPanelTemporalTests
                 if (searchLabel.Width < requiredSearchWidth || !searchLabel.AutoEllipsis)
                     throw new Exception("Drivers: Pesquisar: quebrado ou cortado em " + size);
                 var compact = Find<ComboBox>(page, "DriverCompactFilter");
-                if (compact.Visible != (size.Height < 230 || size.Width < 760) ||
+                if (compact.Visible != (size.Height < 265 || size.Width < 760) ||
                     compact.Items.Count != 5)
                     throw new Exception("DRIVERS: filtro compacto não acompanhou altura e largura.");
                 if (size.Width < 760 && copySummary.Visible)

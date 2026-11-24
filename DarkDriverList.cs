@@ -117,6 +117,8 @@ internal sealed class DarkDriverList : Control
     internal string UninstallReason(DriverInventoryEntry item) =>
         _evaluateRemoval?.Invoke(item).Reason ?? "Selecione um dispositivo em inventário válido.";
 
+    internal V269Theme Theme = V269Theme.AzulGf;
+
     internal DarkDriverList()
     {
         Name = "DriverInventoryList";
@@ -139,7 +141,13 @@ internal sealed class DarkDriverList : Control
         _detailsMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Details);
         _updateMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Update);
         _uninstallMenu.Click += (_, _) => RequestMenuAction(DriverCardAction.Uninstall);
-        _actionsMenu.Closed += (_, _) => _menuDevice = null;
+        _actionsMenu.Closed += (_, e) =>
+        {
+            // O WinForms fecha o menu antes de entregar Click ao item.
+            // A seleção é consumida uma única vez em RequestMenuAction.
+            if (e.CloseReason != ToolStripDropDownCloseReason.ItemClicked)
+                _menuDevice = null;
+        };
         _actionsMenu.Items.AddRange([_detailsMenu, _updateMenu, _uninstallMenu]);
         Resize += (_, _) => UpdateMetrics();
         DpiChangedAfterParent += (_, _) => UpdateMetrics();
@@ -150,7 +158,11 @@ internal sealed class DarkDriverList : Control
     {
         _actionsCurrent = current;
         _evaluateRemoval = removalDecision;
-        if (!current && _actionsMenu.Visible) _actionsMenu.Close();
+        if (!current)
+        {
+            _menuDevice = null;
+            if (_actionsMenu.Visible) _actionsMenu.Close();
+        }
         UpdateAccessibleSelection();
         Invalidate();
     }
@@ -278,23 +290,23 @@ internal sealed class DarkDriverList : Control
             int last = Math.Min(_items.Count - 1, (_scrollOffset + ClientSize.Height) / RowHeight);
             for (int index = first; index <= last; index++)
                 DrawCard(e.Graphics, new Rectangle(0, index * RowHeight - _scrollOffset,
-                    width, RowHeight), _items[index], index == _selectedIndex,
-                    index == _tipIndex ? _tipAction : null);
+                    width, RowHeight), _items[index], index == _selectedIndex);
         }
         finally { e.Graphics.Clip = previousClip; }
     }
 
     private void DrawCard(Graphics canvas, Rectangle bounds, DriverInventoryEntry item,
-        bool selected, DriverCardAction? hover)
+        bool selected)
     {
         int dpi = DeviceDpi;
         Rectangle card = DriverRowGeometry.Card(bounds, dpi);
         canvas.SmoothingMode = SmoothingMode.AntiAlias;
+        var palette = V269VisualTokens.ForTheme(Theme);
         using (var path = ModernButton.RoundRect(card, 8))
         using (var background = new SolidBrush(selected
-            ? Color.FromArgb(42, 66, 92) : Color.FromArgb(37, 48, 61)))
+            ? palette.Selection : palette.Card))
         using (var outline = new Pen(selected
-            ? Color.FromArgb(111, 184, 255) : Color.FromArgb(61, 77, 93),
+            ? palette.Accent : palette.Border,
             selected ? 1.8f : 0.9f))
         {
             canvas.FillPath(background, path);
@@ -314,12 +326,12 @@ internal sealed class DarkDriverList : Control
             ? "?" : deviceName[0].ToString().ToUpperInvariant();
         TextRenderer.DrawText(canvas, initial, _markFont, emblem, ForeColor,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
-        Color muted = Color.FromArgb(167, 181, 196);
+        Color muted = selected ? Color.White : palette.SecondaryText;
         const TextFormatFlags textFlags = TextFormatFlags.SingleLine |
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
         TextRenderer.DrawText(canvas, deviceName,
             _titleFont, DriverRowGeometry.Text(bounds, dpi, 4, 19),
-            selected ? Color.FromArgb(111, 184, 255) : ForeColor, textFlags);
+            selected ? Color.White : palette.Text, textFlags);
         TextRenderer.DrawText(canvas,
             "Versão: " + (string.IsNullOrWhiteSpace(item.Version) ? "não informada" : item.Version) +
             "  ·  " + (string.IsNullOrWhiteSpace(item.Provider) ? "Fornecedor não informado" : item.Provider),
@@ -351,37 +363,23 @@ internal sealed class DarkDriverList : Control
                 dot, TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
 
-        if (eligible)
-            DrawAction(canvas, DriverRowGeometry.Update(bounds, dpi, _actionFont),
-                "Atualizar", true, hover == DriverCardAction.Update, false, true);
-        Rectangle uninstall = DriverRowGeometry.Uninstall(bounds, dpi, _actionFont);
-        // Rotas distintas, mesma geometria virtual: remover apenas quando
-        // elegível; caso contrário, oferecer gerenciamento MANUAL no Windows.
-        bool directUninstall = CanUninstall(item);
-        DrawAction(canvas, uninstall, RemovalActionLabel(directUninstall), _actionsCurrent,
-            hover == DriverCardAction.Uninstall, directUninstall);
+        DrawAction(canvas, DriverRowGeometry.Update(bounds, dpi, _actionFont),
+            "Atualizar", V269ActionKind.Atualizar, eligible);
+        DrawAction(canvas, DriverRowGeometry.Uninstall(bounds, dpi, _actionFont),
+            "Remover", V269ActionKind.Remover, CanUninstall(item));
     }
 
-    private void DrawAction(Graphics canvas, Rectangle bounds, string text,
-        bool enabled, bool hovered, bool destructive, bool update = false)
+    private void DrawAction(Graphics canvas, Rectangle bounds, string text, V269ActionKind kind, bool allowed)
     {
-        if (!enabled)
-        {
-            TextRenderer.DrawText(canvas, text, _detailsFont, bounds,
-                Color.FromArgb(155, 164, 173), TextFormatFlags.HorizontalCenter |
-                TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
-            return;
-        }
-        Color bg = destructive ? hovered ? Color.FromArgb(192, 72, 83) : AppServices.Red
-            : update ? hovered ? Color.FromArgb(41, 142, 101) : AppServices.Green
-            : Color.FromArgb(47, 65, 84);
-        Color fg = Color.White;
         using var shape = ModernButton.RoundRect(bounds, DriverRowGeometry.Scale(6, DeviceDpi));
-        using var brush = new SolidBrush(bg);
-        using var border = new Pen(enabled ? Color.FromArgb(99, 133, 163) : Color.FromArgb(68, 77, 85));
+        using var brush = new SolidBrush(V269VisualTokens.ActionBackground(Theme, kind, allowed));
+        using var border = new Pen(V269VisualTokens.ActionBorder(Theme, kind, allowed));
+        var color = Theme == V269Theme.Claro
+            ? allowed ? Color.White : V269VisualTokens.ForTheme(Theme).SecondaryText
+            : V269VisualTokens.ActionColor(Theme, kind, allowed);
         canvas.FillPath(brush, shape);
         canvas.DrawPath(border, shape);
-        TextRenderer.DrawText(canvas, text, _actionFont, bounds, fg,
+        TextRenderer.DrawText(canvas, text, _actionFont, bounds, color,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
             TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
     }
@@ -394,7 +392,7 @@ internal sealed class DarkDriverList : Control
         if (index < 0 || index >= _items.Count) return (-1, null);
         var row = new Rectangle(0, index * RowHeight - _scrollOffset, ContentWidth, RowHeight);
         var uninstall = DriverRowGeometry.Uninstall(row, DeviceDpi, _actionFont);
-        if (uninstall.Contains(position)) return (index, DriverCardAction.Uninstall);
+        if (CanUninstall(_items[index]) && uninstall.Contains(position)) return (index, DriverCardAction.Uninstall);
         var update = DriverRowGeometry.Update(row, DeviceDpi, _actionFont);
         if (CanUpdate(_items[index]) && update.Contains(position))
             return (index, DriverCardAction.Update);
@@ -412,7 +410,10 @@ internal sealed class DarkDriverList : Control
     private void RequestMenuAction(DriverCardAction action)
     {
         // Menu aberto para dispositivo anterior não pode agir em nova seleção.
-        if (_menuDevice is not null && ReferenceEquals(SelectedItem, _menuDevice))
+        var item = _menuDevice;
+        _menuDevice = null;
+        if (item is not null && ReferenceEquals(SelectedItem, item) &&
+            (action != DriverCardAction.Update || CanUpdate(item)))
             RequestSelected(action);
     }
 

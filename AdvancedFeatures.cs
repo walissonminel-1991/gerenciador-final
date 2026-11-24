@@ -24,12 +24,16 @@ internal static class StaWorker
 
 internal static class DetailedHardware
 {
-    // WMI padrão do Windows; nenhum programa de terceiros é instalado.
-    private static List<Dictionary<string, string>> Wmi(string query, params string[] columns)
+    private static List<Dictionary<string, string>> Wmi(string query, params string[] columns) =>
+        ReadLocalWmi(query, columns) ?? [];
+
+    // Consulta WMI local. Null significa que o provedor não está disponível.
+    internal static List<Dictionary<string, string>>? ReadLocalWmi(string query, params string[] columns)
     {
+        if (!OperatingSystem.IsWindows()) return null;
         var result = new List<Dictionary<string, string>>();
         Type? type = Type.GetTypeFromProgID("WbemScripting.SWbemLocator");
-        if (type is null) return result;
+        if (type is null) return null;
         object? locator = null, services = null, rows = null;
         try
         {
@@ -38,6 +42,7 @@ internal static class DetailedHardware
             services = connection.ConnectServer(".", @"root\cimv2");
             dynamic scope = services;
             rows = scope.ExecQuery(query);
+            if (rows is null) return null;
             foreach (object item in (System.Collections.IEnumerable)rows)
             {
                 try

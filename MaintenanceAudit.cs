@@ -104,10 +104,9 @@ internal static class MaintenanceAudit
         return id.Length is > 5 and <= 500;
     }
 
-    private static DeviceAudit Devices()
+    internal static DeviceAudit ReadPnpDevices(Action<string, bool?, int?>? observe = null)
     {
-        var locatorType = Type.GetTypeFromProgID("WbemScripting.SWbemLocator");
-        if (locatorType is null) return new(0, 0, 0, false, true, []);
+        if (!OperatingSystem.IsWindows()) return new(0, 0, 0, false, true, []);
         object? locator = null, services = null, result = null;
         int count = 0, disconnected = 0, errors = 0;
         bool partial = false;
@@ -115,6 +114,8 @@ internal static class MaintenanceAudit
         var activeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
+            var locatorType = Type.GetTypeFromProgID("WbemScripting.SWbemLocator");
+            if (locatorType is null) return new(0, 0, 0, false, true, []);
             locator = Activator.CreateInstance(locatorType);
             dynamic client = locator!;
             services = client.ConnectServer(".", @"root\cimv2");
@@ -125,9 +126,9 @@ internal static class MaintenanceAudit
             // COM/WMI only reads a snapshot. This is deliberately not PnPUtil /delete-driver.
             foreach (object item in (System.Collections.IEnumerable)result)
             {
-                if (++count > MaxDevices) { partial = true; break; }
                 try
                 {
+                    if (++count > MaxDevices) { partial = true; break; }
                     dynamic device = item;
                     object? Get(string prop)
                     {
@@ -147,10 +148,15 @@ internal static class MaintenanceAudit
                         if (categories.Count < 32 || categories.ContainsKey(category))
                             categories[category] = categories.GetValueOrDefault(category) + 1;
                     }
-                    int error = 0;
-                    try { error = Convert.ToInt32(Get("ConfigManagerErrorCode") ?? 0); }
+                    int? error = null;
+                    try
+                    {
+                        if (Get("ConfigManagerErrorCode") is object rawCode)
+                            error = Convert.ToInt32(rawCode);
+                    }
                     catch (Exception) { partial = true; }
-                    if (present == true && error != 0 && error != 22)
+                    observe?.Invoke(id, present, error);
+                    if (present == true && error is int code && code != 0 && code != 22)
                         errors++; // disabled is a choice, not proof of malfunction
                 }
                 finally
@@ -180,7 +186,7 @@ internal static class MaintenanceAudit
         bool inspectDevices = true, bool inventoryIncomplete = false)
     {
         var inventory = InspectPrograms(apps);
-        DeviceAudit device = inspectDevices ? Devices() : new(0, 0, 0, false, false, []);
+        DeviceAudit device = inspectDevices ? ReadPnpDevices() : new(0, 0, 0, false, false, []);
         // Comparar instâncias antigas só com snapshot WMI utilizável; se WMI
         // não estiver acessível, não rotular todas as instâncias como ausentes.
         RegistryDeviceEvidence? historical = inspectDevices && device.Supported &&

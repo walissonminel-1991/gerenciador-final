@@ -200,7 +200,7 @@ internal sealed partial class MainForm
         cleanupBar.Controls.Add(_memoryCandidatesLabel, 2, 0);
         root.Controls.Add(cleanupBar, 0, 3);
 
-        root.Controls.Add(new Label
+        var safetyNote = new Label
         {
             Name = "MemorySafetyNote",
             Text = "RAM em espera pode ser reutilizada pelo Windows. Aliviar RAM ajusta apenas o aplicativo autorizado e pode deixá-lo lento ao retornar. " +
@@ -209,7 +209,48 @@ internal sealed partial class MainForm
             Font = new Font("Segoe UI", 8.2F),
             TextAlign = ContentAlignment.MiddleLeft,
             Padding = new Padding(5, 2, 4, 1)
-        }, 0, 4);
+        };
+        root.Controls.Add(safetyNote, 0, 4);
+        bool? compactCommands = null;
+        void FitMemoryCommands()
+        {
+            int width = root.ClientSize.Width - root.Padding.Horizontal;
+            if (width < 1) return;
+            double dpi = Math.Max(1d, root.DeviceDpi / 96d);
+            bool compact = width < 480 * dpi;
+            if (compactCommands != compact)
+            {
+                compactCommands = compact;
+                cleanupBar.SuspendLayout();
+                try
+                {
+                    cleanupBar.ColumnStyles[0].SizeType = cleanupBar.ColumnStyles[1].SizeType =
+                        compact ? SizeType.Percent : SizeType.Absolute;
+                    cleanupBar.ColumnStyles[0].Width = compact ? 50 : (float)Math.Ceiling(154 * dpi);
+                    cleanupBar.ColumnStyles[1].Width = compact ? 50 : (float)Math.Ceiling(152 * dpi);
+                    cleanupBar.ColumnStyles[2].SizeType = compact ? SizeType.Absolute : SizeType.Percent;
+                    cleanupBar.ColumnStyles[2].Width = compact ? 0 : 100;
+                    cleanupBar.SetColumnSpan(_memoryCandidatesLabel, 1);
+                    cleanupBar.SetCellPosition(_memoryCandidatesLabel,
+                        new TableLayoutPanelCellPosition(compact ? 0 : 2, compact ? 1 : 0));
+                    cleanupBar.SetColumnSpan(_memoryCandidatesLabel, compact ? 2 : 1);
+                    cleanupBar.RowCount = compact ? 2 : 1;
+                    cleanupBar.RowStyles.Clear();
+                    cleanupBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                    if (compact) cleanupBar.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(26 * dpi)));
+                    root.RowStyles[3].Height = (float)Math.Ceiling((compact ? 64 : 38) * dpi);
+                }
+                finally { cleanupBar.ResumeLayout(true); }
+            }
+            int noteHeight = TextRenderer.MeasureText(safetyNote.Text, safetyNote.Font,
+                new Size(Math.Max(1, width - safetyNote.Padding.Horizontal), 600),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix).Height;
+            root.RowStyles[4].Height = Math.Max((int)Math.Ceiling(51 * dpi),
+                noteHeight + safetyNote.Padding.Vertical + safetyNote.Margin.Vertical);
+        }
+        root.SizeChanged += (_, _) => FitMemoryCommands();
+        root.DpiChangedAfterParent += (_, _) => { compactCommands = null; FitMemoryCommands(); };
+        FitMemoryCommands();
         FormClosed += (_, _) => _memoryPressureSignal.Dispose();
         _memoryDashboardView = root;
         return root;

@@ -9,6 +9,7 @@ internal sealed partial class MainForm
     // segunda medicao depois que o Windows entrega as unidades locais.
     private Action? _relayoutCleaning;
     private Action? _relayoutRepair;
+    private Action? _relayoutSystem;
 
     // O painel de rede reserva espaco para as linhas efetivamente exibidas.
     // Antes do primeiro diagnostico nao precisa ocupar 205 px vazios.
@@ -20,6 +21,8 @@ internal sealed partial class MainForm
         return (int)Math.Ceiling(logical * Math.Max(1d, DeviceDpi / 96d));
     }
 
+    private static bool CleanupPreviewCompact(int availableWidth) => availableWidth < 500;
+
     private int DiskPanelHeight(int width)
     {
         int count = _diskCards.Content.Controls.Count;
@@ -27,7 +30,8 @@ internal sealed partial class MainForm
         int columns = usable >= 1050 ? 3 : usable >= 740 ? 2 : 1;
         int rows = Math.Max(1, (Math.Max(1, count) + columns - 1) / columns);
         float scale = Math.Max(1f, DeviceDpi / 96f);
-        int fixedRows = 34 + 38 + 20 + 8 + 2 + 4;
+        int previewHeight = CleanupPreviewCompact(width - 32) ? 70 : 38;
+        int fixedRows = 34 + previewHeight + 20 + 8 + 2 + 4;
         int cards = rows * (98 + 7);
         return (int)Math.Ceiling((fixedRows + cards) * scale) + CleanupReportHeight(width);
     }
@@ -35,7 +39,7 @@ internal sealed partial class MainForm
     // A pagina inteira rola quando necessario, mas nunca acrescenta barras
     // independentes a conjuntos de ferramentas e a unidades.
     private Control ScrollablePage(Control content, Func<int, int> minimumHeight,
-        bool trackCleaning = false, bool trackRepair = false)
+        bool trackCleaning = false, bool trackRepair = false, bool trackSystem = false)
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
@@ -56,7 +60,11 @@ internal sealed partial class MainForm
                 // mas nao desativa a rolagem quando o conteudo ultrapassa.
                 int scrollbar = (int)Math.Ceiling(14d * host.DeviceDpi / 96d);
                 int width = Math.Max(1, host.ClientSize.Width - scrollbar);
-                content.Size = new Size(width, Math.Max(host.ClientSize.Height, minimumHeight(width)));
+                // O conteúdo redimensiona os cartões e recalcula a quebra
+                // das descrições ao receber a nova largura. Medir depois.
+                content.Width = width;
+                content.PerformLayout();
+                content.Height = Math.Max(host.ClientSize.Height, minimumHeight(width));
                 host.Reflow();
             }
             finally { arranging = false; }
@@ -70,6 +78,7 @@ internal sealed partial class MainForm
         host.DpiChangedAfterParent += (_, _) => Arrange();
         if (trackCleaning) _relayoutCleaning = Arrange;
         if (trackRepair) _relayoutRepair = Arrange;
+        if (trackSystem) _relayoutSystem = Arrange;
         Arrange();
         return host;
     }

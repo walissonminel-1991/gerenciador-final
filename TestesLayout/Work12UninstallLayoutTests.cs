@@ -13,6 +13,8 @@ internal static class Work12UninstallLayoutTests
     {
         using var host = new MainForm(startServices: false);
         host.Show(); Application.DoEvents();
+        var shell = Children(host).OfType<V269Shell>().Single();
+        shell.SelectPage(V269Page.Aplicativos); Application.DoEvents();
         var list = (DarkProgramList)typeof(MainForm).GetField("_programList", Private)!.GetValue(host)!;
         var inventory = (List<ProgramEntry>)typeof(MainForm).GetField("_installed", Private)!.GetValue(host)!;
         var store = (UninstallOperationStore)typeof(MainForm).GetField("_uninstallOperations", Private)!.GetValue(host)!;
@@ -57,14 +59,16 @@ internal static class Work12UninstallLayoutTests
                 Directory.CreateDirectory("LayoutCaptures");
                 bitmap.Save($"LayoutCaptures/Desinstalacao-W12-{size.Width}x{size.Height}.png");
             }
-            using var dialog = new UninstallResultDialog("Desinstalação confirmada.\nVerificação parcial.\nRegistro: acesso negado (erro 5).\nDados pessoais preservados.");
-            dialog.Show(); dialog.Bounds = UninstallCleanupDialog.FitBounds(new Rectangle(0, 0, (int)(620*dpi), (int)(430*dpi)), new Rectangle(Point.Empty, size));
+            const string summary = "Desinstalação confirmada.\r\nVerificação parcial.\r\nRegistro: acesso negado (erro 5).\r\nDados pessoais preservados.";
+            host.ShowUninstallResult(summary);
             Application.DoEvents();
-            var close = Children(dialog).OfType<Button>().Single();
-            var text = Children(dialog).OfType<DarkLogView>().Single();
-            Require(close.Parent!.ClientRectangle.Contains(close.Bounds) && text.RenderedText.Contains("erro 5") && text.BackColor.R < 80,
-                "resumo compacto mostra motivo em tema escuro e botao inteiro");
-            dialog.Close(); combinations++;
+            var text = Children(shell.RightPane).OfType<TextBox>()
+                .Single(control => control.Name == "V269PanelDescription");
+            Require(text.ReadOnly && text.Multiline && text.Text == summary &&
+                shell.RightPane.Current?.Kind == V269PanelKind.Result,
+                "resumo mostra a evidência real em painel de texto rolável");
+            combinations++;
+
         }
         var report = typeof(MainForm).GetMethod("SetUninstallProgress", Private)!;
         Task.Run(() => report.Invoke(host, [reconstructed, "working", null])).GetAwaiter().GetResult();
@@ -74,17 +78,11 @@ internal static class Work12UninstallLayoutTests
         Task.Run(() => report.Invoke(host, [reconstructed, "finished", null])).GetAwaiter().GetResult();
         Application.DoEvents(); Require(!list.OperationTimerRunning, "conclusao no worker desliga animacao");
         host.MinimizeToTray(); host.ShowUninstallResult("Resultado pendente na bandeja"); Application.DoEvents();
-        Require(!Application.OpenForms.OfType<UninstallResultDialog>().Any(), "bandeja nao abre resumo inesperado");
-        using var closer = new System.Windows.Forms.Timer { Interval = 25 }; int shown = 0;
-        closer.Tick += (_, _) =>
-        {
-            var dialog = Application.OpenForms.OfType<UninstallResultDialog>().FirstOrDefault();
-            if (dialog is not null) { shown++; dialog.Close(); }
-        };
-        closer.Start(); host.RestoreFromTray();
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (shown == 0 && DateTime.UtcNow < deadline) { Application.DoEvents(); Thread.Sleep(10); }
-        closer.Stop(); Require(shown == 1, "resumo aparece uma vez ao reabrir o GF");
+        Require(shell.RightPane.Current?.Description != "Resultado pendente na bandeja",
+            "bandeja mantém resultado pendente sem abrir janela");
+        host.RestoreFromTray(); Application.DoEvents();
+        Require(shell.RightPane.Current?.Description == "Resultado pendente na bandeja",
+            "resumo aparece ao reabrir o GF");
         host.Close();
         using (var tray = new MainForm(startServices: false, startInTray: true))
         {

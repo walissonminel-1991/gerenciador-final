@@ -365,9 +365,8 @@ internal sealed partial class MainForm
         string notice = key == "ultimate"
             ? "O plano Ultimate Performance pode consumir mais energia, aumentar calor e ruído e não garante FPS superior.\n\n"
             : "";
-        if (MessageBox.Show(this, notice + "Ativar o plano " + title + " no Windows?\n\n" +
-            "O Windows pode solicitar permissão administrativa. A alteração pode ser revertida a qualquer momento.",
-            "Confirmar plano de energia", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+        if (!await ConfirmV269Async("Confirmar plano de energia", notice + "Ativar o plano " + title + " no Windows?\n\n" +
+            "O Windows pode solicitar permissão administrativa. A alteração pode ser revertida a qualquer momento."))
             return;
         Guid? before = (await PowerPlanService.ReadAsync()).ActiveGuid;
         await ExecuteAsync("Alterando plano de energia...", async () =>
@@ -386,9 +385,8 @@ internal sealed partial class MainForm
     private async Task RestorePreviousPowerAsync()
     {
         if (_busy || _previousPowerGuid is not Guid previous) return;
-        if (MessageBox.Show(this, "Restaurar o plano de energia anterior desta sessão?\n\n" +
-            "A alteração poderá solicitar autorização do Windows.", "Restaurar plano",
-            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        if (!await ConfirmV269Async("Restaurar plano", "Restaurar o plano de energia anterior desta sessão?\n\n" +
+            "A alteração poderá solicitar autorização do Windows.")) return;
         await ExecuteAsync("Restaurando plano anterior...", async () =>
         {
             await RunElevatedAsync("power-plan-restore:" + previous.ToString("D"));
@@ -410,8 +408,7 @@ internal sealed partial class MainForm
         string warning = enable
             ? "Ativar a hibernação? O Windows poderá reservar espaço no disco para o arquivo hiberfil.sys."
             : "Desativar a hibernação? Isso pode impedir o uso da Inicialização Rápida e remover o arquivo hiberfil.sys.";
-        if (MessageBox.Show(this, warning, "Confirmar hibernação",
-            MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (!await ConfirmV269Async("Confirmar hibernação", warning)) return;
         await ExecuteAsync(enable ? "Ativando hibernação..." : "Desativando hibernação...", async () =>
         {
             await RunElevatedAsync(enable ? "hibernate-on" : "hibernate-off");

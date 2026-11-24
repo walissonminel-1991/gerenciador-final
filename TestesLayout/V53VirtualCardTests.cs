@@ -101,16 +101,16 @@ internal static class V53VirtualCardTests
                 BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
                 [new Point(uninstallButton.Left + uninstallButton.Width / 2,
                     uninstallButton.Top + uninstallButton.Height / 2)])!);
-        Require(hit.Action == "uninstall-manual" &&
-            ReferenceEquals(hit.Item, appList.Items[0]),
-            "aplicativo somente inventário deve oferecer Desinstalar manual sem execução direta");
+        Require(hit.Item is null && !appList.AllowsRemoval(appList.Items[0]) &&
+            appList.Items[0].UninstallAction == "uninstall-manual",
+            "remover permanece desabilitado e o roteamento manual é preservado no menu");
         // O contrato do tooltip era existente e permanece no controle real.
         typeof(DarkProgramList).GetMethod("OnMouseMove",
             BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
             [new MouseEventArgs(MouseButtons.None, 0, 80, 10, 0)]);
         var tips = (ToolTip)typeof(DarkProgramList).GetField("_itemTips",
             BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(appList)!;
-        Require(tips.GetToolTip(appList).Contains(longName, StringComparison.Ordinal),
+        Require(!tips.Active && tips.GetToolTip(appList).Contains(longName, StringComparison.Ordinal),
             "reticencias nao podem descartar o nome completo do tooltip");
 
         // Render GDI real em runner 96 DPI, sem drivers/arquivos reais.
@@ -124,7 +124,7 @@ internal static class V53VirtualCardTests
             g.Clear(driver.BackColor);
             for (int i = 0; i < 5; i++)
                 paint.Invoke(driver, [g, new Rectangle(0, i * realRowHeight, 800, realRowHeight),
-                    driverItem, i == 0, null]);
+                    driverItem, i == 0]);
         }
         Directory.CreateDirectory("LayoutCaptures");
         output.Save("LayoutCaptures/V53-drivers-virtualizados-96dpi.png");
