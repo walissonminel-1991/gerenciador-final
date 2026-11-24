@@ -10,17 +10,20 @@ internal sealed class V269AppSearchBox : Panel
         TextAlign=ContentAlignment.MiddleLeft,Margin=Padding.Empty,TabStop=false};
     private V269AppearanceOptions _options=V269AppearanceOptions.Default;
     private Font? _font;
+    private bool _activating;
     internal V269AppSearchBox(TextBox editor)
     {
         Name="V269AppsSearchFrame";_editor=editor;
         Dock=DockStyle.Fill;Margin=new Padding(0,1,9,1);
         SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|
             ControlStyles.ResizeRedraw|ControlStyles.SupportsTransparentBackColor,true);
+        SetStyle(ControlStyles.Selectable,true);
+        AccessibleName="Pesquisar aplicativo";AccessibleRole=AccessibleRole.Text;
         BackColor=Color.Transparent;_editor.BorderStyle=BorderStyle.None;
         _editor.Dock=DockStyle.None;Controls.Add(_editor);
         _cue.Text=_editor.PlaceholderText;_editor.PlaceholderText="";
         _cue.BackColor=_editor.BackColor;_cue.ForeColor=_editor.ForeColor;_cue.Font=_editor.Font;
-        Controls.Add(_cue);_cue.BringToFront();_cue.Click+=(_,_)=>_editor.Focus();
+        Controls.Add(_cue);_cue.BringToFront();_cue.Click+=(_,_)=>FocusEditor();
         Resize+=(_,_)=>ArrangeEditor();
         _editor.GotFocus+=(_,_)=>{UpdateCue();Invalidate();};
         _editor.LostFocus+=(_,_)=>{UpdateCue();Invalidate();};
@@ -51,7 +54,26 @@ internal sealed class V269AppSearchBox : Panel
             Math.Max(1,Width-x-S(9)),_editor.PreferredHeight);
         _cue.Bounds=_editor.Bounds;
     }
-    private void UpdateCue(){_cue.Visible=_editor.TextLength==0&&!_editor.Focused;}
+    private void UpdateCue()
+    {
+        // A dica e o HWND de edição não se sobrepõem quando vazios.
+        // O painel recebe Tab nesse estado e encaminha foco ao TextBox real.
+        if(_activating)return;
+        bool cue=_editor.TextLength==0&&!_editor.Focused;
+        _cue.Visible=cue;_editor.Visible=!cue;TabStop=cue;
+    }
+    private void FocusEditor()
+    {
+        if(_activating||IsDisposed)return;
+        _activating=true;
+        try{_editor.Visible=true;_cue.Visible=false;TabStop=false;_editor.Focus();}
+        finally{_activating=false;UpdateCue();}
+    }
+    protected override void OnEnter(EventArgs e)
+    {
+        base.OnEnter(e);
+        if(!_activating&&!_editor.Focused&&_editor.TextLength==0)FocusEditor();
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
         if(Width<3||Height<3)return;
@@ -63,7 +85,7 @@ internal sealed class V269AppSearchBox : Panel
         using var ink=new Pen(c.Ink,1.7f){EndCap=LineCap.Round};
         e.Graphics.DrawEllipse(ink,x,y,n,n);e.Graphics.DrawLine(ink,x+n-1,y+n-1,x+n+S(4),y+n+S(4));
     }
-    protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button==MouseButtons.Left)_editor.Focus();}
+    protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button==MouseButtons.Left)FocusEditor();}
     protected override void Dispose(bool disposing){if(disposing)_font?.Dispose();base.Dispose(disposing);}
 }
 internal sealed class V269AppToolbarButton:Button

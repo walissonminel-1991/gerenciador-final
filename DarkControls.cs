@@ -241,7 +241,8 @@ internal sealed class DarkProgramList : Control
     private Font? _tableFont;
     private V269AppIconCache? _appIcons;
     internal bool LoadLocalAppIcons;
-    internal Bitmap? LocalAppIcon(string value)=>LoadLocalAppIcons?(_appIcons??=new V269AppIconCache(this)).Get(value):null;
+    internal Bitmap? LocalAppIcon(ProgramEntry item)=>LoadLocalAppIcons?
+        (_appIcons??=new V269AppIconCache(this)).Get(item.DisplayIcon,V269MsixIconSource.From(item)):null;
     internal bool V269TableMode=>_tableMode;
     private string _emptyMessage="Nenhum aplicativo identificado.";
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -359,7 +360,17 @@ internal sealed class DarkProgramList : Control
             get=>$"{item.Name}, versão {item.Version}, editor {item.Publisher}, instalado em {item.InstallDate?.ToString("dd/MM/yyyy")??"não informado"}";
             set{}
         }
-        public override string? Description=>ApplicationCapabilityInspection.Describe(item,owner.OperationFor?.Invoke(item));
+        public override string? Description
+        {
+            get
+            {
+                var update=owner.OperationFor?.Invoke(item);
+                var uninstall=owner.UninstallOperationFor?.Invoke(item);
+                string capability=ApplicationCapabilityInspection.Describe(item,update);
+                return uninstall is not null?capability+"\n"+uninstall.Text+"\n"+uninstall.Details:
+                    update is not null?capability+"\n"+update.Details:capability;
+            }
+        }
         public override AccessibleRole Role=>AccessibleRole.ListItem;
         public override AccessibleStates State=>Index<0?AccessibleStates.Unavailable|AccessibleStates.Invisible:
             AccessibleStates.Selectable|AccessibleStates.Focusable|

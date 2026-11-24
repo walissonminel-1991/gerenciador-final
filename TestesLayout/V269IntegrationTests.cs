@@ -176,8 +176,13 @@ internal static class V269IntegrationTests
             sort.SelectedIndex=3;Require(list.Items[0].Name=="OBS Studio","ofertas primeiro");
             sort.SelectedIndex=0;search.Text="VLC";Require(list.Items.Count==1&&list.Items[0]==entries[4],"pesquisa real");
             search.Clear();list.Focus();Application.DoEvents();
-            Require(form.Controls.Find("V269AppsSearchCue",true).Single().Visible,
-                "dica de pesquisa visível quando vazia e sem foco");
+            var cue=form.Controls.Find("V269AppsSearchCue",true).Single();
+            Require(cue.Visible&&!search.Visible&&search.Parent!.TabStop,
+                "dica de pesquisa visível sem sobreposição do HWND vazio e com navegação por Tab");
+            search.Parent.Focus();Application.DoEvents();
+            Require(search.Visible&&search.Focused&&!cue.Visible,"foco encaminhado à edição nativa");
+            list.Focus();Application.DoEvents();
+            Require(cue.Visible&&!search.Visible,"dica reaparece ao deixar pesquisa vazia");
             list.SelectedIndex=0;
             typeof(DarkProgramList).GetMethod("OnKeyDown",flags)!.Invoke(list,[new KeyEventArgs(Keys.Alt|Keys.Down)]);
             Require(sort.SelectedIndex==4&&ReferenceEquals(list.Items[1],entries[0]),"reordenação pelo teclado conectada");
@@ -251,6 +256,57 @@ internal static class V269IntegrationTests
             var hit=((ProgramEntry? Item,string Action))typeof(DarkProgramList).GetMethod("HitAction",flags)!.Invoke(list,
                 [new Point(action.X+action.Width/2,action.Y+action.Height/2)])!;
             Require(hit.Item is null,"remoção bloqueada também após deslocamento horizontal");
+            // Contratos de cancelamento na própria interface, só tokens sintéticos:
+            // nenhuma consulta, instalador, desinstalador ou limpeza é iniciado.
+            var verify=typeof(MainForm).GetMethod("CheckUpdatesFromButtonAsync",flags)!;
+            foreach(string fieldName in new[]{"_consultaCatalogoCts","_installerDownloadCts","_deploymentWaitCts"})
+            {
+                var field=typeof(MainForm).GetField(fieldName,flags)!;
+                Require(field.GetValue(form) is null,"fixture sem operação prévia");
+                using var cancel=new CancellationTokenSource();
+                try
+                {
+                    field.SetValue(form,cancel);
+                    ((Task)verify.Invoke(form,[])!).GetAwaiter().GetResult();
+                    Require(cancel.IsCancellationRequested,"botão Verificar encaminha cancelamento: "+fieldName);
+                }
+                finally{field.SetValue(form,null);}
+            }
+            var previousOperation=list.UninstallOperationFor;
+            try
+            {
+                list.UninstallOperationFor=item=>ReferenceEquals(item,entries[2])?
+                    new UninstallOperationSnapshot(UninstallStage.Inspecting,"Verificando resíduos","Fixture consultiva"):null;
+                Require(list.AccessibilityObject.GetChild(2)?.Description?.Contains("Verificando resíduos",StringComparison.Ordinal)==true,
+                    "estado de desinstalação legível sem depender de cor ou tooltip flutuante");
+            }
+            finally{list.UninstallOperationFor=previousOperation;}
+            surface.Size=new Size(1200,659);surface.PerformLayout();
+            var cancelField=typeof(MainForm).GetField("_uninstallCts",flags)!;
+            var showCancel=typeof(MainForm).GetMethod("ShowUninstallCancellation",flags)!;
+            Require(cancelField.GetValue(form) is null,"fixture sem desinstalação real");
+            using(var cancel=new CancellationTokenSource())
+            {
+                try
+                {
+                    cancelField.SetValue(form,cancel);
+                    shell.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento","Fixture sem execução"));
+                    showCancel.Invoke(form,[true]);Application.DoEvents();
+                    var button=form.Controls.Find("UninstallCancel",true).OfType<Button>().Single();
+                    Require(button.Visible&&button.Enabled,"cancelamento acessível no painel de progresso");
+                    button.PerformClick();
+                    // ModernButton pode despachar o Click após a animação.
+                    var dispatch=System.Diagnostics.Stopwatch.StartNew();
+                    while(!cancel.IsCancellationRequested&&dispatch.Elapsed<TimeSpan.FromSeconds(3))
+                    {Application.DoEvents();Thread.Sleep(10);}
+                    Require(cancel.IsCancellationRequested,"cancelamento de desinstalação/limpeza encaminha token real");
+                }
+                finally
+                {
+                    cancelField.SetValue(form,null);showCancel.Invoke(form,[false]);
+                    shell.PresentPanel(null);
+                }
+            }
         }
         finally
         {
@@ -273,7 +329,30 @@ internal static class V269IntegrationTests
         Require(V269AppIconCache.ReadResource(new V269LocalIconSource(
             Path.Combine(Path.GetTempPath(),"GF-inexistente-"+Guid.NewGuid().ToString("N")+".ico"),0)) is null,
             "ícone ausente mantém abreviação");
-        Console.WriteLine("PASS Aplicativos V2.6.9: origem de ícones locais limitada e falha fechada.");
+        var packaged=new ProgramEntry{Name="Fixture MSIX",InventoryId="MSIX|Fixture.App_abcdefghijklm",
+            MsixPackageName="Fixture.App",MsixPublisherId="abcdefghijklm",
+            MsixPackageFamilyName="Fixture.App_abcdefghijklm",MsixPackageFullName="Fixture.App_1.2.3.4_x64__abcdefghijklm",
+            MsixInventoryComplete=true};
+        Require(V269MsixIconSource.From(packaged) is {FullName:"Fixture.App_1.2.3.4_x64__abcdefghijklm"}&&
+            V269MsixIconSource.From(new ProgramEntry{Name="Mesmo nome"}) is null,
+            "ícone MSIX depende de identidade observada completa, não do nome");
+        var png=new byte[33];new byte[]{137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82}.CopyTo(png,0);
+        png[19]=48;png[23]=48;
+        Require(V269AppIconCache.IsBoundedPng(png),"cabeçalho PNG dentro do limite");
+        png[18]=3;
+        Require(!V269AppIconCache.IsBoundedPng(png)&&!V269AppIconCache.IsBoundedPng(new byte[33]),
+            "rejeitar dimensões excessivas ou formato não confirmado antes de decodificar");
+        using(var image=new Bitmap(96,48))
+        using(var buffer=new MemoryStream())
+        {
+            image.Save(buffer,System.Drawing.Imaging.ImageFormat.Png);
+            var normalized=V269AppIconCache.NormalizeLogo(buffer.ToArray())??
+                throw new InvalidOperationException("normalização do ícone PNG");
+            using var stream=new MemoryStream(normalized);using var result=new Bitmap(stream);
+            Require(result.Size==new Size(48,48),"logotipo retido em memória tem dimensão fixa");
+        }
+        Require(V269AppIconCache.NormalizeLogo(new byte[33]) is null,"PNG inválido não entra no cache");
+        Console.WriteLine("PASS Aplicativos V2.6.9: origens de ícones locais e MSIX limitadas e falha fechada.");
     }
 
     private static void VerifyAppTableGeometry()
@@ -337,7 +416,15 @@ internal static class V269IntegrationTests
         try
         {
             V269AppOrderStore.Write(path,manual);
-            Require(V269AppOrderStore.Read(path).SequenceEqual(manual),"ordem manual persistente em fixture");
+            Require(V269AppOrderStore.Read(path).SequenceEqual(manual)&&
+                V269AppOrderStore.ReadPreferences(path).Sort==V269AppSort.Manual,"ordem manual persistente em fixture");
+            V269AppOrderStore.WritePreferences(path,V269AppSort.UpdatesFirst,manual);
+            var restored=V269AppOrderStore.ReadPreferences(path);
+            Require(restored.Sort==V269AppSort.UpdatesFirst&&restored.Keys.SequenceEqual(manual),
+                "modo escolhido persiste sem perder ordem manual");
+            File.WriteAllText(path,System.Text.Json.JsonSerializer.Serialize(manual));
+            Require(V269AppOrderStore.ReadPreferences(path).Sort==V269AppSort.Manual&&
+                V269AppOrderStore.Read(path).SequenceEqual(manual),"migração de arquivo legado");
             File.WriteAllText(path,"{}");
             Require(V269AppOrderStore.Read(path).Length==0,"ordem corrompida não impede inventário");
         }

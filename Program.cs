@@ -1122,7 +1122,11 @@ internal sealed partial class MainForm : Form
     private Control BuildProgramsPanel(bool loadPreferences)
     {
         _v269OrderLive=loadPreferences;
-        if(loadPreferences)_v269ManualOrder=V269AppOrderStore.Read(V269AppOrderStore.PathForUser);
+        if(loadPreferences)
+        {
+            var saved=V269AppOrderStore.ReadPreferences(V269AppOrderStore.PathForUser);
+            _v269ManualOrder=saved.Keys;_v269AppSort=saved.Sort;
+        }
         var root = new TableLayoutPanel
         {
             Name="V269AppsPage",Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,
@@ -1149,8 +1153,17 @@ internal sealed partial class MainForm : Form
         _v269AppSortChoice.AccessibleName="Ordenar aplicativos";
         _toolTips.SetToolTip(_v269AppSortChoice,"Instalados recentemente usa a data declarada pela fonte: instalação, atualização ou manutenção. Datas desconhecidas ficam no fim.");
         _v269AppSortChoice.Items.AddRange(["Nome (A–Z)","Nome (Z–A)","Instalados recentemente","Atualizações primeiro","Ordem manual"]);
-        _v269AppSortChoice.SelectedIndex=0;_v269AppSortChoice.Dock=DockStyle.Fill;
-        _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{if(_v269AppSortChoice.SelectedIndex>=0){_v269AppSort=(V269AppSort)_v269AppSortChoice.SelectedIndex;RenderPrograms();}};
+        _v269AppSortChoice.SelectedIndex=(int)_v269AppSort;_v269AppSortChoice.Dock=DockStyle.Fill;
+        _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{
+            if(_v269AppSortChoice.SelectedIndex<0)return;
+            var next=(V269AppSort)_v269AppSortChoice.SelectedIndex;
+            if(next==_v269AppSort)return;
+            _v269AppSort=next;RenderPrograms();
+            if(!_v269OrderLive)return;
+            try{V269AppOrderStore.WritePreferences(V269AppOrderStore.PathForUser,next,_v269ManualOrder);}
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {Status("Ordenação aplicada nesta sessão; não foi possível salvar a preferência.");}
+        };
         _v269AppSortChoice.Margin=new Padding(0,1,9,1);
         _v269AppSortChoice.Disposed+=(_,_)=>_v269AppSortFont?.Dispose();
         searchBar.Controls.Add(_v269AppSortChoice,2,0);
@@ -1546,7 +1559,8 @@ internal sealed partial class MainForm : Form
         _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do aplicativo",details,Application:
             new V269AppDetailModel(item.Name,Known(item.Publisher),fields,
                 ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item)),
-                _programList.LoadLocalAppIcons?item.DisplayIcon:"")));
+                _programList.LoadLocalAppIcons?item.DisplayIcon:"",
+                _programList.LoadLocalAppIcons?V269MsixIconSource.From(item):null)));
     }
 
     private void DrawProgramCard(object? sender, DrawItemEventArgs e)
@@ -1582,7 +1596,7 @@ internal sealed partial class MainForm : Form
         using(var border=new Pen(colors.Border))
         {g.FillPath(fill,shape);g.DrawPath(border,shape);}
         string initial=string.IsNullOrWhiteSpace(item.Name)?"?":item.Name.Trim()[0].ToString().ToUpperInvariant();
-        if(_programList.LocalAppIcon(item.DisplayIcon) is {} icon)
+        if(_programList.LocalAppIcon(item) is {} icon)
         {var inset=mark;inset.Inflate(-S(3),-S(3));if(inset.Width>0&&inset.Height>0)g.DrawImage(icon,inset);}
         else Text(initial,new Rectangle(mark.X+S(7),mark.Y,mark.Width-S(7),mark.Height),bold);
         int nameX=mark.Right+S(5);

@@ -49,35 +49,47 @@ internal static class V269AppOrdering
         return keys.ToArray();
     }
 }
+internal sealed record V269AppOrderPreferences(int Schema,V269AppSort Sort,string[] Keys);
 internal static class V269AppOrderStore
 {
     internal static string PathForUser=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "GerenciadorFinal","ordem-aplicativos-v269.json");
     private const int MaxEntries=10000, MaxBytes=800000;
     private static bool Valid(string? key)=>key is {Length:64}&&key.All(c=>c is >= '0' and <= '9' or >= 'A' and <= 'F');
-    internal static string[] Read(string path)
+    private static V269AppOrderPreferences Default()=>new(1,V269AppSort.NameAscending,[]);
+    private static bool ValidKeys(string[]? keys)=>keys is not null&&keys.Length<=MaxEntries&&keys.All(Valid)&&
+        keys.Distinct(StringComparer.Ordinal).Count()==keys.Length;
+    internal static string[] Read(string path)=>ReadPreferences(path).Keys;
+    internal static V269AppOrderPreferences ReadPreferences(string path)
     {
         try
         {
             using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);
-            if(stream.Length>MaxBytes)return [];
-            var keys=JsonSerializer.Deserialize<string[]>(stream);
-            return keys is not null&&keys.Length<=MaxEntries&&keys.All(Valid)&&
-                keys.Distinct(StringComparer.Ordinal).Count()==keys.Length?keys:[];
+            if(stream.Length>MaxBytes)return Default();
+            using var json=JsonDocument.Parse(stream);
+            if(json.RootElement.ValueKind==JsonValueKind.Array)
+            {
+                var keys=json.RootElement.Deserialize<string[]>();
+                return ValidKeys(keys)?new(1,keys!.Length>0?V269AppSort.Manual:V269AppSort.NameAscending,keys!):Default();
+            }
+            if(json.RootElement.ValueKind!=JsonValueKind.Object||
+                !json.RootElement.TryGetProperty("Sort",out _))return Default();
+            var saved=json.RootElement.Deserialize<V269AppOrderPreferences>();
+            return saved is {Schema:1}&&Enum.IsDefined(saved.Sort)&&ValidKeys(saved.Keys)?saved:Default();
         }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or JsonException or System.Security.SecurityException)
-        {return [];}
+        {return Default();}
     }
-    internal static void Write(string path,string[] keys)
+    internal static void Write(string path,string[] keys)=>WritePreferences(path,V269AppSort.Manual,keys);
+    internal static void WritePreferences(string path,V269AppSort sort,string[] keys)
     {
-        if(keys.Length>MaxEntries||!keys.All(Valid)||keys.Distinct(StringComparer.Ordinal).Count()!=keys.Length)
-            throw new InvalidDataException("Ordem inválida.");
+        if(!Enum.IsDefined(sort)||!ValidKeys(keys))throw new InvalidDataException("Ordem inválida.");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string temporary=path+"."+Guid.NewGuid().ToString("N")+".tmp";
         try
         {
             using(var stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.None))
-            {JsonSerializer.Serialize(stream,keys);stream.Flush(true);}
+            {JsonSerializer.Serialize(stream,new V269AppOrderPreferences(1,sort,keys));stream.Flush(true);}
             File.Move(temporary,path,true);
         }
         finally{if(File.Exists(temporary))File.Delete(temporary);}

@@ -4,7 +4,7 @@ using System.Windows.Forms;
 namespace GerenciadorAplicativos;
 
 internal sealed record V269AppDetailModel(string Name,string Publisher,
-    IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="");
+    IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null);
 
 internal sealed class V269AppDetailPanel : Panel
 {
@@ -34,6 +34,11 @@ internal sealed class V269AppDetailPanel : Panel
         _identity.Controls.Add(_name,1,0);_identity.Controls.Add(_publisher,1,1);
         _table.RowCount=1;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _table.Controls.Add(_identity,0,0);_table.SetColumnSpan(_identity,2);_identity.Visible=false;
+        _table.CellPaint+=(_,e)=>{
+            if(_model is null||e.Row>_model.Fields.Count)return;
+            using var line=new Pen(_palette.Border);
+            e.Graphics.DrawLine(line,e.CellBounds.Left,e.CellBounds.Bottom-1,e.CellBounds.Right-1,e.CellBounds.Bottom-1);
+        };
         Controls.Add(_table);SizeChanged+=(_,_)=>FitLabels();
         FontChanged+=(_,_)=>RefreshIdentityFont();
         DpiChangedAfterParent+=(_,_)=>ApplyInterfaceScale(_interfacePercent);
@@ -50,7 +55,7 @@ internal sealed class V269AppDetailPanel : Panel
             _table.RowStyles.Clear();_table.RowCount=1;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _identity.Visible=model is not null;
             _name.Text=model?.Name??"";_publisher.Text=model?.Publisher??"";
-            _icon.SetIdentity(model?.Name??"",model?.IconSource??"");
+            _icon.SetIdentity(model?.Name??"",model?.IconSource??"",model?.MsixIcon);
             if(model is null)return;
             Label Make(string value,bool strong)=>new(){Text=value,AutoSize=true,
                 Margin=new Padding(3,5,3,5),ForeColor=strong?_palette.Text:_palette.SecondaryText,
@@ -64,7 +69,10 @@ internal sealed class V269AppDetailPanel : Panel
             {
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 _table.Controls.Add(Make(field.Label,false),0,row);
-                _table.Controls.Add(Make(field.Value,true),1,row);
+                var value=Make(field.Value,true);
+                value.Anchor=AnchorStyles.Top|AnchorStyles.Right;
+                value.TextAlign=ContentAlignment.TopRight;
+                _table.Controls.Add(value,1,row);
             }
             AddFull("Elegibilidade e evidência",true);
             AddFull(model.Reasons,false);
@@ -112,7 +120,7 @@ internal sealed class V269AppDetailPanel : Panel
     {
         _palette=palette;BackColor=_table.BackColor=_identity.BackColor=palette.RightPanel;
         _name.ForeColor=palette.Text;_publisher.ForeColor=palette.SecondaryText;
-        _icon.ApplyPalette(palette);
+        _icon.ApplyPalette(palette);_table.Invalidate();
         foreach(Label label in _table.Controls.OfType<Label>())
             label.ForeColor=label.Tag is true?palette.Text:palette.SecondaryText;
     }
@@ -130,6 +138,7 @@ internal sealed class V269AppDetailIcon:Control
     private V269AppIconCache? _cache;
     private V269Palette _palette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
     private string _source="",_initial="";
+    private V269MsixIconSource? _msix;
     internal V269AppDetailIcon()
     {
         Name="V269AppDetailIcon";AccessibleRole=AccessibleRole.Graphic;TabStop=false;
@@ -138,9 +147,9 @@ internal sealed class V269AppDetailIcon:Control
             ControlStyles.SupportsTransparentBackColor,true);
         BackColor=Color.Transparent;
     }
-    internal void SetIdentity(string name,string source)
+    internal void SetIdentity(string name,string source,V269MsixIconSource? msix)
     {
-        _source=source;_initial=string.IsNullOrWhiteSpace(name)?"?":name.Trim()[0].ToString().ToUpperInvariant();
+        _source=source;_msix=msix;_initial=string.IsNullOrWhiteSpace(name)?"?":name.Trim()[0].ToString().ToUpperInvariant();
         AccessibleName="Ícone do aplicativo "+name;Invalidate();
     }
     internal void ApplyPalette(V269Palette palette){_palette=palette;Invalidate();}
@@ -151,7 +160,7 @@ internal sealed class V269AppDetailIcon:Control
         using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),Math.Max(2,Width/6));
         using var fill=new SolidBrush(_palette.Card);using var border=new Pen(_palette.Border);
         g.FillPath(fill,shape);g.DrawPath(border,shape);
-        var image=_source.Length==0?null:(_cache??=new V269AppIconCache(this)).Get(_source);
+        var image=_source.Length==0&&_msix is null?null:(_cache??=new V269AppIconCache(this)).Get(_source,_msix);
         if(image is not null)
         {
             int inset=Math.Max(2,Width/12);

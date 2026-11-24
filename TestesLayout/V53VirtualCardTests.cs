@@ -69,10 +69,14 @@ internal static class V53VirtualCardTests
         // (faixa de 29 px). Renderizar o cartao real de Aplicativos sem executar
         // nenhuma acao; a lista e o tooltip preservam o titulo completo.
         using var owner = new MainForm(startServices: false);
+        owner.Show();Application.DoEvents();
+        var shell=owner.Controls.Find("V269Shell",true).OfType<V269Shell>().Single();
+        shell.SelectPage(V269Page.Aplicativos);shell.PresentPanel(null);Application.DoEvents();
         var appList = (DarkProgramList)(typeof(MainForm).GetField("_programList",
             BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(owner)
             ?? throw new Exception("V5.3: lista de aplicativos indisponivel"));
-        appList.Size = new Size(800, 170);
+        Require(appList.Visible&&appList.IsHandleCreated&&appList.ClientSize.Width>80,
+            "viewport real de Aplicativos visível antes de testar mouse");
         appList.SetItems([new ProgramEntry
         {
             Name = longName, Version = "1.0", Publisher = "Fabricante ficticio",
@@ -110,12 +114,17 @@ internal static class V53VirtualCardTests
         // O cabeçalho não é uma linha. Usar a geometria real e preservar
         // o nome completo, sem reativar tooltip flutuante do produto.
         var move=typeof(DarkProgramList).GetMethod("OnMouseMove",BindingFlags.Instance|BindingFlags.NonPublic)!;
-        move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,80,appRow.Top+appRow.Height/2,0)]);
+        var point=new Point(Math.Min(80,appList.ClientSize.Width/2),appRow.Top+appRow.Height/2);
+        Require((int)typeof(DarkProgramList).GetMethod("RowAt",BindingFlags.Instance|BindingFlags.NonPublic)!
+            .Invoke(appList,[point])! == 0,"mouse de teste atinge a primeira linha visível");
+        move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,point.X,point.Y,0)]);
         var tips=(ToolTip)typeof(DarkProgramList).GetField("_itemTips",
             BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(appList)!;
-        Require(!tips.Active&&tips.GetToolTip(appList).Contains(longName,StringComparison.Ordinal)&&
-            appList.AccessibilityObject.GetChild(0)?.Name?.Contains(longName,StringComparison.Ordinal)==true,
-            "reticencias nao podem descartar o nome completo do tooltip ou da acessibilidade");
+        Require(!tips.Active,"tooltip flutuante permanece inativo");
+        Require(tips.GetToolTip(appList).Contains(longName,StringComparison.Ordinal),
+            "reticências preservam o nome completo no conteúdo consultivo");
+        Require(appList.AccessibilityObject.GetChild(0)?.Name?.Contains(longName,StringComparison.Ordinal)==true,
+            "reticências preservam o nome completo para leitor de tela");
         move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,80,appList.TableHeaderHeight/2,0)]);
         Require(!tips.Active&&tips.GetToolTip(appList).Length==0,"cabeçalho não apresenta dados de uma linha inexistente");
 
