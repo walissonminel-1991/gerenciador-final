@@ -256,6 +256,8 @@ internal sealed class V269Shell : UserControl
     internal V269RightPane RightPane => _rightPane;
     private Button? _paneToggle;
     private bool _compactPaneOpen;
+    private bool? _appPaneOpen;
+    private bool _appPaneAtBottom;
     private bool? _dashboardPaneOpen;
     private bool _movingHomeToggle;
 
@@ -410,6 +412,7 @@ internal sealed class V269Shell : UserControl
             {
                 _compactPaneOpen = true;
                 _dashboardPaneOpen = null;
+                _appPaneOpen=null;
             }
             ApplyDimensions();
         };
@@ -456,7 +459,8 @@ internal sealed class V269Shell : UserControl
     internal void ShowV269AppPane()
     {
         if(SelectedPage!=V269Page.Aplicativos)return;
-        _compactPaneOpen=!_rightPane.Visible;ApplyDimensions();
+        if(_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)return;
+        _appPaneOpen=!_rightPane.Visible;ApplyDimensions();
     }
 
     internal void PresentPanel(V269PanelPresentation? presentation) =>
@@ -607,8 +611,15 @@ internal sealed class V269Shell : UserControl
             toggle.Text = showRight ? "Fechar painel" : "Abrir painel";
             if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
         }
-        if(apps)right=S(windowWidth<=1250?275:305);
-        if (!showRight) right = 0;
+        if(apps)
+        {
+            bool compact=windowWidth<=1040;
+            showRight=mandatory||(!compact||(_appPaneOpen??retained));
+            right=S(windowWidth<=1250?275:305);
+        }
+        bool below=apps&&windowWidth<=1040&&showRight;
+        if(!showRight||below)right=0;
+        PlaceV269AppPane(below);
         if (home)
         {
             // As medidas CSS já incluem borda e padding da barra lateral.
@@ -616,7 +627,7 @@ internal sealed class V269Shell : UserControl
             sidebar = S(sidebarCss + 11);
             _columns.Padding = new Padding(S(9));
             _sidebar.Margin = new Padding(0, 0, S(11), 0);
-            _content.Margin = new Padding(0, 0, showRight ? S(10) : 0, 0);
+            _content.Margin = new Padding(0,0,showRight&&!below?S(10):0,below?S(6):0);
             _navigationLayout.Padding = new Padding(S(8), S(8), S(8), S(9));
         }
         else
@@ -628,7 +639,7 @@ internal sealed class V269Shell : UserControl
         }
         _columns.ColumnStyles[0].Width = sidebar;
         _columns.ColumnStyles[2].Width = right;
-        _rightPane.Visible = right > 0;
+        _rightPane.Visible = right > 0 || below;
         int navHeight = _paneToggle is null ? 48 :
             Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
         // No HTML, Configurações pertence a .nav-end, não a .nav-list.
@@ -700,6 +711,34 @@ internal sealed class V269Shell : UserControl
 
     // Gradientes e bordas da última cascata do HTML congelado, somente
     // na aba Início. Os demais painéis conservam sua paleta original.
+    // Exclusivo de Aplicativos: a referência compacta coloca detalhes abaixo
+    // da área principal, sem roubar a largura das seis colunas.
+    private void PlaceV269AppPane(bool below)
+    {
+        if(_appPaneAtBottom==below)return;
+        _appPaneAtBottom=below;
+        _columns.SuspendLayout();
+        try
+        {
+            if(below)
+            {
+                _columns.RowCount=2;_columns.RowStyles[0].Height=58;
+                _columns.RowStyles.Add(new RowStyle(SizeType.Percent,42));
+                _columns.SetRowSpan(_sidebar,2);
+                _columns.SetCellPosition(_rightPane,new TableLayoutPanelCellPosition(1,1));
+            }
+            else
+            {
+                _columns.SetCellPosition(_rightPane,new TableLayoutPanelCellPosition(2,0));
+                _columns.SetRowSpan(_sidebar,1);
+                _columns.RowCount=1;
+                if(_columns.RowStyles.Count>1)_columns.RowStyles.RemoveAt(1);
+                _columns.RowStyles[0].Height=100;
+            }
+        }
+        finally{_columns.ResumeLayout(true);}
+    }
+
     private void ApplyHomeSurfaces(bool home)
     {
         var palette = V269VisualTokens.ForTheme(Theme);
