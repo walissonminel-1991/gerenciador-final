@@ -1,12 +1,10 @@
 using System.Drawing;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
 
-/// <summary>
-/// Preferências visuais, sem persistência, telemetria ou alterações no Windows.
-/// O controlador real de Configurações será integrado somente pelo WORK.
-/// </summary>
+/// <summary>Preferências visuais locais, sem telemetria ou alterações no Windows.</summary>
 internal readonly record struct V269AppearanceOptions(
     V269Theme Theme, int InterfacePercent, int TextPercent, bool AnimationsEnabled)
 {
@@ -20,10 +18,44 @@ internal readonly record struct V269AppearanceOptions(
     internal bool CanAnimate(bool reducedMotion) => AnimationsEnabled && !reducedMotion;
 }
 
-/// <summary>
-/// Controles acessíveis de aparência V2.6.9; nenhum botão executa manutenção.
-/// Retorna opções para o adaptador futuro sem gravá-las ou aplicá-las na MainForm.
-/// </summary>
+internal static class V269AppearanceSettingsStore
+{
+    internal static V269AppearanceOptions Read(string path)
+    {
+        try
+        {
+            using var stream=File.OpenRead(path);
+            if(stream.Length>4096)return V269AppearanceOptions.Default;
+            using var document=JsonDocument.Parse(stream);
+            var root=document.RootElement;
+            if(root.ValueKind!=JsonValueKind.Object||
+               !root.TryGetProperty("Theme",out var theme)||!theme.TryGetInt32(out int t)||
+               !root.TryGetProperty("InterfacePercent",out var ui)||!ui.TryGetInt32(out int u)||
+               !root.TryGetProperty("TextPercent",out var text)||!text.TryGetInt32(out int p)||
+               !root.TryGetProperty("AnimationsEnabled",out var animations)||
+               animations.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                return V269AppearanceOptions.Default;
+            return new V269AppearanceOptions((V269Theme)t,u,p,animations.GetBoolean()).Normalize();
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or JsonException or
+            InvalidOperationException or System.Security.SecurityException)
+        {return V269AppearanceOptions.Default;}
+    }
+
+    internal static void Write(string path,V269AppearanceOptions options)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        string temporary=path+"."+Guid.NewGuid().ToString("N")+".tmp";
+        try
+        {
+            File.WriteAllText(temporary,JsonSerializer.Serialize(options.Normalize()));
+            File.Move(temporary,path,overwrite:true);
+        }
+        finally{File.Delete(temporary);}
+    }
+}
+
+/// <summary>Controles acessíveis de aparência V2.6.9, sem operações de manutenção.</summary>
 internal sealed class V269AppearancePanel : V269SettingsCard
 {
     private readonly Label _title=TextLabel("V269AppearanceTitle","Aparência");

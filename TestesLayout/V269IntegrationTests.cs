@@ -153,6 +153,19 @@ internal static class V269IntegrationTests
                 "preferências de bandeja/notificação são reversíveis");
             File.WriteAllText(path,"{");
             Require(V269GeneralSettingsStore.Read(path)==new V269GeneralOptions(),"JSON inválido retorna padrão");
+            string appearancePath=Path.Combine(folder,"aparencia.json");
+            Require(V269AppearanceSettingsStore.Read(appearancePath)==V269AppearanceOptions.Default,
+                "preferências de aparência ausentes retornam padrão");
+            var appearanceExpected=new V269AppearanceOptions(V269Theme.Dark,105,110,false);
+            V269AppearanceSettingsStore.Write(appearancePath,appearanceExpected);
+            Require(V269AppearanceSettingsStore.Read(appearancePath)==appearanceExpected,
+                "tema, escalas e animação persistem sem interferir nas preferências gerais");
+            File.WriteAllText(appearancePath,"{}");
+            Require(V269AppearanceSettingsStore.Read(appearancePath)==V269AppearanceOptions.Default,
+                "preferência incompleta não aplica escalas mínimas nem desativa animações");
+            File.WriteAllText(appearancePath,"{\"Theme\":\"inválido\"}");
+            Require(V269AppearanceSettingsStore.Read(appearancePath)==V269AppearanceOptions.Default,
+                "tipos inválidos em aparência retornam padrão");
             string exe=Path.Combine(folder,"GerenciadorFinal.exe");
             File.WriteAllText(exe,"fixture de caminho; nunca executar");
             var launch=V269AdminSessionLauncher.Build(exe);

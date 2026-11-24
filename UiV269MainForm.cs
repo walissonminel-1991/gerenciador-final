@@ -1025,30 +1025,11 @@ internal sealed partial class MainForm
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "GerenciadorFinal", "aparencia-v269.json");
 
-    private static V269AppearanceOptions ReadV269Appearance()
-    {
-        try
-        {
-            using var stream = File.OpenRead(V269AppearancePath);
-            if (stream.Length <= 4096)
-                return JsonSerializer.Deserialize<V269AppearanceOptions>(stream).Normalize();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or System.Security.SecurityException) { }
-        return V269AppearanceOptions.Default;
-    }
+    private static V269AppearanceOptions ReadV269Appearance() =>
+        V269AppearanceSettingsStore.Read(V269AppearancePath);
 
-    private static void WriteV269Appearance(V269AppearanceOptions value)
-    {
-        string path = V269AppearancePath;
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            File.WriteAllText(temporary, JsonSerializer.Serialize(value));
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally { File.Delete(temporary); }
-    }
+    private static void WriteV269Appearance(V269AppearanceOptions value) =>
+        V269AppearanceSettingsStore.Write(V269AppearancePath,value);
 
     private void ApplyV269ContentAppearance(Control root)
     {
