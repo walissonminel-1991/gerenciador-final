@@ -17,6 +17,14 @@ internal sealed record NvidiaGpuSensorSample(
     internal string? CurrentPcieLink { get; init; }
     internal string? ReportedArchitecture { get; init; }
     internal ulong? Bar1TotalBytes { get; init; }
+    internal ulong? DedicatedMemoryBytes { get; init; }
+    internal NvidiaPciIdentity? PciIdentity { get; init; }
+    internal IReadOnlyList<uint> IntendedFanRpms { get; init; } = [];
+}
+
+// Identidade PCI do dispositivo, não o número de ordem NVML.
+internal sealed record NvidiaPciIdentity(uint Vendor, uint Device, uint Subsystem)
+{
 }
 
 internal sealed record NvidiaGpuSensorSnapshot(
@@ -40,6 +48,50 @@ internal static class NvidiaNvmlSensorProvider
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Bar1MemoryInfo { public ulong Total; public ulong Free; public ulong Used; }
+
+    // nvmlPciInfo_t, ABI v3: char[16], cinco uint32, char[32].
+    // Os buffers de texto são reservados, mas não lidos nem exportados.
+    [StructLayout(LayoutKind.Explicit, Size = 68)]
+    private struct PciInfo
+    {
+        [FieldOffset(16)] public uint Domain;
+        [FieldOffset(20)] public uint Bus;
+        [FieldOffset(24)] public uint Device;
+        [FieldOffset(28)] public uint PciDeviceId;
+        [FieldOffset(32)] public uint PciSubSystemId;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FanSpeedInfo { public uint Version, Fan, Speed; }
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int GetPciInfo(IntPtr device, out PciInfo info);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int GetFanSpeedRpm(IntPtr device, ref FanSpeedInfo info);
+
+    internal static NvidiaPciIdentity? ParsePciIdentity(uint combined, uint subsystem) =>
+        (combined & 0xffff) == 0x10de && (combined >> 16) != 0 && subsystem != 0 &&
+        combined != uint.MaxValue && subsystem != uint.MaxValue
+            ? new(0x10de, combined >> 16, subsystem) : null;
+
+    internal static uint? ValidateIntendedRpm(uint? rpm) => rpm is <= 30_000 ? rpm : null;
+
+    private static IReadOnlyList<uint> ReadFanRpms(IntPtr device, GetDeviceUInt? count, GetFanSpeedRpm? read)
+    {
+        if (count is null || read is null || count(device, out uint fans) != Success ||
+            fans == 0 || fans > 16) return [];
+        var values = new List<uint>((int)fans);
+        uint version = (uint)Marshal.SizeOf<FanSpeedInfo>() | (1u << 24);
+        for (uint index = 0; index < fans; index++)
+        {
+            var info = new FanSpeedInfo { Version = version, Fan = index };
+            if (read(device, ref info) != Success || info.Version != version ||
+                info.Fan != index || ValidateIntendedRpm(info.Speed) is not { } rpm)
+                return []; // não apresentar subconjunto como se todos fossem lidos.
+            values.Add(rpm);
+        }
+        return values.AsReadOnly();
+    }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int Init();
@@ -189,6 +241,9 @@ internal static class NvidiaNvmlSensorProvider
             var fan = Export<GetFan>(library, "nvmlDeviceGetFanSpeed");
             var memory = Export<GetMemory>(library, "nvmlDeviceGetMemoryInfo");
             var bar1Memory = Export<GetBar1Memory>(library, "nvmlDeviceGetBAR1MemoryInfo");
+            var pciInfo = Export<GetPciInfo>(library, "nvmlDeviceGetPciInfo_v3");
+            var fanCount = Export<GetDeviceUInt>(library, "nvmlDeviceGetNumFans");
+            var fanRpm = Export<GetFanSpeedRpm>(library, "nvmlDeviceGetFanSpeedRPM");
             var pcieGeneration = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkGeneration");
             var pcieWidth = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkWidth");
             var architecture = Export<GetDeviceUInt>(library, "nvmlDeviceGetArchitecture");
@@ -237,6 +292,13 @@ internal static class NvidiaNvmlSensorProvider
                         : MonitorReading<ulong>.Unavailable(Source + " VRAM (WDDM)"))
                 {
                     CurrentPcieLink = FormatPcie(gen, lanes),
+                    PciIdentity = pciInfo is not null && pciInfo(device, out var pci) == Success &&
+                        pci.Bus <= 255 && pci.Device <= 31
+                        ? ParsePciIdentity(pci.PciDeviceId, pci.PciSubSystemId) : null,
+                    DedicatedMemoryBytes = vram is { } totalVram &&
+                        IsPlausibleMemory(totalVram.Total, totalVram.Free, totalVram.Used)
+                        ? totalVram.Total : null,
+                    IntendedFanRpms = ReadFanRpms(device, fanCount, fanRpm),
                     Bar1TotalBytes = bar1Memory is not null && bar1Memory(device, out var bar) == Success
                         ? Bar1Capacity(bar.Total, bar.Free, bar.Used) : null,
                     ReportedArchitecture = architecture is not null &&

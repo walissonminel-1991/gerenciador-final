@@ -63,6 +63,7 @@ internal sealed record WindowsPlatformHardwareSnapshot(
     internal string? ReportedBiosVersion { get; init; }
     internal int? IntelNominalBaseMhz { get; init; }
     internal int? IntelReportedMaximumMhz { get; init; }
+    internal int? ReportedPopulatedMemoryChannels { get; init; }
     internal int MeasuredLogicalCpuInstances => LogicalCpuInstances.Count(x =>
         x.UsagePercent.Availability == MonitorAvailability.Available &&
         x.UsagePercent.Value.HasValue);
@@ -406,6 +407,10 @@ internal static class WindowsPlatformHardwareProvider
                 V269IntelCpuidClocks.Capture() is { } clocks)
                 snapshot = snapshot with { IntelNominalBaseMhz = clocks.BaseMhz,
                     IntelReportedMaximumMhz = clocks.MaximumMhz };
+            token.ThrowIfCancellationRequested();
+            if (snapshot.RamModulesState == HardwareDiscoveryState.Complete)
+                snapshot = snapshot with { ReportedPopulatedMemoryChannels =
+                    V269SmbiosChannels.Capture(snapshot.RamModules.Count) };
             return snapshot;
         }
         catch (OperationCanceledException) { throw; }
@@ -449,5 +454,129 @@ internal sealed record V269IntelCpuidClocks(int BaseMhz, int? MaximumMhz)
         if ((extended.Edx & (1 << 15)) != 0) return null; // CPUs híbridas: sem inferência.
         var frequency = System.Runtime.Intrinsics.X86.X86Base.CpuId(0x16, 0);
         return Parse(frequency.Eax, frequency.Ebx);
+    }
+}
+
+
+// SMBIOS DSP0134 §§7.17, 7.18, 7.38. Topologia descrita pelo
+// firmware; não prova interleaving ativo, largura efetiva nem latência CAS.
+// Não ler strings, números de série, UUIDs ou outros identificadores;
+// o buffer bruto é temporário e nunca entra em relatório/persistência.
+internal static class V269SmbiosChannels
+{
+    private const uint Rsmb = 0x52534D42;
+    private const int MaximumBytes = 4 * 1024 * 1024;
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint GetSystemFirmwareTable(uint provider, uint table,
+        [Out] byte[]? buffer, uint size);
+
+    internal static int? Capture(int expectedModules)
+    {
+        if (!OperatingSystem.IsWindows() || expectedModules is < 1 or > 128) return null;
+        byte[]? buffer = null;
+        try
+        {
+            uint bytes = GetSystemFirmwareTable(Rsmb, 0, null, 0);
+            if (bytes < 14 || bytes > MaximumBytes) return null;
+            buffer = new byte[(int)bytes];
+            if (GetSystemFirmwareTable(Rsmb, 0, buffer, bytes) != bytes) return null;
+            return Parse(buffer, expectedModules);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or
+            BadImageFormatException or UnauthorizedAccessException or System.Security.SecurityException)
+        { return null; }
+        finally { if (buffer is not null) Array.Clear(buffer); }
+    }
+
+    internal static int? Parse(ReadOnlySpan<byte> raw, int expectedModules)
+    {
+        if (raw.Length < 14 || raw.Length > MaximumBytes ||
+            expectedModules is < 1 or > 128) return null;
+        uint declared = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(raw.Slice(4, 4));
+        if (declared != raw.Length - 8 || declared < 6) return null;
+        var table = raw[8..];
+        var seen = new HashSet<ushort>();
+        var arrays = new Dictionary<ushort, bool>();
+        var modules = new Dictionary<ushort, (ushort Array, bool Populated)>();
+        var channels = new List<ushort[]>();
+        bool endMarker = false;
+        static ushort U16(ReadOnlySpan<byte> value, int offset) =>
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(value.Slice(offset, 2));
+
+        int offset = 0, records = 0;
+        while (offset + 4 <= table.Length && ++records <= 8192)
+        {
+            byte type = table[offset], length = table[offset + 1];
+            if (length < 4 || offset + length + 2 > table.Length) return null;
+            var record = table.Slice(offset, length);
+            ushort handle = U16(record, 2);
+            if (!seen.Add(handle)) return null;
+            int end = offset + length;
+            // Strings somente delimitam registros; seu conteúdo não é usado.
+            while (end + 1 < table.Length && (table[end] != 0 || table[end + 1] != 0)) end++;
+            if (end + 1 >= table.Length) return null;
+            offset = end + 2;
+            if (type == 127)
+            {
+                if (length != 4) return null;
+                endMarker = true; break;
+            }
+            if (type == 16)
+            {
+                if (length < 15) return null;
+                arrays.Add(handle, record[5] == 3); // System Memory.
+            }
+            else if (type == 17)
+            {
+                if (length < 21) return null;
+                ushort size = U16(record, 12);
+                // 0 = slot vazio; FFFF = tamanho desconhecido.
+                if (size is 0xffff or 0x8000) return null;
+                if (size == 0x7fff)
+                {
+                    if (length < 32) return null;
+                    uint extended = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(record.Slice(28, 4));
+                    if (extended == 0 || (extended & 0x80000000u) != 0) return null;
+                }
+                modules.Add(handle, (U16(record, 4), size != 0));
+            }
+            else if (type == 37)
+            {
+                if (length < 7) return null;
+                int count = record[6];
+                if (count > 82 || length < 7 + 3 * count) return null;
+                var members = new ushort[count];
+                int load = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    load += record[7 + 3 * i];
+                    members[i] = U16(record, 8 + 3 * i);
+                }
+                if (load > record[5]) return null;
+                channels.Add(members);
+            }
+        }
+        if (!endMarker || channels.Count == 0 ||
+            modules.Values.Any(m => !arrays.ContainsKey(m.Array))) return null;
+        var populated = modules.Where(m => m.Value.Populated && arrays[m.Value.Array])
+            .Select(m => m.Key).ToHashSet();
+        if (populated.Count != expectedModules) return null;
+        var mapped = new HashSet<ushort>();
+        var allChannelMembers = new HashSet<ushort>();
+        int usedChannels = 0;
+        foreach (var channel in channels)
+        {
+            bool used = false;
+            foreach (ushort handle in channel)
+            {
+                if (!modules.ContainsKey(handle) || !allChannelMembers.Add(handle)) return null;
+                if (!populated.Contains(handle)) continue;
+                mapped.Add(handle); used = true;
+            }
+            if (used) usedChannels++;
+        }
+        return mapped.SetEquals(populated) && usedChannels > 0 ? usedChannels : null;
     }
 }

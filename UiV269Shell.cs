@@ -218,6 +218,7 @@ internal sealed class V269Shell : UserControl
     // nunca destruir uma fonte enquanto algum controle pode referenciá-la.
     private readonly Dictionary<(float Size, FontStyle Style, int Scale), Font> _ownedFonts = new();
     private int _appliedTextScale;
+    private int _homeFontWidthClass;
     private readonly TableLayoutPanel _columns;
     private readonly TableLayoutPanel _navigationLayout;
     private readonly Panel _sidebar;
@@ -474,8 +475,11 @@ internal sealed class V269Shell : UserControl
 
     private void ApplyFonts()
     {
-        if (_appliedTextScale == TextScalePercent) return;
+        int widthClass = !_homeGeometry ? 0 : LayoutWindowWidth <= 850 ? 1 :
+            LayoutWindowWidth <= 1250 ? 2 : 3;
+        if (_appliedTextScale == TextScalePercent && _homeFontWidthClass == widthClass) return;
         _appliedTextScale = TextScalePercent;
+        _homeFontWidthClass = widthClass;
         Font NewFont(float size, FontStyle style = FontStyle.Regular)
         {
             var key = (size, style, TextScalePercent);
@@ -485,12 +489,14 @@ internal sealed class V269Shell : UserControl
             return value;
         }
         Font = NewFont(9.5f);
-        _pageTitle.Font = NewFont(_homeGeometry ? 18f : 17f, FontStyle.Bold);
-        _pageSubtitle.Font = NewFont(9f);
-        _homeCopyright.Font = NewFont(7.5f);
+        // Tamanho efetivo CSS: título 20/24/28 px, subtítulo 10/12 px,
+        // navegação 11/12/14 px. 1 CSS px = 0,75 pt em 96 DPI.
+        _pageTitle.Font = NewFont(widthClass switch { 1 => 15f, 2 => 18f, 3 => 21f, _ => 17f }, FontStyle.Bold);
+        _pageSubtitle.Font = NewFont(widthClass == 1 ? 7.5f : 9f);
+        _homeCopyright.Font = NewFont(widthClass == 1 ? 6.75f : 7.5f);
         _rightPane.SetFonts(NewFont(12f, FontStyle.Bold), NewFont(9.5f));
         foreach (var navButton in _navigation.Values)
-            navButton.Font = NewFont(_homeGeometry ? 9f : 10f);
+            navButton.Font = NewFont(widthClass switch { 1 => 8.25f, 2 => 9f, 3 => 10.5f, _ => 10f });
         // As fontes são liberadas somente após a destruição dos controles.
     }
 
@@ -511,12 +517,13 @@ internal sealed class V269Shell : UserControl
         {
             _homeGeometry = home;
             _appliedTextScale = 0;
-            ApplyFonts();
         }
+        ApplyFonts();
         ApplyHomeSurfaces(home);
         _homeGlyph.Visible = home;
-        _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
-        _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 54 : 65) : 70;
+        _headingLayout.ColumnStyles[0].Width = home ? S(55) : 0;
+        _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 57 : 68) : 70;
+        _headingLayout.Margin = home ? new Padding(0, 0, 0, S(3)) : Padding.Empty;
         _centralLayout.Padding = home ? new Padding(S(13), S(13), S(13), S(12)) : new Padding(13, 8, 13, 10);
         // As demais abas conservam as dimensões existentes nesta frente.
         int sidebar = V269VisualTokens.Scale(width < 1040 ? 166 : 210, InterfaceScalePercent);
@@ -570,10 +577,10 @@ internal sealed class V269Shell : UserControl
             // As medidas CSS já incluem borda e padding da barra lateral.
             int sidebarCss = windowWidth <= 1040 ? 175 : windowWidth <= 1250 ? 195 : 236;
             sidebar = S(sidebarCss + 11);
-            _columns.Padding = new Padding(S(11));
+            _columns.Padding = new Padding(S(9));
             _sidebar.Margin = new Padding(0, 0, S(11), 0);
             _content.Margin = new Padding(0, 0, showRight ? S(10) : 0, 0);
-            _navigationLayout.Padding = new Padding(S(8), S(9), S(8), S(9));
+            _navigationLayout.Padding = new Padding(S(8), S(8), S(8), S(9));
         }
         else
         {
@@ -595,12 +602,14 @@ internal sealed class V269Shell : UserControl
             copyrightRow = Pages.Length + 3;
         int available = Math.Max(1, ClientSize.Height - _columns.Padding.Vertical -
             _navigationLayout.Padding.Vertical);
-        bool footerFits = home && available >= S(500);
+        bool compactHome = home && windowWidth <= 850;
+        int copyrightHeight = compactHome ? S(31) : S(39);
+        bool footerFits = home && available >= S(compactHome ? 455 : 500);
         int toggleHeight = _paneToggle?.Visible == true && _paneToggle.Parent == _navigationLayout ? S(34) : 0;
         if (home)
         {
-            int desired = 58; // 54 px do botão + gap de 4 px da .nav-list.
-            int fixedHeight = toggleHeight + (footerFits ? S(47) : S(8));
+            int desired = windowWidth <= 1250 ? 58 : 60;
+            int fixedHeight = toggleHeight + S(8) + (footerFits ? copyrightHeight : 0);
             navHeight = Math.Min(desired, Math.Max(20, (int)Math.Floor(
                 Math.Max(1, available - fixedHeight) * 100d / InterfaceScalePercent / Pages.Length)));
         }
@@ -619,12 +628,13 @@ internal sealed class V269Shell : UserControl
             _navigationLayout.RowStyles[toggleRow].Height = home ? toggleHeight : 100;
             _navigationLayout.RowStyles[ruleRow].Height = home ? S(8) : 0;
             _navigationLayout.RowStyles[settingsRow].Height = home ? S(navHeight) : 0;
-            _navigationLayout.RowStyles[copyrightRow].Height = footerFits ? S(39) : 0;
+            _navigationLayout.RowStyles[copyrightRow].Height = footerFits ? copyrightHeight : 0;
             int targetRow = home ? settingsRow : spacerRow;
             if (_navigationLayout.GetRow(settings) != targetRow)
                 _navigationLayout.SetRow(settings, targetRow);
             _homeNavRule.Visible = home;
             _homeCopyright.Visible = footerFits;
+            _homeCopyright.Margin = compactHome ? new Padding(S(4), S(3), 0, 0) : new Padding(S(11), S(3), 0, 0);
             _homeNavRule.BackColor = Theme switch {
                 V269Theme.Dark => ColorTranslator.FromHtml("#4d535a"),
                 V269Theme.Claro => ColorTranslator.FromHtml("#8db1ca"),
@@ -638,6 +648,7 @@ internal sealed class V269Shell : UserControl
         foreach (var button in _navigation.Values)
         {
             button.HomePresentation = home;
+            button.HomeScale = InterfaceScalePercent;
             button.CurrentTheme = Theme;
             button.BackColor = home ? Color.Transparent :
                 button.IsSelected ? V269VisualTokens.ForTheme(Theme).Selection : V269VisualTokens.ForTheme(Theme).Sidebar;
@@ -747,6 +758,7 @@ internal sealed class V269Shell : UserControl
         internal Color IconColor;
         internal bool IsSelected;
         internal bool HomePresentation;
+        internal int HomeScale = 100;
         internal V269Theme CurrentTheme;
 
         internal V269NavButton(V269Page page)
@@ -838,11 +850,12 @@ internal sealed class V269Shell : UserControl
             }
             else
             {
-                using var border = new Pen(Color.FromArgb(22, theme == V269Theme.Claro ? Color.Black : Color.White));
+                using var border = new Pen(Color.FromArgb(5, theme == V269Theme.Claro ? Color.Black : Color.White));
                 g.DrawPath(border,shape);
             }
-            int iconSize = Math.Min(36, Math.Max(18, Height - 10));
-            var icon = new Rectangle(9, (Height-iconSize)/2, iconSize, iconSize);
+            int S(int px) => Math.Max(1, (int)Math.Round(px * HomeScale * DeviceDpi / 9600d));
+            int iconSize = Math.Min(S(36), Math.Max(S(18), Height - S(10)));
+            var icon = new Rectangle(S(9), (Height-iconSize)/2, iconSize, iconSize);
             using var iconShape = Rounded(icon, 11);
             // Cores efetivas de .nav-item .ic e .nav-item.active .ic,
             // verificadas nos três temas da referência congelada.
@@ -861,11 +874,12 @@ internal sealed class V269Shell : UserControl
             using var tint = new LinearGradientBrush(icon, iconTop, iconBottom, 90f);
             using var iconBorder = new Pen(iconOutline);
             g.FillPath(tint,iconShape); g.DrawPath(iconBorder,iconShape);
-            var glyph = new Rectangle(icon.X+(icon.Width-18)/2,icon.Y+(icon.Height-18)/2,18,18);
+            int glyphSize = Math.Min(iconSize, S(18));
+            var glyph = new Rectangle(icon.X+(icon.Width-glyphSize)/2,icon.Y+(icon.Height-glyphSize)/2,glyphSize,glyphSize);
             V269HomeHeadingIcon.DrawGlyph(g, glyph, Page, HomeIconColor(theme, Page, IsSelected));
             using var textFont = new Font(Font, IsSelected ? FontStyle.Bold : FontStyle.Regular);
             TextRenderer.DrawText(g, Text, textFont,
-                new Rectangle(icon.Right+8, 1, Math.Max(1,Width-icon.Right-12), Math.Max(1,Height-2)),
+                new Rectangle(icon.Right+S(8), 1, Math.Max(1,Width-icon.Right-S(12)), Math.Max(1,Height-2)),
                 theme == V269Theme.Dark ? H(IsSelected ? "#e3e6e9" : "#c6cdd3") : ForeColor,
                 TextFormatFlags.WordBreak | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);

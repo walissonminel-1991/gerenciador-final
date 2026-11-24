@@ -163,6 +163,33 @@ internal static class V269IntegrationTests
             V269WindowsPresentation.Architecture(System.Runtime.InteropServices.Architecture.X64) == "64 bits (x64)" &&
             V269WindowsPresentation.Uptime(new TimeSpan(2, 14, 27, 0)) == "2 dias, 14 h e 27 min",
             "apresentação do Windows fiel à referência, sem confundir cliente e servidor");
+        static byte[] SmbiosFixture(bool duplicateMember = false, bool missingChannel = false)
+        {
+            var records = new List<byte>();
+            void Add(byte[] bytes) { records.AddRange(bytes); records.Add(0); records.Add(0); }
+            Add([16, 15, 1, 0, 3, 3, 3, 0, 0, 0, 1, 255, 255, 2, 0]);
+            Add([17, 21, 2, 0, 1, 0, 255, 255, 64, 0, 64, 0, 0, 32, 9, 0, 0, 0, 26, 0, 0]);
+            Add([17, 21, 3, 0, 1, 0, 255, 255, 64, 0, 64, 0, 0, 32, 9, 0, 0, 0, 26, 0, 0]);
+            Add([37, 10, 4, 0, 1, 4, 1, 1, 2, 0]);
+            if (!missingChannel) Add([37, 10, 5, 0, 1, 4, 1, 1, (byte)(duplicateMember ? 2 : 3), 0]);
+            Add([127, 4, 255, 255]);
+            var result = new byte[8 + records.Count];
+            result[1] = 3; result[2] = 9;
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(4), (uint)records.Count);
+            records.CopyTo(result, 8);
+            return result;
+        }
+        Require(V269SmbiosChannels.Parse(SmbiosFixture(), 2) == 2 &&
+            V269SmbiosChannels.Parse(SmbiosFixture(), 1) is null &&
+            V269SmbiosChannels.Parse(SmbiosFixture(duplicateMember: true), 2) is null &&
+            V269SmbiosChannels.Parse(SmbiosFixture(missingChannel: true), 2) is null &&
+            V269SmbiosChannels.Parse(SmbiosFixture()[..^1], 2) is null,
+            "canais só aparecem com todos os handles de RAM corroborados, sem truncamento ou duplicação");
+        var channels = MainForm.V269HomeModels(snapshot with { PlatformHardware = platform with {
+            ReportedPopulatedMemoryChannels = 2 } });
+        Require(channels[2].Specs.Single(x => x.Label == "Canais").Value == "2 (SMBIOS)" &&
+            channels[2].Specs.Single(x => x.Label == "Latência").Value == "N/D",
+            "topologia não é convertida em dual channel ativo ou CAS");
         var models = MainForm.V269HomeModels(snapshot);
         Require(models[4].Sensors.Single(x => x.Label == "TPM").Value == "Presente (2.0)" &&
             V269TpmReader.Describe(0, 1, 1) == "Presente (1.2)" &&
@@ -194,6 +221,40 @@ internal static class V269IntegrationTests
             NvidiaNvmlSensorProvider.FormatPcie(0, 8) is null &&
             NvidiaNvmlSensorProvider.ValidateDriverVersion("unknown") is null,
             "PCIe e driver vêm da NVML sem presumir ReBAR ou converter versões");
+        var identity = NvidiaNvmlSensorProvider.ParsePciIdentity(0x2d0410de, 0x12341043);
+        Require(identity is { Vendor: 0x10de, Device: 0x2d04, Subsystem: 0x12341043 } &&
+            NvidiaNvmlSensorProvider.ParsePciIdentity(0x12341002, 1) is null &&
+            NvidiaNvmlSensorProvider.ParsePciIdentity(0x2d0410de, 0) is null &&
+            NvidiaNvmlSensorProvider.ValidateIntendedRpm(0) == 0 &&
+            NvidiaNvmlSensorProvider.ValidateIntendedRpm(uint.MaxValue) is null,
+            "PCI e RPM alvo validados sem misturar unidades");
+        var unifiedGpu = gpu.Devices[0] with { Name = "NVIDIA GeForce RTX 5060 Ti", PciIdentity = identity,
+            DedicatedMemoryBytes = 8UL << 30, Bar1TotalBytes = 8UL << 30,
+            IntendedFanRpms = [1301U, 1302U] };
+        var exactDevice = new HardwareDeviceDescriptor("PCI\\VEN_10DE&DEV_2D04&SUBSYS_12341043\\fixture",
+            unifiedGpu.Name, "NVIDIA", "Display", "PCI", HardwareDeviceKind.Graphics)
+            { InstalledDriverVersion = "32.0.15.7602" };
+        var exactAdapter = new DxgiGpuIdentity(1, 2, unifiedGpu.Name, 0x10de, 0x2d04, 0x12341043,
+            8UL << 30, false);
+        var exact = snapshot with {
+            DeviceInventory = pnp with { Devices = [exactDevice] },
+            NvidiaGpus = gpu with { Devices = [unifiedGpu] },
+            DxgiAdapters = new DxgiGpuSnapshot(at, HardwareDiscoveryState.Complete, [exactAdapter], null)
+        };
+        var compactGpu = MainForm.V269GpuModel(exact);
+        Require(MainForm.TryV269SingleGpu(exact, out _, out _, out _) &&
+            compactGpu.Name == unifiedGpu.Name &&
+            compactGpu.Specs.Single(x => x.Label == "Memória").Value == "8 GiB GDDR7 (catálogo)" &&
+            compactGpu.Specs.Single(x => x.Label == "Driver").Value == "32.0.15.7602" &&
+            compactGpu.Specs.Single(x => x.Label == "Resizable BAR").Value == "N/D · BAR1 8 GiB" &&
+            compactGpu.Sensors.Single(x => x.Label == "Ventoinha (GPU)").Value == "1301/1302 RPM (alvo)" &&
+            !MainForm.TryV269SingleGpu(exact with { DeviceInventory = pnp with {
+                Devices = [exactDevice, exactDevice with { InstanceId = exactDevice.InstanceId + "2" }] } },
+                out _, out _, out _) &&
+            !MainForm.TryV269SingleGpu(exact with { NvidiaGpus = gpu with {
+                Devices = [unifiedGpu with { PciIdentity = null }] } }, out _, out _, out _) &&
+            MainForm.V269GpuMemoryType(unifiedGpu with { Name = unifiedGpu.Name + " Laptop GPU" }, 8UL << 30) is null,
+            "cartão compacto apenas com identidade corroborada; BAR1 e RPM alvo não viram estado/medição");
         var live = MainForm.UpdateV269LiveRows(models, sample with {
             CpuUsagePercent = MonitorReading<double>.Available(37, "fixture ao vivo"),
             Memory = new MemoryRamSample(DateTime.UtcNow, 16UL << 30, 4UL << 30),
@@ -324,6 +385,60 @@ internal static class V269IntegrationTests
                 detail.Save($"LayoutCaptures/v269-inicio-{theme}-{card.Key}.png");
             }
         }
+        // Captura comparável à arte congelada: os mesmos textos ilustrativos
+        // do HTML, apenas em fixture. Nunca passados ao motor nem à versão real.
+        // A matriz funcional continua usando leituras sintéticas independentes.
+        V269HomeRow[] Rows(params string[] fields)
+        {
+            var rows = new List<V269HomeRow>();
+            for (int i = 0; i < fields.Length; i += 2)
+                rows.Add(new(fields[i], fields[i + 1]));
+            return rows.ToArray();
+        }
+        V269HomeModel[] visualFixture = [
+            new("cpu", "Processador (CPU)", "AMD Ryzen 7 5700X",
+                Rows("Arquitetura", "Zen 3 (Vermeer)", "Núcleos / Threads", "8 / 16",
+                    "Frequência base", "3,40 GHz", "Frequência turbo", "4,60 GHz", "Cache L3", "32 MB"),
+                Rows("Temperatura", "41 °C", "Uso", "14%", "Consumo", "47 W", "Ventoinha (CPU)", "1.126 RPM")),
+            new("gpu", "Placa de vídeo (GPU)", "GeForce RTX 5060 Ti",
+                Rows("Memória", "8 GB GDDR7", "Barramento", "PCIe 4.0 x8", "Resizable BAR", "Ativo",
+                    "Driver", "32.0.15.7602", "Arquitetura", "Blackwell"),
+                Rows("Temperatura", "47 °C", "Uso", "12%", "VRAM usada", "1,6 GB", "Ventoinha (GPU)", "1.301 RPM")),
+            new("ram", "Memória (RAM)", "",
+                Rows("Capacidade", "32 GB", "Tipo", "DDR4", "Frequência", "3.200 MHz", "Canais", "Dual Channel", "Latência", "CL16"),
+                Rows("Uso atual", "13,4 GB", "Disponível", "18,6 GB")),
+            new("motherboard", "Placa-mãe / Chipset", "",
+                Rows("Fabricante", "ASUS", "Modelo", "TUF GAMING B550-PLUS", "Chipset", "AMD B550", "BIOS", "3405", "Soquete", "AM4"),
+                Rows("Temp. chipset", "36 °C", "Temp. VRM", "40 °C")),
+            new("windows", "Windows", "",
+                Rows("Versão", "Windows 11 Pro (24H2)", "Compilação", "26100.7171", "Arquitetura", "64 bits (x64)",
+                    "Tempo de atividade", "2 dias, 14 h e 27 min"),
+                Rows("Inicialização segura", "Ativa", "TPM", "Presente (2.0)", "Virtualização", "Ativa"))
+        ];
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        Size originalSurfaceSize = surface.Size;
+        try
+        {
+            home.SetModels(visualFixture);
+            foreach (Size dimensions in new[] { new Size(716,596), new Size(992,659) })
+            {
+                surface.Size = dimensions;
+                foreach (var theme in Enum.GetValues<V269Theme>())
+                {
+                    themeChoice.SelectedIndex = (int)theme;
+                    home.ApplyAppearance(new V269AppearanceOptions(theme, 100, 100, true));
+                    home.AutoScrollPosition = Point.Empty;
+                    surface.PerformLayout(); home.PerformLayout(); Application.DoEvents();
+                    Require(home.Cards[0].Width > 0 && home.Cards[0].Height > 0 &&
+                        (dimensions.Width >= 940) == (home.Cards[0].Top == home.Cards[1].Top),
+                        "colunas do viewport de referência " + dimensions);
+                    using var same = new Bitmap(surface.Width, surface.Height);
+                    surface.DrawToBitmap(same, new Rectangle(Point.Empty, surface.Size));
+                    same.Save($"LayoutCaptures/v269-inicio-REFERENCIA-SINTETICA-{theme}-{dimensions.Width}x{dimensions.Height}.png");
+                }
+            }
+        }
+        finally { surface.Size = originalSurfaceSize; surface.PerformLayout(); Application.DoEvents(); }
         themeChoice.SelectedIndex = (int)V269Theme.AzulGf;
         home.SetModels(empty);
         home.ApplyAppearance(V269AppearanceOptions.Default);

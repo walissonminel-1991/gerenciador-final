@@ -243,6 +243,10 @@ internal sealed partial class MainForm
             if (gpu.Bar1TotalBytes is { } bar1)
                 yield return (gpu.Name + " · BAR1 (NVML)", "Abertura reportada: " + Gib(bar1) +
                     "\nNão confirma ativação de Resizable BAR.");
+            if (gpu.IntendedFanRpms.Count > 0)
+                yield return (gpu.Name + " · ventoinhas NVML",
+                    "Rotação alvo: " + string.Join(" / ", gpu.IntendedFanRpms.Select(x => $"{x} RPM")) +
+                    "\nNão é medição física de rotação.");
             yield return (gpu.Name + " · NVML", $"Uso: {Measure(gpu.UsagePercent, x => $"{x:0.#}%")}\n" +
                 $"Temperatura: {Measure(gpu.TemperatureC, x => $"{x:0.#} °C")}\n" +
                 $"Potência: {Measure(gpu.PowerWatts, x => $"{x:0.#} W")}\n" +
@@ -308,6 +312,9 @@ internal sealed partial class MainForm
                     $"Núcleos físicos: {cpu.PhysicalCores?.ToString() ?? "indisponível"}\n" +
                     $"Processadores lógicos: {cpu.LogicalProcessors?.ToString() ?? "indisponível"}\n" +
                     $"Frequência reportada: {Measure(cpu.ReportedCurrentMhz, x => $"{x:0} MHz")}");
+            if (platform.ReportedPopulatedMemoryChannels is { } channels)
+                yield return ("Canais de memória · SMBIOS", channels + " canais com módulos instalados.\n" +
+                    "Topologia reportada pelo firmware, não confirmação do modo de interleaving ativo.");
             foreach (var ram in platform.RamModules)
                 yield return ("Módulo RAM · " + ram.DeviceLocator,
                     $"Capacidade: {Measure(ram.CapacityBytes, Gib)}\n" +
@@ -386,7 +393,8 @@ internal sealed partial class MainForm
             R("Capacidade", mem is { TotalBytes: > 0 } ? Gib(mem.TotalBytes) : nd),
             R("Tipo", Join(ram.Select(x => MemoryType(x.SmbiosMemoryType)))),
             R("Frequência", Join(ram.Select(x => M(x.ConfiguredMhz, Freq)))),
-            R("Canais", nd), R("Latência", nd) };
+            R("Canais", platform?.ReportedPopulatedMemoryChannels is { } channels
+                ? channels + " (SMBIOS)" : nd), R("Latência", nd) };
         var ramSensors = new V269HomeRow[] {
             R("Uso atual", mem is { TotalBytes: > 0 } ? Gib(mem.UsedBytes) : nd),
             R("Disponível", mem is { TotalBytes: > 0 } ? Gib(mem.AvailableBytes) : nd) };
@@ -466,6 +474,46 @@ internal sealed partial class MainForm
         var dxgi = snapshot?.DxgiAdapters?.Adapters.Where(x => !x.IsSoftware).ToArray() ?? [];
         var nvml = snapshot?.NvidiaGpus.Devices ?? [];
         var pnp = snapshot?.DeviceInventory.Devices.Where(x => x.Kind == HardwareDeviceKind.Graphics).ToArray() ?? [];
+        // Só retirar prefixos de identidade quando as três fontes comprovam
+        // uma única GPU. Nunca fundir duas placas por nome ou índice.
+        if (snapshot is not null && TryV269SingleGpu(snapshot, out var singleDxgi, out var singlePnp, out var singleNvml))
+        {
+            ulong? capacity = singleDxgi.DedicatedVideoMemory > 0 ? singleDxgi.DedicatedVideoMemory :
+                singleNvml?.DedicatedMemoryBytes;
+            string? memory = capacity is { } total ? Gib(total) : null;
+            if (singleNvml is { } verified && capacity is { } actual &&
+                V269GpuMemoryType(verified, actual) is { } type)
+                memory += " " + type + " (catálogo)";
+            var wddm = snapshot.MatchedGpuDevices.Where(x =>
+                x.Counters.Key.LuidHigh == singleDxgi.LuidHigh && x.Counters.Key.LuidLow == singleDxgi.LuidLow &&
+                x.DxgiDescription is not null).ToArray();
+            var d3d = snapshot.D3dKmtGpuSensors?.Adapters.Where(x =>
+                x.Key.LuidHigh == singleDxgi.LuidHigh && x.Key.LuidLow == singleDxgi.LuidLow).ToArray() ?? [];
+            string? Value<T>(MonitorReading<T>? reading, Func<T, string> format) where T : struct =>
+                reading is { Availability: MonitorAvailability.Available, Value: { } measured } ? format(measured) : null;
+            string? temp = d3d.Length == 1 ? Value(d3d[0].TemperatureC, Temp) : null;
+            string? use = Value(singleNvml?.UsagePercent, Percent);
+            if (use is null && wddm.Length == 1)
+            {
+                var engine = Value(wddm[0].Counters.BusiestEnginePercent, Percent);
+                if (engine is not null) use = engine + " (motor WDDM)";
+            }
+            string? used = Value(singleNvml?.VramUsedBytes, Gib);
+            if (used is null && wddm.Length == 1) used = Value(wddm[0].Counters.DedicatedUsedBytes, Gib);
+            string? fan = d3d.Length == 1 ? Value(d3d[0].FanRpm, x => $"{x:0} RPM") : null;
+            if (fan is null && singleNvml is { IntendedFanRpms.Count: > 0 } target)
+                fan = string.Join("/", target.IntendedFanRpms) + " RPM (alvo)";
+            if (fan is null && Value(singleNvml?.FanPercent, Percent) is { } pct)
+                fan = pct + " (alvo)";
+            return new("gpu", "Placa de vídeo (GPU)", singleDxgi.Name,
+                [R("Memória", memory), R("Barramento", singleNvml?.CurrentPcieLink ?? singlePnp.ReportedPcieLink),
+                 R("Resizable BAR", singleNvml?.Bar1TotalBytes is { } bar ? "N/D · BAR1 " + Gib(bar) : nd),
+                 R("Driver", singlePnp.InstalledDriverVersion ??
+                    (snapshot.NvidiaGpus.NvidiaDriverVersion is { } version && singleNvml is not null ? version + " (NVML)" : null)),
+                 R("Arquitetura", singleNvml?.ReportedArchitecture)],
+                [R("Temperatura", temp ?? Value(singleNvml?.TemperatureC, Temp)), R("Uso", use),
+                 R("VRAM usada", used), R("Ventoinha (GPU)", fan)]);
+        }
         string links = Join(nvml.Where(x => x.CurrentPcieLink is not null)
             .Select(x => x.Name + ": " + x.CurrentPcieLink)
             .Concat(pnp.Where(x => x.ReportedPcieLink is not null)
@@ -476,8 +524,12 @@ internal sealed partial class MainForm
             driverValues.Add(version + " (NVIDIA NVML)");
         var graphics = new V269HomeRow[] {
             R("Memória", Join(dxgi.Where(x => x.DedicatedVideoMemory > 0)
-                .Select(x => x.Name + ": " + Gib(x.DedicatedVideoMemory) + " (DXGI)"))),
-            R("Barramento", links), R("Resizable BAR", nd), R("Driver", Join(driverValues)),
+                .Select(x => x.Name + ": " + Gib(x.DedicatedVideoMemory) + " (DXGI)")
+                .Concat(nvml.Where(x => x.DedicatedMemoryBytes.HasValue)
+                    .Select(x => x.Name + ": " + Gib(x.DedicatedMemoryBytes!.Value) + " (NVML)")))),
+            R("Barramento", links), R("Resizable BAR", Join(nvml.Where(x => x.Bar1TotalBytes.HasValue)
+                .Select(x => x.Name + ": N/D · BAR1 " + Gib(x.Bar1TotalBytes!.Value)))),
+            R("Driver", Join(driverValues)),
             R("Arquitetura", Join(nvml.Where(x => x.ReportedArchitecture is not null)
                 .Select(x => x.Name + ": " + x.ReportedArchitecture + " (NVML)"))) };
         var temperatures = new List<string?>();
@@ -489,7 +541,9 @@ internal sealed partial class MainForm
             temperatures.Add(Reading(gpu.TemperatureC, Temp, gpu.Name, "NVML"));
             usages.Add(Reading(gpu.UsagePercent, Percent, gpu.Name, "NVML"));
             memories.Add(Reading(gpu.VramUsedBytes, Gib, gpu.Name, "NVML"));
-            fans.Add(Reading(gpu.FanPercent, Percent, gpu.Name, "NVML; não RPM"));
+            if (gpu.IntendedFanRpms.Count > 0)
+                fans.Add(gpu.Name + ": " + string.Join("/", gpu.IntendedFanRpms) + " RPM (alvo NVML)");
+            else fans.Add(Reading(gpu.FanPercent, Percent, gpu.Name, "NVML; não RPM"));
         }
         foreach (var gpu in snapshot?.MatchedGpuDevices ?? [])
         {
@@ -512,6 +566,43 @@ internal sealed partial class MainForm
             [R("Temperatura", Join(temperatures)), R("Uso", Join(usages)),
              R("VRAM usada", Join(memories)), R("Ventoinha (GPU)", Join(fans))]);
     }
+
+    // Correlacionar pelo triplo VEN/DEV/SUBSYS único em inventários
+    // completos. Sem essa evidência, conservar a apresentação separada.
+    internal static bool TryV269SingleGpu(HardwareSensorPortfolio snapshot,
+        out DxgiGpuIdentity adapter, out HardwareDeviceDescriptor device, out NvidiaGpuSensorSample? nvidia)
+    {
+        adapter = null!; device = null!; nvidia = null;
+        if (snapshot.DxgiAdapters?.State != HardwareDiscoveryState.Complete ||
+            snapshot.DeviceInventory.State != HardwareDiscoveryState.Complete) return false;
+        var dxgi = snapshot.DxgiAdapters.Adapters.Where(x => !x.IsSoftware).ToArray();
+        var pnp = snapshot.DeviceInventory.Devices.Where(x => x.Kind == HardwareDeviceKind.Graphics).ToArray();
+        if (dxgi.Length != 1 || pnp.Length != 1 ||
+            DxgiGpuIdentityProvider.MatchUniquePnp(dxgi[0], pnp) is not { } id ||
+            !string.Equals(id, pnp[0].InstanceId, StringComparison.OrdinalIgnoreCase))
+            return false;
+        var nvml = snapshot.NvidiaGpus.Devices;
+        if (nvml.Count > 0)
+        {
+            if (!snapshot.NvidiaGpus.ProviderAvailable || snapshot.NvidiaGpus.Limitation is not null ||
+                nvml.Count != 1 || nvml[0].PciIdentity is not { } pci ||
+                pci.Vendor != dxgi[0].VendorId || pci.Device != dxgi[0].DeviceId ||
+                pci.Subsystem != dxgi[0].SubSystemId) return false;
+            nvidia = nvml[0];
+        }
+        adapter = dxgi[0]; device = pnp[0];
+        return true;
+    }
+
+    // Tipo de memória nominal, não uma leitura elétrica/firmware. A
+    // RTX 5060 Ti desktop é oferecida em 8 ou 16 GB GDDR7 pela NVIDIA.
+    // Não inferir tipo por arquitetura, geração, capacidade isolada ou
+    // nomes parciais de placas móveis/variantes.
+    internal static string? V269GpuMemoryType(NvidiaGpuSensorSample gpu, ulong dedicatedBytes) =>
+        gpu.PciIdentity?.Vendor == 0x10de && gpu.ReportedArchitecture == "Blackwell" &&
+        string.Equals(gpu.Name, "NVIDIA GeForce RTX 5060 Ti", StringComparison.OrdinalIgnoreCase) &&
+        (dedicatedBytes == 8UL << 30 || dedicatedBytes == 16UL << 30)
+        ? "GDDR7" : null;
 
     private Control BuildV269StartupPage()
     {
@@ -1041,7 +1132,7 @@ internal sealed class V269HomeDashboard : Panel
             int width = Math.Max(1, ClientSize.Width - 2 * padding);
             bool two = windowWidth >= 940 && width >= S(470);
             int column = two ? (width - gap) / 2 : width;
-            int y = padding;
+            int y = S(1);
             Point offset = AutoScrollPosition;
             for (int i = 0; i < 4;)
             {
@@ -1181,9 +1272,9 @@ internal sealed class V269HomeCard : Control
         using var nameFont = TextFont(13, FontStyle.Bold);
         // A cascata de .app-window .hw-card mantém o padding 10/11
         // também nos breakpoints compactos; gap de 12px prevalece no CSS.
-        int pad = S(11), gap = S(12), verticalPad = S(10);
+        int pad = S(12), gap = S(12), verticalPad = S(11);
         int heading = Math.Max(S(compactHeight ? 28 : 31), title.Height + S(compactHeight ? 7 : 10));
-        int contentWidth = Math.Max(1, width - 2 * pad - S(2));
+        int contentWidth = Math.Max(1, width - 2 * pad);
         bool wide = windowWidth > 850 && contentWidth >= S(235);
         int logicalImage = model.Key == "windows"
             ? (windowWidth <= 850 ? 150 : narrowTwo ? 143 : windowWidth <= 1090 ? 240 :
@@ -1231,7 +1322,7 @@ internal sealed class V269HomeCard : Control
         int sensorY = wide ? bodyY : bodyY + Math.Max(imageHeight, dataHeight) + gap;
         int totalHeight = bodyY + (wide
             ? Math.Max(imageHeight, Math.Max(dataHeight, sensorsHeight))
-            : Math.Max(imageHeight, dataHeight) + gap + sensorsHeight) + verticalPad + S(2);
+            : Math.Max(imageHeight, dataHeight) + gap + sensorsHeight) + verticalPad;
         if (g is null) return totalHeight;
 
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
