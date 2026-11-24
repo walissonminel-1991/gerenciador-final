@@ -177,6 +177,10 @@ internal static class V269IntegrationTests
             Require(V269AdminSessionLauncher.Verify(ticket),"identidade do executável de teste verificável");
             File.AppendAllText(exe,"alteração sintética");
             Require(!V269AdminSessionLauncher.Verify(ticket),"troca do executável invalida solicitação administrativa");
+            File.Delete(exe);
+            Require(!V269AdminSessionLauncher.Verify(ticket),"executável ausente invalida solicitação sem propagar exceção");
+            Require(!V269AdminSessionLauncher.Verify(new V269AdminLaunchTicket(path,ticket.Sha256)),
+                "caminho não elegível invalida solicitação sem propagar exceção");
             Require(form.ConsumeV269AdminRestart() is null,"abertura normal/testes não solicitam elevação");
         }
         finally{if(Directory.Exists(folder))Directory.Delete(folder,true);}

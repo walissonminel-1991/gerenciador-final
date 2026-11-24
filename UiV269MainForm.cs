@@ -927,7 +927,7 @@ internal sealed partial class MainForm
             if(!elevated)
             {
                 try{_v269AdminRestartTicket=V269AdminSessionLauncher.Prepare(Environment.ProcessPath??"");}
-                catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+                catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
                 {
                     PresentV269SettingsInformation("Modo Administrador","Não foi possível verificar o executável atual para reabertura.");return;
                 }

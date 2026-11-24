@@ -49,7 +49,7 @@ internal static class V269AdminSessionLauncher
             using var stream=OpenStable(ticket.Path);
             return Convert.ToHexString(SHA256.HashData(stream))==ticket.Sha256;
         }
-        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or
+        catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or
             ArgumentException or System.Security.SecurityException){return false;}
     }
     internal static void RequestOnce(V269AdminLaunchTicket ticket)
@@ -65,7 +65,7 @@ internal static class V269AdminSessionLauncher
             // até a solicitação de ShellExecute. Não confundir hash com assinatura.
             using var process=Process.Start(Build(ticket.Path));
         }
-        catch(Exception ex) when(ex is System.ComponentModel.Win32Exception or IOException or
+        catch(Exception ex) when(ex is System.ComponentModel.Win32Exception or IOException or InvalidDataException or
             UnauthorizedAccessException or InvalidOperationException or ArgumentException or System.Security.SecurityException)
         {
             MessageBox.Show("A sessão administrativa não foi iniciada. Abra o GF normalmente quando desejar.",
