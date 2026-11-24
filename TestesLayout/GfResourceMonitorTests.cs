@@ -227,8 +227,44 @@ internal static class GfResourceMonitorTests
         finally { Directory.Delete(folder, recursive: true); }
     }
 
+    private static void VerifyScale()
+    {
+        using var form=new GfResourceMonitorForm();
+        form.Show(); Application.DoEvents();
+        var p=GfResourceMonitorPreferences.Default with { Enabled=true, Fixed=false, AlwaysOnTop=true };
+        foreach(V269Theme theme in Enum.GetValues<V269Theme>())
+        foreach(int scale in new[]{100,125,150,100})
+        {
+            form.ApplyPreferences(p with { MonitorTheme=theme,ScalePercent=scale });
+            foreach(bool expanded in new[]{false,true})
+            {
+                form.SetExpanded(expanded); Application.DoEvents();
+                int S(int n)=>Math.Max(1,(int)Math.Round(n*form.DeviceDpi*scale/9600d));
+                Require(form.ClientSize==new Size(S(552),S(expanded?186:38)), "escala lógica e DPI sem deriva");
+                if(expanded)
+                {
+                    var bars=All(form).OfType<GfDynamicProgressBar>().Where(x=>x.Visible).ToArray();
+                    Require(bars.Length==6 && bars.All(x=>x.Height==S(9)&&x.Width>0),"seis barras proporcionais");
+                    Require(All(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="MonitorExpandedLayout").RowCount==2,
+                        "escala não reintroduz legenda");
+                }
+                else
+                {
+                    var metrics=All(form).OfType<GfMonitorCompactLabel>().Where(x=>x.Visible).ToArray();
+                    Require(metrics.Length==5 && metrics.All(x=>x.Fits(x.Name is "MonitorCompactMetric4" or "MonitorCompactMetric5" ?
+                        x.Text[..3]+" 150°C" : x.Text[..3]+" 100%")),
+                        "escala conserva valores de três dígitos");
+                }
+                Require(form.CapturePreferences(true).ScalePercent==scale,"escala persistível");
+                VerifyRoundedRegions(form);
+            }
+        }
+        form.Close();
+    }
+
     internal static void Run()
     {
+        VerifyScale();
         foreach (V269Theme theme in Enum.GetValues<V269Theme>())
         {
             VerifyContrast(theme);

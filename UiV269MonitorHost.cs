@@ -37,7 +37,11 @@ internal sealed class GfMonitorHost : IDisposable
         if (_window is not { IsDisposed: false } window) { _visibilityTimer.Stop(); return; }
         bool show = GfMonitorNativePresentation.ShouldShow(_preferences.Enabled,_preferences.AlwaysOnTop,
             _preferences.AlwaysOnTop || _desktopForeground(), window.NativePresentationReady);
-        if(show && !window.Visible) window.Show();
+        if(show && !window.Visible)
+        {
+            window.Show();
+            if(!window.RefreshNativePresentation())window.Hide();
+        }
         else if(!show && window.Visible) window.Hide();
         // Overlay não precisa sondar foreground; falha nativa permanece oculta.
         if(_preferences.Enabled && !_preferences.AlwaysOnTop && window.NativePresentationReady) _visibilityTimer.Start();

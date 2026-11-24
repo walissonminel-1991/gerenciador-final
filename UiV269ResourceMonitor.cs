@@ -27,6 +27,12 @@ internal sealed class GfResourceMonitorForm : Form
     private readonly List<Control> _text = [];
     private readonly List<Button> _buttons = [];
     private readonly List<Font> _ownedFonts = [];
+    private readonly Dictionary<Control, float> _fontPoints = new();
+    private readonly List<Font> _scaledFonts = [];
+    private readonly List<(Control Control, Padding Margin, Padding Padding)> _geometry = [];
+    private readonly List<(ColumnStyle Style, float Width)> _columns = [];
+    private readonly List<(RowStyle Style, float Height)> _rows = [];
+    private int _geometryDpi, _geometryScale, _fontScale = 100;
     private readonly List<GfMonitorGlyph> _glyphs = [];
     private readonly Label _compactLogo, _expandedLogo;
     private readonly List<TableLayoutPanel> _outlined = [];
@@ -54,7 +60,9 @@ internal sealed class GfResourceMonitorForm : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
-        AutoScaleMode = AutoScaleMode.Dpi;
+        // Geometria lógica única: escala própria e DPI são aplicados a
+        // partir das medidas originais, nunca cumulativamente.
+        AutoScaleMode = AutoScaleMode.None;
         Padding = new(2);
         _surfaces.AddRange([_compact, _expanded]);
 
@@ -164,6 +172,8 @@ internal sealed class GfResourceMonitorForm : Form
             }
             else _freshness.Stop();
         };
+        RememberGeometry(_compact);
+        RememberGeometry(_expanded);
         Configure(V269Theme.AzulGf, true);
         SetExpanded(false);
         ClearReadings();
@@ -173,7 +183,55 @@ internal sealed class GfResourceMonitorForm : Form
     {
         var font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Point);
         _ownedFonts.Add(font);
+        _fontPoints.Add(control,size);
         control.Font = font;
+    }
+    private void RememberGeometry(Control root)
+    {
+        _geometry.Add((root,root.Margin,root.Padding));
+        if(root is TableLayoutPanel table)
+        {
+            foreach(ColumnStyle column in table.ColumnStyles)
+                if(column.SizeType==SizeType.Absolute) _columns.Add((column,column.Width));
+            foreach(RowStyle row in table.RowStyles)
+                if(row.SizeType==SizeType.Absolute) _rows.Add((row,row.Height));
+        }
+        foreach(Control child in root.Controls) RememberGeometry(child);
+    }
+
+    private void ApplyGeometry()
+    {
+        if(_geometryDpi==DeviceDpi && _geometryScale==_scalePercent)return;
+        _geometryDpi=DeviceDpi; _geometryScale=_scalePercent;
+        Padding ScaledPadding(Padding p) => new(ScaleLength(p.Left),ScaleLength(p.Top),ScaleLength(p.Right),ScaleLength(p.Bottom));
+        foreach(var entry in _geometry)entry.Control.SuspendLayout();
+        try
+        {
+            Padding=ScaledPadding(new Padding(2));
+            foreach(var entry in _geometry)
+            {
+                entry.Control.Margin=ScaledPadding(entry.Margin);
+                entry.Control.Padding=ScaledPadding(entry.Padding);
+            }
+            foreach(var col in _columns)col.Style.Width=ScaleLength(col.Width);
+            foreach(var row in _rows)row.Style.Height=ScaleLength(row.Height);
+            foreach(var bar in _bars)bar.Height=SizeFor(9);
+            if(_fontScale!=_scalePercent)
+            {
+                var previous=_scaledFonts.ToArray(); _scaledFonts.Clear();
+                foreach(var entry in _fontPoints)
+                {
+                    var font=new Font("Segoe UI",entry.Value*_scalePercent/100f,FontStyle.Bold,GraphicsUnit.Point);
+                    entry.Key.Font=font; _scaledFonts.Add(font);
+                }
+                _fontScale=_scalePercent;
+                foreach(var font in previous)font.Dispose();
+            }
+        }
+        finally
+        {
+            for(int i=_geometry.Count-1;i>=0;i--)_geometry[i].Control.ResumeLayout(false);
+        }
     }
     private Label Logo()
     {
@@ -284,6 +342,7 @@ internal sealed class GfResourceMonitorForm : Form
         SuspendLayout();
         try
         {
+            ApplyGeometry();
             Panel active = value ? _expanded : _compact;
             Panel inactive = value ? _compact : _expanded;
             inactive.Visible = false;
@@ -296,6 +355,8 @@ internal sealed class GfResourceMonitorForm : Form
         finally { ResumeLayout(true); }
         GfMonitorShape.ApplyRegion(this, SizeFor(9));
         (value ? _expanded : _compact).PerformLayout();
+        // A forma do logo também acompanha a escala própria.
+        GfMonitorShape.ApplyRegion(value ? _expandedLogo : _compactLogo,SizeFor(5));
         Invalidate(true);
         if (Visible) ClampLocation(snap: false);
         if (changed) ModeChanged?.Invoke(this, EventArgs.Empty);
@@ -356,10 +417,12 @@ internal sealed class GfResourceMonitorForm : Form
         Location = GfResourceMonitorPreferences.Fit(Location, Size, area, snap ? SizeFor(10) : 0);
     }
 
-    private int SizeFor(int logical) => Math.Max(1, (int)Math.Round(logical * DeviceDpi / 96d));
+    private int ScaleLength(float logical) => Math.Max(0,(int)Math.Round(logical*DeviceDpi*_scalePercent/9600d));
+    private int SizeFor(int logical) => Math.Max(1,ScaleLength(logical));
     protected override void OnDpiChanged(DpiChangedEventArgs e)
     {
-        base.OnDpiChanged(e); SetExpanded(_isExpanded);
+        base.OnDpiChanged(e);
+        _geometryDpi=0; SetExpanded(_isExpanded);
     }
 
     private void AttachDrag(Control c)
@@ -463,6 +526,8 @@ internal sealed class GfResourceMonitorForm : Form
         base.Dispose(disposing);
         if (disposing)
         {
+            foreach (Font font in _scaledFonts) font.Dispose();
+            _scaledFonts.Clear();
             foreach (Font font in _ownedFonts) font.Dispose();
             _ownedFonts.Clear();
         }

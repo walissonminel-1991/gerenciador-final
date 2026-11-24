@@ -101,3 +101,5 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 ## Desenvolvimento adicional autorizado — 24/11
 - Preferências v2 com migração estrita, tema próprio, fixação e escala; painel isolado com sete controles, startup observado e sem ação de registro. Host não sobrescreve tema próprio pelo global nem perde preferências ao desativar.
 - Política nativa de apresentação conservadora (desktop confirmado, overlay explícito, falha oculta), passagem de mouse layered/transparente/noactivate, sem menus redundantes. Sonda exclusivamente de visibilidade, não de hardware. Renderização de publicação oculta adiada até Show; demanda compartilhada preservada. Cobertura de testes sintéticos e estilos reais, homologação física ainda reservada ao WORK.
+
+- Escala isolada implementada por geometria original e DPI, faixa inicial 100–150%, sem deriva. Testes percorrem três temas, ambos os modos e retorno a 100%; sem legenda. A faixa é decisão conservadora para proteger legibilidade, não aprovação visual da escala física.
