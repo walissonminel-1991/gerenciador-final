@@ -250,11 +250,33 @@ internal sealed partial class MainForm
     private void FitSystemActionsHeight(TableLayoutPanel root, TableLayoutPanel actions)
     {
         if (root.IsDisposed || actions.IsDisposed || root.ClientSize.Width < 1) return;
-        int width = Math.Max(24,
-            (root.ClientSize.Width - root.Padding.Horizontal) / 4 - 23);
-        int minHeight = (int)Math.Ceiling(82d * Math.Max(1d, DeviceDpi / 96d));
+        double dpi = Math.Max(1d, DeviceDpi / 96d);
+        int available = root.ClientSize.Width - root.Padding.Horizontal;
+        int columns = available < Math.Ceiling(480 * dpi) ? 2 : 4;
+        var cards = actions.Controls.OfType<TableLayoutPanel>().ToArray();
+        int rows = (cards.Length + columns - 1) / columns;
+        if (actions.ColumnCount != columns)
+        {
+            actions.SuspendLayout();
+            try
+            {
+                actions.ColumnCount = columns;
+                actions.RowCount = rows;
+                actions.ColumnStyles.Clear();
+                actions.RowStyles.Clear();
+                for (int column = 0; column < columns; column++)
+                    actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columns));
+                for (int row = 0; row < rows; row++)
+                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / rows));
+                for (int i = 0; i < cards.Length; i++)
+                    actions.SetCellPosition(cards[i], new TableLayoutPanelCellPosition(i % columns, i / columns));
+            }
+            finally { actions.ResumeLayout(true); }
+        }
+        int width = Math.Max(24, available / columns - 23);
+        int minHeight = (int)Math.Ceiling(82d * dpi);
         int height = minHeight;
-        foreach (var card in actions.Controls.OfType<TableLayoutPanel>())
+        foreach (var card in cards)
         {
             var label = card.Controls.OfType<Label>().FirstOrDefault();
             if (label is null) continue;
@@ -265,8 +287,9 @@ internal sealed partial class MainForm
                 card.Margin.Vertical + card.Padding.Vertical + label.Padding.Vertical + 3;
             height = Math.Max(height, required);
         }
-        if (Math.Abs(root.RowStyles[0].Height - height) >= 1)
-            root.RowStyles[0].Height = height;
+        int totalHeight = height * rows;
+        if (Math.Abs(root.RowStyles[0].Height - totalHeight) >= 1)
+            root.RowStyles[0].Height = totalHeight;
     }
 
     private void FitSystemSummaryHeight()
