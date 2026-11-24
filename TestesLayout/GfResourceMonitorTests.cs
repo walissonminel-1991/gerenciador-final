@@ -100,6 +100,28 @@ internal static class GfResourceMonitorTests
         Require(All(form).OfType<Label>().Any(x => x.Text == "80%") &&
             All(form).OfType<Label>().Any(x => x.Text == "90%") &&
             All(form).OfType<Label>().Any(x => x.Text == "70°C"), "fixture explícita de GPU identificada");
+        // Capturas sintéticas de UI, sem consultar ou identificar hardware real.
+        // LayoutCaptures já é publicado pela CI existente; nenhuma alteração de workflow.
+        Directory.CreateDirectory("LayoutCaptures");
+        foreach (V269Theme theme in Enum.GetValues<V269Theme>())
+        {
+            using var preview = new GfResourceMonitorForm();
+            preview.Configure(theme, false);
+            preview.Show();
+            preview.Present(new GfResourceMonitorSnapshot(DateTimeOffset.UtcNow, 14, 12, 42, 15,
+                48, 46, CpuThermalLimit: 95, GpuThermalLimit: 85, GpuIdentity: "fixture visual"));
+            foreach (bool expanded in new[] { false, true })
+            {
+                preview.SetExpanded(expanded);
+                Application.DoEvents();
+                Require(preview.ClientSize.Width > 0 && preview.ClientSize.Height > 0, "captura com área válida");
+                using var bitmap = new Bitmap(preview.ClientSize.Width, preview.ClientSize.Height);
+                preview.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                bitmap.Save(Path.Combine("LayoutCaptures", $"MonitorGF-{theme}-{(expanded ? "Expandido" : "Compacto")}.png"),
+                    System.Drawing.Imaging.ImageFormat.Png);
+            }
+            preview.Close();
+        }
         form.Close();
         Console.WriteLine("OK Monitor GF: seis métricas, três temas, interpolação, limites, ausência e progresso.");
     }
