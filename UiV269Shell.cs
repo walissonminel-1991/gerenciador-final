@@ -221,6 +221,8 @@ internal sealed class V269Shell : UserControl
     private readonly TableLayoutPanel _columns;
     private readonly TableLayoutPanel _navigationLayout;
     private readonly Panel _sidebar;
+    private readonly Label _homeCopyright;
+    private readonly Panel _homeNavRule;
     private readonly Panel _bodyHost;
     private readonly Panel _content;
     private readonly Label _pageTitle;
@@ -285,13 +287,15 @@ internal sealed class V269Shell : UserControl
         {
             Name = "V269Navigation", AccessibleName = "Navegação principal",
             AccessibleRole = AccessibleRole.Grouping, Dock = DockStyle.Fill,
-            ColumnCount = 1, RowCount = Pages.Length + 1,
+            ColumnCount = 1, RowCount = Pages.Length + 4,
             Margin = Padding.Empty, Padding = new Padding(6)
         };
         _navigationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         for (int i = 0; i < Pages.Length; i++)
             _navigationLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         _navigationLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        for (int i = 0; i < 3; i++)
+            _navigationLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
 
         foreach (var (page, title, _) in Pages)
         {
@@ -313,6 +317,16 @@ internal sealed class V269Shell : UserControl
             _navigation[page] = button;
             _navigationLayout.Controls.Add(button, 0, (int)page);
         }
+        _homeNavRule = new Panel { Name = "V269HomeNavRule", Dock = DockStyle.Top,
+            Height = 1, Margin = Padding.Empty, Visible = false };
+        _navigationLayout.Controls.Add(_homeNavRule, 0, Pages.Length + 1);
+        _homeCopyright = new Label
+        {
+            Name = "V269HomeCopyright", Text = "GF · V2.6.9\n© 2026 Walisson Minel",
+            Dock = DockStyle.Fill, Margin = new Padding(11, 3, 0, 0),
+            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true, Visible = false
+        };
+        _navigationLayout.Controls.Add(_homeCopyright, 0, Pages.Length + 3);
         _sidebar.Controls.Add(_navigationLayout);
 
         _content = new Panel { Name = "V269Main", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 7, 0) };
@@ -448,8 +462,8 @@ internal sealed class V269Shell : UserControl
         _pageTitle.ForeColor = palette.Text;
         _pageSubtitle.ForeColor = palette.SecondaryText;
         _homeGlyph.ForeColor = Theme switch {
-            V269Theme.Dark => ColorTranslator.FromHtml("#65b8ef"),
-            V269Theme.Claro => ColorTranslator.FromHtml("#2b79a8"),
+            V269Theme.Dark => ColorTranslator.FromHtml("#c6cdd3"),
+            V269Theme.Claro => ColorTranslator.FromHtml("#2577a8"),
             _ => ColorTranslator.FromHtml("#69bfe0") };
         ApplyFonts();
         ApplyNavigationSelection(palette);
@@ -472,6 +486,7 @@ internal sealed class V269Shell : UserControl
         Font = NewFont(9.5f);
         _pageTitle.Font = NewFont(_homeGeometry ? 18f : 17f, FontStyle.Bold);
         _pageSubtitle.Font = NewFont(9f);
+        _homeCopyright.Font = NewFont(7.5f);
         _rightPane.SetFonts(NewFont(12f, FontStyle.Bold), NewFont(9.5f));
         foreach (var navButton in _navigation.Values)
             navButton.Font = NewFont(_homeGeometry ? 9f : 10f);
@@ -495,6 +510,7 @@ internal sealed class V269Shell : UserControl
         _homeGlyph.Visible = home;
         _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 54 : 65) : 70;
+        _centralLayout.Padding = home ? new Padding(S(13), S(13), S(13), S(12)) : new Padding(13, 8, 13, 10);
         // As demais abas conservam as dimensões existentes nesta frente.
         int sidebar = V269VisualTokens.Scale(width < 1040 ? 166 : 210, InterfaceScalePercent);
         int right = V269VisualTokens.Scale(width < 1040 ? 240 : 310, InterfaceScalePercent);
@@ -544,16 +560,54 @@ internal sealed class V269Shell : UserControl
         _rightPane.Visible = right > 0;
         int navHeight = _paneToggle is null ? 48 :
             Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
+        // No HTML, Configurações pertence a .nav-end, não a .nav-list.
+        // Preservar o rodapé também em janelas pequenas, sem perder a ação
+        // explícita de histórico/operações, que já existia no produto.
+        int spacerRow = Pages.Length - 1, toggleRow = Pages.Length,
+            ruleRow = Pages.Length + 1, settingsRow = Pages.Length + 2,
+            copyrightRow = Pages.Length + 3;
+        int available = Math.Max(1, ClientSize.Height - _columns.Padding.Vertical -
+            _navigationLayout.Padding.Vertical);
+        bool footerFits = home && available >= S(500);
+        int toggleHeight = _paneToggle?.Visible == true ? S(34) : 0;
         if (home)
         {
-            int desired = windowWidth <= 1040 ? 54 : 55;
-            int available = Math.Max(1, ClientSize.Height - _columns.Padding.Vertical -
-                _navigationLayout.Padding.Vertical - (_paneToggle?.Visible == true ? S(34) : 0));
-            navHeight = Math.Min(desired, Math.Max(20, (int)Math.Floor(available * 100d /
-                InterfaceScalePercent / Pages.Length)));
+            int desired = 58; // 54 px do botão + gap de 4 px da .nav-list.
+            int fixedHeight = toggleHeight + (footerFits ? S(47) : S(8));
+            navHeight = Math.Min(desired, Math.Max(20, (int)Math.Floor(
+                Math.Max(1, available - fixedHeight) * 100d / InterfaceScalePercent / Pages.Length)));
         }
-        for (int i = 0; i < Pages.Length; i++)
-            _navigationLayout.RowStyles[i].Height = V269VisualTokens.Scale(navHeight, InterfaceScalePercent);
+        var settings = _navigation[V269Page.Configuracoes];
+        _navigationLayout.SuspendLayout();
+        try
+        {
+            for (int i = 0; i < spacerRow; i++)
+            {
+                _navigationLayout.RowStyles[i].SizeType = SizeType.Absolute;
+                _navigationLayout.RowStyles[i].Height = S(navHeight);
+            }
+            _navigationLayout.RowStyles[spacerRow].SizeType = home ? SizeType.Percent : SizeType.Absolute;
+            _navigationLayout.RowStyles[spacerRow].Height = home ? 100 : S(navHeight);
+            _navigationLayout.RowStyles[toggleRow].SizeType = home ? SizeType.Absolute : SizeType.Percent;
+            _navigationLayout.RowStyles[toggleRow].Height = home ? toggleHeight : 100;
+            _navigationLayout.RowStyles[ruleRow].Height = home ? S(8) : 0;
+            _navigationLayout.RowStyles[settingsRow].Height = home ? S(navHeight) : 0;
+            _navigationLayout.RowStyles[copyrightRow].Height = footerFits ? S(39) : 0;
+            int targetRow = home ? settingsRow : spacerRow;
+            if (_navigationLayout.GetRow(settings) != targetRow)
+                _navigationLayout.SetRow(settings, targetRow);
+            _homeNavRule.Visible = home;
+            _homeCopyright.Visible = footerFits;
+            _homeNavRule.BackColor = Theme switch {
+                V269Theme.Dark => ColorTranslator.FromHtml("#4d535a"),
+                V269Theme.Claro => ColorTranslator.FromHtml("#8db1ca"),
+                _ => ColorTranslator.FromHtml("#24465f") };
+            _homeCopyright.ForeColor = Theme switch {
+                V269Theme.Dark => ColorTranslator.FromHtml("#a7b0b8"),
+                V269Theme.Claro => ColorTranslator.FromHtml("#3f627a"),
+                _ => ColorTranslator.FromHtml("#748fa5") };
+        }
+        finally { _navigationLayout.ResumeLayout(true); }
         foreach (var button in _navigation.Values)
         {
             button.HomePresentation = home;
@@ -691,9 +745,9 @@ internal sealed class V269Shell : UserControl
             {
                 V269Theme.Dark => ["#65b8ef", "#b998f2", "#ee9d68", "#55cbb5",
                     "#e4bb67", "#65b8ef", "#e4bb67", "#b998f2"],
-                V269Theme.Claro => ["#2891db", "#7046c1", "#bc592b", "#087d82",
+                V269Theme.Claro => ["#167bbb", "#7046c1", "#bc592b", "#087d82",
                     "#ad6f1d", "#167bbb", "#ad6f1d", "#7046c1"],
-                _ => ["#77cbff", "#b7a5f5", "#e8a784", "#6bd6b2",
+                _ => ["#75c4ed", "#b7a5f5", "#e8a784", "#6bd6b2",
                     "#ecc27c", "#75c4ed", "#ecc27c", "#b7a5f5"]
             };
             return ColorTranslator.FromHtml(colors[(int)page]);
@@ -714,7 +768,7 @@ internal sealed class V269Shell : UserControl
                     V269Theme.Dark => (H("#666d74"),H("#50575e"),H("#b6c0c8")),
                     V269Theme.Claro => (H("#6f97bc"),H("#5a7da1"),H("#7aa7d0")),
                     _ => (H("#246aae"),H("#1b4f91"),H("#6ea9d1")) };
-                using var fill = new LinearGradientBrush(area, first, last, 0f);
+                using var fill = new LinearGradientBrush(area, first, last, theme == V269Theme.Dark ? 15f : 0f);
                 using var line = new Pen(border);
                 g.FillPath(fill,shape); g.DrawPath(line,shape);
                 using var rail = new SolidBrush(theme == V269Theme.Dark ? H("#c8d0d7") : Color.White);
@@ -729,10 +783,22 @@ internal sealed class V269Shell : UserControl
             int iconSize = Math.Min(36, Math.Max(18, Height - 10));
             var icon = new Rectangle(9, (Height-iconSize)/2, iconSize, iconSize);
             using var iconShape = Rounded(icon, 11);
-            using var tint = new SolidBrush(Color.FromArgb(IsSelected ? 42 : 15,
-                theme == V269Theme.Claro && !IsSelected ? Color.Black : Color.White));
-            using var iconBorder = new Pen(Color.FromArgb(IsSelected ? 85 : 65,
-                theme == V269Theme.Claro ? H("#789bb7") : H("#a4c7e5")));
+            // Cores efetivas de .nav-item .ic e .nav-item.active .ic,
+            // verificadas nos três temas da referência congelada.
+            var (iconTop, iconBottom, iconOutline) = theme switch
+            {
+                V269Theme.Claro => (Color.FromArgb(191, Color.White),
+                    Color.FromArgb(166, H("#d6e8f5")), Color.FromArgb(92, H("#578db9"))),
+                V269Theme.Dark when IsSelected => (Color.FromArgb(43, Color.White),
+                    Color.FromArgb(12, Color.White), Color.FromArgb(107, H("#d9e0e7"))),
+                V269Theme.Dark => (H("#383d42"), H("#292c31"), H("#626a72")),
+                _ when IsSelected => (Color.FromArgb(41, Color.White),
+                    Color.FromArgb(18, Color.White), Color.FromArgb(71, Color.White)),
+                _ => (Color.FromArgb(15, Color.White), Color.FromArgb(5, Color.White),
+                    Color.FromArgb(71, H("#7091b0")))
+            };
+            using var tint = new LinearGradientBrush(icon, iconTop, iconBottom, 90f);
+            using var iconBorder = new Pen(iconOutline);
             g.FillPath(tint,iconShape); g.DrawPath(iconBorder,iconShape);
             var glyph = new Rectangle(icon.X+(icon.Width-18)/2,icon.Y+(icon.Height-18)/2,18,18);
             V269HomeHeadingIcon.DrawGlyph(g, glyph, Page, HomeIconColor(theme, Page, IsSelected));
@@ -780,33 +846,183 @@ internal sealed class V269HomeHeadingIcon : Control
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TranslateTransform(r.X,r.Y);
             g.ScaleTransform(r.Width/24f,r.Height/24f);
-            using var p = new Pen(color,2.05f) { StartCap=LineCap.Round, EndCap=LineCap.Round, LineJoin=LineJoin.Round };
-            void L(params PointF[] pts) => g.DrawLines(p,pts);
-            PointF P(float x,float y) => new(x,y);
+            using var p = new Pen(color, 2.05f) { StartCap=LineCap.Round, EndCap=LineCap.Round, LineJoin=LineJoin.Round };
+            // Geometria derivada dos iconPaths originais da PR #109.
+            // Arcos SVG convertidos em segmentos Bézier cúbicos.
             switch (page)
             {
                 case V269Page.Inicio:
-                    L(P(3,10),P(12,3),P(21,10),P(21,21),P(14,21),P(14,14),P(10,14),P(10,21),P(3,21),P(3,10)); break;
+                    // home: <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(3f, 10f, 12f, 3f);
+                        path.AddLine(12f, 3f, 21f, 10f);
+                        path.AddLine(21f, 10f, 21f, 20f);
+                        path.AddBezier(21f, 20f, 21f, 20.552285f, 20.552285f, 21f, 20f, 21f);
+                        path.AddLine(20f, 21f, 15f, 21f);
+                        path.AddLine(15f, 21f, 15f, 14f);
+                        path.AddLine(15f, 14f, 9f, 14f);
+                        path.AddLine(9f, 14f, 9f, 21f);
+                        path.AddLine(9f, 21f, 4f, 21f);
+                        path.AddBezier(4f, 21f, 3.447715f, 21f, 3f, 20.552285f, 3f, 20f);
+                        path.CloseFigure();
+                        g.DrawPath(p, path);
+                    }
+                    break;
                 case V269Page.Aplicativos:
-                    for(int y=3;y<=14;y+=11) for(int x=3;x<=14;x+=11)
-                    { using var path=V269Shell.Rounded(new Rectangle(x,y,7,7),2); g.DrawPath(p,path); } break;
+                    // apps: <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                    using (var rect = V269Shell.Rounded(new Rectangle(3, 3, 7, 7), 1)) g.DrawPath(p, rect);
+                    using (var rect = V269Shell.Rounded(new Rectangle(14, 3, 7, 7), 1)) g.DrawPath(p, rect);
+                    using (var rect = V269Shell.Rounded(new Rectangle(3, 14, 7, 7), 1)) g.DrawPath(p, rect);
+                    using (var rect = V269Shell.Rounded(new Rectangle(14, 14, 7, 7), 1)) g.DrawPath(p, rect);
+                    break;
                 case V269Page.Drivers:
-                    g.DrawRectangle(p,6,6,12,12); g.DrawRectangle(p,9,9,6,6);
-                    foreach(int t in new[]{8,12,16}) { L(P(t,2),P(t,6)); L(P(t,18),P(t,22)); L(P(2,t),P(6,t)); L(P(18,t),P(22,t)); } break;
+                    // cpu: <rect x="6" y="6" width="12" height="12" rx="1"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/>
+                    using (var rect = V269Shell.Rounded(new Rectangle(6, 6, 12, 12), 1)) g.DrawPath(p, rect);
+                    g.DrawRectangle(p, 9f, 9f, 6f, 6f);
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(9f, 2f, 9f, 6f);
+                        path.StartFigure();
+                        path.AddLine(15f, 2f, 15f, 6f);
+                        path.StartFigure();
+                        path.AddLine(9f, 18f, 9f, 22f);
+                        path.StartFigure();
+                        path.AddLine(15f, 18f, 15f, 22f);
+                        path.StartFigure();
+                        path.AddLine(2f, 9f, 6f, 9f);
+                        path.StartFigure();
+                        path.AddLine(2f, 15f, 6f, 15f);
+                        path.StartFigure();
+                        path.AddLine(18f, 9f, 22f, 9f);
+                        path.StartFigure();
+                        path.AddLine(18f, 15f, 22f, 15f);
+                        g.DrawPath(p, path);
+                    }
+                    break;
                 case V269Page.Limpeza:
-                    L(P(12,2),P(12,12)); L(P(8,12),P(16,12),P(20,21),P(4,21),P(8,12));
-                    L(P(8,17),P(8,21)); L(P(12,17),P(12,21)); L(P(16,17),P(16,21)); break;
+                    // brush: <path d="M12 2v12" stroke-width="2.6"/><path d="M7 14h10l3 8H4l3-8Z" fill="currentColor" fill-opacity=".25"/><path d="M7 14h10M8 18v4m4-4v4m4-4v4M5 19h14"/>
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(12f, 2f, 12f, 14f);
+                        using var stroke = new Pen(color, 2.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+                        g.DrawPath(stroke, path);
+                    }
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(7f, 14f, 17f, 14f);
+                        path.AddLine(17f, 14f, 20f, 22f);
+                        path.AddLine(20f, 22f, 4f, 22f);
+                        path.AddLine(4f, 22f, 7f, 14f);
+                        path.CloseFigure();
+                        using var fill = new SolidBrush(Color.FromArgb(64, color));
+                        g.FillPath(fill, path);
+                        g.DrawPath(p, path);
+                    }
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(7f, 14f, 17f, 14f);
+                        path.StartFigure();
+                        path.AddLine(8f, 18f, 8f, 22f);
+                        path.StartFigure();
+                        path.AddLine(12f, 18f, 12f, 22f);
+                        path.StartFigure();
+                        path.AddLine(16f, 18f, 16f, 22f);
+                        path.StartFigure();
+                        path.AddLine(5f, 19f, 19f, 19f);
+                        g.DrawPath(p, path);
+                    }
+                    break;
                 case V269Page.Reparo:
-                    L(P(15,3),P(20,3),P(17,6),P(18,9),P(21,10),P(21,14),P(16,14),P(8,22),P(4,18),P(12,10),P(12,6),P(15,3)); break;
+                    // wrench: <path d="M14.5 6a5 5 0 0 0-6 6L3 17.5 6.5 21l5.5-5.5a5 5 0 0 0 6-6l-4 2-3-3z"/>
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddBezier(14.5f, 6f, 12.818854f, 5.610271f, 11.05557f, 6.11502f, 9.835295f, 7.335295f);
+                        path.AddBezier(9.835295f, 7.335295f, 8.61502f, 8.55557f, 8.110271f, 10.318854f, 8.5f, 12f);
+                        path.AddLine(8.5f, 12f, 3f, 17.5f);
+                        path.AddLine(3f, 17.5f, 6.5f, 21f);
+                        path.AddLine(6.5f, 21f, 12f, 15.5f);
+                        path.AddBezier(12f, 15.5f, 13.681146f, 15.889729f, 15.44443f, 15.38498f, 16.664705f, 14.164705f);
+                        path.AddBezier(16.664705f, 14.164705f, 17.88498f, 12.94443f, 18.389729f, 11.181146f, 18f, 9.5f);
+                        path.AddLine(18f, 9.5f, 14f, 11.5f);
+                        path.AddLine(14f, 11.5f, 11f, 8.5f);
+                        path.CloseFigure();
+                        g.DrawPath(p, path);
+                    }
+                    break;
                 case V269Page.Sistema:
-                    using(var path=V269Shell.Rounded(new Rectangle(3,3,18,13),2)) g.DrawPath(p,path);
-                    L(P(12,16),P(12,21)); L(P(7,21),P(17,21)); break;
+                    // monitor: <rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 22h8M12 18v4"/>
+                    using (var rect = V269Shell.Rounded(new Rectangle(3, 4, 18, 14), 2)) g.DrawPath(p, rect);
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(8f, 22f, 16f, 22f);
+                        path.StartFigure();
+                        path.AddLine(12f, 18f, 12f, 22f);
+                        g.DrawPath(p, path);
+                    }
+                    break;
                 case V269Page.Inicializacao:
-                    g.DrawArc(p,3,3,18,18,-45,270); L(P(12,2),P(12,12)); break;
-                default:
-                    var points = new List<PointF>();
-                    for(int i=0;i<32;i++) { double angle=i*Math.PI/16; float radius=(i%4 is 0 or 3)?10:8; points.Add(P(12+(float)Math.Cos(angle)*radius,12+(float)Math.Sin(angle)*radius)); }
-                    g.DrawPolygon(p,points.ToArray()); g.DrawEllipse(p,9,9,6,6); break;
+                    // power: <path d="M12 2v10M7.1 5.2a9 9 0 1 0 9.8 0"/>
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(12f, 2f, 12f, 12f);
+                        path.StartFigure();
+                        path.AddBezier(7.1f, 5.2f, 3.756186f, 7.370395f, 2.238559f, 11.4819f, 3.370326f, 15.304309f);
+                        path.AddBezier(3.370326f, 15.304309f, 4.502093f, 19.126718f, 8.013559f, 21.749172f, 12f, 21.749172f);
+                        path.AddBezier(12f, 21.749172f, 15.986441f, 21.749172f, 19.497907f, 19.126718f, 20.629674f, 15.304309f);
+                        path.AddBezier(20.629674f, 15.304309f, 21.761441f, 11.4819f, 20.243814f, 7.370395f, 16.9f, 5.2f);
+                        g.DrawPath(p, path);
+                    }
+                    break;
+                case V269Page.Configuracoes:
+                    // settings: <path d="M10.4 2.3h3.2l.6 2.4a7.8 7.8 0 0 1 1.8.8l2.2-1.2 2.2 2.2-1.2 2.2c.35.6.62 1.2.8 1.8l2.4.6v3.2l-2.4.6a7.8 7.8 0 0 1-.8 1.8l1.2 2.2-2.2 2.2-2.2-1.2a7.8 7.8 0 0 1-1.8.8l-.6 2.4h-3.2l-.6-2.4a7.8 7.8 0 0 1-1.8-.8l-2.2 1.2-2.2-2.2 1.2-2.2a7.8 7.8 0 0 1-.8-1.8l-2.4-.6v-3.2l2.4-.6a7.8 7.8 0 0 1 .8-1.8L4.6 6.5l2.2-2.2L9 5.5a7.8 7.8 0 0 1 1.8-.8Z"/><circle cx="12" cy="12" r="3.1"/>
+                    {
+                        using var path = new GraphicsPath();
+                        path.StartFigure();
+                        path.AddLine(10.4f, 2.3f, 13.6f, 2.3f);
+                        path.AddLine(13.6f, 2.3f, 14.2f, 4.7f);
+                        path.AddBezier(14.2f, 4.7f, 14.831396f, 4.88953f, 15.436217f, 5.15834f, 16f, 5.5f);
+                        path.AddLine(16f, 5.5f, 18.2f, 4.3f);
+                        path.AddLine(18.2f, 4.3f, 20.4f, 6.5f);
+                        path.AddLine(20.4f, 6.5f, 19.2f, 8.7f);
+                        path.AddBezier(19.2f, 8.7f, 19.55f, 9.3f, 19.82f, 9.9f, 20f, 10.5f);
+                        path.AddLine(20f, 10.5f, 22.4f, 11.1f);
+                        path.AddLine(22.4f, 11.1f, 22.4f, 14.3f);
+                        path.AddLine(22.4f, 14.3f, 20f, 14.9f);
+                        path.AddBezier(20f, 14.9f, 19.81047f, 15.531396f, 19.54166f, 16.136217f, 19.2f, 16.7f);
+                        path.AddLine(19.2f, 16.7f, 20.4f, 18.9f);
+                        path.AddLine(20.4f, 18.9f, 18.2f, 21.1f);
+                        path.AddLine(18.2f, 21.1f, 16f, 19.9f);
+                        path.AddBezier(16f, 19.9f, 15.436217f, 20.24166f, 14.831396f, 20.51047f, 14.2f, 20.7f);
+                        path.AddLine(14.2f, 20.7f, 13.6f, 23.1f);
+                        path.AddLine(13.6f, 23.1f, 10.4f, 23.1f);
+                        path.AddLine(10.4f, 23.1f, 9.8f, 20.7f);
+                        path.AddBezier(9.8f, 20.7f, 9.168604f, 20.51047f, 8.563783f, 20.24166f, 8f, 19.9f);
+                        path.AddLine(8f, 19.9f, 5.8f, 21.1f);
+                        path.AddLine(5.8f, 21.1f, 3.6f, 18.9f);
+                        path.AddLine(3.6f, 18.9f, 4.8f, 16.7f);
+                        path.AddBezier(4.8f, 16.7f, 4.45834f, 16.136217f, 4.18953f, 15.531396f, 4f, 14.9f);
+                        path.AddLine(4f, 14.9f, 1.6f, 14.3f);
+                        path.AddLine(1.6f, 14.3f, 1.6f, 11.1f);
+                        path.AddLine(1.6f, 11.1f, 4f, 10.5f);
+                        path.AddBezier(4f, 10.5f, 4.18953f, 9.868604f, 4.45834f, 9.263783f, 4.8f, 8.7f);
+                        path.AddLine(4.8f, 8.7f, 4.6f, 6.5f);
+                        path.AddLine(4.6f, 6.5f, 6.8f, 4.3f);
+                        path.AddLine(6.8f, 4.3f, 9f, 5.5f);
+                        path.AddBezier(9f, 5.5f, 9.563783f, 5.15834f, 10.168604f, 4.88953f, 10.8f, 4.7f);
+                        path.CloseFigure();
+                        g.DrawPath(p, path);
+                    }
+                    g.DrawEllipse(p, 8.9f, 8.9f, 6.2f, 6.2f);
+                    break;
             }
         }
         finally { g.Restore(state); }
