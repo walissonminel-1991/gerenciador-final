@@ -110,15 +110,28 @@ internal static class V269ShellTests
             .OfType<TableLayoutPanel>().Single();
         // O runner Windows pode ter viewport menor que a dimensão solicitada
         // ao formulário. Exigir a escala correta para a largura REAL do shell.
+        int logicalWidth = shell.LayoutWindowWidth;
+        int expectedLeft = V269VisualTokens.Scale(
+            (logicalWidth <= 1040 ? 175 : logicalWidth <= 1250 ? 195 : 236) + 11, 110);
+        var mainLayout = shell.RightPane.Parent as TableLayoutPanel;
+        Check(columns.ColumnStyles[0].Width == expectedLeft &&
+            columns.ColumnStyles[2].Width == 0 && mainLayout is not null &&
+            !ReferenceEquals(mainLayout, columns) && shell.RightPane.Visible,
+            "Aplicativos deve manter painel integrado e sidebar na escala real do HTML.");
+        Check(logicalWidth <= 1040
+            ? mainLayout!.RowCount == 3 && mainLayout.GetRow(shell.RightPane) == 2
+            : mainLayout!.ColumnCount == 3 && mainLayout.GetColumn(shell.RightPane) == 2,
+            "Painel de Aplicativos precisa alternar entre posição inferior e lateral.");
+        // O contrato legado das outras abas permanece independente.
+        shell.SelectPage(V269Page.Drivers);
         int compactWidth = shell.ClientSize.Width < 1040 ? 166 : 210;
         int compactRight = shell.ClientSize.Width < 1040 ? 240 : 310;
-        int expectedLeft = V269VisualTokens.Scale(compactWidth, 110);
-        int expectedRight = V269VisualTokens.Scale(compactRight, 110);
-        Check(columns.ColumnStyles[0].Width == expectedLeft &&
-            columns.ColumnStyles[2].Width == expectedRight,
-            $"Escala precisa alterar as colunas na largura real. " +
-            $"shell={shell.ClientSize.Width}, esquerda={columns.ColumnStyles[0].Width}/{expectedLeft}, " +
-            $"direita={columns.ColumnStyles[2].Width}/{expectedRight}.");
+        Check(columns.ColumnStyles[0].Width == V269VisualTokens.Scale(compactWidth, 110) &&
+            columns.ColumnStyles[2].Width == V269VisualTokens.Scale(compactRight, 110) &&
+            ReferenceEquals(shell.RightPane.Parent, columns) &&
+            ReferenceEquals(shell.RightPane.Current, result),
+            "A geometria integrada de Aplicativos não pode modificar Drivers.");
+        shell.SelectPage(V269Page.Aplicativos);
 
         var progress = new V269PanelPresentation(V269PanelKind.Progress,
             "Em andamento", "Sem conclusão presumida.", 37);

@@ -781,7 +781,9 @@ internal sealed class V269Shell : UserControl
         }
         if(placement==1)
         {
-            int width=Math.Min(S(_appPaneWidth),Math.Max(S(170),(int)(_centralLayout.ClientSize.Width*.45)));
+            int sidebarCss=LayoutWindowWidth<=1250?195:236;
+            int available=Math.Max(1,ClientSize.Width-S(sidebarCss+11+18+26));
+            int width=Math.Min(S(_appPaneWidth),Math.Max(S(170),(int)(available*.45)));
             _centralLayout.ColumnStyles[1].Width=S(25);
             _centralLayout.ColumnStyles[2].Width=width;
             if(_appSplitter is not null)_appSplitter.ForeColor=V269VisualTokens.ForTheme(Theme).Border;
