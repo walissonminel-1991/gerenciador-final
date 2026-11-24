@@ -403,6 +403,10 @@ internal static class V269IntegrationTests
                     theme.SelectedIndex=index;surface.PerformLayout();Application.DoEvents();
                     Require(shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single().Visible,
                         "histórico operacional presente nos três temas");
+                    var description=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
+                    Require(description.Height<surface.Height/3,"descrição curta não ocupa espaço desnecessário");
+                    var heading=shell.RightPane.Controls.Find("V269AppFlowHeading",true).Single();
+                    Require(heading.Padding.Left>0&&heading.Padding.Bottom>0,"cabeçalho operacional reserva ícone e divisor");
                     if(phase=="CONFIRMACAO")
                     {
                         foreach(string name in new[]{"V269AcceptConfirmation","V269CancelConfirmation"})
@@ -412,6 +416,14 @@ internal static class V269IntegrationTests
                         }
                         var operationHost=(Control)typeof(V269RightPane).GetField("_operationContent",flags)!.GetValue(shell.RightPane)!;
                         Require(!operationHost.Visible,"autorização não exibe status residual de outra operação");
+                    }
+                    else
+                    {
+                        var cancel=form.Controls.Find("UninstallCancel",true).OfType<ModernButton>().Single();
+                        Require(cancel.Visible&&cancel.OutlineColor==V269AppDetailStyle.Palette((V269Theme)index).Border,
+                            "cancelamento operacional mantém botão real e contorno temático");
+                        var status=(Control)typeof(MainForm).GetField("_status",flags)!.GetValue(form)!;
+                        Require(!status.Visible,"progresso utiliza descrição corrente sem status duplicado");
                     }
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));

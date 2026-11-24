@@ -831,10 +831,12 @@ internal sealed partial class MainForm : Form
         _nav.SetPageContent(V269Page.Inicializacao, BuildV269StartupPage());
         _nav.SetPageContent(V269Page.Configuracoes, BuildV269Settings(startServices));
         _nav.SetOperationContent(BuildOperationsPanel());
+        _nav.RightPane.PresentationChanged+=(_,_)=>ApplyV269AppOperationChrome();
         _nav.RightPane.ConfigureAppHistory(()=>_v269AppPreviousResults.ToArray(),DismissV269AppResult);
         _nav.NavigationChanged += async (_, e) =>
         {
             ApplyHomeChrome();
+            ApplyV269AppOperationChrome();
             if(e.Page==V269Page.Aplicativos&&_programList.SelectedItem is {} app)PresentV269AppDetails(app);
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();

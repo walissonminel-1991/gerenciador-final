@@ -98,7 +98,7 @@ internal sealed class V269RightPane : UserControl
             Name = "V269RightContent",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 7,
             Margin = Padding.Empty,
             BackColor = SystemColors.Control
         };
@@ -110,6 +110,8 @@ internal sealed class V269RightPane : UserControl
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
 
+        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+        _appFlowHeading.Paint+=PaintAppFlowHeading;
         _title = new Label
         {
             Name = "V269PanelTitle", AccessibleName = "Título do painel", Dock = DockStyle.Fill,
@@ -161,6 +163,7 @@ internal sealed class V269RightPane : UserControl
         _operationContent = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         _layout.Controls.Add(_choices, 0, 3);
         _layout.Controls.Add(_operationContent, 0, 4);
+        _layout.Controls.Add(new Panel{Dock=DockStyle.Fill,Margin=Padding.Empty,TabStop=false},0,6);
         Controls.Add(_layout);
         Resize+=(_,_)=>{if(_structuredApp||_appFlow)Invalidate();FitOperationHistory();};
         Present(null);
@@ -170,9 +173,7 @@ internal sealed class V269RightPane : UserControl
     {
         _operationContent.Controls.Add(content);
         _hasOperationContent=true;
-        _layout.RowStyles[4].SizeType = SizeType.Percent;
-        _layout.RowStyles[4].Height = 55;
-        _layout.RowStyles[2].Height = 45;
+        UpdateOperationContentLayout();FitOperationHistory();
     }
 
     internal async Task<bool> ConfirmAsync(string title, string description, CancellationToken token)
@@ -261,6 +262,22 @@ internal sealed class V269RightPane : UserControl
                 int height=Math.Min(cap,preferred);
                 if(Math.Abs(_layout.RowStyles[5].Height-height)>.5f)_layout.RowStyles[5].Height=height;
             }
+            if(_appFlow)
+            {
+                int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
+                int available=Math.Max(1,_layout.ClientSize.Height-(int)(_layout.RowStyles[0].Height+
+                    _layout.RowStyles[1].Height+_layout.RowStyles[3].Height+_layout.RowStyles[5].Height));
+                bool executing=AppProgressChromeActive&&_hasOperationContent;
+                int minDescription=Math.Max(_description.Font.Height+S(8),S(26));
+                int reserve=executing?Math.Min(S(150),Math.Max(S(70),available/2)):0;
+                int measured=TextRenderer.MeasureText(_description.Text,_description.Font,
+                    new Size(Math.Max(1,_descriptionHost.ClientSize.Width-8),32767),
+                    TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height+S(10);
+                int description=Math.Min(Math.Max(minDescription,measured),Math.Max(1,available-reserve));
+                int operation=executing?Math.Max(0,Math.Min(reserve,available-description)):0;
+                if(Math.Abs(_layout.RowStyles[2].Height-description)>.5f)_layout.RowStyles[2].Height=description;
+                if(Math.Abs(_layout.RowStyles[4].Height-operation)>.5f)_layout.RowStyles[4].Height=operation;
+            }
             // A descrição curta não precisa de uma barra branca permanente.
             // Para textos maiores, preservar o controle real e a rolagem.
             var mode=ScrollBars.Vertical;
@@ -311,9 +328,46 @@ internal sealed class V269RightPane : UserControl
         bool show=!_structuredApp&&!(_appFlow&&Current?.Kind==V269PanelKind.Confirmation);
         _operationContent.Visible=show;
         bool reserve=show&&_hasOperationContent;
-        _layout.RowStyles[4].SizeType=reserve?SizeType.Percent:SizeType.Absolute;
-        _layout.RowStyles[4].Height=reserve?55:0;
-        _layout.RowStyles[2].Height=reserve?45:100;
+        _layout.RowStyles[2].SizeType=_appFlow?SizeType.Absolute:SizeType.Percent;
+        _layout.RowStyles[4].SizeType=reserve&&!_appFlow?SizeType.Percent:SizeType.Absolute;
+        _layout.RowStyles[6].SizeType=_appFlow?SizeType.Percent:SizeType.Absolute;
+        _layout.RowStyles[6].Height=_appFlow?100:0;
+        if(!_appFlow)
+        {
+            _layout.RowStyles[4].Height=reserve?55:0;
+            _layout.RowStyles[2].Height=reserve?45:100;
+        }
+        else FitOperationHistory();
+    }
+
+    internal bool AppProgressChromeActive=>_appFlow&&Current?.Kind==V269PanelKind.Progress;
+
+    private void PaintAppFlowHeading(object? sender,PaintEventArgs e)
+    {
+        if(!_appFlow||_appFlowHeading.Width<2)return;
+        int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
+        int n=S(20),x=S(2),y=Math.Max(0,(_appFlowHeading.Height-S(9)-n)/2);
+        bool confirmation=Current?.Kind==V269PanelKind.Confirmation;
+        var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
+        string color=confirmation?(_appPaneTheme==V269Theme.Claro?"#28884d":"#74bb77"):
+            (_appPaneTheme==V269Theme.Claro?"#14649e":"#54b8e2");
+        using var pen=new Pen(V269AppTable.H(color),Math.Max(1f,S(2)))
+            {StartCap=LineCap.Round,EndCap=LineCap.Round,LineJoin=LineJoin.Round};
+        if(confirmation)
+        {
+            g.DrawPolygon(pen,new Point[]{new(x+n/2,y),new(x+n-2,y+n/5),new(x+n-3,y+3*n/5),
+                new(x+n/2,y+n-1),new(x+3,y+3*n/5),new(x+2,y+n/5)});
+            g.DrawLines(pen,new Point[]{new(x+n/3,y+n/2),new(x+n/2,y+2*n/3),new(x+3*n/4,y+n/3)});
+        }
+        else
+        {
+            g.DrawArc(pen,new Rectangle(x+2,y+2,Math.Max(2,n-4),Math.Max(2,n-4)),30,140);
+            g.DrawArc(pen,new Rectangle(x+2,y+2,Math.Max(2,n-4),Math.Max(2,n-4)),210,140);
+            g.DrawLines(pen,new Point[]{new(x+2,y+2),new(x+2,y+n/2),new(x+n/2,y+n/2)});
+            g.DrawLines(pen,new Point[]{new(x+n-2,y+n-2),new(x+n-2,y+n/2),new(x+n/2,y+n/2)});
+        }
+        using var line=new Pen(V269AppDetailStyle.Divider(_appPaneTheme));
+        g.DrawLine(line,0,_appFlowHeading.Height-S(5),_appFlowHeading.Width-1,_appFlowHeading.Height-S(5));
     }
 
     internal void ApplyPalette(V269Palette palette)
@@ -357,8 +411,10 @@ internal sealed class V269RightPane : UserControl
         _titleHost.Padding=Padding.Empty;
         if(_appFlow)
         {
-            int height=Math.Max(V269AppTable.Scale(24,_appInterfacePercent,DeviceDpi),_appFlowHeading.Font.Height+3);
-            _appFlowHeading.Height=height;
+            int F(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
+            int height=Math.Max(F(42),_appFlowHeading.Font.Height+F(15));
+            _appFlowHeading.Padding=new Padding(F(29),0,0,F(9));
+            _appFlowHeading.Height=height;_appFlowHeading.Invalidate();
             _appFlowState.Font=_applicationDetails.Font;
             _appFlowState.ApplyState(Current?.Kind==V269PanelKind.Confirmation,Current?.ProgressPercent,
                 _appPaneTheme,_appInterfacePercent);

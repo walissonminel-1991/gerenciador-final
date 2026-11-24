@@ -1121,7 +1121,44 @@ internal sealed partial class MainForm
             else if (original.Foreground == Muted) root.ForeColor = palette.SecondaryText;
         }
         foreach (Control child in root.Controls) ApplyV269ContentAppearance(child);
+        if(root==_log.Parent)ApplyV269AppOperationChrome();
         root.Invalidate();
+    }
+
+    private bool _v269AppOperationChrome;
+    private void ApplyV269AppOperationChrome()
+    {
+        if(_log.Parent is not TableLayoutPanel root||_status.Parent is not TableLayoutPanel top||
+            uninstallCancel is not ModernButton cancel||_nav is null)return;
+        bool active=_nav.RightPane.AppProgressChromeActive;
+        if(!active&&!_v269AppOperationChrome)return;
+        _v269AppOperationChrome=active;
+        var palette=active?V269AppDetailStyle.Palette(_v269Appearance.Theme):V269Palette;
+        int S(int n)=>V269AppTable.Scale(n,_v269Appearance.InterfacePercent,root.DeviceDpi);
+        root.SuspendLayout();top.SuspendLayout();
+        try
+        {
+            root.BackColor=active?palette.RightPanel:palette.Content;
+            top.BackColor=Color.Empty;
+            // A descrição corrente já contém o estado publicado por Status; o log real permanece acessível.
+            _status.Visible=!active;
+            root.RowStyles[0].Height=active?Math.Max(S(36),cancel.Font.Height+S(12)):60;
+            top.RowStyles[0].Height=active?100:55;top.RowStyles[1].Height=active?0:45;
+            top.SetColumn(cancel,active?0:3);
+            if(active)
+            {
+                cancel.Dock=DockStyle.None;cancel.Anchor=AnchorStyles.Left|AnchorStyles.Top;
+                cancel.Size=new Size(Math.Max(S(100),TextRenderer.MeasureText(cancel.Text,cancel.Font).Width+S(24)),
+                    Math.Max(S(32),cancel.Font.Height+S(10)));
+            }
+            else cancel.Dock=DockStyle.Fill;
+            cancel.BackColor=palette.Card;cancel.ForeColor=palette.Text;
+            cancel.OutlineColor=active?palette.Border:Color.Transparent;
+            // O registro técnico original permanece no mesmo controle, com o mesmo conteúdo e rolagem.
+            _log.BackColor=active?palette.RightPanel:palette.Content;
+            cancel.Invalidate();_log.Invalidate();
+        }
+        finally{top.ResumeLayout(true);root.ResumeLayout(true);}
     }
 
     private void PresentV269History()
