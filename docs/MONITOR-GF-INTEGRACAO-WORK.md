@@ -4,7 +4,7 @@
 PR Draft #114, branch ui/v269-monitor-gf-barras-dinamicas-20261124. Este documento prepara a integração futura; não é autorização para merge, release, ZIP ou execução física. O WORK deve receber o HEAD final aprovado das PRs #106, #113 e #114 e resolver conflitos por ancestralidade. Não substituir arquivos completos da outra frente. A unificação e a homologação física ficam por último, exclusivamente com o WORK.
 
 ## Componentes
-- GfMonitorHost: proprietário da janela e do relay; uma instância por MainForm, na thread WinForms.
+- GfMonitorHost: proprietário da janela e do relay na thread WinForms; a integração deve coordenar uma instância efetiva por sessão, inclusive no modo autônomo solicitado pelo proprietário.
 - GfMonitorSnapshotRelay / GfMonitorWindowBinding: entrega/replay, geração e descarte.
 - GfResourceMonitorAdapter / GfMonitorMetricTimes: projeção sem coleta, validade individual dos sensores e identidade DXGI.
 - GfThermalEvidence / GfThermalPresentation: pares nativos comprovados, aviso/máximo, histerese, ausência honesta.
@@ -13,7 +13,7 @@ PR Draft #114, branch ui/v269-monitor-gf-barras-dinamicas-20261124. Este documen
 
 ## Sequência do host, sem segundo coletor
 1. Construir GfMonitorHost com caminho local exclusivo monitor.json em diretório de configuração já existente e autorizado. O construtor somente carrega preferências, não abre janela.
-2. Na thread de UI, Configure(theme, animationsEnabled) com a aparência já aplicada pelo shell. Restore(DateTimeOffset.UtcNow) somente quando o shell tiver concluído a inicialização e estiver autorizado a restaurar a preferência.
+2. Na thread de UI, Configure(theme, animationsEnabled) com o tema próprio do monitor, conforme a revisão de Configurações abaixo, sem herdar alterações do tema do shell. Restore(DateTimeOffset.UtcNow) somente quando o shell tiver concluído a inicialização e estiver autorizado a restaurar a preferência.
 3. Usar BeginGeneration(WddmGpuKey? selected) para o produtor atual e guardar o long retornado. Seleção explícita ou identidade física inequívoca; não escolher GPU 0, nome, índice DXGI isolado ou primeiro adaptador. Sem identificação inequívoca, usar null e manter CPU/RAM.
 4. Reutilizar o timer, _v269Monitor, cache e SemaphoreSlim do coletor da PR #113. Separar os gates de segurança/encerramento do requisito de visibilidade de Início. O predicado WantsCollection(homeDemand, collectionAllowed) acrescenta demanda do Monitor GF visível, sem contornar gates. Não converter o portfólio completo WMI em consulta periódica; manter coleta leve 2 s e GPU 8 s conforme já existente. Para ativação fora de Início sem cache inicial, usar a rotina única autorizada do produtor, nunca um coletor do monitor.
 5. Após obter um snapshot e verificar cancelamento, geração, estado de encerramento e autorização, publicar na thread UI com Publish(generation, portfolio, DateTimeOffset.UtcNow, evidence). A UI deve publicar o portfólio composto atual, inclusive snapshots parciais de falha, não uma versão antiga que sobrescreva outro produtor. Não reatribuir CapturedAtUtc de fontes antigas. Manter a atualização de Início e o relay usando os mesmos dados; não invocar eventos de apresentação dentro da trava de coleta.
@@ -26,18 +26,33 @@ Na página Configurações, criar uma aba interna **Monitor** imediatamente à d
 
 Reutilizar a identidade visual existente da PR #113 (V269SettingsPage, V269GeneralSettingsPanel, V269SettingsSwitch, V269SettingsRange, tokens, fontes, margens e escala de interface/texto). Não reproduzir os controles genéricos de checkbox do painel isolado como aparência final: conectar as preferências do GfMonitorSettingsPanel/host aos mesmos switches e slider usados por Configurações. Manter rótulos à esquerda e switches à direita, divisórias discretas entre linhas, sem tooltips, legendas ou botões Aplicar/Salvar redundantes.
 
-Opções reais, vinculadas a GfResourceMonitorPreferences:
-| Rótulo | Campo | Padrão |
+### Opções obrigatórias — revisão do proprietário
+| Controle | Comportamento | Situação no código isolado |
 | --- | --- | --- |
-| Ativar Monitor GF | Enabled | Desligado |
-| Restaurar no modo expandido | Expanded | Desligado (compacto) |
-| Sempre no topo | AlwaysOnTop | Desligado |
-| Encaixar nas bordas | SnapToEdges | Ligado |
-| Opacidade | OpacityPercent | 100%; intervalo 40–100% |
+| Ativar Monitor GF | Mostrar/fechar monitor; desligado por padrão | Enabled existente |
+| Fixar | Manter acima das outras janelas; não confundir com encaixe ou bloqueio de posição | AlwaysOnTop existente |
+| Redimensionar | Escala exclusiva do monitor, preservando proporções e os dois modos; persistir tamanho e ajustar à área útil/DPI | Novo requisito |
+| Transparência | Ajuste de opacidade exclusivo do monitor, 40–100% de opacidade (0–60% de transparência) | OpacityPercent existente |
+| Iniciar com o Windows | Inicialização somente do monitor, independente da inicialização da janela principal do GF | Novo requisito |
+| Tema do Monitor | Clássico, Claro ou Dark; persistir escolha própria, não herdar alterações do tema do GF | Novo requisito |
+| Restaurar no modo expandido | Preferência já existente para compacto/expandido | Expanded existente |
+| Encaixar nas bordas | Preferência já existente; não equivale a Fixar | SnapToEdges existente |
 
-A abertura/fechamento do monitor ocorre somente por habilitação explícita ou restauração de preferência já salva pelo host; selecionar a aba não inicia coleta nem habilita o monitor. Hidratar a apresentação a partir de host.Preferences(), sem disparar eventos de ação; conservar X/Y atuais ao editar. Passar alterações reais ao host.Apply e sincronizar após mudança de modo/fechamento manual. Integrar o slider ao mecanismo de gravação/debounce, evitando gravação em cada deslocamento, sem simular persistência. Tratar falha de gravação conforme contrato do host. O WORK deve executar a integração em V269SettingsPage e MainForm na branch única; não alterar essas classes isoladamente na PR #114.
+Os controles anteriores permanecem disponíveis, sem duplicar ações nem misturar preferências do monitor com Aparência do GF. Fixar interpreta-se como manter acima de outras janelas, sem impedir mover; redimensionar deve ser proporcional e não um redimensionamento que deforme as barras. Usar como ponto de partida o Clássico equivalente ao visual Azul GF já aprovado (decisão de interpretação, sujeita à confirmação visual do proprietário); não criar uma quarta paleta ou mudar as cores aprovadas sem autorização. A faixa de redimensionamento ainda não foi definida pelo proprietário: WORK deve validar limites que preservem legibilidade e encaixe, sem apresentar valores arbitrários como aprovados. Tema da página Configurações continua seguindo o GF; tema escolhido afeta exclusivamente a janela flutuante.
 
-Aceite dirigido: alternar Geral/Monitor por mouse e teclado, verificar seleção, cinco controles e estados reais, persistência, sincronização após fechar/reabrir o monitor, Geral e Aparência preservados, três temas, escalas e 1440×900/2560×1440; sem rolagem adicional quando o conteúdo cabe. A aba Monitor não é uma nova aba principal. Esta decisão substitui a instrução anterior de inserir o painel em Geral.
+### Inicialização independente — implementação real, exclusiva do WORK
+- Usar a mesma distribuição/EXE com modo explícito de inicialização somente do monitor (argumento de linha de comando proposto: --monitor). O modo não deve abrir, construir em segredo ou esconder a MainForm nem disparar atualização, manutenção, UAC ou coleta de telemetria. O nome exato do argumento é escolha de implementação, não interface já existente.
+- Criar/retirar entrada de inicialização por usuário exclusiva do monitor somente por ação explícita no respectivo controle. Reutilizar o mecanismo de inicialização por usuário já existente, com identidade própria e comando verificado. Nunca alterar a entrada de início do GF. Não instalar serviço, tarefa elevada, novo executável ou dependência. Consultar/reler o estado real, tratar erro sem indicar sucesso fictício, e manter ambos os controles independentes.
+- Quatro combinações obrigatórias ao iniciar sessão: ambos desligados = nenhum; só GF = janela principal, respeitando habilitação/restauração explícita de monitor na sessão do GF; só Monitor = apenas janela flutuante, sem janela principal; ambos ligados = janela principal e um único monitor. Não habilitar monitor ou inicialização automaticamente em migrações.
+- O modo autônomo precisa do mesmo motor consultivo e de um único produtor por usuário/sessão. Se o GF for aberto enquanto o monitor estiver ativo, coordenar instâncias e compartilhar o produtor ou transferir sua responsabilidade com exclusão mútua e cancelamento comprovado; nunca duplicar coleta nem criar duas janelas. Encerrar o GF não encerra indevidamente o monitor autônomo; fechar o monitor deve liberar a coleta quando não houver consumidor. A opção de iniciar com Windows é distinta da visibilidade atual. Não usar serviço ou rede para coordenar instâncias.
+- O WORK deverá reconciliar Program.cs, shell e ciclo de vida na branch única. Nenhuma alteração isolada de MainForm, mecanismo de startup existente ou PR #113/#106 é autorizada por este documento. A implementação atual de GfMonitorHost não contém esse modo autônomo nem a coordenação entre processos; os itens acima não são funções já homologadas.
+
+### Preferências, escala e tema
+Estender de forma compatível o esquema local do monitor para tema próprio, tamanho e preferência de inicialização quando pertinente; manter validação estrita, defaults seguros e migração das preferências antigas sem perda de posição, opacidade e estado. Nunca persistir identidade de hardware. Em startup, a fonte efetiva da entrada de inicialização é o mecanismo do Windows, não um booleano JSON isolado. Desacoplar Configure(theme, animate) do tema global: aplicar apenas tema escolhido para o monitor e não alterar a aparência da MainForm. A escala própria não altera a escala da interface do GF. Aplicar e persistir somente após ação real, respeitar DPI e múltiplos monitores, corrigir posição e garantir contraste, ausência de truncamento e geometria das seis barras. Manter dimensões de referência a 100%: 552 × 38 compacto e 552 × 186 expandido, sem legenda.
+
+A abertura/fechamento do monitor ocorre somente por ação explícita ou restauração autorizada de preferência salva. Selecionar a aba não inicia coleta. Hidratar a apresentação a partir de host.Preferences(), sem disparar eventos; conservar X/Y atuais ao editar. Integrar sliders ao mecanismo de gravação/debounce. Sincronizar após alteração, fechamento manual ou mudança de modo. Não indicar persistência ou startup concluído sem comprovação.
+
+Aceite dirigido: alternar Geral/Monitor por mouse/teclado; validar controles e estados reais, persistência, todas as combinações de startup e coordenação de instâncias; trocar tema do GF sem mudar tema do monitor e vice-versa; escala e opacidade próprias, DPI e resoluções 1440×900/2560×1440, ausência de legenda e Geral/Aparência preservados. Testes de startup devem usar fixtures isoladas, sem registrar inicialização real no runner. Homologação física e integração final somente pelo WORK. Esta revisão substitui a lista de cinco opções anterior; os novos requisitos não constituem implementação já homologada.
 
 ## Evidência térmica
 A saída D3DKMT da PR #106 ainda não fornece o par TemperatureWarning e TemperatureMax; não fabricar capacidade por nome, família ou temperatura genérica. Quando o contrato real existir, construir GfThermalEvidence.FromD3dKmt apenas com consulta de capacidades bem-sucedida, mesma chave física, mesma geração, valores nativos em décimos de °C e instante de capacidades associado ao sensor. Sem par válido, omitir evidence. Não descartar uma leitura medida somente por ultrapassar máximo reportado; reconciliar com as regras de validade do provedor. A escala de referência sem limites não equivale a diagnóstico. Temperaturas CPU também dependem de sensor comprovado. Nenhuma mudança em #106 é feita por este documento.
