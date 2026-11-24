@@ -126,8 +126,95 @@ internal static class V269IntegrationTests
         Require(editor is not null && editor.BackColor.GetBrightness() > editor.ForeColor.GetBrightness() &&
             shell.RightPane.Current?.Description == "Resultado preservado",
             "tema Claro preserva contraste do registro e o resultado publicado");
+        VerifySettings(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifySettings(MainForm form,V269Shell shell)
+    {
+        var page=shell.PageContent(V269Page.Configuracoes) as V269SettingsPage
+            ?? throw new InvalidOperationException("Configurações não usa a view nativa.");
+        var general=page.General;
+        // Dados isolados de teste; nenhum Registro do Windows, telemetria,
+        // preferência real ou ação administrativa é alterado.
+        string folder=Path.Combine(Path.GetTempPath(),"GF-config-test-"+Guid.NewGuid().ToString("N"));
+        string path=Path.Combine(folder,"geral.json");
+        try
+        {
+            Require(V269GeneralSettingsStore.Read(path)==new V269GeneralOptions(),
+                "preferências gerais ausentes retornam padrão seguro");
+            var expected=new V269GeneralOptions(false,false);
+            V269GeneralSettingsStore.Write(path,expected);
+            Require(V269GeneralSettingsStore.Read(path)==expected &&
+                Directory.GetFiles(folder).Length==1,"preferências persistem atomicamente em cópia descartável");
+            V269GeneralSettingsStore.Write(path,new V269GeneralOptions());
+            Require(V269GeneralSettingsStore.Read(path)==new V269GeneralOptions(),
+                "preferências de bandeja/notificação são reversíveis");
+            File.WriteAllText(path,"{");
+            Require(V269GeneralSettingsStore.Read(path)==new V269GeneralOptions(),"JSON inválido retorna padrão");
+        }
+        finally{if(Directory.Exists(folder))Directory.Delete(folder,true);}
+        general.SetObserved(false,null,new V269GeneralOptions(false,true),TelemetryConsent.Declined,true);
+        Require(!general.StartWindows.Enabled&&!general.StartWindows.Checked &&
+            !general.Notifications.Checked&&general.Tray.Checked&&!general.Collect.Checked,
+            "estado desconhecido de inicialização falha fechado; seletores usam estados observados");
+        general.SetObserved(true,true,new V269GeneralOptions(),TelemetryConsent.RemoteBeta,true);
+        Require(general.Administrator.Checked&&general.StartWindows.Checked&&general.Collect.Checked,
+            "estado administrativo e consentimento provêm da fotografia efetiva");
+        Require(!general.Collect.AutoCheck&&!general.StartWindows.AutoCheck&&!general.Notifications.AutoCheck,
+            "ações não alteram estado por otimismo antes do motor");
+        var originalPanel=shell.RightPane.Current;
+        shell.PresentPanel(null);
+        var surface=form.Controls.OfType<TableLayoutPanel>().Single();
+        Size originalSize=surface.Size;
+        var old=page.Appearance.GetOptions();
+        var themeChoice=page.Appearance.Controls.Find("V269ThemeChoice",true).OfType<ComboBox>().Single();
+        try
+        {
+            foreach(var size in new[]{new Size(760,596),new Size(992,659)})
+            {
+                surface.Size=size;
+                foreach(var theme in Enum.GetValues<V269Theme>())
+                {
+                    themeChoice.SelectedIndex=(int)theme;
+                    page.ApplyAppearance(new V269AppearanceOptions(theme,100,100,true));
+                    general.SetObserved(false,false,new V269GeneralOptions(),TelemetryConsent.Declined,true);
+                    page.ScrollTo(0);
+                    surface.PerformLayout();page.PerformLayout();Application.DoEvents();
+                    Require(page.General.Width>0&&page.General.Height>0&&
+                        page.Appearance.Top>page.General.Bottom&&page.ContentHeight>page.Appearance.Bottom,
+                        "Geral e Aparência em cartões sem sobreposição");
+                    var origin=surface.PointToScreen(Point.Empty);
+                    var geom=new{Theme=theme.ToString(),Width=surface.Width,Height=surface.Height,Dpi=page.DeviceDpi,
+                        WorkAreaHeight=Screen.FromControl(page).WorkingArea.Height,
+                        Cards=new[]{(Control)page.General,page.Appearance}.Select(card=>{
+                            var p=card.PointToScreen(Point.Empty);return new{card.Name,X=p.X-origin.X,Y=p.Y-origin.Y,card.Width,card.Height};}).ToArray()};
+                    Console.WriteLine("V269-SETTINGS-GEOMETRY "+System.Text.Json.JsonSerializer.Serialize(geom));
+                    using(var shot=new Bitmap(surface.Width,surface.Height))
+                    {
+                        surface.DrawToBitmap(shot,new Rectangle(Point.Empty,surface.Size));
+                        shot.Save($"LayoutCaptures/v269-configuracoes-REFERENCIA-SINTETICA-{theme}-{size.Width}x{size.Height}.png");
+                    }
+                    Require(general.History.Focus(),"histórico acessível pelo teclado");
+                    Application.DoEvents();
+                    Require(LayoutTests.FullyVisible(general.History),"foco revela histórico no viewport");
+                    page.ScrollTo(int.MaxValue);
+                    Require(page.ScrollOffset==Math.Max(0,page.ContentHeight-page.ClientSize.Height),"rolagem alcança rodapé");
+                    using(var shot=new Bitmap(surface.Width,surface.Height))
+                    {
+                        surface.DrawToBitmap(shot,new Rectangle(Point.Empty,surface.Size));
+                        shot.Save($"LayoutCaptures/v269-configuracoes-RODAPE-SINTETICO-{theme}-{size.Width}x{size.Height}.png");
+                    }
+                }
+            }
+        }
+        finally
+        {
+            surface.Size=originalSize;themeChoice.SelectedIndex=(int)old.Theme;page.ScrollTo(0);
+            shell.PresentPanel(originalPanel);surface.PerformLayout();Application.DoEvents();
+        }
+        Console.WriteLine("PASS Configurações V2.6.9: preferências descartáveis, estados observados, três temas, rolagem e capturas.");
     }
 
     private static HardwareSensorPortfolio VerifyHome(MainForm form, Control view)

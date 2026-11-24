@@ -183,6 +183,7 @@ internal sealed partial class MainForm
 {
     private void RefreshPrivacyStatus()
     {
+        RefreshV269General();
 #if !GF_BETA
         if (_privacyStatusButton is null || _privacyStatusButton.IsDisposed) return;
         var state = AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked;

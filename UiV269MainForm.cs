@@ -911,8 +911,19 @@ internal sealed partial class MainForm
         // Nunca substituir um resultado de manutenção não dispensado.
         if(_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
         {
-            using var dialog=CreateV269HardwareDetailsDialog(description);
-            dialog.Name="V269SettingsInformation";dialog.Text=title;dialog.ShowDialog(this);return;
+            using var dialog=new Form
+            {
+                Name="V269SettingsInformation",Text=title,Size=new Size(690,500),
+                MinimumSize=new Size(380,270),StartPosition=FormStartPosition.CenterParent,
+                ShowInTaskbar=false,MinimizeBox=false,MaximizeBox=false,
+                BackColor=V269Palette.Content,ForeColor=V269Palette.Text
+            };
+            var text=new TextBox{Name="V269SettingsInformationText",AccessibleName=title,
+                Dock=DockStyle.Fill,ReadOnly=true,Multiline=true,WordWrap=true,ScrollBars=ScrollBars.Vertical,
+                BackColor=V269Palette.Card,ForeColor=V269Palette.Text,Text=description};
+            var close=new Button{Text="Fechar",Dock=DockStyle.Bottom,Height=34,DialogResult=DialogResult.Cancel};
+            dialog.Controls.Add(text);dialog.Controls.Add(close);dialog.CancelButton=close;
+            dialog.ShowDialog(this);return;
         }
         PresentV269Details(title,description);
         if(!_nav.RightPane.Visible)

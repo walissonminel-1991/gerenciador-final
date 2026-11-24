@@ -252,7 +252,7 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
                 else if(action is Button button)
                 {
                     int w=TextRenderer.MeasureText(button.Text,button.Font).Width+S(37);
-                    action.Size=new Size(Math.Max(S(94),w),S(30));
+                    action.Size=new Size(Math.Min(Math.Max(S(94),w),Math.Max(S(40),rowRight-copyX)),S(30));
                     button.BackColor=Options.Theme switch {V269Theme.Dark=>H("#353a40"),V269Theme.Claro=>H("#e2f0fb"),_=>H("#102b41")};
                     button.ForeColor=Ink;
                     button.FlatAppearance.BorderColor=Options.Theme switch {V269Theme.Dark=>H("#737c85"),V269Theme.Claro=>H("#8eafc7"),_=>H("#3d5a70")};
@@ -341,7 +341,8 @@ internal sealed class V269SettingsPage : Panel
     private V269AppearanceOptions _options=V269AppearanceOptions.Default;
     private int _scroll,_height,_wheel;
     private bool _arranging;
-    private Font? _hintFont;
+    private readonly Dictionary<int,Font> _hintFonts=new();
+    private Button? _paneToggle;
     internal V269SettingsPage()
     {
         Name="V269SettingsPage";AccessibleName="Configurações gerais e aparência";
@@ -364,6 +365,18 @@ internal sealed class V269SettingsPage : Panel
         var r=RectangleToClient(child.RectangleToScreen(child.ClientRectangle));
         ScrollTo(_scroll+(r.Bottom>Height?r.Bottom-Height:r.Top<0?r.Top:0));
     }
+    internal void AttachPaneToggle(Button button)
+    {
+        if(_paneToggle==button)return;
+        _paneToggle=button;button.AutoSize=false;button.Dock=DockStyle.None;button.Margin=Padding.Empty;
+        Controls.Add(button);button.GotFocus+=PaneFocus;Arrange();
+    }
+    internal void DetachPaneToggle(Button button)
+    {
+        if(_paneToggle!=button)return;
+        button.GotFocus-=PaneFocus;Controls.Remove(button);_paneToggle=null;Arrange();
+    }
+    private void PaneFocus(object? sender,EventArgs e){if(sender is Control c)Reveal(c);}
     internal int ContentHeight=>_height;
     internal int ScrollOffset=>_scroll;
     internal void ScrollTo(int offset)
@@ -376,8 +389,9 @@ internal sealed class V269SettingsPage : Panel
     {
         _options=options.Normalize(); General.ApplyOptions(_options); Appearance.ApplyOptions(_options);
         _hint.ForeColor=V269VisualTokens.ForTheme(_options.Theme).SecondaryText;
-        Font f=new("Segoe UI",7.5f*_options.TextPercent/100f);
-        var old=_hintFont;_hint.Font=_hintFont=f;old?.Dispose();
+        if(!_hintFonts.TryGetValue(_options.TextPercent,out var f))
+            _hintFonts[_options.TextPercent]=f=new Font("Segoe UI",7.5f*_options.TextPercent/100f);
+        _hint.Font=f;
         Arrange();
     }
     protected override void OnLayout(LayoutEventArgs e){base.OnLayout(e);Arrange();}
@@ -411,14 +425,21 @@ internal sealed class V269SettingsPage : Panel
             int w=Math.Max(1,ClientSize.Width-S(2)),gap=S(7);
             int gh=General.ArrangeCard(w),ah=Appearance.ArrangeCard(w);
             int hh=Math.Max(S(24),TextRenderer.MeasureText(_hint.Text,_hint.Font,new Size(w,1000),TextFormatFlags.WordBreak).Height);
-            _height=gh+gap+ah+gap+hh;
+            int footerHeight=_paneToggle is null?0:S(34)+gap;
+            _height=gh+gap+ah+gap+hh+footerHeight;
             _scroll=Math.Clamp(_scroll,0,Math.Max(0,_height-ClientSize.Height));
             General.Bounds=new Rectangle(0,-_scroll,w,gh);
             Appearance.Bounds=new Rectangle(0,gh+gap-_scroll,w,ah);
             _hint.Bounds=new Rectangle(0,gh+gap+ah+gap-_scroll,w,hh);
+            if(_paneToggle is{} toggle)
+                toggle.Bounds=new Rectangle(0,gh+gap+ah+gap+hh+gap-_scroll,Math.Min(w,S(140)),S(34));
             General.Invalidate();Appearance.Invalidate();
         }
         finally{_arranging=false;}
     }
-    protected override void Dispose(bool disposing){base.Dispose(disposing);if(disposing)_hintFont?.Dispose();}
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if(disposing){foreach(var font in _hintFonts.Values)font.Dispose();_hintFonts.Clear();}
+    }
 }

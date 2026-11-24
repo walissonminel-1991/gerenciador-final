@@ -566,11 +566,16 @@ internal sealed class V269Shell : UserControl
                 _movingHomeToggle = true;
                 try
                 {
-                    if (home && PageContent(V269Page.Inicio) is V269HomeDashboard dashboardView)
+                    if (toggle.Parent?.Parent is V269HomeDashboard oldHome && SelectedPage != V269Page.Inicio)
+                        oldHome.DetachPaneToggle(toggle);
+                    if (toggle.Parent is V269SettingsPage oldSettings && SelectedPage != V269Page.Configuracoes)
+                        oldSettings.DetachPaneToggle(toggle);
+                    if (SelectedPage == V269Page.Inicio && PageContent(V269Page.Inicio) is V269HomeDashboard dashboardView)
                         dashboardView.AttachPaneToggle(toggle);
+                    else if (SelectedPage == V269Page.Configuracoes && PageContent(V269Page.Configuracoes) is V269SettingsPage settingsView)
+                        settingsView.AttachPaneToggle(toggle);
                     else if (toggle.Parent != _navigationLayout)
                     {
-                        if (toggle.Parent?.Parent is V269HomeDashboard oldHome) oldHome.DetachPaneToggle(toggle);
                         toggle.AutoSize = false;
                         toggle.MinimumSize = Size.Empty;
                         toggle.Dock = DockStyle.Top;
