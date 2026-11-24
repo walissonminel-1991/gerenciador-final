@@ -201,7 +201,7 @@ internal sealed class V269Shell : UserControl
 {
     private static readonly (V269Page Page, string Title, string Subtitle)[] Pages =
     [
-        (V269Page.Inicio, "Início", "Informações deste computador"),
+        (V269Page.Inicio, "Início", "Informações gerais do sistema e do hardware."),
         (V269Page.Aplicativos, "Aplicativos", "Programas instalados e ações elegíveis"),
         (V269Page.Drivers, "Drivers", "Dispositivos e drivers"),
         (V269Page.Limpeza, "Limpeza e Desempenho", "Prévia e manutenção controlada"),
@@ -222,7 +222,11 @@ internal sealed class V269Shell : UserControl
     private readonly Panel _content;
     private readonly Label _pageTitle;
     private readonly Label _pageSubtitle;
+    private readonly Control _homeGlyph;
+    private readonly TableLayoutPanel _centralLayout;
+    private readonly TableLayoutPanel _headingLayout;
     private readonly V269RightPane _rightPane;
+    private bool _homeGeometry;
 
     internal event EventHandler<V269NavigationEventArgs>? NavigationChanged;
     internal V269Theme Theme { get; private set; } = V269Theme.AzulGf;
@@ -315,6 +319,7 @@ internal sealed class V269Shell : UserControl
             ColumnCount = 1, RowCount = 2,
             Margin = Padding.Empty, Padding = new Padding(13, 8, 13, 10)
         };
+        _centralLayout = central;
         central.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         central.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
         central.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -322,8 +327,10 @@ internal sealed class V269Shell : UserControl
         var heading = new TableLayoutPanel
         {
             Name = "V269Heading", Dock = DockStyle.Fill,
-            ColumnCount = 1, RowCount = 2, Margin = Padding.Empty
+            ColumnCount = 2, RowCount = 2, Margin = Padding.Empty
         };
+        _headingLayout = heading;
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         heading.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
         heading.RowStyles.Add(new RowStyle(SizeType.Percent, 40));
@@ -339,8 +346,12 @@ internal sealed class V269Shell : UserControl
             TextAlign = ContentAlignment.TopLeft, AutoEllipsis = true,
             Margin = Padding.Empty
         };
-        heading.Controls.Add(_pageTitle, 0, 0);
-        heading.Controls.Add(_pageSubtitle, 0, 1);
+        _homeGlyph = new V269HomeHeadingIcon { Name = "V269HomeHeadingIcon", Dock = DockStyle.Fill,
+            Margin = Padding.Empty, Visible = false, AccessibleRole = AccessibleRole.Graphic };
+        heading.Controls.Add(_homeGlyph, 0, 0);
+        heading.SetRowSpan(_homeGlyph, 2);
+        heading.Controls.Add(_pageTitle, 1, 0);
+        heading.Controls.Add(_pageSubtitle, 1, 1);
         _bodyHost = new Panel
         {
             Name = "V269BodyHost", Dock = DockStyle.Fill,
@@ -433,6 +444,10 @@ internal sealed class V269Shell : UserControl
         _rightPane.ApplyPalette(palette);
         _pageTitle.ForeColor = palette.Text;
         _pageSubtitle.ForeColor = palette.SecondaryText;
+        _homeGlyph.ForeColor = Theme switch {
+            V269Theme.Dark => ColorTranslator.FromHtml("#96b4cc"),
+            V269Theme.Claro => ColorTranslator.FromHtml("#2b79a8"),
+            _ => ColorTranslator.FromHtml("#69bfe0") };
         ApplyFonts();
         ApplyNavigationSelection(palette);
         ApplyDimensions();
@@ -452,11 +467,11 @@ internal sealed class V269Shell : UserControl
             return value;
         }
         Font = NewFont(9.5f);
-        _pageTitle.Font = NewFont(17f, FontStyle.Bold);
+        _pageTitle.Font = NewFont(_homeGeometry ? 18f : 17f, FontStyle.Bold);
         _pageSubtitle.Font = NewFont(9f);
         _rightPane.SetFonts(NewFont(12f, FontStyle.Bold), NewFont(9.5f));
         foreach (var navButton in _navigation.Values)
-            navButton.Font = NewFont(10f);
+            navButton.Font = NewFont(_homeGeometry ? 9f : 10f);
         foreach (var old in previous) old.Dispose();
     }
 
@@ -464,7 +479,20 @@ internal sealed class V269Shell : UserControl
     {
         if (_columns is null || _navigationLayout is null) return;
         int width = Math.Max(1, ClientSize.Width);
-        // São dimensões preliminares: a homologação completa de DPI virá ao final.
+        bool home = SelectedPage == V269Page.Inicio;
+        int windowWidth = (int)Math.Round((FindForm()?.ClientSize.Width ?? width) * 96d / DeviceDpi);
+        // Início usa os breakpoints do CSS congelado, medidos pela janela.
+        int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
+        if (_homeGeometry != home)
+        {
+            _homeGeometry = home;
+            _appliedTextScale = 0;
+            ApplyFonts();
+        }
+        _homeGlyph.Visible = home;
+        _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
+        _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 54 : 65) : 70;
+        // As demais abas conservam as dimensões existentes nesta frente.
         int sidebar = V269VisualTokens.Scale(width < 1040 ? 166 : 210, InterfaceScalePercent);
         int right = V269VisualTokens.Scale(width < 1040 ? 240 : 310, InterfaceScalePercent);
         // O HTML aprovado reserva toda a área útil a Início e Configurações.
@@ -491,13 +519,44 @@ internal sealed class V269Shell : UserControl
             if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
         }
         if (!showRight) right = 0;
+        if (home)
+        {
+            // As medidas CSS já incluem borda e padding da barra lateral.
+            int sidebarCss = windowWidth <= 1040 ? 175 : windowWidth <= 1250 ? 195 : 236;
+            sidebar = S(sidebarCss + 11);
+            _columns.Padding = new Padding(S(11));
+            _sidebar.Margin = new Padding(0, 0, S(11), 0);
+            _content.Margin = new Padding(0, 0, showRight ? S(10) : 0, 0);
+            _navigationLayout.Padding = new Padding(S(8), S(9), S(8), S(9));
+        }
+        else
+        {
+            _columns.Padding = new Padding(8);
+            _sidebar.Margin = new Padding(0, 0, 7, 0);
+            _content.Margin = new Padding(0, 0, 7, 0);
+            _navigationLayout.Padding = new Padding(6);
+        }
         _columns.ColumnStyles[0].Width = sidebar;
         _columns.ColumnStyles[2].Width = right;
         _rightPane.Visible = right > 0;
         int navHeight = _paneToggle is null ? 48 :
             Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
+        if (home)
+        {
+            int desired = windowWidth <= 1040 ? 54 : 55;
+            int available = Math.Max(1, ClientSize.Height - _columns.Padding.Vertical -
+                _navigationLayout.Padding.Vertical - (_paneToggle?.Visible == true ? S(34) : 0));
+            navHeight = Math.Min(desired, Math.Max(20, (int)Math.Floor(available * 100d /
+                InterfaceScalePercent / Pages.Length)));
+        }
         for (int i = 0; i < Pages.Length; i++)
             _navigationLayout.RowStyles[i].Height = V269VisualTokens.Scale(navHeight, InterfaceScalePercent);
+        foreach (var button in _navigation.Values)
+        {
+            button.HomePresentation = home;
+            button.CurrentTheme = Theme;
+            button.Invalidate();
+        }
     }
 
     private void RefreshVisiblePage()
@@ -570,6 +629,8 @@ internal sealed class V269Shell : UserControl
         // Campos internos: não são propriedades serializáveis pelo Designer WinForms.
         internal Color IconColor;
         internal bool IsSelected;
+        internal bool HomePresentation;
+        internal V269Theme CurrentTheme;
 
         internal V269NavButton(V269Page page)
         {
@@ -583,6 +644,11 @@ internal sealed class V269Shell : UserControl
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            if (HomePresentation)
+            {
+                PaintHomeNavigation(e.Graphics);
+                return;
+            }
             base.OnPaint(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using var pen = new Pen(IconColor, 2f);
@@ -612,5 +678,116 @@ internal sealed class V269Shell : UserControl
                 e.Graphics.DrawLine(pen, 18, y + 10, 25, y + 2);
             }
         }
+
+        private void PaintHomeNavigation(Graphics g)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var theme = CurrentTheme;
+            Color H(string h) => ColorTranslator.FromHtml(h);
+            Color background = Parent?.BackColor ?? BackColor;
+            g.Clear(background);
+            var area = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
+            using var shape = Rounded(area, 9);
+            if (IsSelected)
+            {
+                var (first,last,border) = theme switch {
+                    V269Theme.Dark => (H("#666d74"),H("#50575e"),H("#b6c0c8")),
+                    V269Theme.Claro => (H("#397fb9"),H("#28669e"),H("#6da4cb")),
+                    _ => (H("#246aae"),H("#1b4f91"),H("#6ea9d1")) };
+                using var fill = new LinearGradientBrush(area, first, last, 0f);
+                using var line = new Pen(border);
+                g.FillPath(fill,shape); g.DrawPath(line,shape);
+                using var rail = new SolidBrush(theme == V269Theme.Dark ? H("#c8d0d7") : Color.White);
+                using var railShape = Rounded(new Rectangle(1,9,4,Math.Max(1,Height-18)),2);
+                g.FillPath(rail,railShape);
+            }
+            else
+            {
+                using var border = new Pen(Color.FromArgb(22, theme == V269Theme.Claro ? Color.Black : Color.White));
+                g.DrawPath(border,shape);
+            }
+            int iconSize = Math.Min(36, Math.Max(18, Height - 10));
+            var icon = new Rectangle(9, (Height-iconSize)/2, iconSize, iconSize);
+            using var iconShape = Rounded(icon, 11);
+            using var tint = new SolidBrush(Color.FromArgb(IsSelected ? 42 : 15,
+                theme == V269Theme.Claro && !IsSelected ? Color.Black : Color.White));
+            using var iconBorder = new Pen(Color.FromArgb(IsSelected ? 85 : 65,
+                theme == V269Theme.Claro ? H("#789bb7") : H("#a4c7e5")));
+            g.FillPath(tint,iconShape); g.DrawPath(iconBorder,iconShape);
+            var glyph = new Rectangle(icon.X+(icon.Width-18)/2,icon.Y+(icon.Height-18)/2,18,18);
+            V269HomeHeadingIcon.DrawGlyph(g,glyph,Page,IsSelected ? Color.White : IconColor);
+            using var textFont = new Font(Font, IsSelected ? FontStyle.Bold : FontStyle.Regular);
+            TextRenderer.DrawText(g, Text, textFont,
+                new Rectangle(icon.Right+8, 1, Math.Max(1,Width-icon.Right-12), Math.Max(1,Height-2)),
+                ForeColor, TextFormatFlags.WordBreak | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+            if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(g,Rectangle.Inflate(area,-3,-3));
+        }
+    }
+
+    internal static GraphicsPath Rounded(Rectangle r,int radius)
+    {
+        int d = Math.Max(1,Math.Min(radius*2,Math.Min(r.Width,r.Height)));
+        var p = new GraphicsPath();
+        p.AddArc(r.Left,r.Top,d,d,180,90);
+        p.AddArc(r.Right-d,r.Top,d,d,270,90);
+        p.AddArc(r.Right-d,r.Bottom-d,d,d,0,90);
+        p.AddArc(r.Left,r.Bottom-d,d,d,90,90);
+        p.CloseFigure(); return p;
+    }
+}
+
+internal sealed class V269HomeHeadingIcon : Control
+{
+    internal V269HomeHeadingIcon()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.SupportsTransparentBackColor | ControlStyles.ResizeRedraw, true);
+        BackColor = Color.Transparent;
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        int n = Math.Min(34,Math.Min(Width,Height));
+        if (n > 1) DrawGlyph(e.Graphics,new Rectangle(3,(Height-n)/2,n,n),V269Page.Inicio,ForeColor);
+    }
+    // Traçados 24 × 24 da família de ícones aprovada, escala uniforme.
+    internal static void DrawGlyph(Graphics g, Rectangle r, V269Page page, Color color)
+    {
+        var state = g.Save();
+        try
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TranslateTransform(r.X,r.Y);
+            g.ScaleTransform(r.Width/24f,r.Height/24f);
+            using var p = new Pen(color,2.05f) { StartCap=LineCap.Round, EndCap=LineCap.Round, LineJoin=LineJoin.Round };
+            void L(params PointF[] pts) => g.DrawLines(p,pts);
+            PointF P(float x,float y) => new(x,y);
+            switch (page)
+            {
+                case V269Page.Inicio:
+                    L(P(3,10),P(12,3),P(21,10),P(21,21),P(14,21),P(14,14),P(10,14),P(10,21),P(3,21),P(3,10)); break;
+                case V269Page.Aplicativos:
+                    for(int y=3;y<=14;y+=11) for(int x=3;x<=14;x+=11)
+                    { using var path=V269Shell.Rounded(new Rectangle(x,y,7,7),2); g.DrawPath(p,path); } break;
+                case V269Page.Drivers:
+                    g.DrawRectangle(p,6,6,12,12); g.DrawRectangle(p,9,9,6,6);
+                    foreach(int t in new[]{8,12,16}) { L(P(t,2),P(t,6)); L(P(t,18),P(t,22)); L(P(2,t),P(6,t)); L(P(18,t),P(22,t)); } break;
+                case V269Page.Limpeza:
+                    L(P(12,2),P(12,12)); L(P(8,12),P(16,12),P(20,21),P(4,21),P(8,12));
+                    L(P(8,17),P(8,21)); L(P(12,17),P(12,21)); L(P(16,17),P(16,21)); break;
+                case V269Page.Reparo:
+                    L(P(15,3),P(20,3),P(17,6),P(18,9),P(21,10),P(21,14),P(16,14),P(8,22),P(4,18),P(12,10),P(12,6),P(15,3)); break;
+                case V269Page.Sistema:
+                    using(var path=V269Shell.Rounded(new Rectangle(3,3,18,13),2)) g.DrawPath(p,path);
+                    L(P(12,16),P(12,21)); L(P(7,21),P(17,21)); break;
+                case V269Page.Inicializacao:
+                    g.DrawArc(p,3,3,18,18,-45,270); L(P(12,2),P(12,12)); break;
+                default:
+                    var points = new List<PointF>();
+                    for(int i=0;i<32;i++) { double angle=i*Math.PI/16; float radius=(i%4 is 0 or 3)?10:8; points.Add(P(12+(float)Math.Cos(angle)*radius,12+(float)Math.Sin(angle)*radius)); }
+                    g.DrawPolygon(p,points.ToArray()); g.DrawEllipse(p,9,9,6,6); break;
+            }
+        }
+        finally { g.Restore(state); }
     }
 }
