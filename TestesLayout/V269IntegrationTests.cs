@@ -151,7 +151,8 @@ internal static class V269IntegrationTests
         var render=typeof(MainForm).GetMethod("RenderPrograms",flags)!;
         var entries=new[]{
             new ProgramEntry{Name="7-Zip 24.09 (x64)",Version="24.09",Publisher="Igor Pavlov",InventoryId="GF-APP-FIXTURE-1",
-                InventorySource="Registro: Computador (64 bits)",InstallDate=new DateOnly(2026,11,18),CanUninstall=true},
+                InventorySource="Registro: Computador (64 bits)",InstallDate=new DateOnly(2026,11,18),CanUninstall=true,
+                DeclaredDescription="Descrição sintética declarada para testar apresentação."},
             new ProgramEntry{Name="Discord",Version="1.0.9172",Publisher="Discord Inc.",InventoryId="GF-APP-FIXTURE-2",
                 InventorySource="Registro: Usuário atual (64 bits)",InstallDate=new DateOnly(2026,11,18)},
             new ProgramEntry{Name="Microsoft Edge",Version="142.0.3595.44",Publisher="Microsoft Corporation",InventoryId="GF-APP-FIXTURE-3",InventoryOnly=true},
@@ -216,7 +217,7 @@ internal static class V269IntegrationTests
                     Require(shell.RightPane.Visible&&shell.RightPane.Current?.Kind==V269PanelKind.Details,"detalhes compactos acessíveis");
                     var columns=(TableLayoutPanel)shell.RightPane.Parent!;
                     Require(columns.Name=="V269MainLayout"&&columns.GetRow(shell.RightPane)==2&&columns.GetColumn(shell.RightPane)==0,"painel compacto fica abaixo da tabela");
-                    Require(shell.RightPane.Current?.Application is {Fields.Count:7}&&
+                    Require(shell.RightPane.Current?.Application is {Fields.Count:7,Description:"Descrição sintética declarada para testar apresentação."}&&
                         shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
                         "painel estruturado expõe fatos locais e motivos");
                     var icon=shell.RightPane.Controls.Find("V269AppDetailIcon",true).Single();
@@ -356,6 +357,38 @@ internal static class V269IntegrationTests
         }
         Require(V269AppIconCache.NormalizeLogo(new byte[33]) is null,"PNG inválido não entra no cache");
         Console.WriteLine("PASS Aplicativos V2.6.9: origens de ícones locais e MSIX limitadas e falha fechada.");
+        // Evidência consultiva do Windows real do runner, sem logar identidade.
+        // Runner sem pacote adequado não confirma extração; não inventar êxito.
+        try
+        {
+            var real=Task.Run(async ()=>{
+                var scan=LocalMsixInventory.ReadCurrentUser();
+                if(scan.Status!="ok"||scan.Failures!=0)return (attempts:0,confirmed:0,complete:false);
+                int attempts=0,confirmed=0;
+                foreach(var app in scan.Items.Where(x=>!x.Stale))
+                {
+                    var entry=new ProgramEntry{InventoryId=LocalMsixInventory.InventoryId(app),
+                        MsixPackageName=app.PackageName,MsixPublisherId=app.PublisherId,
+                        MsixPackageFamilyName=app.PackageFamilyName,MsixPackageFullName=app.PackageFullName,
+                        MsixInventoryComplete=true};
+                    if(V269MsixIconSource.From(entry) is not {} source)continue;
+                    attempts++;
+                    var logo=await V269AppIconCache.ReadMsixAsync(source);
+                    if(logo is not null)
+                    {
+                        using var stream=new MemoryStream(logo);using var bitmap=new Bitmap(stream);
+                        if(bitmap.Size==new Size(48,48))confirmed++;
+                    }
+                    if(attempts>=3||confirmed>0)break;
+                }
+                return (attempts,confirmed,complete:true);
+            }).WaitAsync(TimeSpan.FromSeconds(25)).GetAwaiter().GetResult();
+            Console.WriteLine($"V269-MSIX-LOGO tentativa={real.attempts} confirmado={real.confirmed} inventario_completo={real.complete} estado={(real.confirmed>0?"CONFIRMADO":"INCONCLUSIVO")}");
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine("V269-MSIX-LOGO estado=INCONCLUSIVO motivo="+ex.GetType().Name);
+        }
     }
 
     private static void VerifyAppTableGeometry()
@@ -397,6 +430,10 @@ internal static class V269IntegrationTests
 
     private static void VerifyAppOrdering()
     {
+        Require(LocalMsixInventory.NormalizeDescription("  Texto\r\n declarado  ")=="Texto declarado"&&
+            LocalMsixInventory.NormalizeDescription("ms-resource:Description")==""&&
+            LocalMsixInventory.NormalizeDescription(new string('x',601))==""&&
+            LocalMsixInventory.NormalizeDescription("a\0b")=="","descrições locais delimitadas e recursos não resolvidos rejeitados");
         var a=new ProgramEntry{Name="Alfa",InventoryId="A",InstallDate=V269AppOrdering.ParseRegistryDate("20260101")};
         var b=new ProgramEntry{Name="Beta",InventoryId="B",InstallDate=V269AppOrdering.ParseRegistryDate("20261124"),IsUpdate=true};
         var z=new ProgramEntry{Name="Zeta",InventoryId="Z"};

@@ -96,6 +96,8 @@ internal sealed class ProgramEntry
     public string Publisher { get; init; } = "";
     public string DisplayIcon { get; init; } = "";
     internal DateOnly? InstallDate { get; init; }
+    // Texto consultivo da fonte local; nunca usado em receitas ou telemetria.
+    internal string DeclaredDescription { get; init; } = "";
     internal string ObservedInstallLocation { get; init; } = "";
     internal string ObservedPackageArchitecture { get; init; } = "";
     public string UninstallString { get; init; } = "";
@@ -315,6 +317,7 @@ internal static class AppServices
                 MsixSystemSigned = app.SystemSigned,
                 MsixInventoryComplete = msix.Status == "ok" && msix.Failures == 0 && !app.Stale,
                 InstallDate=app.Stale?null:app.DeclaredDate,
+                DeclaredDescription=app.Stale?"":app.DeclaredDescription,
                 ObservedInstallLocation=app.Stale?"":app.ObservedLocation,
                 ObservedPackageArchitecture=app.Stale?"":app.ObservedArchitecture,
                 CatalogIdentity = verified?.Id ?? "",
@@ -433,6 +436,7 @@ internal static class AppServices
                             UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
                             DisplayIcon = Convert.ToString(child.GetValue("DisplayIcon")) ?? "",
+                            DeclaredDescription = ReadArpDescription(child),
                             InstallDate = V269AppOrdering.ParseRegistryDate(child.GetValue("InstallDate", null, RegistryValueOptions.DoNotExpandEnvironmentNames)),
                             QuietUninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
@@ -455,6 +459,16 @@ internal static class AppServices
             StringComparer.CurrentCultureIgnoreCase).ToArray(),
             inspected, hidden, updates, failures, entries.Count - distinct.Count)
         { IncludesHiddenEntries = includeHidden };
+    }
+
+    private static string ReadArpDescription(RegistryKey key)
+    {
+        try
+        {
+            return LocalMsixInventory.NormalizeDescription(
+                key.GetValue("Comments",null,RegistryValueOptions.DoNotExpandEnvironmentNames) as string);
+        }
+        catch(Exception){return "";} // metadado opcional não altera cobertura
     }
 
     public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
@@ -1560,7 +1574,8 @@ internal sealed partial class MainForm : Form
             new V269AppDetailModel(item.Name,Known(item.Publisher),fields,
                 ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item)),
                 _programList.LoadLocalAppIcons?item.DisplayIcon:"",
-                _programList.LoadLocalAppIcons?V269MsixIconSource.From(item):null)));
+                _programList.LoadLocalAppIcons?V269MsixIconSource.From(item):null,
+                item.DeclaredDescription)));
     }
 
     private void DrawProgramCard(object? sender, DrawItemEventArgs e)

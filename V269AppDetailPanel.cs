@@ -4,7 +4,7 @@ using System.Windows.Forms;
 namespace GerenciadorAplicativos;
 
 internal sealed record V269AppDetailModel(string Name,string Publisher,
-    IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null);
+    IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null,string Description="");
 
 internal sealed class V269AppDetailPanel : Panel
 {
@@ -74,6 +74,8 @@ internal sealed class V269AppDetailPanel : Panel
                 value.TextAlign=ContentAlignment.TopRight;
                 _table.Controls.Add(value,1,row);
             }
+            AddFull("Descrição",true);
+            AddFull(string.IsNullOrWhiteSpace(model.Description)?"Não informada pela fonte local.":model.Description,false);
             AddFull("Elegibilidade e evidência",true);
             AddFull(model.Reasons,false);
             AddFull("Enter ou botão direito: ações disponíveis.",false);
