@@ -116,7 +116,7 @@ internal static class LayoutTests
             Work18UpdateUiTests.Run();
             Stage3UpdateQueryTests.Run();
             UninstallCleanupTests.VerifyTrayConfirmation();
-            V269IntegrationTests.VerifyCompactRepairFocus();
+            TestMainWorkspace();
             return;
         }
         if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
@@ -361,6 +361,11 @@ internal static class LayoutTests
         TestSafeMemoryPolicyAndLogCache();
         TestSamplingCadence();
 
+        TestMainWorkspace();
+    }
+
+    private static void TestMainWorkspace()
+    {
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
         if (form.MaximizeBox || form.FormBorderStyle != FormBorderStyle.None ||
@@ -760,15 +765,16 @@ internal static class LayoutTests
                 // A página apresenta ações individuais, inativas antes da consulta.
                 if (tab == V269Page.Drivers)
                 {
-                    bool tinyDrivers = placeholder.Height < 230;
-                    int minDriverHeight = tinyDrivers ? 73 : 100;
+                    bool tinyDrivers = placeholder.Height < DriverRowGeometry.Scale(265, placeholder.DeviceDpi);
+                    int minDriverHeight = DriverRowGeometry.Height(driverCards.DeviceDpi,
+                        Math.Max(1, driverCards.ClientSize.Width - 20));
                     if (driverCards.Height < minDriverHeight ||
                         driverCards.Width < placeholder.Width - 70)
                         throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution} " +
                             $"lista={driverCards.Size} raiz={placeholder.Size}");
                     var mobileFilter = Descendants(placeholder).OfType<ComboBox>()
                         .SingleOrDefault(c => c.Name == "DriverCompactFilter");
-                    if (mobileFilter is null || mobileFilter.Visible != (tinyDrivers || placeholder.Width < 760) ||
+                    if (mobileFilter is null || mobileFilter.Visible != (tinyDrivers || placeholder.Width < DriverRowGeometry.Scale(760, placeholder.DeviceDpi)) ||
                         mobileFilter.Items.Count != 5)
                         throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
                     var driverButtons = Descendants(placeholder).OfType<Button>().ToArray();

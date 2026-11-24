@@ -57,34 +57,6 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
 
-    internal static void VerifyCompactRepairFocus()
-    {
-        using var form = new MainForm(startServices: false);
-        form.Show();
-        Application.DoEvents();
-        var shell = form.Controls.Find("V269Shell", true).OfType<V269Shell>().Single();
-        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
-        var opening = StartupWindowSizing.Fit(new Rectangle(0, 0, 1280, 720 - 48));
-        surface.Size = new Size(Math.Max(520, opening.Width - 16), Math.Max(400, opening.Height - 39));
-        shell.SelectPage(V269Page.Reparo);
-        Application.DoEvents();
-        var buttons = Descendants(shell.PageContent(V269Page.Reparo)!).OfType<Button>()
-            .Where(button => button.Visible && button.Enabled).ToArray();
-        Require(buttons.Any(button => button.Text == "Criar ponto de restauração"),
-            "Reparo preserva a ação de ponto de restauração em 1280×720");
-        foreach (var button in buttons)
-        {
-            Require(button.Focus(), "foco em Reparo: " + button.Text);
-            Application.DoEvents();
-            Require(LayoutTests.FullyVisible(button), "controle de Reparo cortado ao focar: " + button.Text);
-        }
-        form.Close();
-        Console.WriteLine("PASS V2.6.9 Reparo: foco percorre os cartões completos no viewport HD 720p.");
-    }
-
-    private static IEnumerable<Control> Descendants(Control root) =>
-        root.Controls.Cast<Control>().SelectMany(child => new[] { child }.Concat(Descendants(child)));
-
     private static T? Find<T>(Control control) where T : Control
     {
         if (control is T match) return match;

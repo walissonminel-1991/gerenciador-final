@@ -1054,7 +1054,7 @@ internal sealed partial class MainForm
             if (root.IsDisposed) return;
             int dpi = root.DeviceDpi;
             int Scale(int px) => DriverRowGeometry.Scale(px, dpi);
-            bool tiny = root.ClientSize.Height < Scale(230);
+            bool tiny = root.ClientSize.Height < Scale(265);
             bool compact = root.ClientSize.Height < Scale(360);
             // Comparar largura física com dimensões físicas da fonte, e não
             // apenas com uma constante sem DPI.
@@ -1066,7 +1066,7 @@ internal sealed partial class MainForm
                 TextRenderer.MeasureText("Atualizar drivers", updateDrivers.Font).Width + Scale(20));
             bool narrow = root.ClientSize.Width < Math.Max(Scale(760),
                 refreshWidth + updateWidth + investigationWidth + Scale(110));
-            bool compactFilters = tiny || root.ClientSize.Width < Scale(800);
+            bool compactFilters = tiny || root.ClientSize.Width < Scale(760);
             bool showCopy = !tiny && !narrow;
             // A ação global ocupa uma coluna extra. Em janela estreita,
             // também nas fixtures com Simular, mover o filtro compacto para
@@ -1082,7 +1082,7 @@ internal sealed partial class MainForm
                     TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
                     TextFormatFlags.NoPrefix).Width + Scale(18));
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
-            root.RowStyles[1].Height = splitActions ? Scale(79) :
+            root.RowStyles[1].Height = splitActions ? Scale(tiny ? 68 : 79) :
                 tiny ? Scale(35) : Scale(44);
             root.RowStyles[2].Height = compactFilters ? 0 : Scale(36);
             // Em SVGA, devolver altura à lista; no modo tiny o histórico
@@ -1092,9 +1092,15 @@ internal sealed partial class MainForm
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
             heading.Visible = !compactFilters;
-            actionPanel.ColumnStyles[0].Width = refreshWidth;
-            actionPanel.ColumnStyles[1].Width = updateWidth;
-            actionPanel.ColumnStyles[2].Width = investigationWidth;
+            bool proportionalActions = splitActions && labOpen is null;
+            var widths = new[] { refreshWidth, updateWidth, investigationWidth };
+            for (int i = 0; i < widths.Length; i++)
+            {
+                actionPanel.ColumnStyles[i].SizeType = proportionalActions ? SizeType.Percent : SizeType.Absolute;
+                actionPanel.ColumnStyles[i].Width = proportionalActions ? 100f / widths.Length : widths[i];
+            }
+            actionPanel.ColumnStyles[3].SizeType = proportionalActions ? SizeType.Absolute : SizeType.Percent;
+            actionPanel.ColumnStyles[3].Width = proportionalActions ? 0 : 100;
             if (splitActions)
             {
                 if (actionPanel.RowCount != 2)
