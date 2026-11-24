@@ -214,9 +214,14 @@ internal sealed partial class MainForm
         string coreCounts = cpu.Count > 0 && platform?.CpuSocketsState == HardwareDiscoveryState.Complete &&
             cpu.All(x => x.PhysicalCores.HasValue && x.LogicalProcessors.HasValue)
             ? $"{cpu.Sum(x => (long)x.PhysicalCores!.Value)} / {cpu.Sum(x => (long)x.LogicalProcessors!.Value)}" : nd;
-        var cpuRows = new V269HomeRow[] { R("Arquitetura", nd), R("Núcleos / Threads", coreCounts),
-            R("Frequência base", nd), R("Frequência turbo", nd), R("Cache L3", nd),
-            R("Frequência atual", M(sample?.CpuFrequencyMhz, Freq)) };
+        string cpuArchitecture = Join(cpu.Select(x => x.ReportedArchitecture is { } isa ? isa + " (ISA)" : null));
+        string cpuL3 = Join(cpu.Select(x => x.ReportedL3KiB is { } kib
+            ? $"{kib / 1024d:0.##} MiB" : null));
+        // Não somar caches de topologias distintas nem deduzir Zen/Core
+        // ou frequências base/turbo pelo clock reportado pelo firmware.
+        if (cpu.Count > 1 && cpuL3.Length != 0) cpuL3 += " (por CPU)";
+        var cpuRows = new V269HomeRow[] { R("Arquitetura", cpuArchitecture), R("Núcleos / Threads", coreCounts),
+            R("Frequência base", nd), R("Frequência turbo", nd), R("Cache L3", cpuL3) };
         var cpuSensors = new V269HomeRow[] { R("Temperatura", M(sample?.Sensors.CpuTemperatureC, Temp)),
             R("Uso", M(sample?.CpuUsagePercent, Percent)),
             R("Consumo", M(sample?.Sensors.CpuPowerWatts, x => $"{x:0.#} W")),
@@ -262,7 +267,8 @@ internal sealed partial class MainForm
             gpuName = Join(snapshot?.DeviceInventory.Devices
                 .Where(x => x.Kind == HardwareDeviceKind.Graphics).Select(x => x.Name) ?? []);
         static string MemoryType(uint? type) => type switch {
-            20 => "DDR", 21 => "DDR2", 24 => "DDR3", 26 => "DDR4", 34 => "DDR5",
+            // SMBIOS Type 17 (não a enumeração WMI MemoryType).
+            18 => "DDR", 19 => "DDR2", 20 => "DDR2 FB-DIMM", 24 => "DDR3", 26 => "DDR4", 34 => "DDR5",
             30 => "LPDDR4", 35 => "LPDDR5", _ => nd };
         var mem = sample?.Memory;
         var ramRows = new V269HomeRow[] {
@@ -275,7 +281,9 @@ internal sealed partial class MainForm
             R("Disponível", mem is { TotalBytes: > 0 } ? Gib(mem.AvailableBytes) : nd) };
         var boardRows = new V269HomeRow[] { R("Fabricante", Join(boards.Select(x => x.Manufacturer))),
             R("Modelo", Join(boards.Select(x => x.Product))), R("Chipset", nd),
-            R("BIOS", nd), R("Soquete", nd) };
+            R("BIOS", platform?.ReportedBiosVersion),
+            R("Soquete", Join(cpu.Select(x => x.ReportedSocketDesignation is { } designation
+                ? "Designação: " + designation : null))) };
         var boardSensors = new V269HomeRow[] {
             R("Temp. chipset", M(sample?.Sensors.ChipsetTemperatureC, Temp)),
             R("Temp. VRM", M(sample?.Sensors.VrmTemperatureC, Temp)) };
@@ -308,8 +316,13 @@ internal sealed partial class MainForm
         var windowsRows = new V269HomeRow[] { R("Versão", version), R("Compilação", build),
             R("Arquitetura", architecture),
             R("Tempo de atividade", M(sample?.SystemUptime, x => $"{(int)x.TotalDays}d {x.Hours}h {x.Minutes}min")) };
+        string virtualization = nd;
+        if (cpu.Count > 0 && platform?.CpuSocketsState == HardwareDiscoveryState.Complete &&
+            cpu.All(x => x.FirmwareVirtualizationEnabled.HasValue))
+            virtualization = cpu.All(x => x.FirmwareVirtualizationEnabled == true) ? "Ativa (firmware)" :
+                cpu.All(x => x.FirmwareVirtualizationEnabled == false) ? "Não ativa (WMI)" : "Mista (firmware)";
         var windowsSensors = new V269HomeRow[] { R("Inicialização segura", secureBoot),
-            R("TPM", nd), R("Virtualização", nd) };
+            R("TPM", nd), R("Virtualização", virtualization) };
         return [
             new("cpu", "Processador (CPU)", R("", cpuName).Value, cpuRows, cpuSensors),
             new("gpu", "Placa de vídeo (GPU)", R("", gpuName).Value, graphics, gpuSensors),
