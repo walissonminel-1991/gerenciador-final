@@ -78,7 +78,7 @@ internal sealed class V269AppearancePanel : V269SettingsCard
     internal V269AppearancePanel()
     {
         Name="V269AppearancePanel";AccessibleName="Aparência da interface";
-        _theme=new ComboBox{Name="V269ThemeChoice",DropDownStyle=ComboBoxStyle.DropDownList,
+        _theme=new V269SettingsCombo{Name="V269ThemeChoice",DropDownStyle=ComboBoxStyle.DropDownList,
             TabStop=true,AccessibleName="Tema da interface",IntegralHeight=false,FlatStyle=FlatStyle.Flat};
         _theme.Items.AddRange(["Azul GF (padrão)","Dark — Preto e grafite","Claro — azul suave"]);
         TrackBar Scale(string name,string caption,int maximum)=>new V269SettingsRange{Name=name,AccessibleName=caption,
@@ -111,8 +111,8 @@ internal sealed class V269AppearancePanel : V269SettingsCard
     internal override void ApplyOptions(V269AppearanceOptions options)
     {
         base.ApplyOptions(options);
-        _theme.BackColor=Options.Theme switch {V269Theme.Dark=>H("#383d43"),V269Theme.Claro=>H("#eaf5fe"),_=>H("#0d2233")};
-        _theme.ForeColor=Ink;_theme.Font=F(14);
+        _theme.Font=F(14);
+        ((V269SettingsCombo)_theme).ApplyOptions(Options);
         ((V269SettingsRange)_uiScale).ApplyOptions(Options);
         ((V269SettingsRange)_textScale).ApplyOptions(Options);
         _animations.Theme=Options.Theme;

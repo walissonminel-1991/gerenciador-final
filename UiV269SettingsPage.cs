@@ -236,6 +236,73 @@ internal sealed class V269SettingsRange : TrackBar
     }
 }
 
+// Lista suspensa nativa: mantém seleção, teclado e acessibilidade, mas
+// desenha o campo fechado e a lista nos três temas, sem fundo branco no Dark.
+internal sealed class V269SettingsCombo : ComboBox
+{
+    private V269AppearanceOptions _appearance=V269AppearanceOptions.Default;
+    internal V269SettingsCombo()
+    {
+        DropDownStyle=ComboBoxStyle.DropDownList;DrawMode=DrawMode.OwnerDrawFixed;
+        IntegralHeight=false;FlatStyle=FlatStyle.Flat;
+    }
+    private int S(int px)=>Math.Max(1,(int)Math.Round(px*_appearance.InterfacePercent*DeviceDpi/9600d));
+    private (Color Top,Color Bottom,Color Border,Color Ink) Palette()=>_appearance.Theme switch
+    {
+        V269Theme.Dark=>(V269SettingsCard.H("#383d43"),V269SettingsCard.H("#30353a"),V269SettingsCard.H("#737c85"),V269SettingsCard.H("#d1d6db")),
+        V269Theme.Claro=>(V269SettingsCard.H("#eaf5fe"),V269SettingsCard.H("#eaf5fe"),V269SettingsCard.H("#8eafc7"),V269SettingsCard.H("#17374c")),
+        _=>(V269SettingsCard.H("#0d2233"),V269SettingsCard.H("#0b1d2b"),V269SettingsCard.H("#3d5a70"),V269SettingsCard.H("#e1edf7"))
+    };
+    internal void ApplyOptions(V269AppearanceOptions options)
+    {
+        _appearance=options.Normalize();var p=Palette();
+        BackColor=p.Top;ForeColor=p.Ink;
+        ItemHeight=Math.Max(Font.Height+2,S(31)-6);DropDownHeight=ItemHeight*3+4;
+        Invalidate();
+    }
+    protected override void OnDrawItem(DrawItemEventArgs e)
+    {
+        if(e.Index<0||e.Index>=Items.Count)return;
+        var p=Palette();
+        Color bg=(e.State&DrawItemState.Selected)!=0?p.Border:p.Top;
+        using var fill=new SolidBrush(bg);e.Graphics.FillRectangle(fill,e.Bounds);
+        TextRenderer.DrawText(e.Graphics,GetItemText(Items[e.Index]),Font,e.Bounds,p.Ink,
+            TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
+        if((e.State&DrawItemState.Focus)!=0)e.DrawFocusRectangle();
+    }
+    private void PaintClosed(Graphics g)
+    {
+        if(Width<3||Height<3)return;
+        var p=Palette();var bounds=new Rectangle(0,0,Width-1,Height-1);
+        using var fill=new LinearGradientBrush(bounds,p.Top,p.Bottom,90f);
+        g.FillRectangle(fill,bounds);
+        g.SmoothingMode=SmoothingMode.AntiAlias;
+        using var shape=V269Shell.Rounded(bounds,S(7));using var outline=new Pen(p.Border);
+        g.DrawPath(outline,shape);
+        int arrowX=Width-S(10),mid=Height/2;
+        using var arrow=new Pen(p.Ink,1.5f);
+        g.DrawLines(arrow,new Point[]{new(arrowX-S(4),mid-S(2)),new(arrowX,mid+S(2)),new(arrowX+S(4),mid-S(2))});
+        TextRenderer.DrawText(g,Text,Font,new Rectangle(S(10),0,Math.Max(1,Width-S(33)),Height),p.Ink,
+            TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding);
+        if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,new Rectangle(3,3,Width-6,Height-6));
+    }
+    protected override void OnSelectedIndexChanged(EventArgs e){base.OnSelectedIndexChanged(e);Invalidate();}
+    protected override void WndProc(ref Message m)
+    {
+        const int Paint=0x000F,Print=0x0317,PrintClient=0x0318;
+        base.WndProc(ref m);
+        if(!IsHandleCreated||IsDisposed)return;
+        if(m.Msg==Paint)
+        {
+            using var g=Graphics.FromHwnd(Handle);PaintClosed(g);
+        }
+        else if((m.Msg==Print||m.Msg==PrintClient)&&m.WParam!=IntPtr.Zero)
+        {
+            using var g=Graphics.FromHdc(m.WParam);PaintClosed(g);
+        }
+    }
+}
+
 internal sealed class V269SettingsButton : Button
 {
     private readonly int _glyph;
@@ -571,15 +638,20 @@ internal sealed class V269SettingsPage : Panel
             int S(int n)=>Math.Max(1,(int)Math.Round(n*_options.InterfacePercent*DeviceDpi/9600d));
             int w=Math.Max(1,ClientSize.Width-S(2)),gap=S(7);
             int gh=General.ArrangeCard(w),ah=Appearance.ArrangeCard(w);
-            int hh=Math.Max(S(24),TextRenderer.MeasureText(_hint.Text,_hint.Font,new Size(w,1000),TextFormatFlags.WordBreak).Height);
-            int footerHeight=_paneToggle is null?0:S(34)+gap;
-            _height=gh+gap+ah+gap+hh+footerHeight;
+            int toggleWidth=_paneToggle is null?0:Math.Min(w,S(120));
+            bool sameRow=_paneToggle is not null&&w>=S(330);
+            int hintWidth=Math.Max(1,w-(sameRow?toggleWidth+gap:0));
+            int hh=Math.Max(S(24),TextRenderer.MeasureText(_hint.Text,_hint.Font,new Size(hintWidth,1000),TextFormatFlags.WordBreak).Height);
+            int footerHeight=_paneToggle is null?hh:sameRow?Math.Max(hh,S(28)):hh+gap+S(28);
+            _height=gh+gap+ah+gap+footerHeight;
             _scroll=Math.Clamp(_scroll,0,Math.Max(0,_height-ClientSize.Height));
             General.Bounds=new Rectangle(0,-_scroll,w,gh);
             Appearance.Bounds=new Rectangle(0,gh+gap-_scroll,w,ah);
-            _hint.Bounds=new Rectangle(0,gh+gap+ah+gap-_scroll,w,hh);
+            int footerY=gh+gap+ah+gap-_scroll;
+            _hint.Bounds=new Rectangle(0,footerY,hintWidth,hh);
             if(_paneToggle is{} toggle)
-                toggle.Bounds=new Rectangle(0,gh+gap+ah+gap+hh+gap-_scroll,Math.Min(w,S(140)),S(34));
+                toggle.Bounds=new Rectangle(sameRow?w-toggleWidth:0,
+                    sameRow?footerY+(footerHeight-S(28))/2:footerY+hh+gap,toggleWidth,S(28));
             General.Invalidate();Appearance.Invalidate();
         }
         finally{_arranging=false;}

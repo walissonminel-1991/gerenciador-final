@@ -199,7 +199,9 @@ internal static class V269IntegrationTests
         var surface=form.Controls.OfType<TableLayoutPanel>().Single();
         Size originalSize=surface.Size;
         var old=page.Appearance.GetOptions();
-        var themeChoice=page.Appearance.Controls.Find("V269ThemeChoice",true).OfType<ComboBox>().Single();
+        var themeChoice=page.Appearance.Controls.Find("V269ThemeChoice",true).OfType<V269SettingsCombo>().Single();
+        Require(themeChoice.DrawMode==DrawMode.OwnerDrawFixed&&themeChoice.DropDownStyle==ComboBoxStyle.DropDownList,
+            "seletor de tema personalizado preserva a lista nativa");
         try
         {
             foreach(var size in new[]{new Size(760,596),new Size(992,659)})
