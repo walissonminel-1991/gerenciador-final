@@ -353,6 +353,10 @@ internal static class V269IntegrationTests
                 Require(shell.RightPane.Current?.Application?.PreviousResults is {Count:1} history&&
                     history[0].Description==oldResult.Description,
                     "mudar tema não descarta nem atribui o histórico a outra seleção");
+                var panelTitle=shell.RightPane.Controls.Find("V269PanelTitle",true).OfType<Label>().Single();
+                int S(int n)=>V269AppTable.Scale(n,shell.InterfaceScalePercent,panelTitle.DeviceDpi);
+                Require(panelTitle.TextAlign==ContentAlignment.TopLeft&&panelTitle.Margin.Bottom==S(12)&&
+                    panelTitle.Height>=S(33),"título de detalhes alinhado ao topo, com separador e margem do HTML");
                 var historyHeading=shell.RightPane.Controls.Find("V269AppHistoryHeading",true).OfType<Label>().Single();
                 var descriptionHeading=shell.RightPane.Controls.Find("V269AppDescriptionHeading",true).OfType<Label>().Single();
                 var note=shell.RightPane.Controls.Find("V269AppDetailNote",true).OfType<Label>().Single();
@@ -394,6 +398,9 @@ internal static class V269IntegrationTests
                     cancelField.SetValue(form,cancel);
                     shell.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento","Fixture sem execução"));
                     showCancel.Invoke(form,[true]);Application.DoEvents();
+                    var progressTitle=shell.RightPane.Controls.Find("V269PanelTitle",true).OfType<Label>().Single();
+                    Require(progressTitle.TextAlign==ContentAlignment.MiddleLeft&&progressTitle.Margin==Padding.Empty,
+                        "geometria exclusiva dos detalhes não modifica o cabeçalho operacional");
                     var button=form.Controls.Find("UninstallCancel",true).OfType<Button>().Single();
                     Require(button.Visible&&button.Enabled,"cancelamento acessível no painel de progresso");
                     button.PerformClick();

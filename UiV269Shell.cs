@@ -239,7 +239,24 @@ internal sealed class V269RightPane : UserControl
             V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi)):new Padding(13);
         _title.Font=(_structuredApp?_appTitleFont:_normalTitleFont)??_title.Font;
+        ApplyAppTitleMetrics();
         _title.Invalidate();Invalidate();
+    }
+    private void ApplyAppTitleMetrics()
+    {
+        // HTML: título de 18px, linha de 33px incluindo divisor,
+        // seguida de margem inferior de 12px. Somente detalhes de Aplicativos.
+        if(!_structuredApp)
+        {
+            _title.TextAlign=ContentAlignment.MiddleLeft;
+            _title.Margin=Padding.Empty;
+            _layout.RowStyles[0].Height=50;
+            return;
+        }
+        int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
+        _title.TextAlign=ContentAlignment.TopLeft;
+        _title.Margin=new Padding(0,0,0,S(12));
+        _layout.RowStyles[0].Height=Math.Max(S(33),_title.Font.Height+S(12))+S(12);
     }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -268,6 +285,7 @@ internal sealed class V269RightPane : UserControl
         _title.Font=_structuredApp?appTitle:title;
         _description.Font=body;
         _applicationDetails.Font=appBody;
+        ApplyAppTitleMetrics();
     }
 }
 
