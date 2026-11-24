@@ -60,6 +60,9 @@ internal sealed class V269RightPane : UserControl
 {
     private readonly TableLayoutPanel _layout;
     private readonly Label _title;
+    private readonly Panel _titleHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
+    private readonly Label _appFlowHeading=new(){Name="V269AppFlowHeading",Dock=DockStyle.Top,
+        TextAlign=ContentAlignment.MiddleLeft,Visible=false,Margin=Padding.Empty};
     private readonly TextBox _description;
     private readonly ProgressBar _progress;
     private readonly Panel _operationContent;
@@ -68,6 +71,8 @@ internal sealed class V269RightPane : UserControl
     private bool _hasOperationContent;
     private bool _structuredApp;
     private bool _appHistoryPage;
+    private bool _appFlow;
+    private bool _fittingOperationHistory;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _appHistoryProvider;
     private Action<Guid>? _appHistoryDismiss;
     private V269AppOperationHistory? _operationHistory;
@@ -92,7 +97,7 @@ internal sealed class V269RightPane : UserControl
             Name = "V269RightContent",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 6,
             Margin = Padding.Empty,
             BackColor = SystemColors.Control
         };
@@ -100,6 +105,7 @@ internal sealed class V269RightPane : UserControl
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         _layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
 
@@ -130,7 +136,10 @@ internal sealed class V269RightPane : UserControl
             using var line=new Pen(V269AppDetailStyle.Divider(_appPaneTheme));
             e.Graphics.DrawLine(line,0,_title.Height-1,_title.Width-1,_title.Height-1);
         };
-        _layout.Controls.Add(_title, 0, 0);
+        _titleHost.Controls.Add(_title);
+        _titleHost.Controls.Add(_appFlowHeading);
+        _appFlowHeading.SendToBack();
+        _layout.Controls.Add(_titleHost, 0, 0);
         _layout.Controls.Add(_progress, 0, 1);
         _descriptionHost.Controls.Add(_description);
         _descriptionHost.Controls.Add(_applicationDetails);
@@ -151,7 +160,7 @@ internal sealed class V269RightPane : UserControl
         _layout.Controls.Add(_choices, 0, 3);
         _layout.Controls.Add(_operationContent, 0, 4);
         Controls.Add(_layout);
-        Resize+=(_,_)=>{if(_structuredApp)Invalidate();};
+        Resize+=(_,_)=>{if(_structuredApp||_appFlow)Invalidate();FitOperationHistory();};
         Present(null);
     }
 
@@ -205,35 +214,63 @@ internal sealed class V269RightPane : UserControl
     }
     internal void SetAppHistoryPage(bool active)
     {
-        _appHistoryPage=active;RefreshAppOperationHistory();
+        _appHistoryPage=active;
+        UpdateAppFlowScope();RefreshAppOperationHistory();FitOperationHistory();
+    }
+    private void UpdateAppFlowScope()
+    {
+        bool active=_appHistoryPage&&(Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress);
+        bool changed=active!=_appFlow;_appFlow=active;
+        _appFlowHeading.Text=Current?.Kind==V269PanelKind.Confirmation?
+            "Confirmação da ação":"Operação em andamento";
+        _appFlowHeading.Visible=active;
+        // A operação pode já fornecer o mesmo título do estado.
+        _title.Visible=!active||!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
+        if(changed)ApplyPaneSurface();
+        else if(active)ApplyAppTitleMetrics();
     }
     internal void RefreshAppOperationHistory()
     {
         if(IsDisposed||Disposing)return;
-        V269AppPreviousResult[] results=_appHistoryPage&&
-            (Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)
-            ?_appHistoryProvider?.Invoke().ToArray()??[]:[];
+        V269AppPreviousResult[] results=_appFlow?_appHistoryProvider?.Invoke().ToArray()??[]:[];
         if(results.SequenceEqual(_operationHistorySnapshot))return;
         _operationHistorySnapshot=results;
         _operationHistory?.Dispose();_operationHistory=null;
-        if(results.Length==0||_appHistoryDismiss is null)return;
+        _layout.RowStyles[5].Height=0;
+        if(results.Length==0||_appHistoryDismiss is null){FitOperationHistory();return;}
         _operationHistory=new V269AppOperationHistory(results,_appHistoryDismiss);
-        _descriptionHost.Controls.Add(_operationHistory);
-        // Dock.Bottom é processado antes do controle Fill: o histórico
-        // deve reservar espaço, não sobrepor texto ou controles reais.
-        _operationHistory.SendToBack();
-        _description.BringToFront();
+        // Assim como no HTML, resultados anteriores vêm depois dos
+        // controles de autorização/progresso. O registro real continua acessível.
+        _layout.Controls.Add(_operationHistory,0,5);
         _operationHistory.ApplyAppearance(_appPaneTheme,_appInterfacePercent,_applicationDetails.Font);
         FitOperationHistory();
     }
     private void FitOperationHistory()
     {
-        if(_operationHistory is not {} history)return;
-        // Divide somente a área de descrição já existente. Não deslocar
-        // os botões de confirmação nem o painel do motor/cancelamento.
-        int height=Math.Max(1,_descriptionHost.ClientSize.Height/2);
-        if(history.Height!=height)history.Height=height;
-        _descriptionHost.PerformLayout();
+        if(_fittingOperationHistory||IsDisposed||Disposing)return;
+        _fittingOperationHistory=true;
+        try
+        {
+            if(_operationHistory is {} history)
+            {
+                int cap=Math.Max(1,_layout.ClientSize.Height/3);
+                int preferred=history.PreferredHeightForWidth(Math.Max(1,_layout.ClientSize.Width));
+                int height=Math.Min(cap,preferred);
+                if(Math.Abs(_layout.RowStyles[5].Height-height)>.5f)_layout.RowStyles[5].Height=height;
+            }
+            // A descrição curta não precisa de uma barra branca permanente.
+            // Para textos maiores, preservar o controle real e a rolagem.
+            var mode=ScrollBars.Vertical;
+            if(_appFlow)
+            {
+                int width=Math.Max(1,_description.ClientSize.Width-4);
+                bool overflow=TextRenderer.MeasureText(_description.Text,_description.Font,new Size(width,32767),
+                    TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height>_description.ClientSize.Height;
+                if(!overflow)mode=ScrollBars.None;
+            }
+            if(_description.ScrollBars!=mode)_description.ScrollBars=mode;
+        }
+        finally{_fittingOperationHistory=false;}
     }
     private void PresentCore(V269PanelPresentation? presentation)
     {
@@ -249,7 +286,7 @@ internal sealed class V269RightPane : UserControl
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
         bool structured=presentation is {Kind:V269PanelKind.Details,Application:not null};
-        _structuredApp=structured;ApplyPaneSurface();
+        _structuredApp=structured;UpdateAppFlowScope();ApplyPaneSurface();
         _applicationDetails.Present(structured?presentation!.Application:null);
         _description.Visible=!structured;_applicationDetails.Visible=structured;
         if(structured)_applicationDetails.BringToFront();
@@ -263,7 +300,7 @@ internal sealed class V269RightPane : UserControl
         _progress.Value = Math.Clamp(presentation?.ProgressPercent ?? 0, 0, 100);
         _progress.AccessibleDescription = inProgress ? _progress.Value + "%" : string.Empty;
         AccessibleDescription = presentation?.Title ?? "";
-        RefreshAppOperationHistory();
+        RefreshAppOperationHistory();FitOperationHistory();
         PresentationChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -276,8 +313,9 @@ internal sealed class V269RightPane : UserControl
     }
     private void ApplyPaneSurface()
     {
-        var palette=_structuredApp?V269AppDetailStyle.Palette(_appPaneTheme):_basePanePalette;
+        var palette=(_structuredApp||_appFlow)?V269AppDetailStyle.Palette(_appPaneTheme):_basePanePalette;
         BackColor = palette.RightPanel;
+        _titleHost.BackColor=palette.RightPanel;_appFlowHeading.ForeColor=palette.Text;
         _layout.BackColor = palette.RightPanel;
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
@@ -286,11 +324,11 @@ internal sealed class V269RightPane : UserControl
         _description.ForeColor = palette.SecondaryText;
         _applicationDetails.ApplyPalette(V269AppDetailStyle.Palette(_appPaneTheme),_appPaneTheme);
         _operationHistory?.ApplyAppearance(_appPaneTheme,_appInterfacePercent,_applicationDetails.Font);
-        Padding=_structuredApp?new Padding(V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
+        Padding=(_structuredApp||_appFlow)?new Padding(V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi)):new Padding(13);
-        _title.Font=(_structuredApp?_appTitleFont:_normalTitleFont)??_title.Font;
+        _title.Font=(_structuredApp||_appFlow?_appTitleFont:_normalTitleFont)??_title.Font;
         ApplyAppTitleMetrics();
         _title.Invalidate();Invalidate();
     }
@@ -298,6 +336,16 @@ internal sealed class V269RightPane : UserControl
     {
         // HTML: título de 18px, linha de 33px incluindo divisor,
         // seguida de margem inferior de 12px. Somente detalhes de Aplicativos.
+        _titleHost.Padding=Padding.Empty;
+        if(_appFlow)
+        {
+            int height=Math.Max(V269AppTable.Scale(24,_appInterfacePercent,DeviceDpi),_appFlowHeading.Font.Height+3);
+            _appFlowHeading.Height=height;
+            _title.TextAlign=ContentAlignment.MiddleLeft;_title.Margin=Padding.Empty;
+            bool distinct=!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
+            _layout.RowStyles[0].Height=height+(distinct?Math.Max(26,_title.Font.Height+6):0);
+            return;
+        }
         if(!_structuredApp)
         {
             _title.TextAlign=ContentAlignment.MiddleLeft;
@@ -308,12 +356,15 @@ internal sealed class V269RightPane : UserControl
         int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
         _title.TextAlign=ContentAlignment.TopLeft;
         _title.Margin=new Padding(0,0,0,S(12));
+        // O host de título conserva o espaço que antes era a margem
+        // da célula da tabela, inclusive nos detalhes já homologados.
+        _titleHost.Padding=new Padding(0,0,0,S(12));
         _layout.RowStyles[0].Height=Math.Max(S(33),_title.Font.Height+S(12))+S(12);
     }
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        if(!_structuredApp||Width<3||Height<3)return;
+        if((!_structuredApp&&!_appFlow)||Width<3||Height<3)return;
         var state=e.Graphics.Save();
         try
         {
@@ -329,17 +380,19 @@ internal sealed class V269RightPane : UserControl
     {
         _appInterfacePercent=percent;_applicationDetails.ApplyInterfaceScale(percent);
         _operationHistory?.ApplyAppearance(_appPaneTheme,percent,_applicationDetails.Font);
-        if(_structuredApp)ApplyPaneSurface();
+        if(_structuredApp||_appFlow)ApplyPaneSurface();
+        FitOperationHistory();
     }
 
     internal void SetFonts(Font title, Font body,Font appTitle,Font appBody)
     {
         _normalTitleFont=title;_appTitleFont=appTitle;
-        _title.Font=_structuredApp?appTitle:title;
+        _title.Font=(_structuredApp||_appFlow)?appTitle:title;
+        _appFlowHeading.Font=appTitle;
         _description.Font=body;
         _applicationDetails.Font=appBody;
         _operationHistory?.ApplyAppearance(_appPaneTheme,_appInterfacePercent,appBody);
-        ApplyAppTitleMetrics();
+        ApplyAppTitleMetrics();FitOperationHistory();
     }
 }
 

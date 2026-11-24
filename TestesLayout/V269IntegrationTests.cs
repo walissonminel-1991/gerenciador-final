@@ -409,8 +409,19 @@ internal static class V269IntegrationTests
                 }
                 theme.SelectedIndex=before;surface.PerformLayout();Application.DoEvents();
             }
+            Rectangle ScreenBounds(Control c)=>c.RectangleToScreen(c.ClientRectangle);
             var confirmationMethod=typeof(MainForm).GetMethod("ConfirmV269Async",flags)!;
-            var confirmTask=(Task<bool>)confirmationMethod.Invoke(form,["Confirmar fixture","Alvo sintético",CancellationToken.None])!;
+            // A suíte completa abre e fecha outros formulários e diálogos.
+            // Use um contexto WinForms explícito para esta espera assíncrona,
+            // sem alterar o agendamento do motor em produção.
+            var previousContext=SynchronizationContext.Current;
+            using var confirmationContext=new WindowsFormsSynchronizationContext();
+            SynchronizationContext.SetSynchronizationContext(confirmationContext);
+            using var confirmationToken=new CancellationTokenSource();
+            Task<bool> confirmTask;
+            try
+            {
+            confirmTask=(Task<bool>)confirmationMethod.Invoke(form,["Confirmar fixture","Alvo sintético",confirmationToken.Token])!;
             Application.DoEvents();
             var confirmationPresentation=shell.RightPane.Current;
             var operationHistory=shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single();
@@ -426,19 +437,38 @@ internal static class V269IntegrationTests
                 ReferenceEquals(shell.RightPane.Current,confirmationPresentation),"retorno conserva confirmação e histórico");
             var confirmationHistory=shell.RightPane.Controls.Find("V269AppOperationHistory",true).OfType<V269AppOperationHistory>().Single();
             var confirmationDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
-            Require(!confirmationHistory.Bounds.IntersectsWith(confirmationDescription.Bounds)&&
-                confirmationDescription.Height>0&&confirmationHistory.Height>0,
-                "histórico reserva espaço sem cobrir a descrição da autorização");
+            var accept=shell.RightPane.Controls.Find("V269AcceptConfirmation",true).Single();
+            Require(!ScreenBounds(confirmationHistory).IntersectsWith(ScreenBounds(confirmationDescription))&&
+                confirmationDescription.Height>0&&confirmationHistory.Height>0&&
+                ScreenBounds(confirmationHistory).Top>=ScreenBounds(accept).Bottom,
+                "histórico abaixo da autorização, sem cobrir a descrição nem os botões");
+            Require(shell.RightPane.Controls.Find("V269AppFlowHeading",true).Single().Text=="Confirmação da ação",
+                "cabeçalho operacional distingue estado de autorização e alvo");
             CaptureOperationalHistory("CONFIRMACAO");
             var confirmationDismiss=confirmationHistory.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
-            confirmationHistory.ScrollControlIntoView(confirmationDismiss);
+            confirmationHistory.EnsureVisible(confirmationDismiss);
             confirmationDismiss.PerformClick();Application.DoEvents();
             Require(!confirmTask.IsCompleted&&ReferenceEquals(shell.RightPane.Current,confirmationPresentation)&&
                 shell.RightPane.Controls.Find("V269AppOperationHistory",true).Length==0,
                 "dispensar não autoriza, cancela ou substitui confirmação");
-            shell.RightPane.ResolveConfirmation(false);Pump(confirmTask);
+            var pendingConfirmation=typeof(V269RightPane).GetField("_confirmation",flags)!
+                .GetValue(shell.RightPane) as TaskCompletionSource<bool>;
+            Require(pendingConfirmation is not null,"autorização ainda pendente antes do botão real");
+            var cancelConfirmation=shell.RightPane.Controls.Find("V269CancelConfirmation",true).OfType<Button>().Single();
+            Require(cancelConfirmation.Visible&&cancelConfirmation.Enabled,"cancelamento de confirmação acessível");
+            cancelConfirmation.PerformClick();
+            Require(pendingConfirmation!.Task.IsCompletedSuccessfully&&!pendingConfirmation.Task.Result,
+                "botão real resolve a fonte da confirmação como recusa");
+            Pump(confirmTask);
             Require(!confirmTask.Result&&shell.RightPane.Current?.Application?.PreviousResults is {Count:0},
                 "cancelar não ressuscita resultado dispensado");
+            Console.WriteLine("PASS Aplicativos V2.6.9: confirmação, histórico e cancelamento preservados.");
+            }
+            finally
+            {
+                confirmationToken.Cancel();
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
             record.Invoke(form,[oldResult.Title,oldResult.Description,null]);
             var previousRow=shell.RightPane.Controls.Find("V269AppPreviousResult",true).Single();
             var dismiss=previousRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
@@ -468,10 +498,12 @@ internal static class V269IntegrationTests
                         "histórico permanece acessível durante progresso");
                     CaptureOperationalHistory("PROGRESSO");
                     var flowDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
-                    Require(!flowHistory.Bounds.IntersectsWith(flowDescription.Bounds)&&flowDescription.Height>0,
-                        "histórico não sobrepõe a descrição do progresso");
+                    var realCancel=form.Controls.Find("UninstallCancel",true).Single();
+                    Require(!ScreenBounds(flowHistory).IntersectsWith(ScreenBounds(flowDescription))&&flowDescription.Height>0&&
+                        ScreenBounds(flowHistory).Top>=ScreenBounds(realCancel).Bottom,
+                        "histórico abaixo do cancelamento, sem sobrepor descrição de progresso");
                     var flowDismiss=flowHistory.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
-                    ((ScrollableControl)flowHistory).ScrollControlIntoView(flowDismiss);
+                    ((V269AppOperationHistory)flowHistory).EnsureVisible(flowDismiss);
                     flowDismiss.PerformClick();Application.DoEvents();
                     Require(ReferenceEquals(shell.RightPane.Current,operational)&&!cancel.IsCancellationRequested&&
                         shell.RightPane.Controls.Find("V269AppOperationHistory",true).Length==0,
@@ -487,6 +519,7 @@ internal static class V269IntegrationTests
                     while(!cancel.IsCancellationRequested&&dispatch.Elapsed<TimeSpan.FromSeconds(3))
                     {Application.DoEvents();Thread.Sleep(10);}
                     Require(cancel.IsCancellationRequested,"cancelamento de desinstalação/limpeza encaminha token real");
+                    Console.WriteLine("PASS Aplicativos V2.6.9: progresso, histórico e token de cancelamento preservados.");
                 }
                 finally
                 {

@@ -102,8 +102,12 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
 // conservam os respectivos controles e contratos do motor.
 internal sealed class V269AppOperationHistory : Panel
 {
-    private readonly TableLayoutPanel _rows=new(){Dock=DockStyle.Top,AutoSize=true,
-        AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=1,Margin=Padding.Empty};
+    private readonly Panel _viewport=new(){Margin=Padding.Empty};
+    private readonly DarkVScrollBar _scroll=new(){Name="V269AppOperationHistoryScroll",
+        AccessibleName="Rolagem dos resultados anteriores",Visible=false};
+    private readonly WheelDeltaAccumulator _wheel=new();
+    private readonly TableLayoutPanel _rows=new(){Dock=DockStyle.None,AutoSize=false,
+        ColumnCount=1,Margin=Padding.Empty};
     private readonly Label _heading=new(){Text="Resultados anteriores",AutoSize=true,
         Dock=DockStyle.Top,Margin=Padding.Empty};
     private Font? _headingFont;
@@ -113,50 +117,103 @@ internal sealed class V269AppOperationHistory : Panel
     internal V269AppOperationHistory(IReadOnlyList<V269AppPreviousResult> results,Action<Guid> dismiss)
     {
         Name="V269AppOperationHistory";AccessibleName="Resultados anteriores";
-        Dock=DockStyle.Bottom;AutoScroll=true;Margin=Padding.Empty;
+        Dock=DockStyle.Fill;AutoScroll=false;Margin=Padding.Empty;
         _rows.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        _rows.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _rows.Controls.Add(_heading,0,_rows.RowCount++);
         _heading.Paint+=(_,e)=>{
+            if(_heading.Width<1)return;
             using var pen=new Pen(V269AppDetailStyle.Divider(_theme));
             e.Graphics.DrawLine(pen,0,0,_heading.Width-1,0);
         };
         for(int i=0;i<results.Count;i++)
         {
             var row=new V269AppHistoryRow(results[i],dismiss,i<results.Count-1);
+            _rows.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _rows.Controls.Add(row,0,_rows.RowCount++);
+            foreach(Control button in row.Controls.OfType<Button>())
+                button.Enter+=(_,_)=>EnsureVisible(button);
+            row.MouseWheel+=ScrollContent;
+            foreach(Control child in row.Controls)child.MouseWheel+=ScrollContent;
         }
-        Controls.Add(_rows);
+        _viewport.Controls.Add(_rows);Controls.Add(_viewport);Controls.Add(_scroll);
+        _scroll.ValueChanged+=(_,_)=>PositionRows();
+        _viewport.MouseWheel+=ScrollContent;_rows.MouseWheel+=ScrollContent;
+        _heading.MouseWheel+=ScrollContent;_scroll.MouseWheel+=ScrollContent;
         SizeChanged+=(_,_)=>MeasureRows();
         FontChanged+=(_,_)=>ApplyFonts();
+        DpiChangedAfterParent+=(_,_)=>MeasureRows();
         ApplyFonts();
     }
     private void ApplyFonts()
     {
         if(IsDisposed||Disposing)return;
-        var old=_headingFont;_headingFont=new Font(Font,FontStyle.Bold);
-        _heading.Font=_headingFont;old?.Dispose();MeasureRows();
+        if(_headingFont is null||!_headingFont.FontFamily.Equals(Font.FontFamily)||
+            Math.Abs(_headingFont.SizeInPoints-Font.SizeInPoints)>.01f)
+        {
+            var old=_headingFont;_headingFont=new Font(Font,FontStyle.Bold);
+            _heading.Font=_headingFont;old?.Dispose();
+        }
+        MeasureRows();
     }
     internal void ApplyAppearance(V269Theme theme,int percent,Font font)
     {
         _theme=theme;_percent=percent;Font=font;
         var palette=V269AppDetailStyle.Palette(theme);
-        BackColor=_rows.BackColor=palette.RightPanel;_heading.ForeColor=palette.Text;
+        BackColor=_viewport.BackColor=_rows.BackColor=palette.RightPanel;_heading.ForeColor=palette.Text;
+        _scroll.ApplyAppScrollTheme(theme);
         foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyPalette(palette);
         MeasureRows();_heading.Invalidate();
     }
+    private int Measure(int width)
+    {
+        width=Math.Max(1,width);
+        int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
+        _heading.Padding=new Padding(0,S(12),0,S(9));
+        _rows.Width=width;_heading.MaximumSize=new Size(width,0);
+        foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyMetrics(_percent,width);
+        return Math.Max(1,_rows.GetPreferredSize(new Size(width,0)).Height);
+    }
+    internal int PreferredHeightForWidth(int width)=>Measure(width);
     private void MeasureRows()
     {
         if(_measuring||IsDisposed||Disposing)return;_measuring=true;
         try
         {
-            int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
-            _heading.Padding=new Padding(0,S(12),0,S(9));
-            int width=Math.Max(1,ClientSize.Width-SystemInformation.VerticalScrollBarWidth);
-            _rows.MaximumSize=new Size(width,0);
-            _heading.MaximumSize=new Size(width,0);
-            foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyMetrics(_percent,width);
+            int width=Math.Max(1,ClientSize.Width),height=Math.Max(1,ClientSize.Height);
+            int barWidth=Math.Max(12,_scroll.Width);
+            int content=Measure(width);
+            if(content>height){width=Math.Max(1,width-barWidth-3);content=Measure(width);}
+            _viewport.Bounds=new Rectangle(0,0,width,height);
+            _scroll.Bounds=new Rectangle(Math.Max(0,ClientSize.Width-barWidth),0,barWidth,height);
+            _rows.Size=new Size(width,content);_rows.PerformLayout();
+            _scroll.SetMetrics(content,height);PositionRows();
         }
         finally{_measuring=false;}
+    }
+    private void PositionRows()
+    {
+        _rows.Location=new Point(0,-_scroll.Value);
+        _scroll.AccessibleDescription=$"Posição {_scroll.Value} de {_scroll.MaximumValue}";
+    }
+    internal void EnsureVisible(Control control)
+    {
+        if(control.IsDisposed||_scroll.MaximumValue==0)return;
+        var location=_rows.PointToClient(control.PointToScreen(Point.Empty));
+        if(location.Y<_scroll.Value)_scroll.Value=location.Y;
+        else if(location.Y+control.Height>_scroll.Value+_viewport.Height)
+            _scroll.Value=location.Y+control.Height-_viewport.Height;
+    }
+    private void ScrollContent(object? sender,MouseEventArgs e)
+    {
+        if(e is HandledMouseEventArgs {Handled:true}||_scroll.MaximumValue==0)return;
+        int notches=_wheel.Consume(e.Delta);
+        if(notches!=0)_scroll.Value-=notches*Math.Max(24,Font.Height*3);
+        if(e is HandledMouseEventArgs handled)handled.Handled=true;
+    }
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        ScrollContent(this,e);base.OnMouseWheel(e);
     }
     protected override void Dispose(bool disposing)
     {
