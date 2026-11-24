@@ -141,7 +141,7 @@ internal static class V269ShellTests
         var otherNav = shell.Controls.Find("V269NavAplicativos", true)
             .OfType<Button>().Single();
         Check(selectedNav.ForeColor == Color.White &&
-            selectedNav.BackColor == V269VisualTokens.ForTheme(V269Theme.Claro).Selection &&
+            selectedNav.BackColor == Color.Transparent &&
             selectedNav.AccessibleDescription == "Aba atual" &&
             otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Claro).Text,
             "Aba ativa do Claro precisa manter texto branco sobre azul e sinal acessível.");

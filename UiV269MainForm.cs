@@ -759,53 +759,182 @@ internal sealed partial class MainForm
         finally { flow.ResumeLayout(true); }
     }
 
+    private V269GeneralOptions _v269General = new();
+    private V269SettingsPage? _v269Settings;
+    private bool _v269SettingsBusy;
+    private bool _v269SettingsLive;
+
     private Control BuildV269Settings(bool loadPreferences)
     {
-        var view = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
-        view.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        view.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        view.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        var appearance = new V269AppearancePanel { Dock = DockStyle.Fill };
-        var binder = new V269AppearanceBinder(_nav, appearance);
-        view.Disposed += (_, _) => binder.Dispose();
-        if (loadPreferences) _v269Appearance = ReadV269Appearance();
+        _v269SettingsLive=loadPreferences;
+        if(loadPreferences)
+        {
+            _v269Appearance=ReadV269Appearance();
+            _v269General=V269GeneralSettingsStore.Read(V269GeneralSettingsStore.PathForUser);
+        }
+        var view=_v269Settings=new V269SettingsPage();
+        var appearance=view.Appearance;
+        var binder=new V269AppearanceBinder(_nav,appearance);
+        view.Disposed+=(_,_)=>binder.Dispose();
         binder.SetOptions(_v269Appearance);
-        _programList.V269Options().AnimateButtonFeedback = CanAnimateV269;
-        appearance.AppearanceChanged += (_, _) =>
+        _programList.V269Options().AnimateButtonFeedback=CanAnimateV269;
+        appearance.AppearanceChanged+=(_,_)=>
         {
-            _v269Appearance = appearance.GetOptions().Normalize();
-            _programList.V269Options().AnimateButtonFeedback = CanAnimateV269;
+            _v269Appearance=appearance.GetOptions().Normalize();
+            _programList.V269Options().AnimateButtonFeedback=CanAnimateV269;
             ApplyV269ContentAppearance(this);
-            if (_progress.Style == ProgressBarStyle.Marquee && !CanAnimateV269)
+            if(_progress.Style==ProgressBarStyle.Marquee&&!CanAnimateV269)
             {
-                _progress.MarqueeAnimationSpeed = 0;
-                _progress.Style = ProgressBarStyle.Blocks;
+                _progress.MarqueeAnimationSpeed=0;_progress.Style=ProgressBarStyle.Blocks;
+            }
+            if(!loadPreferences)return;
+            try{WriteV269Appearance(_v269Appearance);}
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                Status("Aparência aplicada nesta sessão; não foi possível salvar a preferência.");
+                DiagnosticTrace.Write("PREFERENCIAS.APARENCIA_FALHA "+ex.GetType().Name);
             }
         };
-        var save = CreateSecondaryButton("Salvar preferências de aparência");
-        save.Dock = DockStyle.Fill;
-        save.Click += async (_, _) =>
+        view.General.Notifications.Click+=(_,_)=>ChangeV269General(_v269General with{Notifications=!_v269General.Notifications});
+        view.General.Tray.Click+=(_,_)=>ChangeV269General(_v269General with{MinimizeToTray=!_v269General.MinimizeToTray});
+        view.General.StartWindows.Click+=async(_,_)=>await ToggleV269StartupAsync();
+        view.General.Administrator.Click+=(_,_)=>PresentV269SettingsInformation("Modo Administrador",
+            "A sessão atual "+(V269SessionIsAdministrator()?"está elevada.":"usa privilégios comuns.")+
+            " O GF não solicita elevação permanente nem reinicia automaticamente como administrador. "+
+            "Os comandos administrativos existentes solicitam UAC por operação, após a confirmação.");
+        view.General.Collect.Click+=(_,_)=>
         {
-            save.Enabled = false;
-            var selected = _v269Appearance;
-            try
-            {
-                await Task.Run(() => WriteV269Appearance(selected));
-                if (!IsDisposed) PresentV269Details("Aparência", "Preferências de aparência salvas.");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-            {
-                if (!IsDisposed) PresentV269Details("Aparência", "O Windows não permitiu salvar as preferências.");
-            }
-            finally { if (!save.IsDisposed) save.Enabled = true; }
+            if(!_v269SettingsLive||_v269SettingsBusy||_busy||_v269Confirming||_betaClose.IsClosing)return;
+            OfferAnonymousDiagnosticConsent();RefreshV269General();
         };
-        var privacy = CreateSecondaryButton("Privacidade e diagnóstico");
-        privacy.Dock = DockStyle.Fill;
-        privacy.Click += (_, _) => OfferAnonymousDiagnosticConsent();
-        view.Controls.Add(appearance, 0, 0);
-        view.Controls.Add(save, 0, 1);
-        view.Controls.Add(privacy, 0, 2);
+        view.General.Privacy.Click+=(_,_)=>PresentV269SettingsInformation("Privacidade e coleta de dados",
+            (BetaRuntimePolicy.IsLocalBeta?BetaRuntimePolicy.LocalNotice:TelemetryConsentPolicy.RemoteNotice)+
+            Environment.NewLine+Environment.NewLine+
+            PrivacyConsentPresentation.Explanation(AnonymousTelemetryContext.Current?.Consent??TelemetryConsent.NotAsked));
+        view.General.Diagnostic.Click+=(_,_)=>
+        {
+            if(_busy||_v269Confirming||_betaClose.IsClosing)return;
+            var report="GERENCIADOR FINAL — diagnóstico local"+Environment.NewLine+
+                "Versão: "+DiagnosticTrace.VersionLabel+Environment.NewLine+
+                "Windows: "+Environment.OSVersion.Version+Environment.NewLine+
+                "Arquitetura: "+System.Runtime.InteropServices.RuntimeInformation.OSArchitecture+Environment.NewLine+
+                "Privilégios: "+(V269SessionIsAdministrator()?"elevados":"comuns")+Environment.NewLine+
+                Environment.NewLine+_reliability.Report(_installed,_inventoryIncomplete);
+            if(_v269LastSnapshot is{} snapshot)
+                report+=Environment.NewLine+Environment.NewLine+"Última consulta de hardware (não é uma leitura nova):"+
+                    Environment.NewLine+HardwareMonitoringDiagnosticReport.Format(snapshot);
+            PresentV269SettingsInformation("Diagnóstico local",report);
+        };
+        view.General.History.Click+=(_,_)=>
+        {
+            if(!_busy&&!_v269Confirming&&!_betaClose.IsClosing)ShowLocalReliabilityReport();
+        };
+        view.VisibleChanged+=(_,_)=>{if(view.Visible)RefreshV269General();};
+        view.ApplyAppearance(_v269Appearance);RefreshV269General();
         return view;
+    }
+
+    private static bool V269SessionIsAdministrator()
+    {
+        try
+        {
+            using var identity=System.Security.Principal.WindowsIdentity.GetCurrent();
+            return new System.Security.Principal.WindowsPrincipal(identity)
+                .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch(Exception ex) when(ex is UnauthorizedAccessException or System.Security.SecurityException or
+            System.ComponentModel.Win32Exception){return false;}
+    }
+
+    private bool? ReadV269Startup()
+    {
+        if(!_v269SettingsLive)return false;
+        try{return StartupTrayRegistration.IsEnabled();}
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or
+            InvalidDataException or InvalidOperationException){return null;}
+    }
+
+    private void RefreshV269General()
+    {
+        if(_v269Settings is null||_v269Settings.IsDisposed)return;
+        _v269Settings.General.SetObserved(_v269SettingsLive&&V269SessionIsAdministrator(),
+            ReadV269Startup(),_v269General,AnonymousTelemetryContext.Current?.Consent??TelemetryConsent.NotAsked,
+            _v269SettingsLive&&!_v269SettingsBusy&&!_betaClose.IsClosing);
+    }
+
+    private void ChangeV269General(V269GeneralOptions candidate)
+    {
+        if(!_v269SettingsLive||_v269SettingsBusy||_betaClose.IsClosing)return;
+        try
+        {
+            V269GeneralSettingsStore.Write(V269GeneralSettingsStore.PathForUser,candidate);
+            _v269General=candidate;
+            Status("Preferência geral salva.");
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Status("Não foi possível salvar a preferência; escolha anterior preservada.");
+            DiagnosticTrace.Write("PREFERENCIAS.GERAL_FALHA "+ex.GetType().Name);
+        }
+        RefreshV269General();
+    }
+
+    private async Task ToggleV269StartupAsync()
+    {
+        if(!_v269SettingsLive||_v269SettingsBusy||_busy||_v269Confirming||_betaClose.IsClosing||
+            ReadV269Startup() is not bool previous)return;
+        _v269SettingsBusy=true;RefreshV269General();
+        try
+        {
+            if(!await ConfirmV269Async("Inicialização do Gerenciador Final",
+                previous?"Desativar o início automático do GF nesta conta?":
+                "Iniciar o GF na bandeja ao entrar nesta conta? Nenhum serviço ou privilégio administrativo será criado."))return;
+            if(ReadV269Startup()!=previous)
+            {
+                Status("O estado da inicialização mudou; revise antes de alterar.");return;
+            }
+            StartupTrayRegistration.SetEnabled(!previous);
+            Status(ReadV269Startup()==!previous?"Preferência de inicialização confirmada.":
+                "Não foi possível confirmar a alteração da inicialização.");
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or
+            InvalidDataException or InvalidOperationException)
+        {
+            Status("Não foi possível alterar a inicialização.");DiagnosticTrace.Write("PREFERENCIAS.INICIO_FALHA "+ex.GetType().Name);
+        }
+        finally{_v269SettingsBusy=false;RefreshV269General();}
+    }
+
+    private void PresentV269SettingsInformation(string title,string description)
+    {
+        if(_busy||_v269Confirming||_betaClose.IsClosing)return;
+        // Nunca substituir um resultado de manutenção não dispensado.
+        if(_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
+        {
+            using var dialog=CreateV269HardwareDetailsDialog(description);
+            dialog.Name="V269SettingsInformation";dialog.Text=title;dialog.ShowDialog(this);return;
+        }
+        PresentV269Details(title,description);
+        if(!_nav.RightPane.Visible)
+            _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
+    }
+
+    private void MinimizeByV269Preference()
+    {
+        if(_v269General.MinimizeToTray)MinimizeToTray();
+        else WindowState=FormWindowState.Minimized;
+    }
+
+    private void NotifyV269OperationResult()
+    {
+        if(!_v269General.Notifications||!IsInTray||_trayIcon?.Visible!=true)return;
+        try
+        {
+            // Aviso genérico: não exporta nomes, caminhos ou resultado incerto.
+            _trayIcon.ShowBalloonTip(4000,"Gerenciador Final",
+                "Uma operação terminou. Abra o GF para consultar o resultado registrado.",ToolTipIcon.Info);
+        }
+        catch(InvalidOperationException){ }
     }
 
     private static string V269AppearancePath => Path.Combine(
@@ -856,6 +985,7 @@ internal sealed partial class MainForm
             brand.RefreshHomeTheme(_v269Appearance);
             if (brand.IsHomePresentation) return;
         }
+        if (root is V269SettingsPage settings) { settings.ApplyAppearance(_v269Appearance); return; }
         if (root is V269AppearancePanel) return;
         if (!_v269Colors.TryGetValue(root, out var original))
         {

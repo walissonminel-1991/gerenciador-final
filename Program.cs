@@ -754,7 +754,7 @@ internal sealed partial class MainForm : Form
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            int caption = _nav.SelectedPage == V269Page.Inicio ? 0 : _caption?.Height ?? 0;
+            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes ? 0 : _caption?.Height ?? 0;
             var bounds = new Rectangle(
                 0, caption, Math.Max(1, ClientSize.Width),
                 Math.Max(1, ClientSize.Height - caption));
@@ -769,7 +769,7 @@ internal sealed partial class MainForm : Form
         if (_caption is not null) _caption.Visible = false;
         void ApplyHomeChrome()
         {
-            bool home = _nav.SelectedPage == V269Page.Inicio;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
             if (homeChrome != home)
             {
                 // Nos testes de viewport a superfície interna tem largura
@@ -817,7 +817,7 @@ internal sealed partial class MainForm : Form
         {
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
-            bool home = _nav.SelectedPage == V269Page.Inicio;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
             int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
                 V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))
@@ -1061,8 +1061,8 @@ internal sealed partial class MainForm : Form
             WrapContents = false, FlowDirection = FlowDirection.LeftToRight,
             Padding = new Padding(0, 12, 18, 0), Margin = Padding.Empty,
             Visible = false, BackColor = Color.Transparent };
-        var minimize = CaptionButton("−", "Minimizar para a bandeja do sistema", false,
-            (_, _) => MinimizeToTray());
+        var minimize = CaptionButton("−", "Minimizar conforme a preferência da janela", false,
+            (_, _) => MinimizeByV269Preference());
         minimize.Name = "V269HomeMinimize";
         var close = CaptionButton("×", "Fechar o Gerenciador Final", true,
             (_, _) => Close());
@@ -2519,6 +2519,7 @@ internal sealed partial class MainForm : Form
                     _ = RefreshDiskUsageAsync();
                 if (_nav.SelectedPage == V269Page.Sistema && _activeSystemView == "energy")
                     _ = RefreshEnergyInfoAsync();
+                if (!quietStartup) NotifyV269OperationResult();
                 if (!_batchUpdatesActive) ExitAfterCurrentOperation();
             }
         }

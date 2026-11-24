@@ -222,7 +222,7 @@ internal sealed class V269Shell : UserControl
         (V269Page.Reparo, "Reparo e Rede", "Diagnósticos e reparos supervisionados"),
         (V269Page.Sistema, "Sistema", "Windows Update, energia e memória"),
         (V269Page.Inicializacao, "Inicialização", "Itens de inicialização"),
-        (V269Page.Configuracoes, "Configurações", "Preferências e consentimento")
+        (V269Page.Configuracoes, "Configurações", "Ajuste o GERENCIADOR FINAL com temas variados e preferências de uso.")
     ];
 
     private readonly Dictionary<V269Page, V269NavButton> _navigation = new();
@@ -527,7 +527,7 @@ internal sealed class V269Shell : UserControl
     {
         if (_columns is null || _navigationLayout is null) return;
         int width = Math.Max(1, ClientSize.Width);
-        bool home = SelectedPage == V269Page.Inicio;
+        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
         int windowWidth = LayoutWindowWidth;
         // Início usa os breakpoints do CSS congelado, medidos pela janela.
         int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
@@ -539,6 +539,12 @@ internal sealed class V269Shell : UserControl
         ApplyFonts();
         ApplyHomeSurfaces(home);
         _homeGlyph.Visible = home;
+        _homeGlyph.Page = SelectedPage;
+        _homeGlyph.ForeColor = Theme switch {
+            V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#c6cdd3" : "#65b8ef"),
+            V269Theme.Claro => ColorTranslator.FromHtml("#2577a8"),
+            _ => ColorTranslator.FromHtml("#69bfe0") };
+        _homeGlyph.Invalidate();
         _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 57 : 68) : 70;
         _headingLayout.Margin = home ? new Padding(0, 0, 0, S(3)) : Padding.Empty;
@@ -970,6 +976,7 @@ internal sealed class V269HomeSurfacePanel : Panel
 
 internal sealed class V269HomeHeadingIcon : Control
 {
+    internal V269Page Page = V269Page.Inicio;
     internal V269HomeHeadingIcon()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
@@ -981,7 +988,7 @@ internal sealed class V269HomeHeadingIcon : Control
         int n = Math.Min((int)Math.Round(34 * DeviceDpi / 96d), Math.Min(Width, Height));
         int iconBox = Math.Min(Width, (int)Math.Round(43 * DeviceDpi / 96d));
         if (n > 1) DrawGlyph(e.Graphics, new Rectangle(Math.Max(0, (iconBox - n) / 2),
-            (Height - n) / 2, n, n), V269Page.Inicio, ForeColor);
+            (Height - n) / 2, n, n), Page, ForeColor);
     }
     // Traçados 24 × 24 da família de ícones aprovada, escala uniforme.
     internal static void DrawGlyph(Graphics g, Rectangle r, V269Page page, Color color)

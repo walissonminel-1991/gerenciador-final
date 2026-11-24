@@ -81,8 +81,8 @@ internal sealed partial class MainForm
             BackColor = Color.Transparent,
             AutoSize = false
         };
-        var minimize = CaptionButton("—", "Minimizar para a bandeja do sistema", false,
-            (_, _) => MinimizeToTray());
+        var minimize = CaptionButton("—", "Minimizar conforme a preferência da janela", false,
+            (_, _) => MinimizeByV269Preference());
         var close = CaptionButton("×", "Fechar o Gerenciador Final", true,
             (_, _) => Close());
         _caption.Controls.Add(title);
@@ -141,7 +141,7 @@ internal sealed partial class MainForm
         Resize += (_, _) =>
         {
             if (!IsDisposed && IsHandleCreated && !_trayTransitioning &&
-                WindowState == FormWindowState.Minimized)
+                WindowState == FormWindowState.Minimized && _v269General.MinimizeToTray)
                 BeginInvoke((Action)MinimizeToTray);
         };
     }
