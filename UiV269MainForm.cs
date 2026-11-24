@@ -574,6 +574,8 @@ internal sealed class V269HomeDashboard : Panel
     // HTML: overflow-y:auto; scrollbar-width:none; nunca overflow-x.
     // O viewport possui um único deslocamento vertical e não cria
     // barras nativas claras nos temas escuros.
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public new Point AutoScrollPosition
     {
         get => new(0, -_scrollY);
