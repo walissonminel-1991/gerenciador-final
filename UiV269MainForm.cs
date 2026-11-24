@@ -664,11 +664,14 @@ internal sealed class V269HomeDashboard : Panel
         try
         {
             int S(int px) => Math.Max(1, (int)Math.Round(px * _appearance.InterfacePercent / 100d * DeviceDpi / 96d));
-            int padding = S(2), gap = S(ClientSize.Height < S(700) ? 7 : 10);
+            // Breakpoints da janela do HTML (gfwindow), não da largura
+            // restante do painel: 940..1090 restaura as duas colunas.
+            int windowWidth = (int)Math.Round((FindForm()?.ClientSize.Width ?? ClientSize.Width) * 96d / DeviceDpi);
+            bool compactHeight = Screen.FromControl(this).WorkingArea.Height * 96d / DeviceDpi <= 950;
+            int padding = S(2), gap = S(compactHeight ? 7 : 10);
             int width = Math.Max(1, ClientSize.Width - 2 * padding - SystemInformation.VerticalScrollBarWidth);
-            bool two = width >= S(640);
+            bool two = windowWidth >= 940 && width >= S(470);
             int column = two ? (width - gap) / 2 : width;
-            bool compact = width < S(1100);
             int y = padding;
             Point offset = AutoScrollPosition;
             for (int i = 0; i < 4;)
@@ -676,19 +679,19 @@ internal sealed class V269HomeDashboard : Panel
                 int count = two ? 2 : 1;
                 int rowHeight = 0;
                 for (int j = 0; j < count; j++)
-                    rowHeight = Math.Max(rowHeight, _cards[i + j].PreferredCardHeight(column, compact));
+                    rowHeight = Math.Max(rowHeight, _cards[i + j].PreferredCardHeight(column, windowWidth, compactHeight));
                 for (int j = 0; j < count; j++)
                 {
                     var card = _cards[i + j];
-                    card.SetCompact(compact);
+                    card.SetGeometry(windowWidth, compactHeight);
                     card.SetBounds(offset.X + padding + j * (column + gap), offset.Y + y, column, rowHeight);
                 }
                 y += rowHeight + gap;
                 i += count;
             }
             var windows = _cards[4];
-            windows.SetCompact(compact);
-            int winHeight = windows.PreferredCardHeight(width, compact);
+            windows.SetGeometry(windowWidth, compactHeight);
+            int winHeight = windows.PreferredCardHeight(width, windowWidth, compactHeight);
             windows.SetBounds(offset.X + padding, offset.Y + y, width, winHeight);
             y += winHeight + gap;
             _notice.MaximumSize = new Size(width, 0);
@@ -710,7 +713,8 @@ internal sealed class V269HomeCard : Control
     internal bool ArtReady => _art is not null;
     internal string? ArtError { get; private set; }
     private Bitmap? _art;
-    private bool _artRequested, _compact;
+    private bool _artRequested, _compactHeight;
+    private int _windowWidth = 1440;
     private V269AppearanceOptions _appearance = V269AppearanceOptions.Default;
 
     internal V269HomeCard(string key)
@@ -734,7 +738,8 @@ internal sealed class V269HomeCard : Control
 
     internal void ApplyAppearance(V269AppearanceOptions appearance, Color background)
     { _appearance = appearance; BackColor = background; Invalidate(); }
-    internal void SetCompact(bool compact) { _compact = compact; Invalidate(); }
+    internal void SetGeometry(int windowWidth, bool compactHeight)
+    { _windowWidth = windowWidth; _compactHeight = compactHeight; Invalidate(); }
 
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -763,66 +768,104 @@ internal sealed class V269HomeCard : Control
         new("Segoe UI", px * _appearance.TextPercent / 100f * DeviceDpi / 96f, style, GraphicsUnit.Pixel);
     private static Color Hex(string s) => ColorTranslator.FromHtml(s);
 
-    internal int PreferredCardHeight(int width, bool compact) => Render(null, width, compact);
+    internal int PreferredCardHeight(int width, int windowWidth, bool compactHeight) =>
+        Render(null, width, windowWidth, compactHeight);
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        Render(e.Graphics, Width, _compact);
+        Render(e.Graphics, Width, _windowWidth, _compactHeight);
     }
 
-    private int Render(Graphics? g, int width, bool compact)
+    private int Render(Graphics? g, int width, int windowWidth, bool compactHeight)
     {
         if (Model is not { } model || width < 20) return S(150);
-        var palette = V269VisualTokens.ForTheme(_appearance.Theme);
-        var (card, border, soft, ink, muted, photo) = _appearance.Theme switch
+        // Valores finais da cascata CSS congelada V2.6.9. Separar
+        // título, nome, rótulo, valor, linha e borda da arte.
+        var (card, border, soft, ink, muted, photo, titleInk, nameInk, photoBorder) = _appearance.Theme switch
         {
-            V269Theme.Dark => (Hex("#303438"), Hex("#565c62"), Hex("#484e54"),
-                Hex("#ced4d9"), Hex("#aab4bd"), Hex("#33383d")),
-            V269Theme.Claro => (Hex("#eaf4fc"), Hex("#9bbacf"), Hex("#bdd3e2"),
-                Hex("#17374c"), Hex("#3f627a"), Hex("#dcecf9")),
-            _ => (palette.Card, palette.Border, Hex("#1c354b"), palette.Text,
-                palette.SecondaryText, Hex("#102b46"))
+            V269Theme.Dark => (Hex("#303438"), Hex("#565c62"), Hex("#3c4249"),
+                Hex("#ced4d9"), Hex("#aab4bd"), Hex("#33383d"), Hex("#dce0e4"),
+                Hex("#ced4d9"), Hex("#575e65")),
+            V269Theme.Claro => (Hex("#eaf4fc"), Hex("#9bbacf"), Hex("#b7d1e2"),
+                Hex("#17374c"), Hex("#3f627a"), Hex("#dcecf9"), Hex("#17374c"),
+                Hex("#123b5d"), Hex("#b7d1e2")),
+            _ => (Hex("#0a2135"), Hex("#25445f"), Hex("#1c354b"), Hex("#e4edf6"),
+                Hex("#9ab0c2"), Hex("#10283e"), Hex("#e4edf6"), Hex("#e4edf6"), Hex("#1c354b"))
         };
-        using var title = TextFont(compact ? 14 : 16, FontStyle.Bold);
-        using var font = TextFont(compact ? 10 : 11);
-        using var bold = TextFont(compact ? 10 : 11, FontStyle.Bold);
+        if (model.Key == "windows")
+            photo = _appearance.Theme switch {
+                V269Theme.Dark => Hex("#232b33"), V269Theme.Claro => Hex("#d6e8f7"), _ => Hex("#102b46") };
+        bool narrowTwo = windowWidth is >= 940 and <= 1090;
+        int fontPixels = narrowTwo ? 9 : windowWidth <= 1370 ? 10 : 11;
+        using var title = TextFont(compactHeight ? 14 : 16, FontStyle.Bold);
+        using var font = TextFont(fontPixels);
+        using var bold = TextFont(fontPixels, FontStyle.Bold);
         using var nameFont = TextFont(13, FontStyle.Bold);
-        int pad = S(compact ? 9 : 11), gap = S(compact ? 8 : 12);
-        int heading = S(compact ? 28 : 34);
-        int contentWidth = Math.Max(1, width - 2 * pad);
-        bool wide = contentWidth >= S(270);
-        int imageWidth = Math.Min(S(model.Key == "windows" ? 240 : compact ? 86 :
-            model.Key is "ram" or "motherboard" ? 140 : 123), Math.Max(1, contentWidth / 3));
-        int imageHeight = model.Key == "windows" ? Math.Min(S(116), Math.Max(S(70), imageWidth / 2)) : imageWidth;
+        int pad = S(11), gap = S(12), verticalPad = S(10);
+        int heading = Math.Max(S(compactHeight ? 28 : 31), title.Height + S(compactHeight ? 7 : 10));
+        int contentWidth = Math.Max(1, width - 2 * pad - S(2));
+        bool wide = windowWidth > 850 && contentWidth >= S(235);
+        int logicalImage = model.Key == "windows"
+            ? (windowWidth <= 850 ? 150 : narrowTwo ? 143 : windowWidth <= 1090 ? 240 :
+                windowWidth <= 1370 ? 95 : 320)
+            : (windowWidth <= 850 ? 100 : narrowTwo ? 86 : windowWidth <= 1090 ? 130 :
+                windowWidth <= 1370 ? (model.Key is "ram" or "motherboard" ? 105 : 95) :
+                model.Key is "ram" or "motherboard" ? 160 : 123);
+        int imageWidth = Math.Min(S(logicalImage), Math.Max(1, contentWidth - S(100)));
+        if (wide && model.Key != "windows") imageWidth = Math.Min(imageWidth, Math.Max(1, contentWidth / 3));
+        int imageHeight = model.Key == "windows"
+            ? Math.Clamp(imageWidth * 5 / 11, S(96), S(116))
+            : compactHeight ? Math.Min(S(118), imageWidth) : imageWidth;
         int remainder = Math.Max(1, contentWidth - imageWidth - gap);
-        int specsWidth = wide ? Math.Max(1, (remainder - gap) * 56 / 100) : remainder;
+        double ratio = model.Key == "windows" && (narrowTwo || windowWidth > 1370) ? .5 :
+            narrowTwo ? 1 / 1.78 : windowWidth <= 1090 ? .5 :
+            windowWidth <= 1370 ? 1 / 1.83 : model.Key is "ram" or "motherboard" ? 1.15 / 1.95 : 1.12 / 2.02;
+        int specsWidth = wide ? Math.Max(1, (int)Math.Round((remainder - gap) * ratio)) : remainder;
         int sensorWidth = wide ? Math.Max(1, remainder - gap - specsWidth) : contentWidth;
-        int bodyY = pad + heading + S(8);
+        int sensorPad = wide ? S(narrowTwo ? 9 : 12) : 0;
+        int bodyY = verticalPad + heading + S(compactHeight ? 6 : 10);
         int dataX = pad + imageWidth + gap;
-        int sensorX = wide ? dataX + specsWidth + gap : pad;
-        int nameHeight = model.Name.Length == 0 ? 0 : HeightOf(model.Name, nameFont, specsWidth) + S(4);
+        int sensorX = wide ? dataX + specsWidth + gap + sensorPad : pad;
+        sensorWidth = Math.Max(1, sensorWidth - sensorPad);
+        int nameHeight = model.Name.Length == 0 ? 0 :
+            Math.Max(S(20), HeightOf(model.Name, nameFont, specsWidth)) + S(4);
         int dataHeight = nameHeight + Rows(null, model.Specs, dataX, bodyY + nameHeight, specsWidth);
         int sensorsHeight = Rows(null, model.Sensors, sensorX, bodyY, sensorWidth);
         int sensorY = wide ? bodyY : bodyY + Math.Max(imageHeight, dataHeight) + gap;
-        int totalHeight = pad + heading + S(8) + (wide
+        int totalHeight = bodyY + (wide
             ? Math.Max(imageHeight, Math.Max(dataHeight, sensorsHeight))
-            : Math.Max(imageHeight, dataHeight) + gap + sensorsHeight) + pad;
+            : Math.Max(imageHeight, dataHeight) + gap + sensorsHeight) + verticalPad + S(2);
         if (g is null) return totalHeight;
 
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var shape = Rounded(new Rectangle(0, 0, Math.Max(1, width - 1), Math.Max(1, Height - 1)), S(10));
-        using var fill = new SolidBrush(card);
+        using Brush fill = _appearance.Theme == V269Theme.Dark
+            ? new System.Drawing.Drawing2D.LinearGradientBrush(
+                new Rectangle(0, 0, Math.Max(1, width), Math.Max(1, Height)),
+                card, Hex("#282c30"), 65f)
+            : new SolidBrush(card);
         using var outline = new Pen(border);
         using var rule = new Pen(soft);
         g.FillPath(fill, shape);
         g.DrawPath(outline, shape);
         // Os ícones são desenho nativo: chip, monitor e módulo de memória.
-        DrawIcon(g, new Rectangle(pad, pad + S(2), S(21), S(21)), model.Key,
-            _appearance.Theme == V269Theme.Dark ? Hex("#c6cdd3") : palette.Accent);
+        Color icon = (_appearance.Theme, model.Key) switch
+        {
+            (V269Theme.Dark, "cpu" or "motherboard") => Hex("#ee9d68"),
+            (V269Theme.Dark, "ram") => Hex("#55cbb5"),
+            (V269Theme.Dark, _) => Hex("#65b8ef"),
+            (V269Theme.Claro, "cpu" or "motherboard") => Hex("#bc592b"),
+            (V269Theme.Claro, "ram") => Hex("#087d82"),
+            (V269Theme.Claro, _) => Hex("#167bbb"),
+            (_, "cpu" or "motherboard") => Hex("#e8a784"),
+            (_, "ram") => Hex("#6bd6b2"),
+            _ => Hex("#75c4ed")
+        };
+        DrawIcon(g, new Rectangle(pad, verticalPad, S(21), S(21)), model.Key, icon);
         TextRenderer.DrawText(g, model.Title, title,
-            new Rectangle(pad + S(30), pad, Math.Max(1, contentWidth - S(30)), heading - S(4)), ink,
+            new Rectangle(pad + S(30), verticalPad, Math.Max(1, contentWidth - S(30)), heading - S(6)), titleInk,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
-        g.DrawLine(rule, pad, pad + heading, width - pad, pad + heading);
+        g.DrawLine(rule, pad, verticalPad + heading, width - pad, verticalPad + heading);
         var picture = new Rectangle(pad, bodyY, imageWidth, imageHeight);
         using (var picShape = Rounded(picture, S(9)))
         using (var picFill = new SolidBrush(photo))
@@ -847,13 +890,14 @@ internal sealed class V269HomeCard : Control
             else TextRenderer.DrawText(g, ArtError is null ? "Carregando imagem" : "Imagem indisponível",
                 font, picture, muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-            g.DrawPath(rule, picShape);
+            using var photoOutline = new Pen(photoBorder);
+            g.DrawPath(photoOutline, picShape);
         }
         if (nameHeight > 0) TextRenderer.DrawText(g, model.Name, nameFont,
-            new Rectangle(dataX, bodyY, specsWidth, nameHeight), ink, Flags);
+            new Rectangle(dataX, bodyY, specsWidth, nameHeight), nameInk, Flags);
         Rows(g, model.Specs, dataX, bodyY + nameHeight, specsWidth);
-        if (wide) g.DrawLine(rule, sensorX - gap / 2, bodyY, sensorX - gap / 2,
-            bodyY + Math.Max(dataHeight, sensorsHeight));
+        if (wide) g.DrawLine(rule, sensorX - sensorPad, bodyY, sensorX - sensorPad,
+            bodyY + sensorsHeight);
         Rows(g, model.Sensors, sensorX, sensorY, sensorWidth);
         return totalHeight;
 
@@ -866,12 +910,13 @@ internal sealed class V269HomeCard : Control
                 int left = stacked ? w : Math.Max(1, (w - S(6)) * 48 / 100);
                 int right = stacked ? w : Math.Max(1, w - left - S(6));
                 int h1 = HeightOf(row.Label, font, left), h2 = HeightOf(row.Value, bold, right);
-                int h = (stacked ? h1 + h2 : Math.Max(h1, h2)) + S(6);
+                int vertical = S(compactHeight ? 3 : 6);
+                int h = (stacked ? h1 + h2 : Math.Max(h1, h2)) + 2 * vertical + S(1);
                 if (target is not null)
                 {
-                    TextRenderer.DrawText(target, row.Label, font, new Rectangle(x, y + S(2), left, h1), muted, Flags);
+                    TextRenderer.DrawText(target, row.Label, font, new Rectangle(x, y + vertical, left, h1), muted, Flags);
                     TextRenderer.DrawText(target, row.Value, bold,
-                        new Rectangle(stacked ? x : x + left + S(6), y + S(2) + (stacked ? h1 : 0), right, h2),
+                        new Rectangle(stacked ? x : x + left + S(6), y + vertical + (stacked ? h1 : 0), right, h2),
                         ink, Flags | (stacked ? TextFormatFlags.Left : TextFormatFlags.Right));
                     using var line = new Pen(soft);
                     target.DrawLine(line, x, y + h - 1, x + w, y + h - 1);
@@ -902,30 +947,43 @@ internal sealed class V269HomeCard : Control
 
     private static void DrawIcon(Graphics g, Rectangle r, string key, Color color)
     {
-        using var p = new Pen(color, Math.Max(1, r.Width / 12f));
-        int x = r.X, y = r.Y, w = r.Width, h = r.Height;
-        if (key is "gpu" or "windows")
+        // Geometria do SVG original (viewBox 0 0 24 24, stroke 1.8).
+        var saved = g.Save();
+        try
         {
-            g.DrawRectangle(p, x + 1, y + 2, w - 3, h * 2 / 3);
-            g.DrawLine(p, x + w / 2, y + h * 2 / 3 + 2, x + w / 2, y + h - 2);
-            g.DrawLine(p, x + w / 4, y + h - 2, x + w * 3 / 4, y + h - 2);
-        }
-        else
-        {
-            int a = Math.Max(3, w / 5);
-            g.DrawRectangle(p, x + a, y + a, w - 2 * a, h - 2 * a);
-            for (int i = 1; i <= 3; i++)
+            g.TranslateTransform(r.X, r.Y);
+            g.ScaleTransform(r.Width / 24f, r.Height / 24f);
+            using var p = new Pen(color, 1.8f)
             {
-                int u = w * i / 4;
-                g.DrawLine(p, x + u, y, x + u, y + a);
-                g.DrawLine(p, x + u, y + h - a, x + u, y + h);
-                if (key != "ram")
-                {
-                    g.DrawLine(p, x, y + u, x + a, y + u);
-                    g.DrawLine(p, x + w - a, y + u, x + w, y + u);
-                }
+                StartCap = System.Drawing.Drawing2D.LineCap.Round,
+                EndCap = System.Drawing.Drawing2D.LineCap.Round,
+                LineJoin = System.Drawing.Drawing2D.LineJoin.Round
+            };
+            void Line(int x1, int y1, int x2, int y2) => g.DrawLine(p, x1, y1, x2, y2);
+            void Rect(int x, int y, int w, int h, int radius)
+            {
+                using var shape = Rounded(new Rectangle(x, y, w, h), radius);
+                g.DrawPath(p, shape);
+            }
+            if (key is "gpu" or "windows")
+            {
+                Rect(3, 4, 18, 14, 2); Line(8, 22, 16, 22); Line(12, 18, 12, 22);
+            }
+            else if (key == "ram")
+            {
+                Rect(2, 7, 20, 10, 1);
+                foreach (int x in new[] { 6, 10, 14, 18 }) Line(x, 10, x, 14);
+                foreach (int x in new[] { 5, 9, 15, 19 })
+                { Line(x, 17, x, 20); Line(x, 4, x, 7); }
+            }
+            else
+            {
+                Rect(6, 6, 12, 12, 1); g.DrawRectangle(p, 9, 9, 6, 6);
+                foreach (int n in new[] { 9, 15 })
+                { Line(n, 2, n, 6); Line(n, 18, n, 22); Line(2, n, 6, n); Line(18, n, 22, n); }
             }
         }
+        finally { g.Restore(saved); }
     }
 
     protected override void Dispose(bool disposing)
