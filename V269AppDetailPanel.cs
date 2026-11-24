@@ -97,6 +97,73 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
     }
 }
 
+// Histórico somente de apresentação nos estados operacionais de Aplicativos.
+// A altura é limitada pelo hospedeiro; confirmação, descrição e cancelamento
+// conservam os respectivos controles e contratos do motor.
+internal sealed class V269AppOperationHistory : Panel
+{
+    private readonly TableLayoutPanel _rows=new(){Dock=DockStyle.Top,AutoSize=true,
+        AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=1,Margin=Padding.Empty};
+    private readonly Label _heading=new(){Text="Resultados anteriores",AutoSize=true,
+        Dock=DockStyle.Top,Margin=Padding.Empty};
+    private Font? _headingFont;
+    private bool _measuring;
+    private int _percent=100;
+    private V269Theme _theme;
+    internal V269AppOperationHistory(IReadOnlyList<V269AppPreviousResult> results,Action<Guid> dismiss)
+    {
+        Name="V269AppOperationHistory";AccessibleName="Resultados anteriores";
+        Dock=DockStyle.Bottom;AutoScroll=true;Margin=Padding.Empty;
+        _rows.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        _rows.Controls.Add(_heading,0,_rows.RowCount++);
+        _heading.Paint+=(_,e)=>{
+            using var pen=new Pen(V269AppDetailStyle.Divider(_theme));
+            e.Graphics.DrawLine(pen,0,0,_heading.Width-1,0);
+        };
+        for(int i=0;i<results.Count;i++)
+        {
+            var row=new V269AppHistoryRow(results[i],dismiss,i<results.Count-1);
+            _rows.Controls.Add(row,0,_rows.RowCount++);
+        }
+        Controls.Add(_rows);
+        SizeChanged+=(_,_)=>MeasureRows();
+        FontChanged+=(_,_)=>ApplyFonts();
+        ApplyFonts();
+    }
+    private void ApplyFonts()
+    {
+        if(IsDisposed||Disposing)return;
+        var old=_headingFont;_headingFont=new Font(Font,FontStyle.Bold);
+        _heading.Font=_headingFont;old?.Dispose();MeasureRows();
+    }
+    internal void ApplyAppearance(V269Theme theme,int percent,Font font)
+    {
+        _theme=theme;_percent=percent;Font=font;
+        var palette=V269AppDetailStyle.Palette(theme);
+        BackColor=_rows.BackColor=palette.RightPanel;_heading.ForeColor=palette.Text;
+        foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyPalette(palette);
+        MeasureRows();_heading.Invalidate();
+    }
+    private void MeasureRows()
+    {
+        if(_measuring||IsDisposed||Disposing)return;_measuring=true;
+        try
+        {
+            int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
+            _heading.Padding=new Padding(0,S(12),0,S(9));
+            int width=Math.Max(1,ClientSize.Width-SystemInformation.VerticalScrollBarWidth);
+            _rows.MaximumSize=new Size(width,0);
+            _heading.MaximumSize=new Size(width,0);
+            foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyMetrics(_percent,width);
+        }
+        finally{_measuring=false;}
+    }
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);if(disposing)_headingFont?.Dispose();
+    }
+}
+
 internal sealed class V269AppDetailPanel : Panel
 {
     private readonly Panel _viewport=new(){Name="V269AppDetailsViewport",AutoScroll=false,Margin=Padding.Empty};

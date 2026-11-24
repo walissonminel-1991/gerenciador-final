@@ -395,6 +395,24 @@ internal static class V269IntegrationTests
                 restored.Name==entries[0].Name&&restored.PreviousResults[0].Description==oldResult.Description,
                 "resultado restaurado não bloqueia seleção e permanece no histórico contextual");
             Console.WriteLine("PASS Aplicativos V2.6.9: resultado restaurado conserva identidade e seleção.");
+            var confirmationMethod=typeof(MainForm).GetMethod("ConfirmV269Async",flags)!;
+            var confirmTask=(Task<bool>)confirmationMethod.Invoke(form,["Confirmar fixture","Alvo sintético",CancellationToken.None])!;
+            Application.DoEvents();
+            var confirmationPresentation=shell.RightPane.Current;
+            var operationHistory=shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single();
+            Require(operationHistory.Visible&&!confirmTask.IsCompleted&&
+                operationHistory.Controls.Find("V269AppPreviousResult",true).Single().AccessibleDescription==oldResult.Description&&
+                shell.RightPane.Controls.Find("V269AcceptConfirmation",true).Single().Enabled,
+                "histórico durante confirmação sem resolver ou ocultar autorização");
+            shell.SelectPage(V269Page.Drivers);Application.DoEvents();
+            Require(shell.RightPane.Controls.Find("V269AppOperationHistory",true).Length==0&&!confirmTask.IsCompleted,
+                "histórico de Aplicativos não vaza para outra aba nem resolve confirmação");
+            shell.SelectPage(V269Page.Aplicativos);Application.DoEvents();
+            Require(shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single().Visible&&
+                ReferenceEquals(shell.RightPane.Current,confirmationPresentation),"retorno conserva confirmação e histórico");
+            shell.RightPane.ResolveConfirmation(false);Pump(confirmTask);
+            Require(!confirmTask.Result&&shell.RightPane.Current?.Application?.PreviousResults is {Count:1},
+                "cancelar restaura detalhes e histórico sem autorização");
             var previousRow=shell.RightPane.Controls.Find("V269AppPreviousResult",true).Single();
             var dismiss=previousRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
             Require(dismiss.Enabled&&dismiss.AccessibleName?.Contains(oldResult.Title,StringComparison.Ordinal)==true,
@@ -415,7 +433,17 @@ internal static class V269IntegrationTests
                 {
                     cancelField.SetValue(form,cancel);
                     shell.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento","Fixture sem execução"));
+                    record.Invoke(form,[oldResult.Title,oldResult.Description,null]);
                     showCancel.Invoke(form,[true]);Application.DoEvents();
+                    var operational=shell.RightPane.Current;
+                    var flowHistory=shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single();
+                    Require(flowHistory.Visible&&flowHistory.Controls.Find("V269AppPreviousResult",true).Length==1,
+                        "histórico permanece acessível durante progresso");
+                    var flowDismiss=flowHistory.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                    flowDismiss.PerformClick();Application.DoEvents();
+                    Require(ReferenceEquals(shell.RightPane.Current,operational)&&!cancel.IsCancellationRequested&&
+                        shell.RightPane.Controls.Find("V269AppOperationHistory",true).Length==0,
+                        "dispensar resultado durante progresso não substitui estado nem cancela motor");
                     var progressTitle=shell.RightPane.Controls.Find("V269PanelTitle",true).OfType<Label>().Single();
                     Require(progressTitle.TextAlign==ContentAlignment.MiddleLeft&&progressTitle.Margin==Padding.Empty,
                         "geometria exclusiva dos detalhes não modifica o cabeçalho operacional");

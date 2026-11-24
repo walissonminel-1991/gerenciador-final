@@ -829,6 +829,7 @@ internal sealed partial class MainForm : Form
         _nav.SetPageContent(V269Page.Inicializacao, BuildV269StartupPage());
         _nav.SetPageContent(V269Page.Configuracoes, BuildV269Settings(startServices));
         _nav.SetOperationContent(BuildOperationsPanel());
+        _nav.RightPane.ConfigureAppHistory(()=>_v269AppPreviousResults.ToArray(),DismissV269AppResult);
         _nav.NavigationChanged += async (_, e) =>
         {
             ApplyHomeChrome();
@@ -1474,6 +1475,7 @@ internal sealed partial class MainForm : Form
         // registro persistente nem os estados reais de atualização/remoção.
         if(_v269AppPreviousResults.Count>4)_v269AppPreviousResults.RemoveAt(4);
         if(owned is not null)_v269AppRetainedResult=owned;
+        _nav.RightPane.RefreshAppOperationHistory();
         if(_nav.SelectedPage==V269Page.Aplicativos&&_programList.SelectedItem is {} item)
         {
             PresentV269AppDetails(item);
@@ -1482,9 +1484,13 @@ internal sealed partial class MainForm : Form
     }
     private void DismissV269AppResult(Guid id)
     {
-        if(_busy||_v269Confirming||_nav.SelectedPage!=V269Page.Aplicativos||
-            _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)return;
-        _v269AppPreviousResults.RemoveAll(x=>x.Id==id);
+        if(IsDisposed||Disposing||_nav.SelectedPage!=V269Page.Aplicativos)return;
+        bool operational=_nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress;
+        if(!operational&&(_busy||_v269Confirming))return;
+        if(_v269AppPreviousResults.RemoveAll(x=>x.Id==id)==0)return;
+        // Em operação, dispensar apenas a linha da sessão. Nunca substituir
+        // Current, resolver a confirmação, alterar token ou gravar histórico.
+        if(operational){_nav.RightPane.RefreshAppOperationHistory();return;}
         if(_programList.SelectedItem is {} item)PresentV269AppDetails(item);
     }
 

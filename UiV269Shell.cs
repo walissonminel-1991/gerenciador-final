@@ -67,6 +67,11 @@ internal sealed class V269RightPane : UserControl
     private readonly Panel _descriptionHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
     private bool _hasOperationContent;
     private bool _structuredApp;
+    private bool _appHistoryPage;
+    private Func<IReadOnlyList<V269AppPreviousResult>>? _appHistoryProvider;
+    private Action<Guid>? _appHistoryDismiss;
+    private V269AppOperationHistory? _operationHistory;
+    private V269AppPreviousResult[] _operationHistorySnapshot=[];
     private V269Palette _basePanePalette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
     private V269Theme _appPaneTheme=V269Theme.AzulGf;
     private int _appInterfacePercent=100;
@@ -129,6 +134,7 @@ internal sealed class V269RightPane : UserControl
         _layout.Controls.Add(_progress, 0, 1);
         _descriptionHost.Controls.Add(_description);
         _descriptionHost.Controls.Add(_applicationDetails);
+        _descriptionHost.SizeChanged+=(_,_)=>FitOperationHistory();
         _layout.Controls.Add(_descriptionHost,0,2);
         _choices = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false, Visible = false };
         foreach (var (caption, accepted) in new[] { ("Cancelar", false), ("Confirmar", true) })
@@ -193,8 +199,49 @@ internal sealed class V269RightPane : UserControl
         if (_confirmation is null) PresentCore(presentation);
     }
 
+    internal void ConfigureAppHistory(Func<IReadOnlyList<V269AppPreviousResult>> provider,Action<Guid> dismiss)
+    {
+        _appHistoryProvider=provider;_appHistoryDismiss=dismiss;RefreshAppOperationHistory();
+    }
+    internal void SetAppHistoryPage(bool active)
+    {
+        _appHistoryPage=active;RefreshAppOperationHistory();
+    }
+    internal void RefreshAppOperationHistory()
+    {
+        if(IsDisposed||Disposing)return;
+        V269AppPreviousResult[] results=_appHistoryPage&&
+            (Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)
+            ?_appHistoryProvider?.Invoke().ToArray()??[]:[];
+        if(results.SequenceEqual(_operationHistorySnapshot))return;
+        _operationHistorySnapshot=results;
+        _operationHistory?.Dispose();_operationHistory=null;
+        if(results.Length==0||_appHistoryDismiss is null)return;
+        _operationHistory=new V269AppOperationHistory(results,_appHistoryDismiss);
+        _descriptionHost.Controls.Add(_operationHistory);
+        _operationHistory.BringToFront();
+        _description.BringToFront();
+        _operationHistory.ApplyAppearance(_appPaneTheme,_appInterfacePercent,_applicationDetails.Font);
+        FitOperationHistory();
+    }
+    private void FitOperationHistory()
+    {
+        if(_operationHistory is not {} history)return;
+        // Divide somente a área de descrição já existente. Não deslocar
+        // os botões de confirmação nem o painel do motor/cancelamento.
+        int height=Math.Max(1,_descriptionHost.ClientSize.Height/2);
+        if(history.Height!=height)history.Height=height;
+    }
     private void PresentCore(V269PanelPresentation? presentation)
     {
+        // A confirmação restaura a fotografia anterior. Se um resultado
+        // foi dispensado durante a espera, não ressuscitar essa fotografia.
+        if(_appHistoryPage&&presentation?.Application is {} app&&_appHistoryProvider is not null)
+        {
+            var latest=_appHistoryProvider();
+            if(!(app.PreviousResults??Array.Empty<V269AppPreviousResult>()).SequenceEqual(latest))
+                presentation=presentation with {Application=app with {PreviousResults=latest}};
+        }
         Current = presentation;
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
@@ -213,6 +260,7 @@ internal sealed class V269RightPane : UserControl
         _progress.Value = Math.Clamp(presentation?.ProgressPercent ?? 0, 0, 100);
         _progress.AccessibleDescription = inProgress ? _progress.Value + "%" : string.Empty;
         AccessibleDescription = presentation?.Title ?? "";
+        RefreshAppOperationHistory();
         PresentationChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -234,6 +282,7 @@ internal sealed class V269RightPane : UserControl
         _descriptionHost.BackColor=palette.RightPanel;
         _description.ForeColor = palette.SecondaryText;
         _applicationDetails.ApplyPalette(V269AppDetailStyle.Palette(_appPaneTheme),_appPaneTheme);
+        _operationHistory?.ApplyAppearance(_appPaneTheme,_appInterfacePercent,_applicationDetails.Font);
         Padding=_structuredApp?new Padding(V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
@@ -276,6 +325,7 @@ internal sealed class V269RightPane : UserControl
     internal void ApplyAppInterfaceScale(int percent)
     {
         _appInterfacePercent=percent;_applicationDetails.ApplyInterfaceScale(percent);
+        _operationHistory?.ApplyAppearance(_appPaneTheme,percent,_applicationDetails.Font);
         if(_structuredApp)ApplyPaneSurface();
     }
 
@@ -285,6 +335,7 @@ internal sealed class V269RightPane : UserControl
         _title.Font=_structuredApp?appTitle:title;
         _description.Font=body;
         _applicationDetails.Font=appBody;
+        _operationHistory?.ApplyAppearance(_appPaneTheme,_appInterfacePercent,appBody);
         ApplyAppTitleMetrics();
     }
 }
@@ -534,6 +585,7 @@ internal sealed class V269Shell : UserControl
         if(changed&&SelectedPage==V269Page.Aplicativos&&_rightPane.Current?.Application is not null)
             _rightPane.Present(null);
         SelectedPage = page;
+        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos);
         var descriptor = Pages[(int)page];
         _pageTitle.Text = descriptor.Title;
         _pageSubtitle.Text = descriptor.Subtitle;
