@@ -17,8 +17,7 @@ internal sealed class GfMonitorHost : IDisposable
     private WddmGpuKey? _selected;
     private DateTimeOffset? _cpuAt, _wddmAt, _dxgiAt, _thermalAt;
     private GfResourceMonitorSnapshot? _lastProjected;
-    private V269Theme _theme;
-    private bool _animate = true, _disposed, _closingForHost, _applying;
+     private bool _animate = true, _disposed, _closingForHost, _applying;
 
     internal GfMonitorHost(string preferencesPath)
     {
@@ -93,8 +92,10 @@ internal sealed class GfMonitorHost : IDisposable
 
     internal void Configure(V269Theme theme, bool animate)
     {
-        Check(); _theme = theme; _animate = animate;
-        _window?.Configure(theme, animate);
+        // Compatibilidade com o shell: o parâmetro de tema global não
+        // substitui a escolha exclusiva do monitor.
+        Check(); _animate = animate;
+        _window?.Configure(_preferences.MonitorTheme, animate);
     }
 
     // Restaurar só sob chamada explícita do shell (não no construtor).
@@ -136,7 +137,7 @@ internal sealed class GfMonitorHost : IDisposable
         _window = window;
         try
         {
-            window.Configure(_theme, _animate);
+            window.Configure(_preferences.MonitorTheme, _animate);
             window.ApplyPreferences(_preferences);
             window.FormClosed += OnClosed;
             window.ModeChanged += OnModeChanged;
@@ -160,7 +161,8 @@ internal sealed class GfMonitorHost : IDisposable
     private void OnClosed(object? sender, FormClosedEventArgs e)
     {
         if (sender is not GfResourceMonitorForm window || !ReferenceEquals(_window, window)) return;
-        _preferences = window.CapturePreferences(_closingForHost && _preferences.Enabled);
+        var captured = window.CapturePreferences(_closingForHost && _preferences.Enabled);
+        _preferences = _closingForHost ? _preferences with { X = captured.X, Y = captured.Y } : captured;
         window.FormClosed -= OnClosed; window.ModeChanged -= OnModeChanged;
         _binding?.Dispose(); _binding = null; _window = null;
         if (!_closingForHost && !_disposed) Save();

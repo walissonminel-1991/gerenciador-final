@@ -39,7 +39,8 @@ internal sealed class GfResourceMonitorForm : Form
     private Point? _drag;
     private long? _arrivedTick;
     private DateTimeOffset? _lastAcceptedAt;
-    private bool _snapToEdges = true;
+    private bool _snapToEdges = true, _fixed = true;
+    private int _scalePercent = 100;
     internal bool Expanded => _isExpanded;
     internal event EventHandler? ModeChanged;
 
@@ -323,14 +324,17 @@ internal sealed class GfResourceMonitorForm : Form
         TopMost = p.AlwaysOnTop;
         Opacity = p.OpacityPercent / 100d;
         _snapToEdges = p.SnapToEdges;
+        _fixed = p.Fixed;
+        _scalePercent = p.ScalePercent;
+        Configure(p.MonitorTheme, _animate);
         SetExpanded(p.Expanded);
         if (p.X is int x && p.Y is int y) Location = new(x, y);
         ClampLocation(snap: false);
     }
 
     internal GfResourceMonitorPreferences CapturePreferences(bool enabled) =>
-        new GfResourceMonitorPreferences(1, enabled, Expanded, TopMost,
-            (int)Math.Round(Opacity * 100), _snapToEdges, Location.X, Location.Y).Normalize();
+        new GfResourceMonitorPreferences(2, enabled, Expanded, TopMost,
+            (int)Math.Round(Opacity * 100), _snapToEdges, Location.X, Location.Y, _fixed, _scalePercent, _theme).Normalize();
 
     private void ClampLocation(bool snap)
     {

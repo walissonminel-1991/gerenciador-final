@@ -21,6 +21,13 @@ internal static class GfMonitorPreferencesAndProgressTests
             Require(GfResourceMonitorPreferencesStore.TrySave(path, selected) &&
                 GfResourceMonitorPreferencesStore.Load(path) == selected, "preferência completa preservada");
             string valid = File.ReadAllText(path);
+            File.WriteAllText(path, "{\"Version\":1,\"Enabled\":true,\"Expanded\":false,\"AlwaysOnTop\":false,\"OpacityPercent\":85,\"SnapToEdges\":true,\"X\":-120,\"Y\":30}");
+            Require(GfResourceMonitorPreferencesStore.Load(path) == selected, "migração estrita v1 para v2 com fixação segura");
+            var customized = selected with { Fixed = false, ScalePercent = 135, MonitorTheme = V269Theme.Claro, AlwaysOnTop = true };
+            Require(GfResourceMonitorPreferencesStore.TrySave(path,customized) &&
+                GfResourceMonitorPreferencesStore.Load(path) == customized, "tema, escala, fixação e sobreposição persistem");
+            File.WriteAllText(path,valid.Replace("\"Fixed\":true","\"Fixed\":null"));
+            Require(GfResourceMonitorPreferencesStore.Load(path) == GfResourceMonitorPreferences.Default,"fixação inválida rejeitada");
             File.WriteAllText(path, valid.Insert(1, "\"Enabled\":false,"));
             Require(GfResourceMonitorPreferencesStore.Load(path) == GfResourceMonitorPreferences.Default,
                 "chave duplicada rejeitada");

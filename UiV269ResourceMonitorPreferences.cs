@@ -7,15 +7,19 @@ namespace GerenciadorAplicativos;
 // serviço, chave Run, tarefa, rede, ID de hardware ou habilitação automática.
 internal sealed record GfResourceMonitorPreferences(
     int Version, bool Enabled, bool Expanded, bool AlwaysOnTop,
-    int OpacityPercent, bool SnapToEdges, int? X, int? Y)
+    int OpacityPercent, bool SnapToEdges, int? X, int? Y,
+    bool Fixed = true, int ScalePercent = 100, V269Theme MonitorTheme = V269Theme.AzulGf)
 {
-    internal static GfResourceMonitorPreferences Default => new(1, false, false, false, 100, true, null, null);
+    internal const int MinScale = 100, MaxScale = 150;
+    internal static GfResourceMonitorPreferences Default => new(2, false, false, false, 100, true, null, null);
 
     internal GfResourceMonitorPreferences Normalize()
     {
-        if (Version != 1) return Default;
+        if (Version is not (1 or 2)) return Default;
         bool validLocation = X is >= -1_000_000 and <= 1_000_000 && Y is >= -1_000_000 and <= 1_000_000;
-        return this with { OpacityPercent = Math.Clamp(OpacityPercent, 40, 100),
+        return this with { Version = 2, OpacityPercent = Math.Clamp(OpacityPercent, 40, 100),
+            Fixed = Version == 1 || Fixed, ScalePercent = Version == 1 ? 100 : Math.Clamp(ScalePercent, MinScale, MaxScale),
+            MonitorTheme = Version == 1 || !Enum.IsDefined(MonitorTheme) ? V269Theme.AzulGf : MonitorTheme,
             X = validLocation ? X : null, Y = validLocation ? Y : null };
     }
 
@@ -46,21 +50,28 @@ internal static class GfResourceMonitorPreferencesStore
     {
         if (root.ValueKind != JsonValueKind.Object) return false;
         var keys = new HashSet<string>(StringComparer.Ordinal);
+        int schema = 0;
         foreach (var property in root.EnumerateObject())
         {
             if (!keys.Add(property.Name)) return false;
             var value = property.Value;
             bool valid = property.Name switch
             {
-                "Version" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int version) && version == 1,
+                "Version" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out schema) && schema is 1 or 2,
                 "Enabled" or "Expanded" or "AlwaysOnTop" or "SnapToEdges" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
-                "OpacityPercent" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _),
+                "OpacityPercent" or "ScalePercent" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _),
+                "Fixed" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+                "MonitorTheme" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int theme) &&
+                    Enum.IsDefined(typeof(V269Theme), theme),
                 "X" or "Y" => value.ValueKind == JsonValueKind.Null || (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _)),
                 _ => false
             };
             if (!valid) return false;
         }
-        return keys.Count == 8;
+        string[] original = ["Version","Enabled","Expanded","AlwaysOnTop","OpacityPercent","SnapToEdges","X","Y"];
+        if (!original.All(keys.Contains)) return false;
+        return schema == 1 ? keys.Count == 8 :
+            schema == 2 && keys.Count == 11 && keys.Contains("Fixed") && keys.Contains("ScalePercent") && keys.Contains("MonitorTheme");
     }
 
     internal static GfResourceMonitorPreferences Load(string path)
