@@ -16,6 +16,17 @@ internal static class V269IntegrationTests
             throw new InvalidOperationException($"View ausente: {page}")).ToArray();
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
+        var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
+        Require(!shell.RightPane.Visible && paneToggle.Visible && paneToggle.Enabled,
+            "Início usa toda a largura, mas mantém acesso explícito ao painel");
+        paneToggle.PerformClick();
+        Application.DoEvents();
+        Require(shell.RightPane.Visible &&
+            form.Controls.Find("LocalReliabilityReportButton", true).OfType<Button>().Single().Visible,
+            "abertura manual conserva o acesso à exportação do histórico local");
+        paneToggle.PerformClick();
+        Application.DoEvents();
+        Require(!shell.RightPane.Visible, "fechar painel restaura o dashboard");
         var confirm = typeof(MainForm).GetMethod("ConfirmV269Async",
             BindingFlags.NonPublic | BindingFlags.Instance)!;
         var waiting = (Task<bool>)confirm.Invoke(form, ["Revisão de teste",
