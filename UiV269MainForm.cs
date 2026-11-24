@@ -1197,6 +1197,7 @@ internal sealed class V269HomeDashboard : Panel
             int width = Math.Max(1, ClientSize.Width - 2 * padding);
             bool two = windowWidth >= 940 && width >= S(470);
             int column = two ? (width - gap) / 2 : width;
+            int ColumnWidth(int j) => two && j == 1 ? width - gap - column : column;
             int y = S(1);
             Point offset = AutoScrollPosition;
             for (int i = 0; i < 4;)
@@ -1204,12 +1205,12 @@ internal sealed class V269HomeDashboard : Panel
                 int count = two ? 2 : 1;
                 int rowHeight = 0;
                 for (int j = 0; j < count; j++)
-                    rowHeight = Math.Max(rowHeight, _cards[i + j].PreferredCardHeight(column, windowWidth, compactHeight));
+                    rowHeight = Math.Max(rowHeight, _cards[i + j].PreferredCardHeight(ColumnWidth(j), windowWidth, compactHeight));
                 for (int j = 0; j < count; j++)
                 {
                     var card = _cards[i + j];
                     card.SetGeometry(windowWidth, compactHeight);
-                    card.SetBounds(offset.X + padding + j * (column + gap), offset.Y + y, column, rowHeight);
+                    card.SetBounds(offset.X + padding + j * (column + gap), offset.Y + y, ColumnWidth(j), rowHeight);
                 }
                 y += rowHeight + gap;
                 i += count;
@@ -1371,7 +1372,8 @@ internal sealed class V269HomeCard : Control
             Math.Max(S(20), HeightOf(model.Name, nameFont, specsWidth)) + S(4);
         int dataHeight = nameHeight + Rows(null, model.Specs, dataX, bodyY + nameHeight, specsWidth);
         bool sensorGrid = windowWidth <= 850 && !wide && sensorWidth >= S(200);
-        int sensorColumnWidth = sensorGrid ? Math.Max(1, (sensorWidth - gap) / 2) : sensorWidth;
+        // A grade interna de sensores do HTML tem duas colunas sem column-gap.
+        int sensorColumnWidth = sensorGrid ? Math.Max(1, sensorWidth / 2) : sensorWidth;
         int DrawSensors(Graphics? target, int y)
         {
             if (!sensorGrid) return Rows(target, model.Sensors, sensorX, y, sensorWidth);
@@ -1381,8 +1383,8 @@ internal sealed class V269HomeCard : Control
             {
                 int leftHeight = Rows(target, new[] { model.Sensors[i] }, sensorX, y + height, sensorColumnWidth);
                 int rightHeight = i + 1 < model.Sensors.Count
-                    ? Rows(target, new[] { model.Sensors[i + 1] }, sensorX + sensorColumnWidth + gap,
-                        y + height, sensorColumnWidth) : 0;
+                    ? Rows(target, new[] { model.Sensors[i + 1] }, sensorX + sensorColumnWidth,
+                        y + height, sensorWidth - sensorColumnWidth) : 0;
                 height += Math.Max(leftHeight, rightHeight);
             }
             return height;
@@ -1439,8 +1441,24 @@ internal sealed class V269HomeCard : Control
                         ? Math.Min(picture.Width / (float)_art.Width, picture.Height / (float)_art.Height)
                         : Math.Max(picture.Width / (float)_art.Width, picture.Height / (float)_art.Height);
                     float w = _art.Width * scale, h = _art.Height * scale;
-                    g.DrawImage(_art, new RectangleF(picture.X + (picture.Width - w) / 2,
-                        picture.Y + (picture.Height - h) / 2, w, h));
+                    var destination = new RectangleF(picture.X + (picture.Width - w) / 2,
+                        picture.Y + (picture.Height - h) / 2, w, h);
+                    if (_appearance.Theme == V269Theme.Claro)
+                    {
+                        // CSS computado: filter:saturate(.8). A arte original
+                        // permanece intacta; somente a pintura no tema Claro muda.
+                        using var attributes = new System.Drawing.Imaging.ImageAttributes();
+                        attributes.SetColorMatrix(new System.Drawing.Imaging.ColorMatrix(new float[][] {
+                            new[] { .8426f, .0426f, .0426f, 0f, 0f },
+                            new[] { .143f, .943f, .143f, 0f, 0f },
+                            new[] { .0144f, .0144f, .8144f, 0f, 0f },
+                            new[] { 0f, 0f, 0f, 1f, 0f },
+                            new[] { 0f, 0f, 0f, 0f, 1f }
+                        }));
+                        g.DrawImage(_art, Rectangle.Round(destination), 0, 0, _art.Width, _art.Height,
+                            GraphicsUnit.Pixel, attributes);
+                    }
+                    else g.DrawImage(_art, destination);
                 }
                 finally { g.Restore(saved); }
             }

@@ -4,6 +4,20 @@ using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
 
+// Medidas finais da referência HTML: largura da janela e media query
+// da altura disponível no monitor. Aplicadas exclusivamente a Início.
+internal static class V269HomeMetrics
+{
+    internal static int LogicalScreenHeight(Control control) =>
+        Math.Max(1, (int)Math.Round(Screen.FromControl(control).WorkingArea.Height * 96d / control.DeviceDpi));
+    internal static int HeaderHeight(int width, int screenHeight) =>
+        screenHeight <= 810 ? 69 : width <= 850 ? 70 : 80;
+    internal static int LogoSize(int width, int screenHeight) =>
+        screenHeight <= 810 || width <= 850 ? 45 : 55;
+    internal static int TitlePixels(int width, int screenHeight) =>
+        screenHeight <= 810 ? 22 : width <= 850 ? 20 : width <= 1250 ? 24 : 28;
+}
+
 internal enum V269Page
 {
     Inicio,
@@ -477,9 +491,11 @@ internal sealed class V269Shell : UserControl
     {
         int widthClass = !_homeGeometry ? 0 : LayoutWindowWidth <= 850 ? 1 :
             LayoutWindowWidth <= 1250 ? 2 : 3;
-        if (_appliedTextScale == TextScalePercent && _homeFontWidthClass == widthClass) return;
+        int screenHeight = _homeGeometry ? V269HomeMetrics.LogicalScreenHeight(this) : int.MaxValue;
+        int fontClass = widthClass + (screenHeight <= 810 ? 4 : 0);
+        if (_appliedTextScale == TextScalePercent && _homeFontWidthClass == fontClass) return;
         _appliedTextScale = TextScalePercent;
-        _homeFontWidthClass = widthClass;
+        _homeFontWidthClass = fontClass;
         Font NewFont(float size, FontStyle style = FontStyle.Regular)
         {
             var key = (size, style, TextScalePercent);
@@ -491,7 +507,8 @@ internal sealed class V269Shell : UserControl
         Font = NewFont(9.5f);
         // Tamanho efetivo CSS: título 20/24/28 px, subtítulo 10/12 px,
         // navegação 11/12/14 px. 1 CSS px = 0,75 pt em 96 DPI.
-        _pageTitle.Font = NewFont(widthClass switch { 1 => 15f, 2 => 18f, 3 => 21f, _ => 17f }, FontStyle.Bold);
+        _pageTitle.Font = NewFont(_homeGeometry
+            ? V269HomeMetrics.TitlePixels(LayoutWindowWidth, screenHeight) * .75f : 17f, FontStyle.Bold);
         _pageSubtitle.Font = NewFont(widthClass == 1 ? 7.5f : 9f);
         _homeCopyright.Font = NewFont(widthClass == 1 ? 6.75f : 7.5f);
         _rightPane.SetFonts(NewFont(12f, FontStyle.Bold), NewFont(9.5f));
@@ -521,7 +538,7 @@ internal sealed class V269Shell : UserControl
         ApplyFonts();
         ApplyHomeSurfaces(home);
         _homeGlyph.Visible = home;
-        _headingLayout.ColumnStyles[0].Width = home ? S(55) : 0;
+        _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 57 : 68) : 70;
         _headingLayout.Margin = home ? new Padding(0, 0, 0, S(3)) : Padding.Empty;
         _centralLayout.Padding = home ? new Padding(S(13), S(13), S(13), S(12)) : new Padding(13, 8, 13, 10);

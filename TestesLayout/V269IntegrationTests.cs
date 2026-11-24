@@ -76,6 +76,17 @@ internal static class V269IntegrationTests
 
     private static void VerifyHome(MainForm form, Control view)
     {
+        Require(V269HomeMetrics.HeaderHeight(992, 768) == 69 &&
+            V269HomeMetrics.HeaderHeight(760, 810) == 69 &&
+            V269HomeMetrics.HeaderHeight(760, 811) == 70 &&
+            V269HomeMetrics.HeaderHeight(992, 900) == 80 &&
+            V269HomeMetrics.LogoSize(992, 768) == 45 &&
+            V269HomeMetrics.LogoSize(992, 900) == 55 &&
+            V269HomeMetrics.TitlePixels(992, 768) == 22 &&
+            V269HomeMetrics.TitlePixels(760, 900) == 20 &&
+            V269HomeMetrics.TitlePixels(992, 900) == 24 &&
+            V269HomeMetrics.TitlePixels(1440, 900) == 28,
+            "media query de 810px e breakpoints de largura do HTML");
         Require(view is V269HomeDashboard, "Início deve usar o dashboard nativo reconstruído");
         var home = (V269HomeDashboard)view;
         var header = form.Controls.Find("V269BrandHeader", true).OfType<V269BrandHeader>().Single();
@@ -466,6 +477,10 @@ internal static class V269IntegrationTests
                         (viewportSize.Width >= 940) == (home.Cards[0].Top == home.Cards[1].Top),
                         "colunas do viewport de referência " + viewportSize);
                     Require(surface.Size == viewportSize, "dimensão efetiva da captura " + viewportSize);
+                    if (home.Cards[0].Top == home.Cards[1].Top)
+                        Require(home.Cards[1].Right == home.Cards[4].Right &&
+                            home.Cards[3].Right == home.Cards[4].Right,
+                            "colunas completam a largura da grade sem perder pixel ímpar");
                     // Evidência textual comparável mesmo sem extrair o PNG do artefato.
                     Point origin = surface.PointToScreen(Point.Empty);
                     var geometry = new { Theme = theme.ToString(), Width = surface.Width, Height = surface.Height,

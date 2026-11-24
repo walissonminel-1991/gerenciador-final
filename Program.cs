@@ -820,7 +820,8 @@ internal sealed partial class MainForm : Form
             bool home = _nav.SelectedPage == V269Page.Inicio;
             int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
-                (logicalWidth <= 850 ? 70 : 80) * DeviceDpi / 96d)) : rows.Header;
+                V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))
+                    * DeviceDpi / 96d)) : rows.Header;
             if (Math.Abs(root.RowStyles[0].Height - headerHeight) > 1)
                 root.RowStyles[0].Height = headerHeight;
             brandHeader.Configure(home, logicalWidth, _v269Appearance);
@@ -4562,7 +4563,7 @@ internal sealed class V269BrandHeader : TableLayoutPanel
     internal bool IsHomePresentation => _home;
     private readonly Dictionary<(float, FontStyle), Font> _fonts = new();
     private V269Theme _theme;
-    private bool _home;
+    private bool _home, _compactHeight;
     private int _width;
     private V269AppearanceOptions? _options;
 
@@ -4586,8 +4587,10 @@ internal sealed class V269BrandHeader : TableLayoutPanel
     internal void Configure(bool home, int width, V269AppearanceOptions options)
     {
         if (_mark is null || _title is null || _subtitle is null || _chrome is null) return;
-        if (_options == options && _home == home && _width == width) return;
-        _options = options; _home = home; _width = width; _theme = options.Theme;
+        int screenHeight = home ? V269HomeMetrics.LogicalScreenHeight(this) : int.MaxValue;
+        bool compactHeight = screenHeight <= 810;
+        if (_options == options && _home == home && _width == width && _compactHeight == compactHeight) return;
+        _options = options; _home = home; _width = width; _theme = options.Theme; _compactHeight = compactHeight;
         int D(int n) => Math.Max(1, (int)Math.Round(n * DeviceDpi / 96d));
         Font F(int pixels, FontStyle style)
         {
@@ -4603,10 +4606,11 @@ internal sealed class V269BrandHeader : TableLayoutPanel
             if (home)
             {
                 bool compact = width <= 850;
-                int logo = compact ? 45 : 55;
+                int logo = V269HomeMetrics.LogoSize(width, screenHeight);
+                int horizontal = compactHeight ? 14 : 18;
                 _mark.LogicalSize = logo;
-                ColumnStyles[0].Width = D(18 + logo);
-                _mark.Margin = new Padding(D(18), 0, 0, 0);
+                ColumnStyles[0].Width = D(horizontal + logo);
+                _mark.Margin = new Padding(D(horizontal), 0, 0, 0);
                 RowStyles[0].SizeType = SizeType.Percent; RowStyles[0].Height = 54;
                 RowStyles[1].SizeType = SizeType.Percent; RowStyles[1].Height = 46;
                 _title.Margin = new Padding(D(compact ? 9 : 14), 0, 0, 0);
@@ -4620,7 +4624,7 @@ internal sealed class V269BrandHeader : TableLayoutPanel
                     V269Theme.Dark => "#e0e3e6", V269Theme.Claro => "#17354e", _ => "#e4edf6" });
                 _subtitle.ForeColor = ColorTranslator.FromHtml(_theme switch {
                     V269Theme.Dark => "#a5afb8", V269Theme.Claro => "#3f627a", _ => "#becddd" });
-                _chrome.Padding = new Padding(0, D(12), D(18), 0);
+                _chrome.Padding = new Padding(0, D(compactHeight ? 8 : 12), D(horizontal), 0);
                 foreach (Button button in _chrome.Controls.OfType<Button>())
                 {
                     button.Size = new Size(D(34), D(28));
