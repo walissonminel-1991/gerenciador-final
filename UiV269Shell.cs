@@ -242,7 +242,7 @@ internal sealed class V269Shell : UserControl
     private readonly Panel _content;
     private readonly Label _pageTitle;
     private readonly Label _pageSubtitle;
-    private readonly Control _homeGlyph;
+    private readonly V269HomeHeadingIcon _homeGlyph;
     private readonly TableLayoutPanel _centralLayout;
     private readonly TableLayoutPanel _headingLayout;
     private readonly V269RightPane _rightPane;

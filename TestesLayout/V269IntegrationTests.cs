@@ -153,6 +153,14 @@ internal static class V269IntegrationTests
                 "preferências de bandeja/notificação são reversíveis");
             File.WriteAllText(path,"{");
             Require(V269GeneralSettingsStore.Read(path)==new V269GeneralOptions(),"JSON inválido retorna padrão");
+            string exe=Path.Combine(folder,"GerenciadorFinal.exe");
+            File.WriteAllText(exe,"fixture de caminho; nunca executar");
+            var launch=V269AdminSessionLauncher.Build(exe);
+            Require(launch.FileName==exe&&launch.UseShellExecute&&launch.Verb=="runas"&&
+                launch.ArgumentList.Count==0&&string.IsNullOrEmpty(launch.Arguments)&&
+                !V269AdminSessionLauncher.IsEligible(path)&&!V269AdminSessionLauncher.IsEligible("GerenciadorFinal.exe"),
+                "modo administrador solicita apenas UAC do executável exato, sem argumentos ou persistência");
+            Require(!form.ConsumeV269AdminRestart(),"abertura normal/testes não solicitam elevação");
         }
         finally{if(Directory.Exists(folder))Directory.Delete(folder,true);}
         general.SetObserved(false,null,new V269GeneralOptions(false,true),TelemetryConsent.Declined,true);

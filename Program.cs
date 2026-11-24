@@ -34,6 +34,7 @@ internal static class Program
                 "Diagnóstico indisponível", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 2;
         }
+        bool reopenAdministrator = false;
         try
         {
             LocalPerformanceMetrics.Sink = sample => DiagnosticTrace.Write(sample.Format());
@@ -65,7 +66,9 @@ internal static class Program
             };
             bool startInTray = args.Length is 1 or 2 && args.Contains("--tray", StringComparer.Ordinal)
                 && args.All(x => x is "--tray" or "--post-reboot");
-            Application.Run(new MainForm(startInTray: startInTray));
+            using var mainForm = new MainForm(startInTray: startInTray);
+            Application.Run(mainForm);
+            reopenAdministrator = mainForm.ConsumeV269AdminRestart();
             DiagnosticTrace.Write("APP.ENCERRAMENTO_NORMAL");
             return 0;
         }
@@ -78,7 +81,11 @@ internal static class Program
             catch { }
             return 1;
         }
-        finally { DiagnosticTrace.Stop(); }
+        finally
+        {
+            DiagnosticTrace.Stop();
+            if (reopenAdministrator) V269AdminSessionLauncher.RequestOnce();
+        }
     }
 }
 
@@ -584,6 +591,10 @@ internal sealed class ModernButton : Button
     {
         if (_dispatchingClick) { base.OnClick(e); return; }
         if (!Enabled || IsDisposed || _pendingClick) return;
+        Form? owner = FindForm();
+        while (owner is not null && owner is not MainForm) owner = owner.Owner;
+        if (owner is MainForm main && !main.V269CanAnimateButtons)
+        { base.OnClick(e); return; }
         _pendingClick = true;
         _visualStart = Stopwatch.GetTimestamp();
         _visualProgress = 0F;

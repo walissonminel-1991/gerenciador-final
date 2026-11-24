@@ -186,7 +186,7 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
         Name = "V269GeneralPanel"; AccessibleName = "Preferências gerais";
         string[] names = ["Modo Administrador","Iniciar com o Windows","Mostrar notificações",
             "Minimizar para a bandeja","Coleta de dados","Diagnóstico e registro"];
-        string[] desc = ["Privilégios da sessão; operações elevadas exigem confirmação.",
+        string[] desc = ["Abrir uma sessão elevada somente após confirmação e UAC.",
             "Abrir o GF automaticamente ao entrar na conta.",
             "Exibir resultados de operações quando o GF estiver na bandeja.",
             "Manter o GF na Área de Notificação ao minimizar.",
@@ -212,19 +212,23 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
         return button;
     }
 
-    internal void SetObserved(bool administrator, bool? startup, V269GeneralOptions general,
-        TelemetryConsent consent, bool canChange)
+    internal void SetObserved(bool? administrator, bool? startup, V269GeneralOptions general,
+        TelemetryConsent consent, bool canChange, bool canCollect = true)
     {
-        Administrator.Checked=administrator;
-        // O GF não reabre todo o processo elevado: as operações continuam
-        // nos workers administrativos autenticados. O clique explica o modo.
-        Administrator.Enabled=canChange;
+        Administrator.Checked=administrator==true;
+        Administrator.Enabled=canChange&&administrator.HasValue;
+        Administrator.AccessibleDescription=administrator switch
+        {
+            true=>"Sessão elevada. Desativar encerra a sessão atual após confirmação.",
+            false=>"Solicitar abertura elevada única, após confirmação e UAC.",
+            null=>"Privilégios não verificados. Alteração bloqueada."
+        };
         StartWindows.Checked=startup==true;
         StartWindows.Enabled=canChange && startup.HasValue;
         Notifications.Checked=general.Notifications; Notifications.Enabled=canChange;
         Tray.Checked=general.MinimizeToTray; Tray.Enabled=canChange;
         Collect.Checked=consent is TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta;
-        Collect.Enabled=canChange;
+        Collect.Enabled=canChange&&canCollect;
         StartWindows.AccessibleDescription=startup.HasValue
             ? "Estado do registro de inicialização deste usuário."
             : "Não foi possível consultar a inicialização. Nenhuma alteração permitida.";
@@ -377,6 +381,11 @@ internal sealed class V269SettingsPage : Panel
         button.GotFocus-=PaneFocus;Controls.Remove(button);_paneToggle=null;Arrange();
     }
     private void PaneFocus(object? sender,EventArgs e){if(sender is Control c)Reveal(c);}
+    internal void SetNotice(string? message)
+    {
+        _hint.Text=message??"As preferências são locais. Operações administrativas continuam sujeitas à confirmação.";
+        Arrange();
+    }
     internal int ContentHeight=>_height;
     internal int ScrollOffset=>_scroll;
     internal void ScrollTo(int offset)

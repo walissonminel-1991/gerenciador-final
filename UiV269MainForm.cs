@@ -763,6 +763,8 @@ internal sealed partial class MainForm
     private V269SettingsPage? _v269Settings;
     private bool _v269SettingsBusy;
     private bool _v269SettingsLive;
+    private bool _v269AdminRestartApproved, _v269AdminClosedNormally;
+    internal bool V269CanAnimateButtons => CanAnimateV269;
 
     private Control BuildV269Settings(bool loadPreferences)
     {
@@ -778,6 +780,8 @@ internal sealed partial class MainForm
         view.Disposed+=(_,_)=>binder.Dispose();
         binder.SetOptions(_v269Appearance);
         _programList.V269Options().AnimateButtonFeedback=CanAnimateV269;
+        if(loadPreferences)FormClosed+=(_,e)=>
+            _v269AdminClosedNormally=e.CloseReason==CloseReason.UserClosing&&!_betaClose.IsShutdown;
         appearance.AppearanceChanged+=(_,_)=>
         {
             _v269Appearance=appearance.GetOptions().Normalize();
@@ -788,9 +792,10 @@ internal sealed partial class MainForm
                 _progress.MarqueeAnimationSpeed=0;_progress.Style=ProgressBarStyle.Blocks;
             }
             if(!loadPreferences)return;
-            try{WriteV269Appearance(_v269Appearance);}
+            try{WriteV269Appearance(_v269Appearance);view.SetNotice(null);}
             catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
             {
+                view.SetNotice("Aparência aplicada nesta sessão; não foi possível salvar a preferência.");
                 Status("Aparência aplicada nesta sessão; não foi possível salvar a preferência.");
                 DiagnosticTrace.Write("PREFERENCIAS.APARENCIA_FALHA "+ex.GetType().Name);
             }
@@ -798,10 +803,7 @@ internal sealed partial class MainForm
         view.General.Notifications.Click+=(_,_)=>ChangeV269General(_v269General with{Notifications=!_v269General.Notifications});
         view.General.Tray.Click+=(_,_)=>ChangeV269General(_v269General with{MinimizeToTray=!_v269General.MinimizeToTray});
         view.General.StartWindows.Click+=async(_,_)=>await ToggleV269StartupAsync();
-        view.General.Administrator.Click+=(_,_)=>PresentV269SettingsInformation("Modo Administrador",
-            "A sessão atual "+(V269SessionIsAdministrator()?"está elevada.":"usa privilégios comuns.")+
-            " O GF não solicita elevação permanente nem reinicia automaticamente como administrador. "+
-            "Os comandos administrativos existentes solicitam UAC por operação, após a confirmação.");
+        view.General.Administrator.Click+=async(_,_)=>await ToggleV269AdminSessionAsync();
         view.General.Collect.Click+=(_,_)=>
         {
             if(!_v269SettingsLive||_v269SettingsBusy||_busy||_v269Confirming||_betaClose.IsClosing)return;
@@ -818,7 +820,7 @@ internal sealed partial class MainForm
                 "Versão: "+DiagnosticTrace.VersionLabel+Environment.NewLine+
                 "Windows: "+Environment.OSVersion.Version+Environment.NewLine+
                 "Arquitetura: "+System.Runtime.InteropServices.RuntimeInformation.OSArchitecture+Environment.NewLine+
-                "Privilégios: "+(V269SessionIsAdministrator()?"elevados":"comuns")+Environment.NewLine+
+                "Privilégios: "+(V269SessionIsAdministrator() switch {true=>"elevados",false=>"comuns",null=>"não verificados"})+Environment.NewLine+
                 Environment.NewLine+_reliability.Report(_installed,_inventoryIncomplete);
             if(_v269LastSnapshot is{} snapshot)
                 report+=Environment.NewLine+Environment.NewLine+"Última consulta de hardware (não é uma leitura nova):"+
@@ -834,7 +836,7 @@ internal sealed partial class MainForm
         return view;
     }
 
-    private static bool V269SessionIsAdministrator()
+    private static bool? V269SessionIsAdministrator()
     {
         try
         {
@@ -843,7 +845,7 @@ internal sealed partial class MainForm
                 .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
         }
         catch(Exception ex) when(ex is UnauthorizedAccessException or System.Security.SecurityException or
-            System.ComponentModel.Win32Exception){return false;}
+            System.ComponentModel.Win32Exception){return null;}
     }
 
     private bool? ReadV269Startup()
@@ -857,9 +859,10 @@ internal sealed partial class MainForm
     private void RefreshV269General()
     {
         if(_v269Settings is null||_v269Settings.IsDisposed)return;
-        _v269Settings.General.SetObserved(_v269SettingsLive&&V269SessionIsAdministrator(),
+        _v269Settings.General.SetObserved(_v269SettingsLive?V269SessionIsAdministrator():false,
             ReadV269Startup(),_v269General,AnonymousTelemetryContext.Current?.Consent??TelemetryConsent.NotAsked,
-            _v269SettingsLive&&!_v269SettingsBusy&&!_betaClose.IsClosing);
+            _v269SettingsLive&&!_v269SettingsBusy&&!_betaClose.IsClosing,
+            AnonymousTelemetryContext.Current is not null&&BetaRuntimePolicy.AllowsCollaborativeDiagnostics);
     }
 
     private void ChangeV269General(V269GeneralOptions candidate)
@@ -869,14 +872,52 @@ internal sealed partial class MainForm
         {
             V269GeneralSettingsStore.Write(V269GeneralSettingsStore.PathForUser,candidate);
             _v269General=candidate;
+            _v269Settings?.SetNotice(null);
             Status("Preferência geral salva.");
         }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
+            _v269Settings?.SetNotice("Não foi possível salvar a preferência; escolha anterior preservada.");
             Status("Não foi possível salvar a preferência; escolha anterior preservada.");
             DiagnosticTrace.Write("PREFERENCIAS.GERAL_FALHA "+ex.GetType().Name);
         }
         RefreshV269General();
+    }
+
+    private async Task ToggleV269AdminSessionAsync()
+    {
+        if(!_v269SettingsLive||_v269SettingsBusy||_busy||_batchUpdatesActive||_v269Confirming||
+            _betaClose.IsClosing||_windowsUpdateInstalling||V269SessionIsAdministrator() is not bool elevated)return;
+        _v269SettingsBusy=true;RefreshV269General();
+        try
+        {
+            string description=elevated
+                ?"Encerrar a sessão elevada atual? Abra o GF normalmente depois. Nenhuma preferência de elevação é gravada."
+                :"Encerrar esta sessão e solicitar UAC para abrir uma única sessão elevada? "+
+                 "Nenhuma elevação automática será configurada. Todos os comandos de manutenção continuam sujeitos às confirmações existentes.";
+            if(!await ConfirmV269Async("Modo Administrador",description))return;
+            if(_busy||_batchUpdatesActive||_windowsUpdateInstalling||_betaClose.IsClosing||
+                V269SessionIsAdministrator()!=elevated)return;
+            if(!elevated&&!V269AdminSessionLauncher.IsEligible(Environment.ProcessPath))
+            {
+                PresentV269SettingsInformation("Modo Administrador","O executável atual não é elegível para reabertura.");return;
+            }
+            _v269AdminRestartApproved=!elevated;
+            Close();
+            if(!IsDisposed&&!_betaClose.IsClosing)_v269AdminRestartApproved=false;
+        }
+        finally
+        {
+            _v269SettingsBusy=false;
+            if(!IsDisposed&&!Disposing)RefreshV269General();
+        }
+    }
+
+    internal bool ConsumeV269AdminRestart()
+    {
+        bool allowed=_v269AdminRestartApproved&&_v269AdminClosedNormally&&!_betaClose.IsShutdown;
+        _v269AdminRestartApproved=false;
+        return allowed;
     }
 
     private async Task ToggleV269StartupAsync()
