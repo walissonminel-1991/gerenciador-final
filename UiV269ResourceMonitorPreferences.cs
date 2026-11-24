@@ -23,6 +23,21 @@ internal sealed record GfResourceMonitorPreferences(
             X = validLocation ? X : null, Y = validLocation ? Y : null };
     }
 
+    // Escala solicitada não é sobrescrita pela área útil momentânea.
+    // Usar o modo expandido como referência para manter a mesma escala nos
+    // dois modos. Não reduzir abaixo do mínimo autorizado no componente.
+    internal static int? FitScale(int requested, int dpi, Size available)
+    {
+        if(dpi<=0 || available.Width<=0 || available.Height<=0)return null;
+        for(int scale=Math.Clamp(requested,MinScale,MaxScale);scale>=MinScale;scale--)
+        {
+            int width=Math.Max(1,(int)Math.Round(552d*dpi*scale/9600d));
+            int height=Math.Max(1,(int)Math.Round(186d*dpi*scale/9600d));
+            if(width<=available.Width && height<=available.Height)return scale;
+        }
+        return null;
+    }
+
     internal static Point Fit(Point location, Size size, Rectangle workArea, int snap)
     {
         // Coordenadas negativas são válidas em múltiplos monitores.

@@ -239,7 +239,10 @@ internal static class GfResourceMonitorTests
             foreach(bool expanded in new[]{false,true})
             {
                 form.SetExpanded(expanded); Application.DoEvents();
-                int S(int n)=>Math.Max(1,(int)Math.Round(n*form.DeviceDpi*scale/9600d));
+                int effective=GfResourceMonitorPreferences.FitScale(scale,form.DeviceDpi,
+                    Screen.FromPoint(form.Location).WorkingArea.Size) ?? throw new InvalidOperationException("Runner sem área mínima para fixture visual.");
+                Require(form.EffectiveScalePercent==effective,"escala efetiva respeita área útil");
+                int S(int n)=>Math.Max(1,(int)Math.Round(n*form.DeviceDpi*effective/9600d));
                 Require(form.ClientSize==new Size(S(552),S(expanded?186:38)), "escala lógica e DPI sem deriva");
                 if(expanded)
                 {
@@ -262,9 +265,45 @@ internal static class GfResourceMonitorTests
         form.Close();
     }
 
+    private static void VerifyPlacementRecovery()
+    {
+        Require(GfResourceMonitorPreferences.FitScale(150,192,new Size(1440,900))==130,
+            "DPI alto limita escala à largura útil");
+        Require(GfResourceMonitorPreferences.FitScale(150,96,new Size(1920,1080))==150 &&
+            GfResourceMonitorPreferences.FitScale(100,192,new Size(1000,900)) is null,
+            "área suficiente preserva preferência; insuficiente não promete encaixe");
+        var area=new Rectangle(-1440,0,1440,900);
+        using var form=new GfResourceMonitorForm(workArea:_=>area);
+        var p=GfResourceMonitorPreferences.Default with { Enabled=true,Fixed=false,AlwaysOnTop=true,
+            ScalePercent=150,Expanded=true,X=-1200,Y=300 };
+        form.ApplyPreferences(p);
+        form.Show(); Application.DoEvents();
+        Require(form.PlacementAvailable && form.CapturePreferences(true).ScalePercent==150,
+            "preferência inicial de escala");
+        area=new Rectangle(0,0,Math.Max(1,(int)Math.Round(552d*form.DeviceDpi*110/9600d)), 
+            Math.Max(1,(int)Math.Round(186d*form.DeviceDpi*150/9600d)));
+        Require(form.RecoverPlacement() && form.EffectiveScalePercent==110 &&
+            area.Contains(form.Bounds) && form.CapturePreferences(true).ScalePercent==150,
+            "tela removida ou reduzida: posição recuperada, tamanho solicitado preservado");
+        int changes=0;
+        form.ModeChanged+=(_,_)=>changes++;
+        for(int i=0;i<100;i++)Require(form.RecoverPlacement(),"recuperação estável");
+        Require(changes==0,"estado estável não grava novamente");
+        area=new Rectangle(0,0,1,1);
+        Require(!form.RecoverPlacement() && !form.PlacementAvailable &&
+            form.CapturePreferences(true).ScalePercent==150,"sem área mínima não truncar preferência");
+        area=new Rectangle(0,0,Math.Max(1,(int)Math.Round(552d*form.DeviceDpi*150/9600d))+10,
+            Math.Max(1,(int)Math.Round(186d*form.DeviceDpi*150/9600d))+10);
+        Require(form.RecoverPlacement() && form.EffectiveScalePercent==150 &&
+            area.Contains(form.Bounds),"retorno da área útil restaura escala escolhida");
+        form.Close();
+        Console.WriteLine("OK Monitor GF: escala efetiva, recuperação de posição e preferência preservada.");
+    }
+
     internal static void Run()
     {
         VerifyScale();
+        VerifyPlacementRecovery();
         foreach (V269Theme theme in Enum.GetValues<V269Theme>())
         {
             VerifyContrast(theme);

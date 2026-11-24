@@ -150,7 +150,8 @@ internal static class GfMonitorHostTests
         host.Configure(V269Theme.Dark,false);
         Require(window.BackColor==V269VisualTokens.ForTheme(V269Theme.Claro).Accent,"tema global não substitui monitor");
         Require(host.Apply(host.Preferences() with { ScalePercent=125 },now) &&
-            window.ClientSize.Width==Math.Max(1,(int)Math.Round(552*window.DeviceDpi*125/9600d)),
+            host.PlacementAvailable()==true && host.EffectiveScalePercent()==window.EffectiveScalePercent &&
+            window.ClientSize.Width==Math.Max(1,(int)Math.Round(552*window.DeviceDpi*window.EffectiveScalePercent/9600d)),
             "escala própria aplicada pelo host");
         Require(host.Apply(host.Preferences() with { AlwaysOnTop=false, Fixed=true },now) && !window.Visible,
             "voltar ao desktop sem sobrepor");

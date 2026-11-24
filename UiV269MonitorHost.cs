@@ -19,6 +19,9 @@ internal sealed class GfMonitorHost : IDisposable
     internal event EventHandler? PersistenceStateChanged;
     internal event EventHandler? NativePresentationStateChanged;
     private bool? _observedNativeState;
+    private bool? _observedPlacementState;
+    private int? _observedScale;
+    internal event EventHandler? PlacementStateChanged;
     private readonly System.Windows.Forms.Timer _visibilityTimer;
     private GfResourceMonitorPreferences _preferences;
     private GfResourceMonitorForm? _window;
@@ -57,6 +60,25 @@ internal sealed class GfMonitorHost : IDisposable
         Check(); return _lastSaveSucceeded;
     }
 
+    internal bool? PlacementAvailable()
+    {
+        Check(); return _window is { IsDisposed:false } window ? window.PlacementAvailable : null;
+    }
+
+    internal int? EffectiveScalePercent()
+    {
+        Check(); return _window is { IsDisposed:false, PlacementAvailable:true } window ? window.EffectiveScalePercent : null;
+    }
+
+    private void NotifyPlacementState()
+    {
+        bool? available=PlacementAvailable();
+        int? scale=EffectiveScalePercent();
+        if(available==_observedPlacementState && scale==_observedScale)return;
+        _observedPlacementState=available; _observedScale=scale;
+        PlacementStateChanged?.Invoke(this,EventArgs.Empty);
+    }
+
     private void NotifyNativeState()
     {
         bool? state = _window is { IsDisposed:false } window ? window.NativePresentationReady : null;
@@ -73,12 +95,15 @@ internal sealed class GfMonitorHost : IDisposable
     {
         Check();
         if (_window is not { IsDisposed: false } window) { _visibilityTimer.Stop(); return; }
+        if(!_preferences.Enabled){window.Hide();_visibilityTimer.Stop();return;}
+        bool placement=window.RecoverPlacement();
+        if(!window.NativePresentationReady && window.Visible)window.Hide();
         if (!window.NativePresentationReady && now >= _nextNativeRetry)
         {
             _nextNativeRetry = now + NativeRetryInterval;
             window.RefreshNativePresentation();
         }
-        bool show = GfMonitorNativePresentation.ShouldShow(_preferences.Enabled,_preferences.AlwaysOnTop,
+        bool show = placement && GfMonitorNativePresentation.ShouldShow(_preferences.Enabled,_preferences.AlwaysOnTop,
             _preferences.AlwaysOnTop || (window.NativePresentationReady && _desktopArea(window.Handle,window.Bounds)),
             window.NativePresentationReady);
         if(show && !window.Visible)
@@ -92,14 +117,13 @@ internal sealed class GfMonitorHost : IDisposable
         }
         else if(!show && window.Visible) window.Hide();
         NotifyNativeState();
-        // Sem enumeração de janelas no overlay; timer só para recuperação.
-        if(_preferences.Enabled && (!_preferences.AlwaysOnTop || !window.NativePresentationReady))
-        {
-            int interval = window.NativePresentationReady ? 250 : NativeRetryInterval;
-            if(_visibilityTimer.Interval!=interval)_visibilityTimer.Interval=interval;
-            _visibilityTimer.Start();
-        }
-        else _visibilityTimer.Stop();
+        NotifyPlacementState();
+        // Desktop verifica somente oclusão; overlay só recupera geometria e
+        // falhas, sem enumerar janelas. Nenhum timer de coleta de hardware.
+        int interval = !window.NativePresentationReady ? NativeRetryInterval :
+            _preferences.AlwaysOnTop ? 1000 : 250;
+        if(_visibilityTimer.Interval!=interval)_visibilityTimer.Interval=interval;
+        _visibilityTimer.Start();
     }
 
     private void Check()
@@ -254,6 +278,7 @@ internal sealed class GfMonitorHost : IDisposable
         _binding?.Dispose(); _binding = null; _window = null;
         if (!_closingForHost && !_disposed) Save();
         NotifyNativeState();
+        NotifyPlacementState();
     }
 
     // Somente fechamento de usuário desabilita; Application.Exit, logoff e
@@ -280,6 +305,7 @@ internal sealed class GfMonitorHost : IDisposable
                 _binding?.Dispose(); _binding = null; _window = null;
                 window.Dispose();
                 NotifyNativeState();
+                NotifyPlacementState();
             }
         }
     }

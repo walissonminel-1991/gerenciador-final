@@ -46,16 +46,21 @@ internal sealed class GfResourceMonitorForm : Form
     private long? _arrivedTick;
     private DateTimeOffset? _lastAcceptedAt;
     private bool _snapToEdges = true, _fixed = true;
-    private int _scalePercent = 100;
-    private bool _managedPresentation, _nativeReady;
+    private int _scalePercent = 100, _effectiveScalePercent = 100;
+    private bool _managedPresentation, _nativeReady, _placementAvailable = true, _arrangingPlacement;
+    internal int EffectiveScalePercent => _effectiveScalePercent;
+    internal bool PlacementAvailable => _placementAvailable;
     internal bool NativePresentationReady => _nativeReady;
     internal bool Expanded => _isExpanded;
     internal event EventHandler? ModeChanged;
 
     private readonly Func<IntPtr,bool,int,bool> _applyNative;
-    internal GfResourceMonitorForm(Func<IntPtr,bool,int,bool>? applyNative = null)
+    private readonly Func<Point,Rectangle> _workArea;
+    internal GfResourceMonitorForm(Func<IntPtr,bool,int,bool>? applyNative = null,
+        Func<Point,Rectangle>? workArea = null)
     {
         _applyNative = applyNative ?? GfMonitorNativePresentation.Apply;
+        _workArea = workArea ?? (point => Screen.FromPoint(point).WorkingArea);
         Name = "GfResourceMonitor";
         Text = "Monitor GF";
         AccessibleName = "Monitor GF — somente leitura";
@@ -203,8 +208,8 @@ internal sealed class GfResourceMonitorForm : Form
 
     private void ApplyGeometry()
     {
-        if(_geometryDpi==DeviceDpi && _geometryScale==_scalePercent)return;
-        _geometryDpi=DeviceDpi; _geometryScale=_scalePercent;
+        if(_geometryDpi==DeviceDpi && _geometryScale==_effectiveScalePercent)return;
+        _geometryDpi=DeviceDpi; _geometryScale=_effectiveScalePercent;
         Padding ScaledPadding(Padding p) => new(ScaleLength(p.Left),ScaleLength(p.Top),ScaleLength(p.Right),ScaleLength(p.Bottom));
         foreach(var entry in _geometry)entry.Control.SuspendLayout();
         try
@@ -218,15 +223,15 @@ internal sealed class GfResourceMonitorForm : Form
             foreach(var col in _columns)col.Style.Width=ScaleLength(col.Width);
             foreach(var row in _rows)row.Style.Height=ScaleLength(row.Height);
             foreach(var bar in _bars)bar.Height=SizeFor(9);
-            if(_fontScale!=_scalePercent)
+            if(_fontScale!=_effectiveScalePercent)
             {
                 var previous=_scaledFonts.ToArray(); _scaledFonts.Clear();
                 foreach(var entry in _fontPoints)
                 {
-                    var font=new Font("Segoe UI",entry.Value*_scalePercent/100f,FontStyle.Bold,GraphicsUnit.Point);
+                    var font=new Font("Segoe UI",entry.Value*_effectiveScalePercent/100f,FontStyle.Bold,GraphicsUnit.Point);
                     entry.Key.Font=font; _scaledFonts.Add(font);
                 }
-                _fontScale=_scalePercent;
+                _fontScale=_effectiveScalePercent;
                 foreach(var font in previous)font.Dispose();
             }
         }
@@ -338,30 +343,60 @@ internal sealed class GfResourceMonitorForm : Form
         if (_last is not null) Render(_last, updateFilters: false); else ClearReadings();
     }
 
-    internal void SetExpanded(bool value)
+    internal void SetExpanded(bool value) => ArrangeMode(value,true);
+
+    private void ArrangeMode(bool value,bool notify)
     {
+        if(_arrangingPlacement)return;
         bool changed = _isExpanded != value; _isExpanded = value;
-        SuspendLayout();
+        Point before=Location;
+        _arrangingPlacement=true;
         try
         {
-            ApplyGeometry();
-            Panel active = value ? _expanded : _compact;
-            Panel inactive = value ? _compact : _expanded;
-            inactive.Visible = false;
-            if (inactive.Parent == this) Controls.Remove(inactive);
-            ClientSize = new(SizeFor(552), SizeFor(value ? 186 : 38));
-            if (active.Parent != this) Controls.Add(active);
-            active.Visible = true;
-            active.BringToFront();
+            var area=_workArea(Location);
+            int? fitted=GfResourceMonitorPreferences.FitScale(_scalePercent,DeviceDpi,area.Size);
+            _placementAvailable=fitted.HasValue;
+            _effectiveScalePercent=fitted ?? GfResourceMonitorPreferences.MinScale;
+            SuspendLayout();
+            try
+            {
+                ApplyGeometry();
+                Panel active = value ? _expanded : _compact;
+                Panel inactive = value ? _compact : _expanded;
+                inactive.Visible = false;
+                if (inactive.Parent == this) Controls.Remove(inactive);
+                ClientSize = new(SizeFor(552), SizeFor(value ? 186 : 38));
+                if (active.Parent != this) Controls.Add(active);
+                active.Visible = true;
+                active.BringToFront();
+            }
+            finally { ResumeLayout(true); }
+            GfMonitorShape.ApplyRegion(this, SizeFor(9));
+            (value ? _expanded : _compact).PerformLayout();
+            GfMonitorShape.ApplyRegion(value ? _expandedLogo : _compactLogo,SizeFor(5));
+            Invalidate(true);
+            if(_placementAvailable) ClampLocation(snap:false);
         }
-        finally { ResumeLayout(true); }
-        GfMonitorShape.ApplyRegion(this, SizeFor(9));
-        (value ? _expanded : _compact).PerformLayout();
-        // A forma do logo também acompanha a escala própria.
-        GfMonitorShape.ApplyRegion(value ? _expandedLogo : _compactLogo,SizeFor(5));
-        Invalidate(true);
-        if (Visible) ClampLocation(snap: false);
-        if (changed) ModeChanged?.Invoke(this, EventArgs.Empty);
+        finally { _arrangingPlacement=false; }
+        if(notify && (changed || before!=Location))ModeChanged?.Invoke(this,EventArgs.Empty);
+    }
+
+    // Reavaliar o ponto atual inclusive quando a tela foi desconectada,
+    // a área útil mudou ou houve retorno de uma tela de DPI menor.
+    // Em estado estável não recalcular layout, fontes nem região.
+    internal bool RecoverPlacement(bool notify = true)
+    {
+        if(_arrangingPlacement || _drag.HasValue)return _placementAvailable;
+        Point before=Location;
+        var area=_workArea(before);
+        int? fitted=GfResourceMonitorPreferences.FitScale(_scalePercent,DeviceDpi,area.Size);
+        if(_placementAvailable!=fitted.HasValue ||
+            _effectiveScalePercent!=(fitted ?? GfResourceMonitorPreferences.MinScale) || _geometryDpi!=DeviceDpi)
+            ArrangeMode(_isExpanded,false);
+        else if(_placementAvailable)
+            ClampLocation(snap:false);
+        if(notify && before!=Location)ModeChanged?.Invoke(this,EventArgs.Empty);
+        return _placementAvailable;
     }
 
     private void AddSeparator(TableLayoutPanel cell)
@@ -391,10 +426,10 @@ internal sealed class GfResourceMonitorForm : Form
                 if (control.Capture) control.Capture=false;
         }
         _scalePercent = p.ScalePercent;
+        // Selecionar a tela pela posição solicitada antes de calcular escala.
+        if (p.X is int x && p.Y is int y) Location = new(x, y);
         Configure(p.MonitorTheme, _animate);
         SetExpanded(p.Expanded);
-        if (p.X is int x && p.Y is int y) Location = new(x, y);
-        ClampLocation(snap: false);
         RefreshNativePresentation();
     }
 
@@ -416,23 +451,27 @@ internal sealed class GfResourceMonitorForm : Form
 
     private void ClampLocation(bool snap)
     {
-        var area = Screen.FromRectangle(Bounds).WorkingArea;
-        Location = GfResourceMonitorPreferences.Fit(Location, Size, area, snap ? SizeFor(10) : 0);
+        var area = _workArea(Location);
+        Point fitted=GfResourceMonitorPreferences.Fit(Location,Size,area,snap ? SizeFor(10) : 0);
+        if(Location!=fitted)Location=fitted;
     }
 
-    private int ScaleLength(float logical) => Math.Max(0,(int)Math.Round(logical*DeviceDpi*_scalePercent/9600d));
+    private int ScaleLength(float logical) => Math.Max(0,(int)Math.Round(logical*DeviceDpi*_effectiveScalePercent/9600d));
     private int SizeFor(int logical) => Math.Max(1,ScaleLength(logical));
     protected override void OnDpiChanged(DpiChangedEventArgs e)
     {
         base.OnDpiChanged(e);
-        _geometryDpi=0; SetExpanded(_isExpanded);
+        _geometryDpi=0; if(!_arrangingPlacement) SetExpanded(_isExpanded);
     }
 
     private void AttachDrag(Control c)
     {
         c.MouseDown += (_, e) => { if (!_fixed && e.Button == MouseButtons.Left) { _drag = Cursor.Position - new Size(Location); c.Capture = true; } };
         c.MouseMove += (_, _) => { if (!_fixed && _drag is Point d && c.Capture) Location = Cursor.Position - new Size(d); };
-        c.MouseUp += (_, _) => { if (_drag is null) return; _drag = null; c.Capture = false; if (!_fixed) { ClampLocation(_snapToEdges); ModeChanged?.Invoke(this, EventArgs.Empty); } };
+        c.MouseUp += (_, _) => { if (_drag is null) return; _drag = null; c.Capture = false; if (!_fixed) {
+            if(RecoverPlacement(false))ClampLocation(_snapToEdges);
+            ModeChanged?.Invoke(this, EventArgs.Empty);
+        } };
         c.MouseCaptureChanged += (_, _) => { if (!c.Capture) _drag = null; };
     }
 
