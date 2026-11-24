@@ -9,7 +9,9 @@ namespace GerenciadorAplicativos;
 // de CPU. Um ID WMI não é um sensor térmico de CPU, DIMM, chipset ou VRM.
 internal sealed record WmiCpuSocketRaw(
     string? DeviceId, string? Name, object? NumberOfCores,
-    object? NumberOfLogicalProcessors, object? CurrentClockSpeed);
+    object? NumberOfLogicalProcessors, object? CurrentClockSpeed,
+    object? Architecture = null, object? L3CacheSize = null,
+    object? VirtualizationFirmwareEnabled = null, string? SocketDesignation = null);
 internal sealed record WmiRamModuleRaw(
     string? BankLabel, string? DeviceLocator, object? Capacity,
     object? ConfiguredClockSpeed, object? SMBIOSMemoryType,
@@ -22,7 +24,13 @@ internal sealed record WmiLogicalCpuRaw(string? Name, object? PercentProcessorTi
 internal sealed record WindowsCpuSocket(
     string DeviceId, string? ReportedName,
     uint? PhysicalCores, uint? LogicalProcessors,
-    MonitorReading<double> ReportedCurrentMhz);
+    MonitorReading<double> ReportedCurrentMhz)
+{
+    internal string? ReportedArchitecture { get; init; }
+    internal uint? ReportedL3KiB { get; init; }
+    internal bool? FirmwareVirtualizationEnabled { get; init; }
+    internal string? ReportedSocketDesignation { get; init; }
+}
 internal sealed record WindowsRamModule(
     string BankLabel, string DeviceLocator,
     MonitorReading<ulong> CapacityBytes,
@@ -52,6 +60,7 @@ internal sealed record WindowsPlatformHardwareSnapshot(
     HardwareDiscoveryState LogicalCpuState,
     IReadOnlyList<WindowsLogicalCpuLoad> LogicalCpuInstances)
 {
+    internal string? ReportedBiosVersion { get; init; }
     internal int MeasuredLogicalCpuInstances => LogicalCpuInstances.Count(x =>
         x.UsagePercent.Availability == MonitorAvailability.Available &&
         x.UsagePercent.Value.HasValue);
@@ -107,7 +116,8 @@ internal static class WindowsPlatformHardwareProvider
         IEnumerable<WmiMotherboardRaw> boards,
         IEnumerable<WmiLogicalCpuRaw> logical,
         bool socketsOk = true, bool memoryOk = true, bool boardsOk = true,
-        bool logicalOk = true, bool sourcePartial = false)
+        bool logicalOk = true, bool sourcePartial = false,
+        string? reportedBiosVersion = null)
     {
         var cpus = sockets.Take(MaxRowsPerClass + 1).ToArray();
         var rams = memory.Take(MaxRowsPerClass + 1).ToArray();
@@ -144,7 +154,18 @@ internal static class WindowsPlatformHardwareProvider
                 logicalCount is > 0 and <= 8192 ? (uint)logicalCount.Value : null,
                 mhz is >= 100 and <= 20_000
                     ? MonitorReading<double>.Available(mhz.Value, Source + " Win32_Processor.CurrentClockSpeed (reportado)")
-                    : MonitorReading<double>.Unavailable(Source + " Win32_Processor.CurrentClockSpeed")));
+                    : MonitorReading<double>.Unavailable(Source + " Win32_Processor.CurrentClockSpeed"))
+            {
+                // Win32_Processor.Architecture identifica ISA, não microarquitetura.
+                ReportedArchitecture = UInt(raw.Architecture) switch
+                { 0 => "x86", 1 => "MIPS", 2 => "Alpha", 3 => "PowerPC",
+                  5 => "ARM", 6 => "IA64", 9 => "x64", 12 => "ARM64", _ => null },
+                ReportedL3KiB = UInt(raw.L3CacheSize) is > 0 and <= 16_777_216
+                    ? (uint)UInt(raw.L3CacheSize)!.Value : null,
+                FirmwareVirtualizationEnabled = raw.VirtualizationFirmwareEnabled is bool enabled
+                    ? enabled : null,
+                ReportedSocketDesignation = Identity(raw.SocketDesignation)
+            });
         }
 
         var ramIdentities = rams.Take(MaxRamModules)
@@ -262,7 +283,10 @@ internal static class WindowsPlatformHardwareProvider
             Section(socketsOk, cpuPartial, cpuResult.Count), cpuResult.AsReadOnly(),
             Section(memoryOk, memoryPartial, ramResult.Count), ramResult.AsReadOnly(),
             Section(boardsOk, boardPartial, boardsResult.Count), boardsResult.AsReadOnly(),
-            Section(logicalOk, loadPartial, loadResult.Count), loadResult.AsReadOnly());
+            Section(logicalOk, loadPartial, loadResult.Count), loadResult.AsReadOnly())
+        {
+            ReportedBiosVersion = Identity(reportedBiosVersion)
+        };
     }
 
     private static bool IsLogicalIndex(string name) =>
@@ -337,12 +361,15 @@ internal static class WindowsPlatformHardwareProvider
             }
 
             bool cpuOk = Query("SELECT DeviceID, Name, NumberOfCores, " +
-                "NumberOfLogicalProcessors, CurrentClockSpeed FROM Win32_Processor",
+                "NumberOfLogicalProcessors, CurrentClockSpeed, Architecture, L3CacheSize, " +
+                "VirtualizationFirmwareEnabled, SocketDesignation FROM Win32_Processor",
                 get => cpus.Add(new(
                     Convert.ToString(get("DeviceID"), CultureInfo.InvariantCulture),
                     Convert.ToString(get("Name"), CultureInfo.InvariantCulture),
                     get("NumberOfCores"), get("NumberOfLogicalProcessors"),
-                    get("CurrentClockSpeed"))));
+                    get("CurrentClockSpeed"), get("Architecture"), get("L3CacheSize"),
+                    get("VirtualizationFirmwareEnabled"),
+                    Convert.ToString(get("SocketDesignation"), CultureInfo.InvariantCulture))));
             bool ramOk = Query("SELECT BankLabel, DeviceLocator, Capacity, " +
                 "ConfiguredClockSpeed, SMBIOSMemoryType, ConfiguredVoltage, " +
                 "MinVoltage, MaxVoltage FROM Win32_PhysicalMemory",
@@ -362,8 +389,16 @@ internal static class WindowsPlatformHardwareProvider
                 get => loads.Add(new(
                     Convert.ToString(get("Name"), CultureInfo.InvariantCulture),
                     get("PercentProcessorTime"))));
+            // Consulta adicional isolada: Win32_BIOS.SMBIOSBIOSVersion é a
+            // versão reportada pelo firmware, não versão da placa-base.
+            // Falha opcional não deve contaminar a cobertura já obtida.
+            bool priorPartial = partial;
+            var bios = new List<string?>();
+            bool biosOk = Query("SELECT SMBIOSBIOSVersion FROM Win32_BIOS",
+                get => bios.Add(Identity(Convert.ToString(get("SMBIOSBIOSVersion"), CultureInfo.InvariantCulture))));
+            string? biosVersion = biosOk && !partial && bios.Count == 1 ? bios[0] : null;
             return Join(cpus, ram, boards, loads,
-                cpuOk, ramOk, boardOk, loadOk, partial);
+                cpuOk, ramOk, boardOk, loadOk, priorPartial, biosVersion);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is COMException or
