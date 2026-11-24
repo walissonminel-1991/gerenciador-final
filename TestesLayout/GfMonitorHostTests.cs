@@ -109,19 +109,31 @@ internal static class GfMonitorHostTests
         Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any(), "nenhuma janela residual");
     }
 
+    private static IEnumerable<Control> Descendants(Control root)
+    {
+        yield return root;
+        foreach(Control child in root.Controls)
+            foreach(Control nested in Descendants(child))yield return nested;
+    }
+
     private static void VerifyPresentation(string path)
     {
         bool desktop = false;
         using var host = new GfMonitorHost(path, () => desktop);
         var now = DateTimeOffset.UtcNow;
         var p = GfResourceMonitorPreferences.Default with { Enabled=true };
-        Require(host.Apply(p,now) && !host.WantsCollection(false,true),"desktop oculto não coleta");
+        Require(host.Apply(p,now) && host.NativePresentationAvailable()==true &&
+            !host.WantsCollection(false,true),"desktop oculto não coleta");
         desktop=true; host.RefreshVisibility(); Application.DoEvents();
         var window=Application.OpenForms.OfType<GfResourceMonitorForm>().Single();
         Require(window.Visible && !window.TopMost && host.WantsCollection(false,true),"desktop confirmado mostra monitor");
         int style=GfMonitorNativePresentation.Styles(window.Handle);
         int mask=GfMonitorNativePresentation.Layered|GfMonitorNativePresentation.Transparent|GfMonitorNativePresentation.NoActivate;
         Require((style&mask)==mask,"fixação nativa a 100% de opacidade");
+        var expand=window.Controls.OfType<Control>().SelectMany(Descendants)
+            .OfType<Button>().Single(x=>x.AccessibleName=="Expandir monitor");
+        expand.PerformClick();
+        Require(!window.Expanded,"clique atrasado não expande monitor fixado");
         desktop=false; host.RefreshVisibility();
         Require(!window.Visible && !host.WantsCollection(false,true) && host.WantsCollection(true,true),
             "oculto sem bloquear demanda de Início");
@@ -132,6 +144,9 @@ internal static class GfMonitorHostTests
         Require((GfMonitorNativePresentation.Styles(window.Handle)&GfMonitorNativePresentation.Transparent)==0 &&
             window.TopMost && window.BackColor==V269VisualTokens.ForTheme(V269Theme.Claro).Accent,
             "desbloqueio nativo e tema próprio");
+        expand.PerformClick();
+        Require(window.Expanded,"desfixar devolve interação");
+        window.SetExpanded(false);
         host.Configure(V269Theme.Dark,false);
         Require(window.BackColor==V269VisualTokens.ForTheme(V269Theme.Claro).Accent,"tema global não substitui monitor");
         Require(host.Apply(host.Preferences() with { ScalePercent=125 },now) &&

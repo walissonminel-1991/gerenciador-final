@@ -19,7 +19,7 @@ internal sealed class GfMonitorHost : IDisposable
     private WddmGpuKey? _selected;
     private DateTimeOffset? _cpuAt, _wddmAt, _dxgiAt, _thermalAt;
     private GfResourceMonitorSnapshot? _lastProjected;
-     private bool _animate = true, _disposed, _closingForHost, _applying;
+    private bool _animate = true, _disposed, _closingForHost, _applying;
 
     internal GfMonitorHost(string preferencesPath, Func<bool>? desktopForeground = null)
     {
@@ -29,6 +29,14 @@ internal sealed class GfMonitorHost : IDisposable
         // Somente visibilidade do desktop; não é timer de hardware.
         _visibilityTimer = new() { Interval = 250 };
         _visibilityTimer.Tick += (_,_) => RefreshVisibility();
+    }
+
+    // Estado observado distinto de persistência e de Enabled. O WORK pode
+    // sinalizar indisponibilidade sem inventar uma falha de gravação.
+    internal bool? NativePresentationAvailable()
+    {
+        Check();
+        return _window is { IsDisposed:false } window ? window.NativePresentationReady : null;
     }
 
     internal void RefreshVisibility()

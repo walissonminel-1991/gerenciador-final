@@ -258,7 +258,7 @@ internal sealed class GfResourceMonitorForm : Form
         b.FlatAppearance.BorderSize = 0;
         b.UseVisualStyleBackColor = false;
         Emphasize(b, 13f);
-        b.Click += (_, _) => action();
+        b.Click += (_, _) => { if (!_managedPresentation || !_fixed) action(); };
         _buttons.Add(b); return b;
     }
 
@@ -385,7 +385,8 @@ internal sealed class GfResourceMonitorForm : Form
         if (_fixed)
         {
             _drag = null;
-            foreach (var control in _surfaces.Concat(_text)) if (control.Capture) control.Capture=false;
+            foreach (var control in _surfaces.Concat(_text).Concat(_buttons).Concat(new Control[] { _compactLogo, _expandedLogo }))
+                if (control.Capture) control.Capture=false;
         }
         _scalePercent = p.ScalePercent;
         Configure(p.MonitorTheme, _animate);
