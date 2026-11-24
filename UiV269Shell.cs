@@ -59,6 +59,7 @@ internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 internal sealed class V269RightPane : UserControl
 {
     private readonly TableLayoutPanel _layout;
+    private readonly Panel _flowViewport=new(){Name="V269AppFlowViewport",Dock=DockStyle.Fill,Margin=Padding.Empty,TabStop=false};
     private readonly Label _title;
     private readonly Panel _titleHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
     private readonly Label _appFlowHeading=new(){Name="V269AppFlowHeading",Dock=DockStyle.Top,
@@ -164,7 +165,8 @@ internal sealed class V269RightPane : UserControl
         _layout.Controls.Add(_choices, 0, 3);
         _layout.Controls.Add(_operationContent, 0, 4);
         _layout.Controls.Add(new Panel{Dock=DockStyle.Fill,Margin=Padding.Empty,TabStop=false},0,6);
-        Controls.Add(_layout);
+        _flowViewport.Controls.Add(_layout);Controls.Add(_flowViewport);
+        _flowViewport.SizeChanged+=(_,_)=>FitOperationHistory();
         Resize+=(_,_)=>{if(_structuredApp||_appFlow)Invalidate();FitOperationHistory();};
         Present(null);
     }
@@ -255,40 +257,51 @@ internal sealed class V269RightPane : UserControl
         _fittingOperationHistory=true;
         try
         {
-            if(_operationHistory is {} history)
+            // Aplicativos usa a mesma política de overflow do aside HTML:
+            // medir o conjunto inteiro, sem subdividir em áreas de rolagem.
+            if(!_appFlow)
             {
-                int cap=Math.Max(1,_layout.ClientSize.Height/3);
-                int preferred=history.PreferredHeightForWidth(Math.Max(1,_layout.ClientSize.Width));
-                int height=Math.Min(cap,preferred);
-                if(Math.Abs(_layout.RowStyles[5].Height-height)>.5f)_layout.RowStyles[5].Height=height;
+                if(_flowViewport.AutoScroll)
+                {
+                    _flowViewport.AutoScrollPosition=Point.Empty;
+                    _flowViewport.AutoScrollMinSize=Size.Empty;
+                    _flowViewport.AutoScroll=false;
+                }
+                _layout.Dock=DockStyle.Fill;
+                _description.ScrollBars=ScrollBars.Vertical;
+                return;
             }
-            if(_appFlow)
+            int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
+            _description.ScrollBars=ScrollBars.None;
+            int height=Math.Max(1,_flowViewport.ClientSize.Height);
+            int fullWidth=Math.Max(1,_flowViewport.Width);
+            bool executing=AppProgressChromeActive&&_hasOperationContent;
+            int operation=executing?Math.Max(S(52),_description.Font.Height+S(32)):0;
+            int MeasureFlow(int width)
             {
-                int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
-                int available=Math.Max(1,_layout.ClientSize.Height-(int)(_layout.RowStyles[0].Height+
-                    _layout.RowStyles[1].Height+_layout.RowStyles[3].Height+_layout.RowStyles[5].Height));
-                bool executing=AppProgressChromeActive&&_hasOperationContent;
-                int minDescription=Math.Max(_description.Font.Height+S(8),S(26));
-                int reserve=executing?Math.Min(S(150),Math.Max(S(70),available/2)):0;
                 int measured=TextRenderer.MeasureText(_description.Text,_description.Font,
-                    new Size(Math.Max(1,_descriptionHost.ClientSize.Width-8),32767),
-                    TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height+S(10);
-                int description=Math.Min(Math.Max(minDescription,measured),Math.Max(1,available-reserve));
-                int operation=executing?Math.Max(0,Math.Min(reserve,available-description)):0;
-                if(Math.Abs(_layout.RowStyles[2].Height-description)>.5f)_layout.RowStyles[2].Height=description;
-                if(Math.Abs(_layout.RowStyles[4].Height-operation)>.5f)_layout.RowStyles[4].Height=operation;
+                    new Size(Math.Max(1,width-S(10)),32767),
+                    TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height+S(12);
+                int description=Math.Max(Math.Max(_description.Font.Height+S(8),S(26)),measured);
+                int history=_operationHistory is {} previous?previous.PreferredHeightForWidth(width)+S(3):0;
+                _layout.RowStyles[2].Height=description;
+                _layout.RowStyles[4].Height=operation;
+                _layout.RowStyles[5].Height=history;
+                return (int)Math.Ceiling(_layout.RowStyles[0].Height+_layout.RowStyles[1].Height+
+                    description+_layout.RowStyles[3].Height+operation+history);
             }
-            // A descrição curta não precisa de uma barra branca permanente.
-            // Para textos maiores, preservar o controle real e a rolagem.
-            var mode=ScrollBars.Vertical;
-            if(_appFlow)
+            _flowViewport.SuspendLayout();_layout.SuspendLayout();
+            try
             {
-                int width=Math.Max(1,_description.ClientSize.Width-4);
-                bool overflow=TextRenderer.MeasureText(_description.Text,_description.Font,new Size(width,32767),
-                    TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height>_description.ClientSize.Height;
-                if(!overflow)mode=ScrollBars.None;
+                int content=MeasureFlow(fullWidth);
+                if(content>height)
+                    content=MeasureFlow(Math.Max(1,fullWidth-SystemInformation.VerticalScrollBarWidth));
+                _flowViewport.AutoScroll=true;
+                _layout.Dock=DockStyle.Top;
+                _layout.Height=Math.Max(height,content);
+                _flowViewport.AutoScrollMinSize=new Size(0,content);
             }
-            if(_description.ScrollBars!=mode)_description.ScrollBars=mode;
+            finally{_layout.ResumeLayout(true);_flowViewport.ResumeLayout(true);}
         }
         finally{_fittingOperationHistory=false;}
     }
@@ -389,6 +402,7 @@ internal sealed class V269RightPane : UserControl
         }
         _choices.PerformLayout();
         _layout.BackColor = palette.RightPanel;
+        _flowViewport.BackColor=palette.RightPanel;
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
         _description.BackColor = palette.RightPanel;

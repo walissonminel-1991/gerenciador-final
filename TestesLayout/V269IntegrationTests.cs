@@ -405,6 +405,11 @@ internal static class V269IntegrationTests
                         "histórico operacional presente nos três temas");
                     var description=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
                     Require(description.Height<surface.Height/3,"descrição curta não ocupa espaço desnecessário");
+                    var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
+                    Require(!viewport.VerticalScroll.Visible&&!viewport.HorizontalScroll.Visible&&
+                        description is TextBox {ScrollBars:ScrollBars.None},"conteúdo curto não apresenta barras de rolagem");
+                    var operationalHistoryBar=shell.RightPane.Controls.Find("V269AppOperationHistoryScroll",true).Single();
+                    Require(!operationalHistoryBar.Visible,"histórico que cabe não possui rolagem interna");
                     var heading=shell.RightPane.Controls.Find("V269AppFlowHeading",true).Single();
                     Require(heading.Padding.Left>0&&heading.Padding.Bottom>0,"cabeçalho operacional reserva ícone e divisor");
                     if(phase=="CONFIRMACAO")
@@ -424,6 +429,8 @@ internal static class V269IntegrationTests
                             "cancelamento operacional mantém botão real e contorno temático");
                         var status=(Control)typeof(MainForm).GetField("_status",flags)!.GetValue(form)!;
                         Require(!status.Visible,"progresso utiliza descrição corrente sem status duplicado");
+                        var log=(DarkLogView)typeof(MainForm).GetField("_log",flags)!.GetValue(form)!;
+                        Require(!log.Visible&&log.RenderedText.Length>0,"console legado oculto sem apagar registro técnico");
                     }
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));
@@ -524,6 +531,17 @@ internal static class V269IntegrationTests
                         {Visible:true,AccessibleName:"Em andamento · progresso não informado"},
                         "progresso sem porcentagem observada não inventa percentual");
                     CaptureOperationalHistory("PROGRESSO");
+                    // Overflow real: o painel, não a descrição ou o histórico, é rolável.
+                    var longFlowViewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
+                    shell.PresentPanel(operational! with {Description=string.Join("\r\n",Enumerable.Repeat("Linha de teste do acompanhamento.",80))});
+                    surface.PerformLayout();Application.DoEvents();
+                    Require(longFlowViewport.VerticalScroll.Visible&&!longFlowViewport.HorizontalScroll.Visible&&
+                        shell.RightPane.Controls.Find("V269PanelDescription",true).Single() is TextBox {ScrollBars:ScrollBars.None}&&
+                        !shell.RightPane.Controls.Find("V269AppOperationHistoryScroll",true).Single().Visible,
+                        "overflow real usa somente a rolagem externa do painel");
+                    shell.PresentPanel(operational);
+                    surface.PerformLayout();Application.DoEvents();
+                    Require(!longFlowViewport.VerticalScroll.Visible,"reduzir conteúdo remove a rolagem externa");
                     var flowDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
                     var realCancel=form.Controls.Find("UninstallCancel",true).Single();
                     Require(!ScreenBounds(flowHistory).IntersectsWith(ScreenBounds(flowDescription))&&flowDescription.Height>0&&

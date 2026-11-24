@@ -1154,7 +1154,11 @@ internal sealed partial class MainForm
             else cancel.Dock=DockStyle.Fill;
             cancel.BackColor=palette.Card;cancel.ForeColor=palette.Text;
             cancel.OutlineColor=active?palette.Border:Color.Transparent;
-            // O registro técnico original permanece no mesmo controle, com o mesmo conteúdo e rolagem.
+            // O HTML não contém console técnico dentro do acompanhamento de Aplicativos.
+            // Ocultar somente sua apresentação; a fila e o texto do registro não são limpos.
+            _log.Visible=!active;
+            root.RowStyles[2].SizeType=active?SizeType.Absolute:SizeType.Percent;
+            root.RowStyles[2].Height=active?0:100;
             _log.BackColor=active?palette.RightPanel:palette.Content;
             cancel.Invalidate();_log.Invalidate();
         }
