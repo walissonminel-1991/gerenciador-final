@@ -246,12 +246,6 @@ internal sealed class V269Shell : UserControl
             ApplyDimensions();
         };
         _navigationLayout.Controls.Add(toggle, 0, Pages.Length);
-        _rightPane.PresentationChanged += (_, _) =>
-        {
-            if (_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Result or V269PanelKind.History)
-                _compactPaneOpen = true;
-            ApplyDimensions();
-        };
         ApplyDimensions();
     }
 
@@ -360,6 +354,13 @@ internal sealed class V269Shell : UserControl
         _columns.Controls.Add(_rightPane, 2, 0);
         Controls.Add(_columns);
 
+        _rightPane.PresentationChanged += (_, _) =>
+        {
+            if (_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress
+                or V269PanelKind.Result or V269PanelKind.History)
+                _compactPaneOpen = true;
+            ApplyDimensions();
+        };
         SizeChanged += (_, _) => ApplyDimensions();
         ApplyAppearance(V269Theme.AzulGf, 100, 100);
         SelectPage(V269Page.Inicio);
@@ -395,6 +396,7 @@ internal sealed class V269Shell : UserControl
         _pageSubtitle.Text = descriptor.Subtitle;
         RefreshVisiblePage();
         ApplyNavigationSelection(V269VisualTokens.ForTheme(Theme));
+        ApplyDimensions();
         if (changed) NavigationChanged?.Invoke(this, new V269NavigationEventArgs(page));
     }
 
@@ -456,23 +458,29 @@ internal sealed class V269Shell : UserControl
         // São dimensões preliminares: a homologação completa de DPI virá ao final.
         int sidebar = V269VisualTokens.Scale(width < 1040 ? 166 : 210, InterfaceScalePercent);
         int right = V269VisualTokens.Scale(width < 1040 ? 240 : 310, InterfaceScalePercent);
+        // O HTML aprovado reserva toda a área útil a Início e Configurações.
+        // A exceção é um fluxo de operação: confirmação/progresso não podem
+        // desaparecer, e o resultado/histórico continua acessível entre abas.
+        bool dashboard = SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
+        bool mandatory = _rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress;
+        bool retained = _rightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History;
+        bool showRight = !dashboard || mandatory || retained;
         if (_paneToggle is { } toggle)
         {
             bool compact = width < 1060;
-            toggle.Visible = compact;
+            toggle.Visible = compact && (!dashboard || mandatory || retained);
             var palette = V269VisualTokens.ForTheme(Theme);
             toggle.BackColor = palette.Sidebar;
             toggle.ForeColor = palette.Text;
-            bool confirmation = _rightPane.Current?.Kind == V269PanelKind.Confirmation;
-            toggle.Enabled = !confirmation;
-            bool showRight = !compact || _compactPaneOpen || confirmation;
+            toggle.Enabled = !mandatory;
+            showRight = mandatory || (showRight && (!compact || _compactPaneOpen));
             toggle.Text = showRight ? "Fechar painel" : "Abrir painel";
             if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
-            if (!showRight) right = 0;
         }
+        if (!showRight) right = 0;
         _columns.ColumnStyles[0].Width = sidebar;
         _columns.ColumnStyles[2].Width = right;
-        if (_paneToggle is not null) _rightPane.Visible = right > 0;
+        _rightPane.Visible = right > 0;
         int navHeight = _paneToggle is null ? 48 :
             Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
         for (int i = 0; i < Pages.Length; i++)
