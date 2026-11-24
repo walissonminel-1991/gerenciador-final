@@ -221,6 +221,16 @@ internal static class V269IntegrationTests
                     Require(page.General.Width>0&&page.General.Height>0&&
                         page.Appearance.Top>page.General.Bottom&&page.ContentHeight>page.Appearance.Bottom,
                         "Geral e Aparência em cartões sem sobreposição");
+                    // Em ambas as janelas da referência, o seletor de
+                    // tema começa fora da área visível em abertura.
+                    if(page.DeviceDpi==96&&Screen.FromControl(page).WorkingArea.Height<=810&&
+                        surface.Size==size)
+                    {
+                        var comboOnPage=page.RectangleToClient(themeChoice.RectangleToScreen(themeChoice.ClientRectangle));
+                        if(!page.ClientRectangle.IntersectsWith(comboOnPage))
+                            Require(themeChoice.VisibleSettingsBounds().IsEmpty,
+                                "seletor fora do viewport não deve pintar no rodapé da janela");
+                    }
                     var origin=surface.PointToScreen(Point.Empty);
                     var geom=new{Theme=theme.ToString(),Width=surface.Width,Height=surface.Height,Dpi=page.DeviceDpi,
                         WorkAreaHeight=Screen.FromControl(page).WorkingArea.Height,
@@ -237,6 +247,8 @@ internal static class V269IntegrationTests
                     Require(LayoutTests.FullyVisible(general.History),"foco revela histórico no viewport");
                     page.ScrollTo(int.MaxValue);
                     Require(page.ScrollOffset==Math.Max(0,page.ContentHeight-page.ClientSize.Height),"rolagem alcança rodapé");
+                    Require(themeChoice.VisibleSettingsBounds().Width>0&&themeChoice.VisibleSettingsBounds().Height>0,
+                        "seletor visível ao alcançar o rodapé");
                     int previousOffset=page.ScrollOffset,previousScale=range.Value;
                     if(previousOffset>0)
                     {

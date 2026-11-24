@@ -270,9 +270,34 @@ internal sealed class V269SettingsCombo : ComboBox
             TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
         if((e.State&DrawItemState.Focus)!=0)e.DrawFocusRectangle();
     }
+    // Graphics.FromHdc para WM_PRINT pode não herdar o recorte dos
+    // ancestrais. Nunca pintar o seletor fora do viewport rolável.
+    internal Rectangle VisibleSettingsBounds()
+    {
+        Rectangle visible=ClientRectangle;
+        for(Control? parent=Parent;parent is not null;parent=parent.Parent)
+        {
+            visible.Intersect(RectangleToClient(parent.RectangleToScreen(parent.ClientRectangle)));
+            if(visible.Width<=0||visible.Height<=0)return Rectangle.Empty;
+            if(parent is V269SettingsPage)break;
+        }
+        return visible;
+    }
     private void PaintClosed(Graphics g)
     {
         if(Width<3||Height<3)return;
+        Rectangle visible=VisibleSettingsBounds();
+        if(visible.Width<=0||visible.Height<=0)return;
+        var saved=g.Save();
+        try
+        {
+            g.SetClip(visible,CombineMode.Intersect);
+            PaintClosedWithinClip(g);
+        }
+        finally{g.Restore(saved);}
+    }
+    private void PaintClosedWithinClip(Graphics g)
+    {
         var p=Palette();var bounds=new Rectangle(0,0,Width-1,Height-1);
         using var fill=new LinearGradientBrush(bounds,p.Top,p.Bottom,90f);
         g.FillRectangle(fill,bounds);
