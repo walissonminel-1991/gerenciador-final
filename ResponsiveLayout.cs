@@ -9,6 +9,7 @@ internal sealed partial class MainForm
     // segunda medicao depois que o Windows entrega as unidades locais.
     private Action? _relayoutCleaning;
     private Action? _relayoutRepair;
+    private Action? _relayoutSystem;
 
     // O painel de rede reserva espaco para as linhas efetivamente exibidas.
     // Antes do primeiro diagnostico nao precisa ocupar 205 px vazios.
@@ -38,7 +39,7 @@ internal sealed partial class MainForm
     // A pagina inteira rola quando necessario, mas nunca acrescenta barras
     // independentes a conjuntos de ferramentas e a unidades.
     private Control ScrollablePage(Control content, Func<int, int> minimumHeight,
-        bool trackCleaning = false, bool trackRepair = false)
+        bool trackCleaning = false, bool trackRepair = false, bool trackSystem = false)
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
@@ -77,6 +78,7 @@ internal sealed partial class MainForm
         host.DpiChangedAfterParent += (_, _) => Arrange();
         if (trackCleaning) _relayoutCleaning = Arrange;
         if (trackRepair) _relayoutRepair = Arrange;
+        if (trackSystem) _relayoutSystem = Arrange;
         Arrange();
         return host;
     }

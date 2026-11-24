@@ -1756,8 +1756,9 @@ internal sealed partial class MainForm : Form
         }, trackRepair: true));
         // Painéis nativos do gerenciador: nenhum atalho para Task Manager,
         // MSConfig, Configurações, Windows Update ou MSInfo32.
-        system.Controls.Add(ScrollablePage(BuildIntegratedSystemPanel(),
-            _ => (int)Math.Ceiling(365 * DeviceDpi / 96d)));
+        var systemContent = BuildIntegratedSystemPanel();
+        system.Controls.Add(ScrollablePage(systemContent,
+            _ => SystemPageMinimumHeight(systemContent), trackSystem: true));
         _nav.SetPageContent(V269Page.Limpeza, cleaning);
         _nav.SetPageContent(V269Page.Reparo, repair);
         _nav.SetPageContent(V269Page.Sistema, system);

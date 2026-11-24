@@ -36,7 +36,7 @@ internal sealed partial class MainForm
     private bool _fittingSystemCards;
     private long _systemViewGeneration;
 
-    private Control BuildIntegratedSystemPanel()
+    private TableLayoutPanel BuildIntegratedSystemPanel()
     {
         var root = new TableLayoutPanel
         {
@@ -176,6 +176,25 @@ internal sealed partial class MainForm
         return root;
     }
 
+    private int SystemPageMinimumHeight(TableLayoutPanel root)
+    {
+        int Scale(int px) => (int)Math.Ceiling(px * Math.Max(1d, DeviceDpi / 96d));
+        float minimumBody = _activeSystemView switch
+        {
+            "memory" when _memoryDashboardView is TableLayoutPanel dashboard =>
+                dashboard.RowStyles.Cast<RowStyle>().Where(row => row.SizeType == SizeType.Absolute)
+                    .Sum(row => row.Height) + dashboard.Padding.Vertical + Scale(50),
+            "energy" => Scale(405),
+            _ => Scale(180)
+        };
+        float fixedSystem = root.RowStyles[0].Height + root.Padding.Vertical;
+        if (_systemDetails is { } details)
+            fixedSystem += details.RowStyles.Cast<RowStyle>()
+                .Where(row => row.SizeType == SizeType.Absolute).Sum(row => row.Height) +
+                details.Padding.Vertical + details.Margin.Vertical;
+        return Math.Max(Scale(365), (int)Math.Ceiling(fixedSystem + minimumBody));
+    }
+
     private void SetSystemView(string view)
     {
         // Navegação imediata: não deixar cartões do modo anterior sob título
@@ -199,6 +218,7 @@ internal sealed partial class MainForm
         if (_systemPanelCards is not null)
             _systemPanelCards.Visible = view is not ("hardware" or "energy") && !showMemory;
         _systemDetails.PerformLayout();
+        _relayoutSystem?.Invoke();
     }
 
     private bool IsCurrentSystemView(string view, long request) =>
