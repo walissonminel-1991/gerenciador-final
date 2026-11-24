@@ -1565,7 +1565,7 @@ internal sealed partial class MainForm : Form
         Text(_multiSelectMode?(item.CanUninstall?(_checkedApps.Contains(item)?"☑":"☐"):""):"⋮⋮",grip,bold);
         int iconSize=Math.Max(1,Math.Min(Math.Min(S(30),bounds.Height-6),cells[0].Width/4));
         var mark=new Rectangle(grip.Right+S(3),bounds.Y+(bounds.Height-iconSize)/2,iconSize,iconSize);
-        using(var shape=ModernButton.RoundRect(mark,S(5)))
+        using(var shape=ModernButton.RoundRect(mark,V269AppTable.Scale(8,100,dpi)))
         using(var fill=new SolidBrush(colors.Head))
         using(var border=new Pen(colors.Border))
         {g.FillPath(fill,shape);g.DrawPath(border,shape);}

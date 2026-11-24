@@ -11,13 +11,22 @@ internal static class V269AppTable
     private static readonly int[] WideWidths=[185,70,100,88,98,75];
     private static readonly int[] CompactWidths=[150,68,96,80,90,65];
     internal static bool IsCompact(int windowWidth)=>windowWidth<=1050;
+    // Tracks e padding das células não recebem --uiScale no HTML.
+    // Somente a coluna de ações pode crescer para não cortar alvos reais
+    // quando os botões escalados ultrapassarem a reserva do protótipo.
+    private static int[] MinimumTracks(int scale,int dpi,bool compact)
+    {
+        var tracks=(compact?CompactWidths:WideWidths).Select(n=>Scale(n,100,dpi)).ToArray();
+        tracks[5]=Math.Max(tracks[5],2*Scale(32,scale,dpi));
+        return tracks;
+    }
     internal static int MinimumWidth(int scale,int dpi,bool compact=false)=>
-        (compact?CompactWidths:WideWidths).Sum(n=>Scale(n,scale,dpi));
-    internal static int CellPadding(int scale,int dpi,bool compact)=>Scale(compact?5:9,scale,dpi);
+        MinimumTracks(scale,dpi,compact).Sum();
+    internal static int CellPadding(int scale,int dpi,bool compact)=>Scale(compact?5:9,100,dpi);
     internal static Rectangle[] Columns(Rectangle bounds,int scale,int dpi,bool compact=false)
     {
         double[] weights=compact?[2,.8,1.1,.9,1,.6]:[2.1,.8,1.1,.9,1,.65];
-        int[] minimum=(compact?CompactWidths:WideWidths).Select(x=>Scale(x,scale,dpi)).ToArray();
+        int[] minimum=MinimumTracks(scale,dpi,compact);
         int target=Math.Max(bounds.Width,minimum.Sum());
         double remaining=target, fractions=weights.Sum();
         var fixedTrack=new bool[minimum.Length];

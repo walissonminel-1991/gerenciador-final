@@ -219,7 +219,9 @@ internal sealed class V269RightPane : UserControl
         if(results.Length==0||_appHistoryDismiss is null)return;
         _operationHistory=new V269AppOperationHistory(results,_appHistoryDismiss);
         _descriptionHost.Controls.Add(_operationHistory);
-        _operationHistory.BringToFront();
+        // Dock.Bottom é processado antes do controle Fill: o histórico
+        // deve reservar espaço, não sobrepor texto ou controles reais.
+        _operationHistory.SendToBack();
         _description.BringToFront();
         _operationHistory.ApplyAppearance(_appPaneTheme,_appInterfacePercent,_applicationDetails.Font);
         FitOperationHistory();
@@ -231,6 +233,7 @@ internal sealed class V269RightPane : UserControl
         // os botões de confirmação nem o painel do motor/cancelamento.
         int height=Math.Max(1,_descriptionHost.ClientSize.Height/2);
         if(history.Height!=height)history.Height=height;
+        _descriptionHost.PerformLayout();
     }
     private void PresentCore(V269PanelPresentation? presentation)
     {

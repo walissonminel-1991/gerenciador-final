@@ -62,8 +62,9 @@ internal sealed class V269AppSearchBox : Panel
     }
     private void ArrangeEditor()
     {
-        int x=S(31);_editor.Bounds=new Rectangle(x,Math.Max(1,(Height-_editor.PreferredHeight)/2),
-            Math.Max(1,Width-x-S(9)),_editor.PreferredHeight);
+        int x=S(12)+V269AppTable.Scale(18,100,DeviceDpi)+V269AppTable.Scale(8,100,DeviceDpi);
+        _editor.Bounds=new Rectangle(x,Math.Max(1,(Height-_editor.PreferredHeight)/2),
+            Math.Max(1,Width-x-S(12)),_editor.PreferredHeight);
     }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -72,9 +73,13 @@ internal sealed class V269AppSearchBox : Panel
         using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),S(8));
         using var fill=new SolidBrush(c.Surface);using var border=new Pen(_editor.Focused?V269VisualTokens.ForTheme(_options.Theme).Accent:c.Border);
         e.Graphics.FillPath(fill,shape);e.Graphics.DrawPath(border,shape);
-        int n=S(11),x=S(11),y=(Height-n)/2;
-        using var ink=new Pen(c.Ink,1.7f){EndCap=LineCap.Round};
-        e.Graphics.DrawEllipse(ink,x,y,n,n);e.Graphics.DrawLine(ink,x+n-1,y+n-1,x+n+S(4),y+n+S(4));
+        // SVG aprovado: viewBox 24, círculo (10.5,10.5), r=7.5,
+        // segmento (16,16) a (21,21), ícone de 18 CSS px.
+        float unit=V269AppTable.Scale(18,100,DeviceDpi)/24f;
+        float x=S(12),y=(Height-24*unit)/2;
+        using var ink=new Pen(c.Ink,Math.Max(1f,1.8f*unit)){StartCap=LineCap.Round,EndCap=LineCap.Round};
+        e.Graphics.DrawEllipse(ink,x+3*unit,y+3*unit,15*unit,15*unit);
+        e.Graphics.DrawLine(ink,x+16*unit,y+16*unit,x+21*unit,y+21*unit);
     }
     protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button==MouseButtons.Left)_editor.Focus();}
     protected override void Dispose(bool disposing){if(disposing)_font?.Dispose();base.Dispose(disposing);}

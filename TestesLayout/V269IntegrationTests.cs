@@ -395,6 +395,20 @@ internal static class V269IntegrationTests
                 restored.Name==entries[0].Name&&restored.PreviousResults[0].Description==oldResult.Description,
                 "resultado restaurado não bloqueia seleção e permanece no histórico contextual");
             Console.WriteLine("PASS Aplicativos V2.6.9: resultado restaurado conserva identidade e seleção.");
+            void CaptureOperationalHistory(string phase)
+            {
+                int before=theme.SelectedIndex;
+                foreach(int index in new[]{0,1,2})
+                {
+                    theme.SelectedIndex=index;surface.PerformLayout();Application.DoEvents();
+                    Require(shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single().Visible,
+                        "histórico operacional presente nos três temas");
+                    using var image=new Bitmap(surface.Width,surface.Height);
+                    surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));
+                    image.Save($"LayoutCaptures/v269-aplicativos-{phase}-HISTORICO-SINTETICO-{(V269Theme)index}-{surface.Width}x{surface.Height}.png");
+                }
+                theme.SelectedIndex=before;surface.PerformLayout();Application.DoEvents();
+            }
             var confirmationMethod=typeof(MainForm).GetMethod("ConfirmV269Async",flags)!;
             var confirmTask=(Task<bool>)confirmationMethod.Invoke(form,["Confirmar fixture","Alvo sintético",CancellationToken.None])!;
             Application.DoEvents();
@@ -410,9 +424,22 @@ internal static class V269IntegrationTests
             shell.SelectPage(V269Page.Aplicativos);Application.DoEvents();
             Require(shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single().Visible&&
                 ReferenceEquals(shell.RightPane.Current,confirmationPresentation),"retorno conserva confirmação e histórico");
+            var confirmationHistory=shell.RightPane.Controls.Find("V269AppOperationHistory",true).OfType<V269AppOperationHistory>().Single();
+            var confirmationDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
+            Require(!confirmationHistory.Bounds.IntersectsWith(confirmationDescription.Bounds)&&
+                confirmationDescription.Height>0&&confirmationHistory.Height>0,
+                "histórico reserva espaço sem cobrir a descrição da autorização");
+            CaptureOperationalHistory("CONFIRMACAO");
+            var confirmationDismiss=confirmationHistory.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+            confirmationHistory.ScrollControlIntoView(confirmationDismiss);
+            confirmationDismiss.PerformClick();Application.DoEvents();
+            Require(!confirmTask.IsCompleted&&ReferenceEquals(shell.RightPane.Current,confirmationPresentation)&&
+                shell.RightPane.Controls.Find("V269AppOperationHistory",true).Length==0,
+                "dispensar não autoriza, cancela ou substitui confirmação");
             shell.RightPane.ResolveConfirmation(false);Pump(confirmTask);
-            Require(!confirmTask.Result&&shell.RightPane.Current?.Application?.PreviousResults is {Count:1},
-                "cancelar restaura detalhes e histórico sem autorização");
+            Require(!confirmTask.Result&&shell.RightPane.Current?.Application?.PreviousResults is {Count:0},
+                "cancelar não ressuscita resultado dispensado");
+            record.Invoke(form,[oldResult.Title,oldResult.Description,null]);
             var previousRow=shell.RightPane.Controls.Find("V269AppPreviousResult",true).Single();
             var dismiss=previousRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
             Require(dismiss.Enabled&&dismiss.AccessibleName?.Contains(oldResult.Title,StringComparison.Ordinal)==true,
@@ -439,7 +466,12 @@ internal static class V269IntegrationTests
                     var flowHistory=shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single();
                     Require(flowHistory.Visible&&flowHistory.Controls.Find("V269AppPreviousResult",true).Length==1,
                         "histórico permanece acessível durante progresso");
+                    CaptureOperationalHistory("PROGRESSO");
+                    var flowDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
+                    Require(!flowHistory.Bounds.IntersectsWith(flowDescription.Bounds)&&flowDescription.Height>0,
+                        "histórico não sobrepõe a descrição do progresso");
                     var flowDismiss=flowHistory.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                    ((ScrollableControl)flowHistory).ScrollControlIntoView(flowDismiss);
                     flowDismiss.PerformClick();Application.DoEvents();
                     Require(ReferenceEquals(shell.RightPane.Current,operational)&&!cancel.IsCancellationRequested&&
                         shell.RightPane.Controls.Find("V269AppOperationHistory",true).Length==0,
@@ -591,6 +623,11 @@ internal static class V269IntegrationTests
             V269AppTable.IsCompact(1050)&&!V269AppTable.IsCompact(1051),"mínimos e breakpoint congelados do HTML");
         Require(V269AppTable.Columns(new Rectangle(0,0,616,52),100,96).Select(c=>c.Width).SequenceEqual(new[]{185,70,100,88,98,75})&&
             V269AppTable.Columns(new Rectangle(0,0,549,52),100,96,true).Select(c=>c.Width).SequenceEqual(new[]{150,68,96,80,90,65}),"seis tracks com medidas CSS exatas");
+        Require(V269AppTable.MinimumWidth(90,96)==616&&
+            V269AppTable.Columns(new Rectangle(0,0,V269AppTable.MinimumWidth(110,96,true),52),110,96,true)
+                .Take(5).Select(c=>c.Width).SequenceEqual(new[]{150,68,96,80,90})&&
+            V269AppTable.CellPadding(90,96,false)==9&&V269AppTable.CellPadding(110,96,true)==5,
+            "uiScale não altera tracks/padding CSS; reserva de ações preserva alvos");
         foreach(bool compact in new[]{false,true})
         foreach(int scale in new[]{90,100,110})
         foreach(int dpi in new[]{96,120,144,192})

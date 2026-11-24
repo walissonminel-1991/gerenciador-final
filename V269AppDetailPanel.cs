@@ -320,7 +320,7 @@ internal sealed class V269AppDetailPanel : Panel
             {
                 _table.Width=width;
                 _identity.MaximumSize=new Size(width,0);
-                int identityText=Math.Max(20,width-(int)_identity.ColumnStyles[0].Width-12);
+                int identityText=Math.Max(20,width-(int)_identity.ColumnStyles[0].Width);
                 _name.MaximumSize=_publisher.MaximumSize=new Size(identityText,0);
                 foreach(Label label in _table.Controls.OfType<Label>())
                 {
@@ -398,8 +398,11 @@ internal sealed class V269AppDetailPanel : Panel
     {
         _interfacePercent=percent;
         int S(int n)=>V269AppTable.Scale(n,percent,DeviceDpi);
-        int size=S(48),gap=S(10);
-        _identity.Margin=new Padding(0,S(4),0,S(13));
+        int D(int n)=>V269AppTable.Scale(n,100,DeviceDpi);
+        int size=D(48),gap=D(10);
+        _identity.Margin=new Padding(0,D(4),0,D(13)+D(5));
+        _name.Margin=Padding.Empty;
+        _publisher.Margin=new Padding(0,D(5),0,0);
         foreach(Label label in _table.Controls.OfType<Label>())
             if(_table.GetColumnSpan(label)==2)ApplyFullMetrics(label);
             else label.Margin=new Padding(0,S(11),0,S(11));
