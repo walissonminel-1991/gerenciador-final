@@ -241,6 +241,23 @@ internal static class V269IntegrationTests
             NvidiaGpus = gpu with { Devices = [unifiedGpu] },
             DxgiAdapters = new DxgiGpuSnapshot(at, HardwareDiscoveryState.Complete, [exactAdapter], null)
         };
+        Require(DxgiGpuIdentityProvider.InterpretDiscreteUploadHeap(1, 0, 0, 0, 1) == true &&
+            DxgiGpuIdentityProvider.InterpretDiscreteUploadHeap(1, 0, 0, 0, 0) == false &&
+            DxgiGpuIdentityProvider.InterpretDiscreteUploadHeap(1, 0, 1, 0, 1) is null &&
+            DxgiGpuIdentityProvider.InterpretDiscreteUploadHeap(2, 0, 0, 0, 1) is null &&
+            DxgiGpuIdentityProvider.InterpretDiscreteUploadHeap(1, 0, 0, -1, 1) is null,
+            "D3D12: UMA, adaptadores vinculados e falhas não confirmam VRAM acessível");
+        var priorDxgi = exact.DxgiAdapters! with {
+            Adapters = [exactAdapter with { DiscreteGpuUploadHeapSupported = true }]
+        };
+        var retained = DxgiGpuIdentityProvider.RetainUploadHeapCapability(exact.DxgiAdapters!, priorDxgi);
+        Require(retained.Adapters.Single().DiscreteGpuUploadHeapSupported == true &&
+            DxgiGpuIdentityProvider.RetainUploadHeapCapability(exact.DxgiAdapters! with {
+                Adapters = [exactAdapter with { LuidLow = 3 }]
+            }, priorDxgi).Adapters.Single().DiscreteGpuUploadHeapSupported is null &&
+            MainForm.V269BarEvidence(retained.Adapters[0], unifiedGpu) == "N/D · VRAM acessível (D3D12)" &&
+            MainForm.V269BarEvidence(exactAdapter with { DiscreteGpuUploadHeapSupported = false }, null) == "N/D",
+            "D3D12 só conserva capacidade consultada para identidade correspondente; não afirma ReBAR");
         var compactGpu = MainForm.V269GpuModel(exact);
         Require(MainForm.TryV269SingleGpu(exact, out _, out _, out _) &&
             compactGpu.Name == unifiedGpu.Name &&

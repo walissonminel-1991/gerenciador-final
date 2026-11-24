@@ -10,6 +10,7 @@ internal sealed partial class MainForm
     private readonly LiveHardwareMonitor _v269Monitor = new();
     private CancellationTokenSource? _v269HardwareQuery;
     private bool _v269HardwareLoaded;
+    private bool _v269InitialAttempted;
     private System.Windows.Forms.Timer? _v269LiveTimer;
     private bool _v269LiveSampling;
     private readonly SemaphoreSlim _v269CaptureGate = new(1, 1);
@@ -62,7 +63,12 @@ internal sealed partial class MainForm
         _v269Home = new V269HomeDashboard(refresh, details, _v269HardwareStatus);
         _v269Home.VisibleChanged += (_, _) =>
         {
-            if (!_v269Home.Visible) _v269LiveQuery?.Cancel();
+            if (!_v269Home.Visible)
+            {
+                _v269LiveQuery?.Cancel();
+                _v269HardwareQuery?.Cancel();
+                if (!_v269HardwareLoaded) _v269InitialAttempted = false;
+            }
         };
         _v269Home.SetModels(V269HomeModels(null));
         _v269Home.ApplyAppearance(_v269Appearance);
@@ -72,6 +78,7 @@ internal sealed partial class MainForm
     private async Task RefreshV269HardwareAsync()
     {
         if (_v269HardwareQuery is not null || IsDisposed || Disposing) return;
+        _v269InitialAttempted = true;
         using var request = new CancellationTokenSource();
         _v269HardwareQuery = request;
         _v269LiveQuery?.Cancel();
@@ -84,7 +91,8 @@ internal sealed partial class MainForm
             _ = await Task.Run(() => _v269Monitor.Capture(), request.Token);
             await Task.Delay(250, request.Token);
             var snapshot = await StaWorker.Run(() =>
-                HardwareSensorPortfolioReader.CaptureOnDemand(_v269Monitor, request.Token));
+                HardwareSensorPortfolioReader.CaptureOnDemand(_v269Monitor, request.Token,
+                    existingInventory: null, probeCpuVisibleVram: true));
             if (request.IsCancellationRequested || IsDisposed || Disposing) return;
             _v269LastSnapshot = snapshot;
             _v269NextGpuSample = Environment.TickCount64 + 8000;
@@ -125,13 +133,22 @@ internal sealed partial class MainForm
     {
         if (_v269LiveTimer is not null) return;
         _v269LiveTimer = new System.Windows.Forms.Timer { Interval = 2000 };
-        bool CanSample() => _v269HardwareLoaded && _v269HardwareQuery is null &&
+        bool CanEnter() => _v269HardwareQuery is null &&
             !_busy && !_v269Confirming && !IsDisposed && !Disposing && !_betaClose.IsClosing &&
-            !IsInTray && Visible && WindowState != FormWindowState.Minimized &&
-            _nav.SelectedPage == V269Page.Inicio && _v269LastHomeModels is not null;
+            !IsInTray && Visible && Enabled && WindowState != FormWindowState.Minimized &&
+            _nav.SelectedPage == V269Page.Inicio;
+        bool CanSample() => CanEnter() && _v269HardwareLoaded && _v269LastHomeModels is not null;
         _v269LiveTimer.Tick += async (_, _) =>
         {
-            if (_v269LiveSampling || !CanSample()) return;
+            if (_v269LiveSampling || !CanEnter()) return;
+            // Inicialização oculta não consulta hardware. Ao restaurar
+            // diretamente em Início, iniciar a primeira consulta uma vez.
+            if (!_v269HardwareLoaded)
+            {
+                if (!_v269InitialAttempted) await RefreshV269HardwareAsync();
+                return;
+            }
+            if (!CanSample()) return;
             using var request = new CancellationTokenSource();
             _v269LiveQuery = request;
             _v269LiveSampling = true;
@@ -154,7 +171,8 @@ internal sealed partial class MainForm
                         request.Token.ThrowIfCancellationRequested();
                         var nvml = NvidiaNvmlSensorProvider.Capture();
                         request.Token.ThrowIfCancellationRequested();
-                        var dxgi = DxgiGpuIdentityProvider.Capture();
+                        var dxgi = DxgiGpuIdentityProvider.RetainUploadHeapCapability(
+                            DxgiGpuIdentityProvider.Capture(), baseline.DxgiAdapters);
                         request.Token.ThrowIfCancellationRequested();
                         var d3dkmt = D3dKmtGpuSensorProvider.Capture(dxgi, request.Token);
                         request.Token.ThrowIfCancellationRequested();
@@ -238,6 +256,11 @@ internal sealed partial class MainForm
                 $"Disponível: {Gib(memory.AvailableBytes)}"
             : "Memória física indisponível.");
 
+        foreach (var adapter in snapshot.DxgiAdapters?.Adapters ?? [])
+            if (adapter.DiscreteGpuUploadHeapSupported is { } capability)
+                yield return (adapter.Name + " · D3D12 OPTIONS16", capability
+                    ? "VRAM integral acessível pela CPU (GPU discreta, consulta D3D12). Não confirma o estado exato de ReBAR."
+                    : "GPU upload heap não suportado nesta consulta; não comprova ReBAR desativado.");
         foreach (var gpu in snapshot.NvidiaGpus.Devices)
         {
             if (gpu.Bar1TotalBytes is { } bar1)
@@ -507,7 +530,7 @@ internal sealed partial class MainForm
                 fan = pct + " (alvo)";
             return new("gpu", "Placa de vídeo (GPU)", singleDxgi.Name,
                 [R("Memória", memory), R("Barramento", singleNvml?.CurrentPcieLink ?? singlePnp.ReportedPcieLink),
-                 R("Resizable BAR", singleNvml?.Bar1TotalBytes is { } bar ? "N/D · BAR1 " + Gib(bar) : nd),
+                 R("Resizable BAR", V269BarEvidence(singleDxgi, singleNvml)),
                  R("Driver", singlePnp.InstalledDriverVersion ??
                     (snapshot.NvidiaGpus.NvidiaDriverVersion is { } singleDriverVersion && singleNvml is not null ? singleDriverVersion + " (NVML)" : null)),
                  R("Arquitetura", singleNvml?.ReportedArchitecture)],
@@ -569,6 +592,13 @@ internal sealed partial class MainForm
 
     // Correlacionar pelo triplo VEN/DEV/SUBSYS único em inventários
     // completos. Sem essa evidência, conservar a apresentação separada.
+    internal static string V269BarEvidence(DxgiGpuIdentity adapter, NvidiaGpuSensorSample? nvidia)
+    {
+        if (!adapter.IsSoftware && adapter.DiscreteGpuUploadHeapSupported == true)
+            return "N/D · VRAM acessível (D3D12)";
+        return nvidia?.Bar1TotalBytes is { } bar ? "N/D · BAR1 " + Gib(bar) : "N/D";
+    }
+
     internal static bool TryV269SingleGpu(HardwareSensorPortfolio snapshot,
         out DxgiGpuIdentity adapter, out HardwareDeviceDescriptor device, out NvidiaGpuSensorSample? nvidia)
     {
@@ -1268,7 +1298,11 @@ internal sealed class V269HomeCard : Control
         int fontPixels = narrowTwo ? 9 : windowWidth <= 1370 ? 10 : 11;
         using var title = TextFont(compactHeight ? 14 : 16, FontStyle.Bold);
         using var font = TextFont(fontPixels);
-        using var bold = TextFont(fontPixels, FontStyle.Bold);
+        // CSS .hw-kv strong/.hw-sensor strong: peso 600, não 700.
+        // Segoe UI Semibold é a família correspondente no Windows.
+        using var bold = new Font("Segoe UI Semibold",
+            fontPixels * _appearance.TextPercent / 100f * DeviceDpi / 96f,
+            FontStyle.Regular, GraphicsUnit.Pixel);
         using var nameFont = TextFont(13, FontStyle.Bold);
         // A cascata de .app-window .hw-card mantém o padding 10/11
         // também nos breakpoints compactos; gap de 12px prevalece no CSS.
@@ -1411,6 +1445,12 @@ internal sealed class V269HomeCard : Control
                 int h1 = HeightOf(row.Label, font, left), h2 = HeightOf(row.Value, bold, right);
                 int vertical = S(compactHeight ? 3 : 6);
                 int h = (stacked ? h1 + h2 : Math.Max(h1, h2)) + 2 * vertical + S(1);
+                // No viewport 992×659 com fonte CSS de 9px, a linha
+                // medida no HTML é 17,97px (10,98 + 6 + 1). O GDI
+                // arredonda a altura do glifo para 12px. Compensar o
+                // pixel de métrica no padding inferior, sem cortar texto.
+                if (narrowTwo && !stacked && fontPixels == 9)
+                    h -= Math.Min(S(1), vertical);
                 if (target is not null)
                 {
                     TextRenderer.DrawText(target, row.Label, font, new Rectangle(x, y + vertical, left, h1), muted, Flags);

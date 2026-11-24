@@ -38,7 +38,12 @@ internal static class HardwareSensorPortfolioReader
 {
     internal static HardwareSensorPortfolio CaptureOnDemand(
         LiveHardwareMonitor monitor, CancellationToken token,
-        HardwareDiscoverySnapshot? existingInventory = null)
+        HardwareDiscoverySnapshot? existingInventory = null) =>
+        CaptureOnDemand(monitor, token, existingInventory, false);
+
+    internal static HardwareSensorPortfolio CaptureOnDemand(
+        LiveHardwareMonitor monitor, CancellationToken token,
+        HardwareDiscoverySnapshot? existingInventory, bool probeCpuVisibleVram)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         token.ThrowIfCancellationRequested();
@@ -53,7 +58,7 @@ internal static class HardwareSensorPortfolioReader
         token.ThrowIfCancellationRequested();
         var wddm = WindowsWddmGpuProvider.Capture(token);
         token.ThrowIfCancellationRequested();
-        var dxgi = DxgiGpuIdentityProvider.Capture();
+        var dxgi = DxgiGpuIdentityProvider.Capture(probeCpuVisibleVram);
         token.ThrowIfCancellationRequested();
         // D3DKMT query reporta sensor pela chave {LUID, phys}; não
         // pressupor identidade via índice DXGI ou nome do adaptador.
