@@ -569,13 +569,54 @@ internal sealed class V269HomeDashboard : Panel
     private readonly Label _status;
     private V269AppearanceOptions _appearance = V269AppearanceOptions.Default;
     private bool _arranging;
+    private int _scrollY, _contentHeight;
     internal IReadOnlyList<V269HomeCard> Cards => _cards;
+    // HTML: overflow-y:auto; scrollbar-width:none; nunca overflow-x.
+    // O viewport possui um único deslocamento vertical e não cria
+    // barras nativas claras nos temas escuros.
+    public new Point AutoScrollPosition
+    {
+        get => new(0, -_scrollY);
+        set => ScrollTo(value.Y);
+    }
+    internal int ContentHeight => _contentHeight;
+    private void ScrollTo(int value)
+    {
+        int next = Math.Clamp(value, 0, Math.Max(0, _contentHeight - ClientSize.Height));
+        if (next == _scrollY) return;
+        _scrollY = next;
+        Arrange();
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        if (e is HandledMouseEventArgs handled && handled.Handled) return;
+        ScrollTo(_scrollY - e.Delta / 120 * Math.Max(24, 48 * DeviceDpi / 96));
+        if (e is HandledMouseEventArgs accepted) accepted.Handled = true;
+        base.OnMouseWheel(e);
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        int page = Math.Max(24, ClientSize.Height - 24);
+        switch (keyData)
+        {
+            case Keys.PageDown: ScrollTo(_scrollY + page); return true;
+            case Keys.PageUp: ScrollTo(_scrollY - page); return true;
+            case Keys.Control | Keys.Home: ScrollTo(0); return true;
+            case Keys.Control | Keys.End: ScrollTo(_contentHeight); return true;
+            default: return base.ProcessCmdKey(ref msg, keyData);
+        }
+    }
 
     internal V269HomeDashboard(Button refresh, Button details, Label status)
     {
         Name = "V269HardwarePage";
         Dock = DockStyle.Fill;
-        AutoScroll = true;
+        AutoScroll = false;
+        SetStyle(ControlStyles.Selectable | ControlStyles.OptimizedDoubleBuffer, true);
+        TabStop = true;
+        AccessibleName = "Informações gerais do sistema e do hardware";
         _status = status;
         _cards = new[] { "cpu", "gpu", "ram", "motherboard", "windows" }
             .Select(key => new V269HomeCard(key)).ToArray();
@@ -669,7 +710,7 @@ internal sealed class V269HomeDashboard : Panel
             int windowWidth = (int)Math.Round((FindForm()?.ClientSize.Width ?? ClientSize.Width) * 96d / DeviceDpi);
             bool compactHeight = Screen.FromControl(this).WorkingArea.Height * 96d / DeviceDpi <= 950;
             int padding = S(2), gap = S(compactHeight ? 7 : 10);
-            int width = Math.Max(1, ClientSize.Width - 2 * padding - SystemInformation.VerticalScrollBarWidth);
+            int width = Math.Max(1, ClientSize.Width - 2 * padding);
             bool two = windowWidth >= 940 && width >= S(470);
             int column = two ? (width - gap) / 2 : width;
             int y = padding;
@@ -697,10 +738,18 @@ internal sealed class V269HomeDashboard : Panel
             _notice.MaximumSize = new Size(width, 0);
             _notice.Location = new Point(offset.X + padding, offset.Y + y);
             y += _notice.Height + S(4);
-            _footer.SetBounds(offset.X + padding, offset.Y + y, width, S(72));
             _status.MaximumSize = new Size(Math.Max(1, width - S(12)), 0);
-            var min = new Size(0, y + _footer.Height + padding);
-            if (AutoScrollMinSize != min) AutoScrollMinSize = min;
+            int footerHeight = Math.Max(S(34), _footer.GetPreferredSize(new Size(width, 0)).Height);
+            _footer.SetBounds(offset.X + padding, offset.Y + y, width, footerHeight);
+            _contentHeight = y + footerHeight + padding;
+            int clamped = Math.Clamp(_scrollY, 0, Math.Max(0, _contentHeight - ClientSize.Height));
+            if (clamped != _scrollY)
+            {
+                int shift = _scrollY - clamped;
+                _scrollY = clamped;
+                foreach (Control child in Controls)
+                    child.Top += shift;
+            }
         }
         finally { _arranging = false; }
     }
