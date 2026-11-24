@@ -1086,9 +1086,10 @@ internal sealed class V269AppSplitter:Control
     {
         Name="V269AppSplitter";Dock=DockStyle.Fill;Margin=Padding.Empty;TabStop=true;
         AccessibleName="Redimensionar painel de detalhes";AccessibleRole=AccessibleRole.Separator;
-        Cursor=Cursors.VSplit;BackColor=Color.Transparent;
+        Cursor=Cursors.VSplit;
         SetStyle(ControlStyles.UserPaint|ControlStyles.SupportsTransparentBackColor|
             ControlStyles.OptimizedDoubleBuffer|ControlStyles.Selectable,true);
+        BackColor=Color.Transparent;
     }
     protected override void OnPaint(PaintEventArgs e)
     {
