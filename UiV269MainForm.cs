@@ -1017,7 +1017,7 @@ internal sealed class V269HomeDashboard : Panel
     private readonly Label _status;
     private V269AppearanceOptions _appearance = V269AppearanceOptions.Default;
     private bool _arranging;
-    private int _scrollY, _contentHeight;
+    private int _scrollY, _contentHeight, _wheelRemainder;
     internal IReadOnlyList<V269HomeCard> Cards => _cards;
     // HTML: overflow-y:auto; scrollbar-width:none; nunca overflow-x.
     // O viewport possui um único deslocamento vertical e não cria
@@ -1041,9 +1041,21 @@ internal sealed class V269HomeDashboard : Panel
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         if (e is HandledMouseEventArgs handled && handled.Handled) return;
-        ScrollTo(_scrollY - e.Delta / 120 * Math.Max(24, 48 * DeviceDpi / 96));
+        int notches = AccumulateWheel(e.Delta, ref _wheelRemainder);
+        if (notches != 0)
+            ScrollTo(_scrollY - notches * Math.Max(24, 48 * DeviceDpi / 96));
         if (e is HandledMouseEventArgs accepted) accepted.Handled = true;
         base.OnMouseWheel(e);
+    }
+
+    // Dispositivos de alta resolução podem enviar frações de WHEEL_DELTA.
+    // Não descartar dois eventos de 60 que juntos equivalem a um passo.
+    internal static int AccumulateWheel(int delta, ref int remainder)
+    {
+        long combined = (long)delta + remainder;
+        int notches = (int)(combined / 120);
+        remainder = (int)(combined % 120);
+        return notches;
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -1128,8 +1140,9 @@ internal sealed class V269HomeDashboard : Panel
     {
         if (models.Count != 5 || !_cards.Select(x => x.Key).SequenceEqual(models.Select(x => x.Key)))
             throw new ArgumentException("Cinco cartões do HTML, em ordem.");
-        for (int i = 0; i < _cards.Length; i++) _cards[i].SetModel(models[i]);
-        Arrange();
+        bool changed = false;
+        for (int i = 0; i < _cards.Length; i++) changed |= _cards[i].SetModel(models[i]);
+        if (changed) Arrange();
     }
 
     internal void ApplyAppearance(V269AppearanceOptions appearance)
@@ -1261,20 +1274,27 @@ internal sealed class V269HomeCard : Control
             ControlStyles.SupportsTransparentBackColor, true);
     }
 
-    internal void SetModel(V269HomeModel model)
+    internal bool SetModel(V269HomeModel model)
     {
         if (model.Key != Key) throw new ArgumentException("Identidade do cartão.");
+        if (Model is { } current && current.Title == model.Title && current.Name == model.Name &&
+            current.Specs.SequenceEqual(model.Specs) && current.Sensors.SequenceEqual(model.Sensors))
+            return false;
         Model = model;
         AccessibleName = model.Title;
         AccessibleDescription = string.Join("; ", new[] { model.Name }.Concat(
             model.Specs.Concat(model.Sensors).Select(x => x.Label + ": " + x.Value)));
         Invalidate();
+        return true;
     }
 
     internal void ApplyAppearance(V269AppearanceOptions appearance, Color background)
     { _appearance = appearance; BackColor = background; Invalidate(); }
     internal void SetGeometry(int windowWidth, bool compactHeight)
-    { _windowWidth = windowWidth; _compactHeight = compactHeight; Invalidate(); }
+    {
+        if (_windowWidth == windowWidth && _compactHeight == compactHeight) return;
+        _windowWidth = windowWidth; _compactHeight = compactHeight; Invalidate();
+    }
 
     protected override void OnHandleCreated(EventArgs e)
     {

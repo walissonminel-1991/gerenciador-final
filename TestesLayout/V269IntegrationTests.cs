@@ -89,6 +89,17 @@ internal static class V269IntegrationTests
             "media query de 810px e breakpoints de largura do HTML");
         Require(view is V269HomeDashboard, "Início deve usar o dashboard nativo reconstruído");
         var home = (V269HomeDashboard)view;
+        int wheelRemainder = 0;
+        Require(V269HomeDashboard.AccumulateWheel(60, ref wheelRemainder) == 0 &&
+            wheelRemainder == 60 &&
+            V269HomeDashboard.AccumulateWheel(60, ref wheelRemainder) == 1 &&
+            wheelRemainder == 0 &&
+            V269HomeDashboard.AccumulateWheel(-30, ref wheelRemainder) == 0 &&
+            V269HomeDashboard.AccumulateWheel(-90, ref wheelRemainder) == -1 &&
+            wheelRemainder == 0 &&
+            V269HomeDashboard.AccumulateWheel(60, ref wheelRemainder) == 0 &&
+            V269HomeDashboard.AccumulateWheel(-60, ref wheelRemainder) == 0 &&
+            wheelRemainder == 0, "rolagem de alta resolução acumula frações e respeita o sentido");
         var header = form.Controls.Find("V269BrandHeader", true).OfType<V269BrandHeader>().Single();
         Require(header.IsHomePresentation &&
             form.Controls.Find("V269HomeMinimize", true).Single().Visible &&
@@ -374,6 +385,13 @@ internal static class V269IntegrationTests
 
         // O dashboard real conserva instâncias e permite comparação nos três temas.
         var cardIdentity = home.Cards.ToArray();
+        home.SetModels(models);
+        var unchangedCpu = models[0] with { Specs = models[0].Specs.ToArray(), Sensors = models[0].Sensors.ToArray() };
+        Require(!home.Cards[0].SetModel(unchangedCpu) &&
+            home.Cards[0].SetModel(live[0]) &&
+            home.Cards[0].AccessibleDescription.Contains("37%") &&
+            !home.Cards[0].SetModel(live[0]),
+            "amostras idênticas não invalidam cartão; alterações atualizam também a descrição acessível");
         home.SetModels(models);
         var clock = System.Diagnostics.Stopwatch.StartNew();
         while (home.Cards.Any(x => !x.ArtReady && x.ArtError is null) &&
