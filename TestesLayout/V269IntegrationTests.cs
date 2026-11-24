@@ -16,7 +16,7 @@ internal static class V269IntegrationTests
             throw new InvalidOperationException($"View ausente: {page}")).ToArray();
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
-        VerifyHome(form, views[0]);
+        var homeSnapshot = VerifyHome(form, views[0]);
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
         Require(paneToggle.Parent?.Name == "V269HomeFooter",
             "controle adicional não altera o menu do HTML aprovado");
@@ -60,6 +60,52 @@ internal static class V269IntegrationTests
                 shell.RightPane.Current?.Description == "Resultado preservado",
                 "identidade e resultado preservados durante navegação");
         }
+        // A consulta de hardware não pode tornar um resultado anterior inacessível.
+        // Usar somente a fotografia sintética já validada, sem chamar provedores reais.
+        shell.SelectPage(V269Page.Inicio);
+        Application.DoEvents();
+        var snapshotField = typeof(MainForm).GetField("_v269LastSnapshot",
+            BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var previousSnapshot = snapshotField.GetValue(form);
+        var detailButton = form.Controls.Find("V269HardwareDetails", true).OfType<Button>().Single();
+        var previousEnabled = detailButton.Enabled;
+        bool openedReadOnly = false;
+        using (var closeDialog = new System.Windows.Forms.Timer { Interval = 50 })
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            closeDialog.Tick += (_, _) =>
+            {
+                var dialog = Application.OpenForms.Cast<Form>().FirstOrDefault(x => x.Name == "V269HardwareDetailsDialog");
+                if (dialog is not null)
+                {
+                    var detailText = dialog.Controls.Find("V269HardwareDetailsText", true).OfType<TextBox>().SingleOrDefault();
+                    openedReadOnly = detailText is { ReadOnly: true } &&
+                        detailText.Text.Contains("Processador") && detailText.Text.Contains("Fotografia local") &&
+                        shell.RightPane.Current?.Description == "Resultado preservado";
+                    dialog.Close();
+                }
+                else if (clock.Elapsed > TimeSpan.FromSeconds(3)) closeDialog.Stop();
+            };
+            try
+            {
+                snapshotField.SetValue(form, homeSnapshot);
+                detailButton.Enabled = true;
+                detailButton.Focus();
+                Application.DoEvents();
+                closeDialog.Start();
+                detailButton.PerformClick();
+            }
+            finally
+            {
+                closeDialog.Stop();
+                detailButton.Enabled = previousEnabled;
+                snapshotField.SetValue(form, previousSnapshot);
+            }
+        }
+        Require(openedReadOnly && shell.RightPane.Current?.Description == "Resultado preservado",
+            "botão de leituras funciona sem substituir resultado anterior nem consultar hardware real");
+        shell.SelectPage(V269Page.Configuracoes);
+        Application.DoEvents();
         var appearance = Find<V269AppearancePanel>(views[(int)V269Page.Configuracoes]);
         Require(appearance is not null, "Configurações usa o painel de aparência real");
         var theme = appearance!.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
@@ -74,7 +120,7 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
 
-    private static void VerifyHome(MainForm form, Control view)
+    private static HardwareSensorPortfolio VerifyHome(MainForm form, Control view)
     {
         Require(V269HomeMetrics.HeaderHeight(992, 768) == 69 &&
             V269HomeMetrics.HeaderHeight(760, 810) == 69 &&
@@ -534,6 +580,7 @@ internal static class V269IntegrationTests
         home.ApplyAppearance(V269AppearanceOptions.Default);
         home.AutoScrollPosition = Point.Empty;
         Console.WriteLine("PASS Início V2.6.9: cinco cartões, artes originais, fontes reais, três temas, geometria e capturas.");
+        return snapshot;
     }
 
     private static T? Find<T>(Control control) where T : Control

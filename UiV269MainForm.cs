@@ -47,10 +47,21 @@ internal sealed partial class MainForm
         details.Click += (_, _) =>
         {
             if (_v269LastSnapshot is not { } snapshot || _busy || _v269Confirming ||
-                _nav.RightPane.Current?.Kind is V269PanelKind.Progress or V269PanelKind.Result) return;
+                _nav.RightPane.Current?.Kind is V269PanelKind.Progress or V269PanelKind.Confirmation) return;
             // Formatamos a fotografia mais recente, não o texto armazenado da consulta inicial.
-            PresentV269Details("Leituras detalhadas do hardware", string.Join(Environment.NewLine + Environment.NewLine,
-                V269HardwareCards(snapshot).Select(x => x.Title + Environment.NewLine + x.Body)));
+            string description = "Fotografia local no momento da abertura; não é atualizada automaticamente." +
+                Environment.NewLine + Environment.NewLine +
+                string.Join(Environment.NewLine + Environment.NewLine,
+                    V269HardwareCards(snapshot).Select(x => x.Title + Environment.NewLine + x.Body));
+            if (_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
+            {
+                // Um resultado/histórico deve continuar acessível e intacto.
+                // A ação explícita abre uma consulta somente leitura separada.
+                using var dialog = CreateV269HardwareDetailsDialog(description);
+                dialog.ShowDialog(this);
+                return;
+            }
+            PresentV269Details("Leituras detalhadas do hardware", description);
             if (!_nav.RightPane.Visible)
                 _nav.Controls.Find("V269PaneToggle", true).OfType<Button>().Single().PerformClick();
         };
@@ -74,6 +85,51 @@ internal sealed partial class MainForm
         _v269Home.SetModels(V269HomeModels(null));
         _v269Home.ApplyAppearance(_v269Appearance);
         return _v269Home;
+    }
+
+    private Form CreateV269HardwareDetailsDialog(string description)
+    {
+        var palette = V269Palette;
+        var dialog = new Form
+        {
+            Name = "V269HardwareDetailsDialog",
+            Text = "Leituras detalhadas do hardware",
+            StartPosition = FormStartPosition.CenterParent,
+            Size = new Size(690, 500),
+            MinimumSize = new Size(380, 270),
+            ShowInTaskbar = false,
+            MinimizeBox = false,
+            MaximizeBox = false,
+            BackColor = palette.Content,
+            ForeColor = palette.Text
+        };
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            Padding = new Padding(12), BackColor = palette.Content
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        var text = new TextBox
+        {
+            Name = "V269HardwareDetailsText", AccessibleName = "Leituras locais de hardware",
+            Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical, WordWrap = true,
+            BackColor = palette.Card, ForeColor = palette.Text, Text = description
+        };
+        var close = CreateSecondaryButton("Fechar");
+        close.Name = "V269HardwareDetailsClose";
+        close.Dock = DockStyle.Right;
+        close.Width = 105;
+        close.BackColor = palette.Card;
+        close.ForeColor = palette.Text;
+        close.DialogResult = DialogResult.Cancel;
+        close.Click += (_, _) => dialog.Close();
+        layout.Controls.Add(text, 0, 0);
+        layout.Controls.Add(close, 0, 1);
+        dialog.Controls.Add(layout);
+        dialog.CancelButton = close;
+        return dialog;
     }
 
     private async Task RefreshV269HardwareAsync()
