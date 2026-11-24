@@ -566,6 +566,32 @@ internal static class V269IntegrationTests
                         }).ToArray() };
                     string geometryJson = System.Text.Json.JsonSerializer.Serialize(geometry);
                     Console.WriteLine("V269-HOME-GEOMETRY " + geometryJson);
+                    // HTML aprovado SHA-256 9942b8ed29335cb526825b7658d0f8ab11f2c7241b46a6a99b959941b31dca44.
+                    // DOM medido em Chromium com janela compacta e zoom 100%.
+                    // Validar coordenadas inclusive fora da área visível, em
+                    // 96 DPI e faixa da media query homologada. Tolerância de
+                    // 2px para frações CSS/GDI, não para diferenças de estrutura.
+                    if (geometry.Dpi == 96 && geometry.WorkAreaHeight <= 810 &&
+                        viewportSize.Width is 760 or 992)
+                    {
+                        (int X, int Y, int Width, int Height)[] expected =
+                            viewportSize.Width == 760
+                            ? [(214,153,518,226), (214,386,518,226), (214,620,518,187),
+                               (214,814,518,187), (214,1008,518,202)]
+                            : [(214,153,371,170), (592,153,372,170), (214,330,371,157),
+                               (592,330,372,157), (214,494,750,152)];
+                        for (int i = 0; i < expected.Length; i++)
+                        {
+                            var actual = geometry.Cards[i];
+                            var reference = expected[i];
+                            Require(Math.Abs(actual.X - reference.X) <= 2 &&
+                                Math.Abs(actual.Y - reference.Y) <= 2 &&
+                                Math.Abs(actual.Width - reference.Width) <= 1 &&
+                                Math.Abs(actual.Height - reference.Height) <= 2,
+                                $"geometria do HTML {theme} {viewportSize} {actual.Key}: " +
+                                $"esperada {reference}; observada ({actual.X},{actual.Y},{actual.Width},{actual.Height})");
+                        }
+                    }
                     File.WriteAllText($"LayoutCaptures/v269-inicio-geometria-{theme}-{viewportSize.Width}x{viewportSize.Height}.json", geometryJson);
                     using var same = new Bitmap(surface.Width, surface.Height);
                     surface.DrawToBitmap(same, new Rectangle(Point.Empty, surface.Size));

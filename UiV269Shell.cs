@@ -650,6 +650,11 @@ internal sealed class V269Shell : UserControl
             int targetRow = home ? settingsRow : spacerRow;
             if (_navigationLayout.GetRow(settings) != targetRow)
                 _navigationLayout.SetRow(settings, targetRow);
+            // A borda selecionada do HTML inicia em y=91 (capturas de
+            // 760 e 992); a margem legada de 2px a deslocava para y=93.
+            // Conservar o rodapé alcançável no viewport compacto.
+            foreach (var button in _navigation.Values)
+                button.Margin = home ? new Padding(0, 0, 0, 2) : new Padding(0, 2, 0, 2);
             _homeNavRule.Visible = home;
             _homeCopyright.Visible = footerFits;
             _homeCopyright.Margin = compactHome ? new Padding(S(4), S(3), 0, 0) : new Padding(S(11), S(3), 0, 0);

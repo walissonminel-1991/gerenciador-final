@@ -1554,7 +1554,8 @@ internal sealed class V269HomeCard : Control
 
         int Rows(Graphics? target, IReadOnlyList<V269HomeRow> rows, int x, int y, int w)
         {
-            int start = y;
+            int start = y, compactSingleLineRows = 0;
+            double cssCompactLine = fontPixels * _appearance.TextPercent / 100d * DeviceDpi / 96d * 1.22;
             foreach (var row in rows)
             {
                 // .hw-kv/.hw-sensor continuam lado a lado no CSS de 940–1090.
@@ -1580,6 +1581,20 @@ internal sealed class V269HomeCard : Control
                 // pixel de métrica no padding inferior, sem cortar texto.
                 if (narrowTwo && !stacked && fontPixels == 9)
                     h -= Math.Min(S(1), vertical);
+                else if (compactHeight && windowWidth <= 850 && fontPixels == 10 && !stacked &&
+                    labelNatural <= left && valueNatural <= right &&
+                    !row.Label.Contains('\n') && !row.Label.Contains('\r') &&
+                    !row.Value.Contains('\n') && !row.Value.Contains('\r'))
+                {
+                    // Evidência CI 45384308903, 96 DPI, 760x596:
+                    // linhas GDI de 21px contra 19,19px do HTML (12,2+6+1).
+                    // Distribuir a fração CSS pelas linhas; usar somente o
+                    // padding inferior para compensar, nunca cortar glifos
+                    // nem reduzir altura de texto que precisa quebrar linha.
+                    int before = (int)Math.Round(compactSingleLineRows * cssCompactLine);
+                    int after = (int)Math.Round(++compactSingleLineRows * cssCompactLine);
+                    h -= Math.Clamp(Math.Max(h1, h2) - (after - before), 0, vertical);
+                }
                 if (target is not null)
                 {
                     TextRenderer.DrawText(target, row.Label, font, new Rectangle(x, y + vertical, left, h1), muted, Flags);
