@@ -28,6 +28,10 @@ internal static class GfResourceMonitorTests
         Require(expected.All(x => labels.Any(l => l.Text == x)), "compacto deve apresentar os cinco valores da fixture");
         foreach (var label in labels)
         {
+            Require(label is GfMonitorCompactLabel compact && compact.Fits(label.Text) &&
+                compact.Fits(label.Text.StartsWith("RAM") ? "RAM 100%" :
+                    label.Text.EndsWith("°C") ? label.Text[..3] + " 150°C" : label.Text[..3] + " 100%"),
+                "compacto deve acomodar valor de três dígitos sem truncar");
             var box = Rectangle.Intersect(new Rectangle(form.PointToClient(label.PointToScreen(Point.Empty)), label.Size),
                 new Rectangle(Point.Empty, bitmap.Size));
             Require(box.Width > 0 && box.Height > 0, "métrica fora da janela");
@@ -41,6 +45,52 @@ internal static class GfResourceMonitorTests
                 }
             Require(pixels >= 5, "captura sem texto renderizado: " + label.Name);
         }
+    }
+
+    private static double Contrast(Color foreground, Color background)
+    {
+        static double Linear(byte value)
+        {
+            double x = value / 255d;
+            return x <= 0.04045 ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4);
+        }
+        static double Luminance(Color c) => 0.2126 * Linear(c.R) + 0.7152 * Linear(c.G) + 0.0722 * Linear(c.B);
+        double a = Luminance(foreground), b = Luminance(background);
+        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
+    }
+
+    private static void VerifyContrast(V269Theme theme)
+    {
+        Color background = V269VisualTokens.ForTheme(theme).Card;
+        var (blue, green, yellow, red) = GfMeterScale.Colors(theme);
+        if (theme == V269Theme.Dark)
+            Require(red == Color.FromArgb(242, 116, 126), "vermelho Dark corrigido");
+        foreach (var kind in new[] { GfMeterKind.Usage, GfMeterKind.InvertedProgress, GfMeterKind.Temperature })
+            for (int i = 0; i <= 10_000; i++)
+                Require(Contrast(GfMeterScale.ScaleColor(kind, i / 100d, theme), background) >= 4.5,
+                    $"contraste {theme}/{kind}/{i / 100d:F2}%");
+        foreach (var (a, b) in new[] { (blue, green), (green, yellow), (yellow, red), (yellow, blue) })
+        {
+            var cuts = new SortedSet<double> { 0, 1 };
+            foreach (var (x, y) in new[] { (a.R, b.R), (a.G, b.G), (a.B, b.B) })
+                if (x != y)
+                    for (int k = Math.Min(x, y); k < Math.Max(x, y); k++)
+                        cuts.Add((k + 0.5 - x) / (y - x));
+            double? previous = null;
+            foreach (double t in cuts)
+            {
+                Require(Contrast(GfMeterScale.Mix(a, b, t), background) >= 4.5, "contraste RGB no limite de arredondamento");
+                if (previous is double start)
+                    Require(Contrast(GfMeterScale.Mix(a, b, (start + t) / 2), background) >= 4.5, "contraste RGB intermediário");
+                previous = t;
+            }
+        }
+        // Uma transição ampla percorre a escala, não o segmento azul/vermelho.
+        Require(GfMeterScale.ScaleColor(GfMeterKind.Usage, 60, theme) == green &&
+            GfMeterScale.ScaleColor(GfMeterKind.Usage, 75, theme) == yellow &&
+            GfMeterScale.Frame(GfMeterKind.Temperature, 70, theme, 95).ScalePosition == 60 &&
+            GfMeterScale.Frame(GfMeterKind.InvertedProgress, 35, theme).Color == yellow,
+            "trajetória de cor e posição térmica");
     }
 
     private static void VerifyPreferences()
@@ -73,6 +123,7 @@ internal static class GfResourceMonitorTests
     {
         foreach (V269Theme theme in Enum.GetValues<V269Theme>())
         {
+            VerifyContrast(theme);
             var (blue, green, yellow, red) = GfMeterScale.Colors(theme);
             Require(GfMeterScale.UsageColor(0, theme) == blue && GfMeterScale.UsageColor(40, theme) == blue &&
                 GfMeterScale.UsageColor(60, theme) == green && GfMeterScale.UsageColor(75, theme) == yellow &&

@@ -51,7 +51,7 @@ internal sealed class GfResourceMonitorForm : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.Dpi;
-        Padding = new(1);
+        Padding = new(2);
         _surfaces.AddRange([_compact, _expanded]);
 
         var strip = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 8,
@@ -75,8 +75,11 @@ internal sealed class GfResourceMonitorForm : Form
             cell.ColumnStyles.Add(new(SizeType.Percent, 100));
             _surfaces.Add(cell);
             AddSeparator(cell);
-            cell.Controls.Add(Glyph(i), 0, 0);
-            var label = MakeLabel("—", i >= 4 ? "Temperatura " + Names[i] : "Utilização " + Names[i]);
+            cell.Controls.Add(Glyph(i >= 4 ? 4 : i), 0, 0);
+            var label = new GfMonitorCompactLabel { Text = Names[i] + " —", Dock = DockStyle.Fill,
+                Margin = Padding.Empty, AccessibleName = i >= 4 ? "Temperatura " + Names[i] : "Utilização " + Names[i] };
+            _text.Add(label);
+            Emphasize(label, 8.5f);
             label.Name = "MonitorCompactMetric" + i;
             label.TextAlign = ContentAlignment.MiddleCenter;
             _compactValues[i] = label;
@@ -94,7 +97,7 @@ internal sealed class GfResourceMonitorForm : Form
         layout.ColumnStyles.Add(new(SizeType.Percent, 100));
         layout.RowStyles.Add(new(SizeType.Absolute, 30));
         layout.RowStyles.Add(new(SizeType.Percent, 100));
-        layout.RowStyles.Add(new(SizeType.Absolute, 40));
+        layout.RowStyles.Add(new(SizeType.Absolute, 46));
         _surfaces.Add(layout);
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Margin = Padding.Empty };
         header.RowStyles.Add(new(SizeType.Percent, 100));
@@ -168,7 +171,7 @@ internal sealed class GfResourceMonitorForm : Form
     }
     private Label Logo()
     {
-        var label = new Label { Text = "GF", AccessibleName = "Gerenciador Final", Dock = DockStyle.Fill,
+        var label = new GfMonitorLogoLabel { Text = "GF", AccessibleName = "Gerenciador Final", Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleCenter, Margin = new(2), ForeColor = Color.White };
         Emphasize(label, 10f);
         return label;
@@ -181,7 +184,7 @@ internal sealed class GfResourceMonitorForm : Form
     }
     private GfMonitorGlyph Glyph(int i)
     {
-        var g = new GfMonitorGlyph(i >= 4 ? 4 : i) { Dock = DockStyle.Fill, Margin = new(1) };
+        var g = new GfMonitorGlyph(i) { Dock = DockStyle.Fill, Margin = new(1) };
         _glyphs.Add(g); return g;
     }
     private Button Chrome(string text, string name, Action action)
@@ -189,6 +192,8 @@ internal sealed class GfResourceMonitorForm : Form
         var b = new Button { Text = text, AccessibleName = name, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat,
             Margin = new(1), Padding = Padding.Empty };
         b.FlatAppearance.BorderSize = 0;
+        b.UseVisualStyleBackColor = false;
+        Emphasize(b, 13f);
         b.Click += (_, _) => action();
         _buttons.Add(b); return b;
     }
@@ -200,10 +205,24 @@ internal sealed class GfResourceMonitorForm : Form
         panel.ColumnStyles.Add(new(SizeType.Percent, 100)); panel.RowStyles.Add(new(SizeType.Absolute, 20));
         var heading = MakeLabel(caption, caption);
         Emphasize(heading, 9f);
-        panel.Controls.Add(heading, 0, 0);
+        var band = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty };
+        band.ColumnStyles.Add(new(SizeType.Absolute, 22));
+        band.ColumnStyles.Add(new(SizeType.Percent, 100));
+        band.RowStyles.Add(new(SizeType.Percent, 100));
+        band.Controls.Add(Glyph(indices[0] >= 4 ? 4 : 5), 0, 0);
+        band.Controls.Add(heading, 1, 0);
+        _surfaces.Add(band);
+        band.Paint += (_, e) =>
+        {
+            using var pen = new Pen(V269VisualTokens.ForTheme(_theme).Border);
+            e.Graphics.DrawLine(pen, 0, band.Height - 1, band.Width, band.Height - 1);
+        };
+        panel.Controls.Add(band, 0, 0);
         _surfaces.Add(panel);
         _outlined.Add(panel);
-        panel.Paint += (_, e) => { using var pen = new Pen(V269VisualTokens.ForTheme(_theme).Border); e.Graphics.DrawRectangle(pen, 0, 0, Math.Max(0, panel.Width - 1), Math.Max(0, panel.Height - 1)); };
+        panel.Paint += (_, e) => GfMonitorShape.DrawOutline(e.Graphics, panel.ClientRectangle,
+            V269VisualTokens.ForTheme(_theme).Border, 6f * panel.DeviceDpi / 96f);
         for (int n = 0; n < indices.Length; n++)
         {
             int i = indices[n];
@@ -219,15 +238,17 @@ internal sealed class GfResourceMonitorForm : Form
             if (thermal) row.RowStyles.Add(new(SizeType.Absolute, 15));
             _surfaces.Add(row);
             row.Controls.Add(Glyph(thermal ? i - 4 : i), 0, 0);
-            row.Controls.Add(MakeLabel(Names[i], Names[i]), 1, 0);
+            var metricName = MakeLabel(Names[i], Names[i]);
+            Emphasize(metricName, 8.5f);
+            row.Controls.Add(metricName, 1, 0);
             var value = MakeLabel("—", (thermal ? "Temperatura " : "Utilização ") + Names[i]);
             value.TextAlign = ContentAlignment.MiddleRight; _values[i] = value;
             Emphasize(value, 9f);
             row.Controls.Add(value, thermal ? 2 : 3, 0);
-            var bar = new GfDynamicProgressBar { Anchor = AnchorStyles.Left | AnchorStyles.Right, Height = 8, Margin = new(1, 0, 0, 0), AccessibleName = value.AccessibleName };
+            var bar = new GfDynamicProgressBar { Anchor = AnchorStyles.Left | AnchorStyles.Right, Height = 9, Margin = new(1, 0, 0, 0), AccessibleName = value.AccessibleName };
             _bars[i] = bar;
             row.Controls.Add(bar, thermal ? 1 : 2, thermal ? 1 : 0);
-            if (thermal) row.SetColumnSpan(bar, 2);
+            // A barra térmica termina antes da coluna do valor, como na referência.
             if (n < indices.Length - 1)
                 row.Paint += (_, e) => { using var pen = new Pen(V269VisualTokens.ForTheme(_theme).Border); e.Graphics.DrawLine(pen, 0, row.Height - 1, row.Width, row.Height - 1); };
             panel.Controls.Add(row, 0, n + 1);
@@ -239,11 +260,12 @@ internal sealed class GfResourceMonitorForm : Form
     {
         _theme = theme; _animate = animationsEnabled && SystemInformation.IsMenuAnimationEnabled;
         var p = V269VisualTokens.ForTheme(theme);
-        BackColor = p.Border;
+        BackColor = p.Accent;
         foreach (var c in _surfaces) c.BackColor = p.Card;
         foreach (var c in _text) c.ForeColor = p.Text;
         foreach (var b in _buttons) { b.BackColor = p.Card; b.ForeColor = p.Text; }
-        foreach (var g in _glyphs) { g.ForeColor = p.SecondaryText; g.Invalidate(); }
+        foreach (var g in _glyphs) { g.ForeColor = p.Text; g.Invalidate(); }
+        foreach (var l in _compactValues.OfType<GfMonitorCompactLabel>()) { l.CaptionColor = p.Text; l.Invalidate(); }
         _compactLogo.BackColor = _expandedLogo.BackColor = p.Selection;
         _legend.Configure(theme);
         foreach (var surface in _outlined.Concat(_separated)) surface.Invalidate();
@@ -267,6 +289,7 @@ internal sealed class GfResourceMonitorForm : Form
             active.BringToFront();
         }
         finally { ResumeLayout(true); }
+        GfMonitorShape.ApplyRegion(this, SizeFor(9));
         (value ? _expanded : _compact).PerformLayout();
         Invalidate(true);
         if (Visible) ClampLocation(snap: false);
@@ -415,9 +438,20 @@ internal sealed class GfMonitorGlyph(int kind) : Control
             case 1:
                 g.DrawRectangle(p, 2, 5, 16, 10); g.DrawEllipse(p, 4, 7, 6, 6); g.DrawEllipse(p, 11, 7, 5, 6); g.DrawLine(p, 1, 3, 1, 17);
                 break;
-            case 2: case 3:
+            case 2:
                 g.DrawRectangle(p, 2, 6, 16, 8);
                 for (int x = 5; x <= 14; x += 4) { g.DrawRectangle(p, x, 8, 2, 3); g.DrawLine(p, x, 14, x, 16); }
+                break;
+            case 3:
+                g.DrawRectangle(p, 4, 5, 12, 10);
+                g.DrawRectangle(p, 7, 8, 6, 4);
+                for (int x = 6; x <= 14; x += 4) { g.DrawLine(p, x, 2, x, 5); g.DrawLine(p, x, 15, x, 18); }
+                break;
+            case 5:
+                using (var brush = new SolidBrush(ForeColor))
+                {
+                    g.FillRectangle(brush, 3, 12, 3, 6); g.FillRectangle(brush, 8, 8, 3, 10); g.FillRectangle(brush, 13, 3, 3, 15);
+                }
                 break;
             default:
                 g.DrawEllipse(p, 7, 12, 6, 6); g.DrawLine(p, 8, 13, 8, 4); g.DrawLine(p, 12, 13, 12, 4); g.DrawArc(p, 8, 2, 4, 4, 180, 180);
@@ -457,23 +491,121 @@ internal sealed class GfMonitorLegend : Control
         var (blue, green, yellow, red) = GfMeterScale.Colors(_theme);
         Color[] colors = [blue, green, yellow, red];
         using var border = new Pen(p.Border);
-        e.Graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
-        e.Graphics.DrawLine(border, Width / 2, 3, Width / 2, Height - 4);
+        GfMonitorShape.DrawOutline(e.Graphics, ClientRectangle, p.Border, 6f * DeviceDpi / 96f);
+        e.Graphics.DrawLine(border, Width / 2, 4, Width / 2, Height - 5);
         void Group(int x, int width, string title, string[] labels)
         {
-            int header = Height / 2;
-            TextRenderer.DrawText(e.Graphics, title, Font, new Rectangle(x + 3, 0, width - 6, header), p.Text,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            int header = Height * 2 / 5;
+            var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
+            TextRenderer.DrawText(e.Graphics, title, Font, new Rectangle(x + 3, 0, width - 6, header), p.Text, flags);
             for (int i = 0; i < 4; i++)
             {
-                int cell = width / 4, left = x + i * cell + 4;
+                int cell = width / 4, left = x + i * cell;
                 using var brush = new SolidBrush(colors[i]);
-                e.Graphics.FillRectangle(brush, left, header + 5, 9, 7);
-                TextRenderer.DrawText(e.Graphics, labels[i], Font, new Rectangle(left + 12, header, Math.Max(1, cell - 16), Height - header), p.SecondaryText,
-                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                using var path = GfMonitorShape.Rounded(new RectangleF(left + cell / 2f - 8, header, 16, 5), 2.5f);
+                e.Graphics.FillPath(brush, path);
+                TextRenderer.DrawText(e.Graphics, labels[i], Font, new Rectangle(left + 1, header + 6, Math.Max(1, cell - 2), Height - header - 7), p.Text, flags);
             }
         }
-        Group(0, Width / 2, "Escala de uso (%)", ["40", "60", "75", "100"]);
+        Group(0, Width / 2, "Escala de uso · 40 / 60 / 75 / 100%", ["Baixo", "Normal", "Alto", "Muito alto"]);
         Group(Width / 2, Width - Width / 2, "Temperatura · limite ou referência", ["Fria", "Normal", "Alta", "Limite"]);
+    }
+}
+
+
+// Desenho comum: bordas arredondadas e ícones sem fontes externas.
+internal static class GfMonitorShape
+{
+    internal static GraphicsPath Rounded(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float d = Math.Min(Math.Min(rect.Width, rect.Height), Math.Max(0, radius * 2));
+        if (rect.Width <= 0 || rect.Height <= 0) return path;
+        if (d <= 1) { path.AddRectangle(rect); return path; }
+        path.AddArc(rect.Left, rect.Top, d, d, 180, 90);
+        path.AddArc(rect.Right - d, rect.Top, d, d, 270, 90);
+        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+        path.AddArc(rect.Left, rect.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    internal static void DrawOutline(Graphics graphics, Rectangle rect, Color color, float radius)
+    {
+        if (rect.Width < 2 || rect.Height < 2) return;
+        using var path = Rounded(new RectangleF(rect.X + .5f, rect.Y + .5f, rect.Width - 1, rect.Height - 1), radius);
+        using var pen = new Pen(color);
+        var previous = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.DrawPath(pen, path);
+        graphics.SmoothingMode = previous;
+    }
+
+    internal static void ApplyRegion(Control control, int radius)
+    {
+        if (control.Width < 2 || control.Height < 2) return;
+        using var path = Rounded(new RectangleF(0, 0, control.Width, control.Height), radius);
+        control.Region = new Region(path);
+    }
+}
+
+internal sealed class GfMonitorLogoLabel : Label
+{
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        GfMonitorShape.ApplyRegion(this, Math.Max(2, 5 * DeviceDpi / 96));
+    }
+}
+
+// Mantém o texto acessível completo, mas separa a identificação neutra
+// do número cromático. Se necessário, acomoda ambos em duas linhas dentro
+// da mesma faixa horizontal, sem cortar a temperatura ou o percentual.
+internal sealed class GfMonitorCompactLabel : Label
+{
+    internal Color CaptionColor { get; set; } = SystemColors.ControlText;
+    private const TextFormatFlags Flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix |
+        TextFormatFlags.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter;
+
+    internal GfMonitorCompactLabel()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+    }
+
+    private (string Caption, string Value) Parts()
+    {
+        int split = Text.IndexOf(' ');
+        return split < 0 ? (string.Empty, Text) : (Text[..split], Text[(split + 1)..]);
+    }
+
+    internal bool Fits(string candidate)
+    {
+        int split = candidate.IndexOf(' ');
+        string caption = split < 0 ? string.Empty : candidate[..split];
+        string value = split < 0 ? candidate : candidate[(split + 1)..];
+        var a = TextRenderer.MeasureText(caption, Font, Size.Empty, Flags);
+        var b = TextRenderer.MeasureText(value, Font, Size.Empty, Flags);
+        return (a.Width + b.Width + 3 <= Width && Math.Max(a.Height, b.Height) <= Height) ||
+            (Math.Max(a.Width, b.Width) <= Width && a.Height + b.Height <= Height);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var (caption, value) = Parts();
+        var a = TextRenderer.MeasureText(e.Graphics, caption, Font, Size.Empty, Flags);
+        var b = TextRenderer.MeasureText(e.Graphics, value, Font, Size.Empty, Flags);
+        int total = a.Width + b.Width + 3;
+        if (total <= Width)
+        {
+            int x = (Width - total) / 2;
+            TextRenderer.DrawText(e.Graphics, caption, Font, new Rectangle(x, 0, a.Width, Height), CaptionColor, Flags);
+            TextRenderer.DrawText(e.Graphics, value, Font, new Rectangle(x + a.Width + 3, 0, b.Width, Height), ForeColor, Flags);
+        }
+        else
+        {
+            int top = Height / 2;
+            TextRenderer.DrawText(e.Graphics, caption, Font, new Rectangle(0, 0, Width, top), CaptionColor, Flags);
+            TextRenderer.DrawText(e.Graphics, value, Font, new Rectangle(0, top, Width, Height - top), ForeColor, Flags);
+        }
     }
 }

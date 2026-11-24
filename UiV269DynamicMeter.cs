@@ -8,14 +8,15 @@ namespace GerenciadorAplicativos;
 internal enum GfMeterKind { Usage, Temperature, Progress, InvertedProgress }
 internal enum GfMeterState { Unavailable, Running, Indeterminate, Success, Failed, Cancelled }
 
-internal readonly record struct GfMeterFrame(double? Fraction, Color Color, GfMeterState State, bool Immediate = false);
+internal readonly record struct GfMeterFrame(double? Fraction, Color Color, GfMeterState State, bool Immediate = false,
+    GfMeterKind? ScaleKind = null, double? ScalePosition = null);
 
 internal static class GfMeterScale
 {
     internal static (Color Blue, Color Green, Color Yellow, Color Red) Colors(V269Theme theme) =>
         theme == V269Theme.Claro
             ? (Color.FromArgb(21, 105, 177), Color.FromArgb(27, 117, 68), Color.FromArgb(146, 100, 8), Color.FromArgb(180, 44, 60))
-            : (Color.FromArgb(45, 156, 219), Color.FromArgb(68, 193, 123), Color.FromArgb(232, 196, 75), Color.FromArgb(231, 96, 106));
+            : (Color.FromArgb(45, 156, 219), Color.FromArgb(68, 193, 123), Color.FromArgb(232, 196, 75), theme == V269Theme.Dark ? Color.FromArgb(242, 116, 126) : Color.FromArgb(231, 96, 106));
 
     internal static Color Mix(Color a, Color b, double t)
     {
@@ -30,6 +31,19 @@ internal static class GfMeterScale
         return percent <= 40 ? blue : percent <= 60 ? Mix(blue, green, (percent - 40) / 20)
             : percent <= 75 ? Mix(green, yellow, (percent - 60) / 15)
             : Mix(yellow, red, (percent - 75) / 25);
+    }
+
+    internal static Color ScaleColor(GfMeterKind kind, double position, V269Theme theme)
+    {
+        position = Math.Clamp(position, 0, 100);
+        var (blue, _, yellow, red) = Colors(theme);
+        return kind switch
+        {
+            GfMeterKind.Progress => blue,
+            GfMeterKind.InvertedProgress => position <= 35 ? Mix(red, yellow, position / 35) :
+                Mix(yellow, blue, (position - 35) / 65),
+            _ => UsageColor(position, theme)
+        };
     }
 
     // Limites térmicos pertencem ao mesmo componente e ao mesmo tipo de sensor.
@@ -67,16 +81,14 @@ internal static class GfMeterScale
         if (kind == GfMeterKind.Temperature)
         {
             bool known = ValidThermalLimit(limit);
+            double index = ThermalIndex(v, limit);
             return new(Math.Clamp(v / (known ? limit!.Value : 95), 0, 1),
-                UsageColor(ThermalIndex(v, limit), theme), state, known && v >= limit!.Value);
+                ScaleColor(kind, index, theme), state, known && v >= limit!.Value, kind, index);
         }
-        if (kind == GfMeterKind.Usage) return new(v / 100, UsageColor(v, theme), state);
+        if (kind == GfMeterKind.Usage) return new(v / 100, UsageColor(v, theme), state, ScaleKind: kind, ScalePosition: v);
         // A opção invertida é explicitamente visual. Verde fica reservado ao
         // sucesso confirmado; 100% recebido de um provedor não prova conclusão.
-        Color c = kind == GfMeterKind.InvertedProgress
-            ? v <= 35 ? Mix(red, yellow, v / 35) : Mix(yellow, blue, (v - 35) / 65)
-            : blue;
-        return new(v / 100, c, state);
+        return new(v / 100, ScaleColor(kind, v, theme), state, ScaleKind: kind, ScalePosition: v);
     }
 }
 
@@ -108,7 +120,9 @@ internal sealed class GfDynamicProgressBar : Control
 {
     private GfMeterFrame _target = new(null, Color.Gray, GfMeterState.Unavailable);
     private double _shown, _start;
-    private Color _shownColor = Color.Gray, _startColor = Color.Gray;
+    private Color _shownColor = Color.Gray;
+    private double? _shownPosition, _startPosition;
+    private GfMeterKind? _shownKind;
     private long _since;
     private readonly System.Windows.Forms.Timer _animation;
     private V269Theme _theme;
@@ -127,22 +141,31 @@ internal sealed class GfDynamicProgressBar : Control
 
     internal void Configure(V269Theme theme, bool animate)
     {
+        bool changed = _theme != theme;
         _theme = theme; _animate = animate;
         if (!animate) Snap();
+        if (changed)
+        {
+            _animation.Stop();
+            _shownKind = null; // o próximo frame é reapresentado no novo tema
+        }
         Invalidate();
     }
 
     internal void Present(GfMeterFrame frame, string description)
     {
-        _target = frame;
         AccessibleDescription = description;
-        if (!_animate || !Visible || frame.Immediate || frame.Fraction is null)
+        if (_target == frame && _shownKind == frame.ScaleKind) return;
+        _target = frame;
+        if (!_animate || !Visible || frame.Immediate || frame.Fraction is null ||
+            frame.ScaleKind is null || frame.ScaleKind != _shownKind ||
+            frame.ScalePosition is null || _shownPosition is null)
         {
             Snap();
             if (_animate && Visible && frame.State == GfMeterState.Indeterminate) _animation.Start();
             return;
         }
-        _start = _shown; _startColor = _shownColor; _since = Environment.TickCount64;
+        _start = _shown; _startPosition = _shownPosition; _since = Environment.TickCount64;
         _animation.Start(); Invalidate();
     }
 
@@ -150,6 +173,7 @@ internal sealed class GfDynamicProgressBar : Control
     {
         _animation.Stop();
         _shown = _target.Fraction ?? 0; _shownColor = _target.Color;
+        _shownPosition = _target.ScalePosition; _shownKind = _target.ScaleKind;
         Invalidate();
     }
 
@@ -159,8 +183,13 @@ internal sealed class GfDynamicProgressBar : Control
         if (_target.State == GfMeterState.Indeterminate) { Invalidate(); return; }
         double t = Math.Clamp((Environment.TickCount64 - _since) / 250d, 0, 1);
         _shown = _start + ((_target.Fraction ?? 0) - _start) * t;
-        _shownColor = GfMeterScale.Mix(_startColor, _target.Color, t);
-        if (t >= 1) _animation.Stop();
+        if (_startPosition is double start && _target.ScalePosition is double target && _target.ScaleKind is GfMeterKind kind)
+        {
+            _shownPosition = start + (target - start) * t;
+            _shownColor = GfMeterScale.ScaleColor(kind, _shownPosition.Value, _theme);
+        }
+        else { Snap(); return; }
+        if (t >= 1) { Snap(); return; }
         Invalidate();
     }
 
