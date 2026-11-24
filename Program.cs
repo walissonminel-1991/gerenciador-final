@@ -1471,7 +1471,13 @@ internal sealed partial class MainForm : Form
             $"Local: {Known(item.InstallLocation)}\r\nOferta: {DisplayAppVersion(item.AvailableVersion)}\r\n\r\n"+
             ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item))+
             "\r\n\r\nEnter ou botão direito: ações disponíveis e orientação.";
-        _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do aplicativo",details));
+        var fields=new (string Label,string Value)[]{
+            ("Tipo",kind),("Origem",Known(item.InventorySource)),("Arquitetura",architecture),
+            ("Versão",DisplayAppVersion(item.Version)),("Instalado em",item.InstallDate?.ToString("dd/MM/yyyy")??"Não informado"),
+            ("Local",Known(item.InstallLocation)),("Oferta",DisplayAppVersion(item.AvailableVersion))};
+        _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do aplicativo",details,Application:
+            new V269AppDetailModel(item.Name,Known(item.Publisher),fields,
+                ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item)))));
     }
 
     private void DrawProgramCard(object? sender, DrawItemEventArgs e)

@@ -44,7 +44,8 @@ internal enum V269PanelKind
 /// autorização, revalidação, cancelamento e evidências de execução.
 /// </summary>
 internal sealed record V269PanelPresentation(
-    V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null);
+    V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
+    V269AppDetailModel? Application = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -62,6 +63,8 @@ internal sealed class V269RightPane : UserControl
     private readonly TextBox _description;
     private readonly ProgressBar _progress;
     private readonly Panel _operationContent;
+    private readonly V269AppDetailPanel _applicationDetails=new();
+    private bool _hasOperationContent;
     private readonly FlowLayoutPanel _choices;
     private TaskCompletionSource<bool>? _confirmation;
 
@@ -114,6 +117,7 @@ internal sealed class V269RightPane : UserControl
         _layout.Controls.Add(_title, 0, 0);
         _layout.Controls.Add(_progress, 0, 1);
         _layout.Controls.Add(_description, 0, 2);
+        _layout.Controls.Add(_applicationDetails,0,2);
         _choices = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false, Visible = false };
         foreach (var (caption, accepted) in new[] { ("Cancelar", false), ("Confirmar", true) })
         {
@@ -135,6 +139,7 @@ internal sealed class V269RightPane : UserControl
     internal void SetOperationContent(Control content)
     {
         _operationContent.Controls.Add(content);
+        _hasOperationContent=true;
         _layout.RowStyles[4].SizeType = SizeType.Percent;
         _layout.RowStyles[4].Height = 55;
         _layout.RowStyles[2].Height = 45;
@@ -180,6 +185,14 @@ internal sealed class V269RightPane : UserControl
         Current = presentation;
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
+        bool structured=presentation is {Kind:V269PanelKind.Details,Application:not null};
+        _applicationDetails.Present(structured?presentation!.Application:null);
+        _description.Visible=!structured;_applicationDetails.Visible=structured;
+        if(structured)_applicationDetails.BringToFront();
+        _operationContent.Visible=!structured;
+        _layout.RowStyles[4].SizeType=_hasOperationContent&&!structured?SizeType.Percent:SizeType.Absolute;
+        _layout.RowStyles[4].Height=_hasOperationContent&&!structured?55:0;
+        _layout.RowStyles[2].Height=_hasOperationContent&&!structured?45:100;
         bool inProgress = presentation is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
         _progress.Visible = inProgress;
         _layout.RowStyles[1].Height = inProgress ? 34 : 0;
@@ -197,12 +210,14 @@ internal sealed class V269RightPane : UserControl
         _title.ForeColor = palette.Text;
         _description.BackColor = palette.RightPanel;
         _description.ForeColor = palette.SecondaryText;
+        _applicationDetails.ApplyPalette(palette);
     }
 
     internal void SetFonts(Font title, Font body)
     {
         _title.Font = title;
         _description.Font = body;
+        _applicationDetails.Font=body;
     }
 }
 
@@ -446,6 +461,8 @@ internal sealed class V269Shell : UserControl
         if (!Enum.IsDefined(page)) throw new ArgumentOutOfRangeException(nameof(page));
         bool changed = SelectedPage != page;
         if (changed) _dashboardPaneOpen = null;
+        if(changed&&SelectedPage==V269Page.Aplicativos&&_rightPane.Current?.Application is not null)
+            _rightPane.Present(null);
         SelectedPage = page;
         var descriptor = Pages[(int)page];
         _pageTitle.Text = descriptor.Title;

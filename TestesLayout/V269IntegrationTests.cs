@@ -194,6 +194,9 @@ internal static class V269IntegrationTests
                     Require(shell.RightPane.Visible&&shell.RightPane.Current?.Kind==V269PanelKind.Details,"detalhes compactos acessíveis");
                     var columns=(TableLayoutPanel)shell.RightPane.Parent!;
                     Require(columns.GetRow(shell.RightPane)==1&&columns.GetColumn(shell.RightPane)==1,"painel compacto fica abaixo da tabela");
+                    Require(shell.RightPane.Current?.Application is {Fields.Count:7}&&
+                        shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
+                        "painel estruturado expõe fatos locais e motivos");
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-DETALHES-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");
                     details.PerformClick();Application.DoEvents();
