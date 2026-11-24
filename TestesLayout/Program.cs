@@ -474,8 +474,8 @@ internal static class LayoutTests
         if (Descendants(placeholder).OfType<TextBox>().SingleOrDefault(t => t.Name == "DriverInventorySearch")
                 is not { PlaceholderText: "Pesquisar driver ou dispositivo..." } ||
             Descendants(placeholder).OfType<Button>().Single(b => b.Name == "DriverInventoryRefresh")
-                is not { Text: "Verificar" } button ||
-            !button.AccessibleDescription!.Contains("Não modifica drivers"))
+                is not { Text: "Verificar" } verifyDrivers ||
+            !verifyDrivers.AccessibleDescription!.Contains("Não modifica drivers"))
             throw new Exception("Busca ou descrição acessível de consulta segura ausente.");
         if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
             throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
