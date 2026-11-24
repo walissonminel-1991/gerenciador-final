@@ -669,7 +669,7 @@ internal sealed partial class MainForm : Form
     private readonly UpdateOperationStore _updateOperations;
     private readonly UninstallOperationStore _uninstallOperations;
     private readonly Label _emptyState = new();
-    private readonly TextBox _search = new();
+    private readonly V269AppSearchEditor _search = new();
     private readonly DarkLogView _log = new();
 #if !GF_BETA
     private Button? _privacyStatusButton;

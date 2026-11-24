@@ -176,13 +176,16 @@ internal static class V269IntegrationTests
             sort.SelectedIndex=3;Require(list.Items[0].Name=="OBS Studio","ofertas primeiro");
             sort.SelectedIndex=0;search.Text="VLC";Require(list.Items.Count==1&&list.Items[0]==entries[4],"pesquisa real");
             search.Clear();list.Focus();Application.DoEvents();
-            var cue=form.Controls.Find("V269AppsSearchCue",true).Single();
-            Require(cue.Visible&&!search.Visible&&search.Parent!.TabStop,
-                "dica de pesquisa visível sem sobreposição do HWND vazio e com navegação por Tab");
-            search.Parent.Focus();Application.DoEvents();
-            Require(search.Visible&&search.Focused&&!cue.Visible,"foco encaminhado à edição nativa");
-            list.Focus();Application.DoEvents();
-            Require(cue.Visible&&!search.Visible,"dica reaparece ao deixar pesquisa vazia");
+            Require(search is V269AppSearchEditor {ShowsCue:true}&&search.Visible&&search.TabStop&&
+                search.PlaceholderText=="Pesquisar aplicativo..."&&search.TextLength==0,
+                "dica nativa sem ocultar o campo nem modificar a pesquisa");
+            search.Focus();Application.DoEvents();
+            Require(search.Visible&&search.Focused&&search is V269AppSearchEditor {ShowsCue:false},
+                "campo nativo aceita foco direto e mantém acesso por Tab");
+            search.Text="VLC";Require(list.Items.Count==1,"texto real continua filtrando");
+            search.Clear();list.Focus();Application.DoEvents();
+            Require(search.Visible&&search is V269AppSearchEditor {ShowsCue:true}&&list.Items.Count==5,
+                "dica reaparece ao deixar pesquisa vazia sem ocultar o campo");
             list.SelectedIndex=0;
             typeof(DarkProgramList).GetMethod("OnKeyDown",flags)!.Invoke(list,[new KeyEventArgs(Keys.Alt|Keys.Down)]);
             Require(sort.SelectedIndex==4&&ReferenceEquals(list.Items[1],entries[0]),"reordenação pelo teclado conectada");

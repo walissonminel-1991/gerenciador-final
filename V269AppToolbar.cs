@@ -3,32 +3,44 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 namespace GerenciadorAplicativos;
 
+// Campo nativo sempre visível: preserva teclado, seleção, IME e acessibilidade.
+internal sealed class V269AppSearchEditor:TextBox
+{
+    internal Color CueInk=SystemColors.GrayText;
+    internal bool ShowsCue=>TextLength==0&&!Focused&&PlaceholderText.Length>0;
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_PRINTCLIENT=0x0318;
+        base.WndProc(ref m);
+        // DrawToBitmap pede WM_PRINTCLIENT ao HWND. O Windows nem sempre
+        // desenha o cue banner nesse caminho, embora o mostre na tela.
+        // Desenhar apenas a dica (nunca modificar o texto real do controle).
+        if(m.Msg==WM_PRINTCLIENT&&m.WParam!=IntPtr.Zero&&ShowsCue&&ClientSize.Width>1&&ClientSize.Height>1)
+        {
+            using var g=Graphics.FromHdc(m.WParam);
+            using var fill=new SolidBrush(BackColor);g.FillRectangle(fill,ClientRectangle);
+            TextRenderer.DrawText(g,PlaceholderText,Font,ClientRectangle,CueInk,
+                TextFormatFlags.NoPrefix|TextFormatFlags.SingleLine|TextFormatFlags.VerticalCenter|
+                TextFormatFlags.EndEllipsis|TextFormatFlags.NoPadding);
+        }
+    }
+}
 internal sealed class V269AppSearchBox : Panel
 {
-    private readonly TextBox _editor;
-    private readonly Label _cue=new(){Name="V269AppsSearchCue",AutoEllipsis=true,UseMnemonic=false,
-        TextAlign=ContentAlignment.MiddleLeft,Margin=Padding.Empty,TabStop=false};
+    private readonly V269AppSearchEditor _editor;
     private V269AppearanceOptions _options=V269AppearanceOptions.Default;
     private Font? _font;
-    private bool _activating;
-    internal V269AppSearchBox(TextBox editor)
+    internal V269AppSearchBox(V269AppSearchEditor editor)
     {
         Name="V269AppsSearchFrame";_editor=editor;
         Dock=DockStyle.Fill;Margin=new Padding(0,1,9,1);
         SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|
             ControlStyles.ResizeRedraw|ControlStyles.SupportsTransparentBackColor,true);
-        SetStyle(ControlStyles.Selectable,true);
-        AccessibleName="Pesquisar aplicativo";AccessibleRole=AccessibleRole.Text;
         BackColor=Color.Transparent;_editor.BorderStyle=BorderStyle.None;
         _editor.Dock=DockStyle.None;Controls.Add(_editor);
-        _cue.Text=_editor.PlaceholderText;_editor.PlaceholderText="";
-        _cue.BackColor=_editor.BackColor;_cue.ForeColor=_editor.ForeColor;_cue.Font=_editor.Font;
-        Controls.Add(_cue);_cue.BringToFront();_cue.Click+=(_,_)=>FocusEditor();
         Resize+=(_,_)=>ArrangeEditor();
-        _editor.GotFocus+=(_,_)=>{UpdateCue();Invalidate();};
-        _editor.LostFocus+=(_,_)=>{UpdateCue();Invalidate();};
-        _editor.TextChanged+=(_,_)=>UpdateCue();
-        UpdateCue();
+        _editor.GotFocus+=(_,_)=>Invalidate();
+        _editor.LostFocus+=(_,_)=>Invalidate();
     }
     private int S(int x)=>V269AppTable.Scale(x,_options.InterfacePercent,DeviceDpi);
     private (Color Surface,Color Border,Color Ink) Colors()=>_options.Theme switch
@@ -42,37 +54,16 @@ internal sealed class V269AppSearchBox : Panel
         _options=options.Normalize();var palette=Colors();
         float size=9f*_options.TextPercent/100f;
         if(_font is null||Math.Abs(_font.Size-size)>.01f)
-        {var old=_font;_font=new Font("Segoe UI",size);_editor.Font=_cue.Font=_font;old?.Dispose();}
+        {var old=_font;_font=new Font("Segoe UI",size);_editor.Font=_font;old?.Dispose();}
         _editor.BackColor=palette.Surface;_editor.ForeColor=palette.Ink;
-        _cue.BackColor=palette.Surface;_cue.ForeColor=V269AppTable.H(_options.Theme switch
+        _editor.CueInk=V269AppTable.H(_options.Theme switch
         {V269Theme.Claro=>"#4c6475",V269Theme.Dark=>"#9fa8b0",_=>"#9ab0c2"});
-        _cue.Font=_editor.Font;ArrangeEditor();UpdateCue();Invalidate();
+        ArrangeEditor();_editor.Invalidate();Invalidate();
     }
     private void ArrangeEditor()
     {
         int x=S(31);_editor.Bounds=new Rectangle(x,Math.Max(1,(Height-_editor.PreferredHeight)/2),
             Math.Max(1,Width-x-S(9)),_editor.PreferredHeight);
-        _cue.Bounds=_editor.Bounds;
-    }
-    private void UpdateCue()
-    {
-        // A dica e o HWND de edição não se sobrepõem quando vazios.
-        // O painel recebe Tab nesse estado e encaminha foco ao TextBox real.
-        if(_activating)return;
-        bool cue=_editor.TextLength==0&&!_editor.Focused;
-        _cue.Visible=cue;_editor.Visible=!cue;TabStop=cue;
-    }
-    private void FocusEditor()
-    {
-        if(_activating||IsDisposed)return;
-        _activating=true;
-        try{_editor.Visible=true;_cue.Visible=false;TabStop=false;_editor.Focus();}
-        finally{_activating=false;UpdateCue();}
-    }
-    protected override void OnEnter(EventArgs e)
-    {
-        base.OnEnter(e);
-        if(!_activating&&!_editor.Focused&&_editor.TextLength==0)FocusEditor();
     }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -85,7 +76,7 @@ internal sealed class V269AppSearchBox : Panel
         using var ink=new Pen(c.Ink,1.7f){EndCap=LineCap.Round};
         e.Graphics.DrawEllipse(ink,x,y,n,n);e.Graphics.DrawLine(ink,x+n-1,y+n-1,x+n+S(4),y+n+S(4));
     }
-    protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button==MouseButtons.Left)FocusEditor();}
+    protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button==MouseButtons.Left)_editor.Focus();}
     protected override void Dispose(bool disposing){if(disposing)_font?.Dispose();base.Dispose(disposing);}
 }
 internal sealed class V269AppToolbarButton:Button
