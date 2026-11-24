@@ -244,6 +244,21 @@ internal static class V269IntegrationTests
                         Require(page.ScrollOffset<previousOffset&&range.Value==previousScale,
                             "roda fracionada rola Configurações sem alterar escala");
                         page.ScrollTo(int.MaxValue);
+                        int beforeTheme=themeChoice.SelectedIndex;
+                        void WheelOn(Control control)
+                        {
+                            var wndProc=control.GetType().GetMethod("WndProc",BindingFlags.NonPublic|BindingFlags.Instance)!;
+                            object[] arguments=[Message.Create(control.Handle,0x020A,(IntPtr)(120<<16),IntPtr.Zero)];
+                            wndProc.Invoke(control,arguments);
+                        }
+                        WheelOn(themeChoice);
+                        Require(page.ScrollOffset<previousOffset&&themeChoice.SelectedIndex==beforeTheme,
+                            "roda sobre seletor fechado rola sem trocar tema");
+                        page.ScrollTo(int.MaxValue);
+                        WheelOn(range);
+                        Require(page.ScrollOffset<previousOffset&&range.Value==previousScale,
+                            "roda sobre barra rola sem modificar escala");
+                        page.ScrollTo(int.MaxValue);
                     }
                     using(var shot=new Bitmap(surface.Width,surface.Height))
                     {

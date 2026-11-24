@@ -289,7 +289,17 @@ internal sealed class V269SettingsCombo : ComboBox
     protected override void OnSelectedIndexChanged(EventArgs e){base.OnSelectedIndexChanged(e);Invalidate();}
     protected override void WndProc(ref Message m)
     {
-        const int Paint=0x000F,Print=0x0317,PrintClient=0x0318;
+        const int Paint=0x000F,Print=0x0317,PrintClient=0x0318,MouseWheel=0x020A;
+        // A seleção não muda ao rolar a página; uma lista explicitamente
+        // aberta continua com seu comportamento nativo.
+        if(m.Msg==MouseWheel&&!DroppedDown)
+        {
+            for(Control? parent=Parent;parent is not null;parent=parent.Parent)
+                if(parent is V269SettingsPage page)
+                {
+                    page.ScrollByWheel(unchecked((short)(m.WParam.ToInt64()>>16)));return;
+                }
+        }
         base.WndProc(ref m);
         if(!IsHandleCreated||IsDisposed)return;
         if(m.Msg==Paint)
