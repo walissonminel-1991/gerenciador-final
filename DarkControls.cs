@@ -239,6 +239,9 @@ internal sealed class DarkProgramList : Control
     private bool _tableMode,_tableLayout;
     private ProgramEntry? _dragApp;
     private Font? _tableFont;
+    private V269AppIconCache? _appIcons;
+    internal bool LoadLocalAppIcons;
+    internal Bitmap? LocalAppIcon(string value)=>LoadLocalAppIcons?(_appIcons??=new V269AppIconCache(this)).Get(value):null;
     internal bool V269TableMode=>_tableMode;
     private string _emptyMessage="Nenhum aplicativo identificado.";
     internal string EmptyMessage {get=>_emptyMessage;set{_emptyMessage=value;Invalidate();}}
@@ -428,7 +431,7 @@ internal sealed class DarkProgramList : Control
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); _appActionsMenu.Dispose(); _tableFont?.Dispose(); }
+        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); _appActionsMenu.Dispose(); _tableFont?.Dispose(); _appIcons?.Dispose(); }
         base.Dispose(disposing);
     }
 

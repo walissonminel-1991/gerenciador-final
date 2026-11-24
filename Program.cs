@@ -1242,6 +1242,7 @@ internal sealed partial class MainForm : Form
 
         _programList.Dock = DockStyle.Fill;
         _programList.ApplyV269Table(_v269Appearance);
+        _programList.LoadLocalAppIcons=loadPreferences;
         _programList.BackColor = PanelBackground;
         _programList.ForeColor = Ink;
         _programList.OperationFor = _updateOperations.Find;
@@ -1511,7 +1512,9 @@ internal sealed partial class MainForm : Form
         using(var border=new Pen(colors.Border))
         {g.FillPath(fill,shape);g.DrawPath(border,shape);}
         string initial=string.IsNullOrWhiteSpace(item.Name)?"?":item.Name.Trim()[0].ToString().ToUpperInvariant();
-        Text(initial,new Rectangle(mark.X+S(7),mark.Y,mark.Width-S(7),mark.Height),bold);
+        if(_programList.LocalAppIcon(item.DisplayIcon) is {} icon)
+        {var inset=mark;inset.Inflate(-S(3),-S(3));if(inset.Width>0&&inset.Height>0)g.DrawImage(icon,inset);}
+        else Text(initial,new Rectangle(mark.X+S(7),mark.Y,mark.Width-S(7),mark.Height),bold);
         int nameX=mark.Right+S(5);
         Text(item.Name,new Rectangle(nameX,bounds.Y,Math.Max(1,cells[0].Right-nameX-S(4)),bounds.Height),bold);
         Text(DisplayAppVersion(item.Version),Inset(1));

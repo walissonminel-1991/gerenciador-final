@@ -18,6 +18,7 @@ internal static class V269IntegrationTests
             "oito instâncias nativas com Início ativo");
         VerifyAppOrdering();
         VerifyAppTableGeometry();
+        VerifyAppIconSources();
         var homeSnapshot = VerifyHome(form, views[0]);
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
         Require(paneToggle.Parent?.Name == "V269HomeFooter",
@@ -131,6 +132,20 @@ internal static class V269IntegrationTests
         VerifySettings(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyAppIconSources()
+    {
+        Require(V269LocalIconSource.Parse("\"C:\\Program Files\\GF\\app.exe\",-12") is {Index:-12}&&
+            V269LocalIconSource.Parse("C:\\GF\\app.ico") is {Index:0},"ícones locais com índice documentado");
+        foreach(string invalid in new[]{"https://site/app.ico","\\\\server\\share\\a.exe","C:\\GF\\..\\a.exe",
+            "C:\\GF\\a.exe:stream","C:\\GF\\a.lnk","C:\\GF\\a.exe /run","%TEMP%\\app.exe",
+            "\"C:\\GF\\a.exe\" -x","C:\\GF\\a.exe,999999","\\\\?\\C:\\GF\\a.exe"})
+            Require(V269LocalIconSource.Parse(invalid) is null,"origem de ícone inválida rejeitada: "+invalid);
+        Require(V269AppIconCache.ReadResource(new V269LocalIconSource(
+            Path.Combine(Path.GetTempPath(),"GF-inexistente-"+Guid.NewGuid().ToString("N")+".ico"),0)) is null,
+            "ícone ausente mantém abreviação");
+        Console.WriteLine("PASS Aplicativos V2.6.9: origem de ícones locais limitada e falha fechada.");
     }
 
     private static void VerifyAppTableGeometry()
