@@ -284,6 +284,20 @@ internal static class V269IntegrationTests
             ReferenceEquals(live[1], models[1]) && ReferenceEquals(live[3], models[3]) &&
             live[4].Sensors.SequenceEqual(models[4].Sensors),
             "amostra leve atualiza CPU/RAM/uptime sem inventar ou recapturar dados estáticos");
+        var unavailableCounters = MainForm.V269UnavailableLiveCounters(at);
+        var unavailableLive = MainForm.UpdateV269LiveRows(live, unavailableCounters);
+        Require(unavailableLive[0].Sensors.Single(x => x.Label == "Uso").Value == "N/D" &&
+            unavailableLive[2].Sensors.All(x => x.Value == "N/D") &&
+            unavailableLive[4].Specs.Single(x => x.Label == "Tempo de atividade").Value == "N/D" &&
+            unavailableLive[0].Specs.SequenceEqual(models[0].Specs) &&
+            ReferenceEquals(unavailableLive[1], live[1]),
+            "falha da leitura leve invalida CPU/RAM/uptime, sem apagar inventário ou GPU independente");
+        var gpuFailed = MainForm.V269WithoutGpuReadings(exact, at);
+        Require(MainForm.V269GpuModel(gpuFailed).Sensors.All(x => x.Value == "N/D") &&
+            gpuFailed.NvidiaGpus.Devices.Count == 0 && gpuFailed.WindowsGpuCounters is null &&
+            gpuFailed.D3dKmtGpuSensors is null && ReferenceEquals(gpuFailed.DeviceInventory, exact.DeviceInventory) &&
+            ReferenceEquals(gpuFailed.WindowsCounters, exact.WindowsCounters),
+            "falha GPU elimina leituras vencidas também dos detalhes e mantém inventário e CPU");
         Require(models[0].Name == "CPU fixture" &&
             models[0].Specs.Any(x => x.Label == "Núcleos / Threads" && x.Value == "8 / 16") &&
             models[0].Sensors.Any(x => x.Label == "Uso" && x.Value == "0%") &&
@@ -452,6 +466,18 @@ internal static class V269IntegrationTests
                         (viewportSize.Width >= 940) == (home.Cards[0].Top == home.Cards[1].Top),
                         "colunas do viewport de referência " + viewportSize);
                     Require(surface.Size == viewportSize, "dimensão efetiva da captura " + viewportSize);
+                    // Evidência textual comparável mesmo sem extrair o PNG do artefato.
+                    Point origin = surface.PointToScreen(Point.Empty);
+                    var geometry = new { Theme = theme.ToString(), Width = surface.Width, Height = surface.Height,
+                        Dpi = home.DeviceDpi, WorkAreaHeight = Screen.FromControl(home).WorkingArea.Height,
+                        Cards = home.Cards.Select(card => {
+                            Point position = card.PointToScreen(Point.Empty);
+                            return new { card.Key, X = position.X - origin.X, Y = position.Y - origin.Y,
+                                card.Width, card.Height };
+                        }).ToArray() };
+                    string geometryJson = System.Text.Json.JsonSerializer.Serialize(geometry);
+                    Console.WriteLine("V269-HOME-GEOMETRY " + geometryJson);
+                    File.WriteAllText($"LayoutCaptures/v269-inicio-geometria-{theme}-{viewportSize.Width}x{viewportSize.Height}.json", geometryJson);
                     using var same = new Bitmap(surface.Width, surface.Height);
                     surface.DrawToBitmap(same, new Rectangle(Point.Empty, surface.Size));
                     string captureKind = viewportSize.Width < 760 ? "ESTRESSE-SINTETICO" : "REFERENCIA-SINTETICA";

@@ -20,7 +20,6 @@ internal sealed partial class MainForm
     private IReadOnlyList<V269HomeModel>? _v269LastHomeModels;
     private readonly Label _v269HardwareStatus = new() { Dock = DockStyle.Fill, AutoEllipsis = true };
     private V269HomeDashboard? _v269Home;
-    private string? _v269HardwareDetails;
     private readonly DarkScrollableFlow _v269StartupCards = new() { Dock = DockStyle.Fill };
     private readonly Label _v269StartupTitle = new() { Dock = DockStyle.Fill, AutoEllipsis = true,
         Text = "Consulte os itens de inicialização do Windows." };
@@ -47,9 +46,11 @@ internal sealed partial class MainForm
         details.Enabled = false;
         details.Click += (_, _) =>
         {
-            if (_v269HardwareDetails is null || _busy || _v269Confirming ||
+            if (_v269LastSnapshot is not { } snapshot || _busy || _v269Confirming ||
                 _nav.RightPane.Current?.Kind is V269PanelKind.Progress or V269PanelKind.Result) return;
-            PresentV269Details("Leituras detalhadas do hardware", _v269HardwareDetails);
+            // Formatamos a fotografia mais recente, não o texto armazenado da consulta inicial.
+            PresentV269Details("Leituras detalhadas do hardware", string.Join(Environment.NewLine + Environment.NewLine,
+                V269HardwareCards(snapshot).Select(x => x.Title + Environment.NewLine + x.Body)));
             if (!_nav.RightPane.Visible)
                 _nav.Controls.Find("V269PaneToggle", true).OfType<Button>().Single().PerformClick();
         };
@@ -58,7 +59,7 @@ internal sealed partial class MainForm
         {
             refresh.Text = _v269HardwareQuery is { IsCancellationRequested: false }
                 ? "Cancelar consulta" : "Consultar hardware";
-            details.Enabled = _v269HardwareDetails is not null;
+            details.Enabled = _v269LastSnapshot is not null;
         };
         _v269Home = new V269HomeDashboard(refresh, details, _v269HardwareStatus);
         _v269Home.VisibleChanged += (_, _) =>
@@ -93,16 +94,17 @@ internal sealed partial class MainForm
             var snapshot = await StaWorker.Run(() =>
                 HardwareSensorPortfolioReader.CaptureOnDemand(_v269Monitor, request.Token,
                     existingInventory: null, probeCpuVisibleVram: true));
-            if (request.IsCancellationRequested || IsDisposed || Disposing) return;
+            // Cancelamento no retorno da última chamada também deve passar pelo catch,
+            // senão o texto do botão pode ficar em "Cancelar consulta".
+            request.Token.ThrowIfCancellationRequested();
+            if (IsDisposed || Disposing) return;
             _v269LastSnapshot = snapshot;
             _v269NextGpuSample = Environment.TickCount64 + 8000;
             _v269LastHomeModels = V269HomeModels(snapshot);
             _v269Home?.SetModels(_v269LastHomeModels);
-            _v269HardwareDetails = string.Join(Environment.NewLine + Environment.NewLine,
-                V269HardwareCards(snapshot).Select(x => x.Title + Environment.NewLine + x.Body));
             _v269HardwareLoaded = true;
             _v269HardwareQuery = null;
-            _v269HardwareStatus.Text = "Consultado às " + snapshot.CapturedAtUtc.ToLocalTime().ToString("HH:mm:ss");
+            _v269HardwareStatus.Text = "Inventário consultado às " + snapshot.CapturedAtUtc.ToLocalTime().ToString("HH:mm:ss");
             PresentV269Details("Fontes do monitoramento", HardwareMonitoringDiagnosticReport.Format(snapshot));
         }
         catch (OperationCanceledException) when (request.IsCancellationRequested)
@@ -152,7 +154,7 @@ internal sealed partial class MainForm
             using var request = new CancellationTokenSource();
             _v269LiveQuery = request;
             _v269LiveSampling = true;
-            bool ownsGate = false;
+            bool ownsGate = false, lightweightCompleted = false, gpuRefreshStarted = false;
             try
             {
                 await _v269CaptureGate.WaitAsync(request.Token);
@@ -161,9 +163,16 @@ internal sealed partial class MainForm
                 var baseline = _v269LastSnapshot;
                 var sample = await Task.Run(() => _v269Monitor.Capture(), request.Token);
                 if (!CanSample() || request.IsCancellationRequested) return;
+                lightweightCompleted = true;
                 _v269LastHomeModels = UpdateV269LiveRows(_v269LastHomeModels!, sample);
+                if (baseline is not null)
+                {
+                    baseline = baseline with { WindowsCounters = sample };
+                    _v269LastSnapshot = baseline;
+                }
                 _v269Home?.SetModels(_v269LastHomeModels);
                 if (baseline is null || Environment.TickCount64 < _v269NextGpuSample) return;
+                gpuRefreshStarted = true;
                 try
                 {
                     var refreshed = await StaWorker.Run(() =>
@@ -188,19 +197,36 @@ internal sealed partial class MainForm
                     current[1] = V269GpuModel(refreshed);
                     _v269LastHomeModels = current;
                     _v269Home?.SetModels(current);
-                    _v269HardwareDetails = string.Join(Environment.NewLine + Environment.NewLine,
-                        V269HardwareCards(refreshed).Select(x => x.Title + Environment.NewLine + x.Body));
                 }
                 finally { _v269NextGpuSample = Environment.TickCount64 + 8000; }
             }
             catch (OperationCanceledException) when (request.IsCancellationRequested) { }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                // Uma falha não converte leitura anterior em dado atual.
+                // Invalidar apenas a leitura que falhou (e GPU vencida), também na
+                // fotografia usada pelos detalhes; conservar o inventário estático.
                 if (CanSample() && _v269LastHomeModels is { } models && !request.IsCancellationRequested)
                 {
-                    var current = models.ToArray();
-                    current[1] = current[1] with { Sensors = current[1].Sensors.Select(r => r with { Value = "N/D" }).ToArray() };
+                    var current = models;
+                    var snapshot = _v269LastSnapshot;
+                    if (!lightweightCompleted)
+                    {
+                        var unavailable = V269UnavailableLiveCounters(DateTimeOffset.UtcNow);
+                        current = UpdateV269LiveRows(current, unavailable);
+                        if (snapshot is not null) snapshot = snapshot with { WindowsCounters = unavailable };
+                    }
+                    if (gpuRefreshStarted || Environment.TickCount64 >= _v269NextGpuSample)
+                    {
+                        var updated = current.ToArray();
+                        if (snapshot is not null)
+                        {
+                            snapshot = V269WithoutGpuReadings(snapshot, DateTimeOffset.UtcNow);
+                            updated[1] = V269GpuModel(snapshot);
+                        }
+                        else updated[1] = V269GpuModel(null);
+                        current = updated;
+                    }
+                    _v269LastSnapshot = snapshot;
                     _v269LastHomeModels = current;
                     _v269Home?.SetModels(current);
                 }
@@ -221,6 +247,15 @@ internal sealed partial class MainForm
         };
         _v269LiveTimer.Start();
     }
+
+    internal static LiveHardwareSample V269UnavailableLiveCounters(DateTimeOffset at) => new(at,
+        MonitorReading<double>.Unavailable("consulta local inconclusiva"),
+        MonitorReading<double>.Unavailable("consulta local inconclusiva"), null,
+        MonitorReading<TimeSpan>.Unavailable("consulta local inconclusiva"), LiveHardwareSensors.Unavailable);
+
+    internal static HardwareSensorPortfolio V269WithoutGpuReadings(HardwareSensorPortfolio snapshot, DateTimeOffset at) =>
+        snapshot with { NvidiaGpus = new NvidiaGpuSensorSnapshot(at, false, [], "consulta GPU inconclusiva"),
+            WindowsGpuCounters = null, D3dKmtGpuSensors = null };
 
     internal static IReadOnlyList<V269HomeModel> UpdateV269LiveRows(
         IReadOnlyList<V269HomeModel> models, LiveHardwareSample sample)
