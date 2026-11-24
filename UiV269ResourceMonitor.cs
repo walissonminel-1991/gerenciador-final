@@ -265,7 +265,7 @@ internal sealed class GfResourceMonitorForm : Form
         foreach (var c in _text) c.ForeColor = p.Text;
         foreach (var b in _buttons) { b.BackColor = p.Card; b.ForeColor = p.Text; }
         foreach (var g in _glyphs) { g.ForeColor = p.Text; g.Invalidate(); }
-        foreach (var l in _compactValues.OfType<GfMonitorCompactLabel>()) { l.CaptionColor = p.Text; l.Invalidate(); }
+        foreach (var l in _compactValues.OfType<GfMonitorCompactLabel>()) l.SetCaptionColor(p.Text);
         _compactLogo.BackColor = _expandedLogo.BackColor = p.Selection;
         _legend.Configure(theme);
         foreach (var surface in _outlined.Concat(_separated)) surface.Invalidate();
@@ -563,7 +563,16 @@ internal sealed class GfMonitorLogoLabel : Label
 // da mesma faixa horizontal, sem cortar a temperatura ou o percentual.
 internal sealed class GfMonitorCompactLabel : Label
 {
-    internal Color CaptionColor { get; set; } = SystemColors.ControlText;
+    private Color _captionColor = SystemColors.ControlText;
+
+    // Aparência exclusivamente em tempo de execução, sem propriedade serializável
+    // pelo designer WinForms. Preserva o analisador WFO1000 habilitado.
+    internal void SetCaptionColor(Color color)
+    {
+        if (_captionColor == color) return;
+        _captionColor = color;
+        Invalidate();
+    }
     private const TextFormatFlags Flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix |
         TextFormatFlags.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter;
 
@@ -598,13 +607,13 @@ internal sealed class GfMonitorCompactLabel : Label
         if (total <= Width)
         {
             int x = (Width - total) / 2;
-            TextRenderer.DrawText(e.Graphics, caption, Font, new Rectangle(x, 0, a.Width, Height), CaptionColor, Flags);
+            TextRenderer.DrawText(e.Graphics, caption, Font, new Rectangle(x, 0, a.Width, Height), _captionColor, Flags);
             TextRenderer.DrawText(e.Graphics, value, Font, new Rectangle(x + a.Width + 3, 0, b.Width, Height), ForeColor, Flags);
         }
         else
         {
             int top = Height / 2;
-            TextRenderer.DrawText(e.Graphics, caption, Font, new Rectangle(0, 0, Width, top), CaptionColor, Flags);
+            TextRenderer.DrawText(e.Graphics, caption, Font, new Rectangle(0, 0, Width, top), _captionColor, Flags);
             TextRenderer.DrawText(e.Graphics, value, Font, new Rectangle(0, top, Width, Height - top), ForeColor, Flags);
         }
     }

@@ -41,3 +41,8 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 - Refinamento: contornos arredondados, faixa externa de cor do tema, logo arredondado, identificação neutra e valor cromático no compacto, título com pictogramas, VRAM distinta, legenda com nomes e âncoras, botões maiores, barra térmica antes da coluna de valor. Mantidas as dimensões lógicas e a ausência de ações de manutenção.
 - Dark vermelho #F2747E; teste de contraste >=4,5:1 sobre Card nos três temas, amostragem 0,01% e pontos de arredondamento dos canais. A interpolação direta RGB de azul para vermelho pode atravessar tons fora da escala e cair abaixo de 4,5:1; o controle passa a interpolar a coordenada da escala e só então calcular a cor. Nenhum atraso em frame crítico conhecido.
 - Gate de captura inclui capacidade de acomodar leituras de três dígitos. Novo SHA exige CI e seis capturas; ainda não equivale a aprovação visual final. Sem mudança em sensores, shell, configurações globais ou workflow.
+
+
+## 24/11 — correção dirigida da compilação
+- HEAD 68e3a87: integridade 45409835552 SUCCESS; Windows 45409835626 FAILURE no job 138500321007, etapa de reprodução de contratos BETA LOCAL. O log comprova checkout de teste 018fd9ae117c0a1f7ccfc0fcfb9ecf027efb139e e erro WFO1000 em UiV269ResourceMonitor.cs:566, propriedade CaptionColor. Não houve execução dos testes de layout ou PNGs; ausência dos outros artefatos decorre da falha de compilação.
+- Correção localizada: substituir propriedade de aparência exclusiva de runtime por campo privado e método SetCaptionColor, que invalida ao alterar. Sem desativar analisador, sem alteração de regras de build, workflows, motores ou paleta. Revalidação Windows e seis PNGs obrigatórias antes do aceite visual.
