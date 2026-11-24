@@ -445,7 +445,7 @@ internal sealed class V269Shell : UserControl
         _pageTitle.ForeColor = palette.Text;
         _pageSubtitle.ForeColor = palette.SecondaryText;
         _homeGlyph.ForeColor = Theme switch {
-            V269Theme.Dark => ColorTranslator.FromHtml("#96b4cc"),
+            V269Theme.Dark => ColorTranslator.FromHtml("#65b8ef"),
             V269Theme.Claro => ColorTranslator.FromHtml("#2b79a8"),
             _ => ColorTranslator.FromHtml("#69bfe0") };
         ApplyFonts();
@@ -679,6 +679,23 @@ internal sealed class V269Shell : UserControl
             }
         }
 
+        // Cores semânticas efetivas da cascata CSS congelada. Em Dark,
+        // a regra final de data-gf-icon prevalece também na seleção.
+        internal static Color HomeIconColor(V269Theme theme, V269Page page, bool selected)
+        {
+            if (selected && theme != V269Theme.Dark) return Color.White;
+            string[] colors = theme switch
+            {
+                V269Theme.Dark => ["#65b8ef", "#b998f2", "#ee9d68", "#55cbb5",
+                    "#e4bb67", "#65b8ef", "#e4bb67", "#b998f2"],
+                V269Theme.Claro => ["#2891db", "#7046c1", "#bc592b", "#087d82",
+                    "#ad6f1d", "#167bbb", "#ad6f1d", "#7046c1"],
+                _ => ["#77cbff", "#b7a5f5", "#e8a784", "#6bd6b2",
+                    "#ecc27c", "#75c4ed", "#ecc27c", "#b7a5f5"]
+            };
+            return ColorTranslator.FromHtml(colors[(int)page]);
+        }
+
         private void PaintHomeNavigation(Graphics g)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -692,7 +709,7 @@ internal sealed class V269Shell : UserControl
             {
                 var (first,last,border) = theme switch {
                     V269Theme.Dark => (H("#666d74"),H("#50575e"),H("#b6c0c8")),
-                    V269Theme.Claro => (H("#397fb9"),H("#28669e"),H("#6da4cb")),
+                    V269Theme.Claro => (H("#6f97bc"),H("#5a7da1"),H("#7aa7d0")),
                     _ => (H("#246aae"),H("#1b4f91"),H("#6ea9d1")) };
                 using var fill = new LinearGradientBrush(area, first, last, 0f);
                 using var line = new Pen(border);
@@ -715,11 +732,12 @@ internal sealed class V269Shell : UserControl
                 theme == V269Theme.Claro ? H("#789bb7") : H("#a4c7e5")));
             g.FillPath(tint,iconShape); g.DrawPath(iconBorder,iconShape);
             var glyph = new Rectangle(icon.X+(icon.Width-18)/2,icon.Y+(icon.Height-18)/2,18,18);
-            V269HomeHeadingIcon.DrawGlyph(g,glyph,Page,IsSelected ? Color.White : IconColor);
+            V269HomeHeadingIcon.DrawGlyph(g, glyph, Page, HomeIconColor(theme, Page, IsSelected));
             using var textFont = new Font(Font, IsSelected ? FontStyle.Bold : FontStyle.Regular);
             TextRenderer.DrawText(g, Text, textFont,
                 new Rectangle(icon.Right+8, 1, Math.Max(1,Width-icon.Right-12), Math.Max(1,Height-2)),
-                ForeColor, TextFormatFlags.WordBreak | TextFormatFlags.VerticalCenter |
+                theme == V269Theme.Dark ? H(IsSelected ? "#e3e6e9" : "#c6cdd3") : ForeColor,
+                TextFormatFlags.WordBreak | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
             if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(g,Rectangle.Inflate(area,-3,-3));
         }
