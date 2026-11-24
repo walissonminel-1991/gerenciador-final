@@ -509,7 +509,7 @@ internal sealed partial class MainForm
                 [R("Memória", memory), R("Barramento", singleNvml?.CurrentPcieLink ?? singlePnp.ReportedPcieLink),
                  R("Resizable BAR", singleNvml?.Bar1TotalBytes is { } bar ? "N/D · BAR1 " + Gib(bar) : nd),
                  R("Driver", singlePnp.InstalledDriverVersion ??
-                    (snapshot.NvidiaGpus.NvidiaDriverVersion is { } version && singleNvml is not null ? version + " (NVML)" : null)),
+                    (snapshot.NvidiaGpus.NvidiaDriverVersion is { } singleDriverVersion && singleNvml is not null ? singleDriverVersion + " (NVML)" : null)),
                  R("Arquitetura", singleNvml?.ReportedArchitecture)],
                 [R("Temperatura", temp ?? Value(singleNvml?.TemperatureC, Temp)), R("Uso", use),
                  R("VRAM usada", used), R("Ventoinha (GPU)", fan)]);
