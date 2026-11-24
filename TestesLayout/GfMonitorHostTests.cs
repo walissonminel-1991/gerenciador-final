@@ -163,6 +163,57 @@ internal static class GfMonitorHostTests
             "falha nativa nunca autoriza exibição");
     }
 
+    private static void VerifyAuditCorrections(string path)
+    {
+        // A01: janelas em outra tela ou fora da região não bloqueiam o widget.
+        var area=new System.Drawing.Rectangle(-1400,40,552,186);
+        var other=new System.Drawing.Rectangle(0,0,1920,1080);
+        var crossing=new System.Drawing.Rectangle(-1600,0,400,300);
+        bool Blocks(System.Drawing.Rectangle b,bool visible=true,bool minimized=false,bool cloaked=false,bool shell=false,bool self=false) =>
+            GfMonitorNativePresentation.BlocksDesktopArea(area,b,visible,minimized,cloaked,shell,self);
+        Require(!Blocks(other) && Blocks(crossing) &&
+            !Blocks(crossing,minimized:true) && !Blocks(crossing,cloaked:true) &&
+            !Blocks(crossing,visible:false) && !Blocks(crossing,shell:true) && !Blocks(crossing,self:true),
+            "desktop por região: segunda tela e oclusão real da região");
+        var p=GfResourceMonitorPreferences.Default with { Enabled=true,AlwaysOnTop=true };
+        bool nativeOk=false, saveOk=false;
+        int attempts=0, saveEvents=0, nativeEvents=0;
+        using var host=new GfMonitorHost(path,()=>true,
+            (hwnd,locked,opacity)=>{attempts++;return nativeOk && GfMonitorNativePresentation.Apply(hwnd,locked,opacity);},
+            (file,prefs)=>saveOk && GfResourceMonitorPreferencesStore.TrySave(file,prefs));
+        host.PersistenceStateChanged+=(_,_)=>saveEvents++;
+        host.NativePresentationStateChanged+=(_,_)=>nativeEvents++;
+        Require(!host.Apply(p,DateTimeOffset.UtcNow) && host.LastSaveSucceeded()==false &&
+            host.NativePresentationAvailable()==false && !host.WantsCollection(false,true),
+            "falha nativa oculta, falha de gravação observável");
+        Require(saveEvents==1 && nativeEvents>=1,"estados de falha notificados");
+        int count=attempts;
+        host.RefreshVisibility(long.MinValue);
+        Require(attempts==count,"não repetir tentativa antes do prazo");
+        nativeOk=true; saveOk=true;
+        host.RefreshVisibility(Environment.TickCount64+3000);
+        Require(host.NativePresentationAvailable()==true && host.WantsCollection(false,true),
+            "recuperação nativa sem reabrir ou mudar preferências");
+        Require(host.Save() && host.LastSaveSucceeded()==true && saveEvents==2,
+            "recuperação da gravação notificada");
+        var window=Application.OpenForms.OfType<GfResourceMonitorForm>().Single();
+        saveOk=false; window.SetExpanded(true);
+        Require(host.LastSaveSucceeded()==false && saveEvents==3,
+            "falha de gravação ao expandir notificada");
+        saveOk=true; Require(host.Save(),"regravação explícita");
+        var captured=p with { Expanded=true, X=15,Y=20 };
+        foreach(var reason in new[]{CloseReason.WindowsShutDown,CloseReason.ApplicationExitCall,CloseReason.FormOwnerClosing})
+            Require(GfMonitorHost.PreferencesAfterClose(p,captured,false,reason)==captured,
+                "encerramento externo preserva habilitação e posição");
+        Require(!GfMonitorHost.PreferencesAfterClose(p,captured,false,CloseReason.UserClosing).Enabled,
+            "fechamento manual desabilita");
+        var edited=p with { Enabled=false,ScalePercent=125 };
+        Require(GfMonitorHost.PreferencesAfterClose(edited,captured,true,CloseReason.UserClosing)==(edited with { X=15,Y=20 }),
+            "fechamento comandado conserva edição");
+        Require(host.Apply(host.Preferences() with { Enabled=false },DateTimeOffset.UtcNow),"limpar fixture");
+        Console.WriteLine("OK Monitor GF: área de desktop, estados de gravação, recuperação nativa e encerramento.");
+    }
+
     internal static void Run()
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -228,6 +279,7 @@ internal static class GfMonitorHostTests
             Require(!GfResourceMonitorPreferencesStore.Load(path).Enabled, "desativação persistida");
             VerifyWindowLifecycle(path, key);
             VerifyPresentation(path);
+            VerifyAuditCorrections(path);
         }
         finally { Directory.Delete(folder, recursive: true); }
 

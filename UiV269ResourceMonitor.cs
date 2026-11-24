@@ -52,8 +52,10 @@ internal sealed class GfResourceMonitorForm : Form
     internal bool Expanded => _isExpanded;
     internal event EventHandler? ModeChanged;
 
-    internal GfResourceMonitorForm()
+    private readonly Func<IntPtr,bool,int,bool> _applyNative;
+    internal GfResourceMonitorForm(Func<IntPtr,bool,int,bool>? applyNative = null)
     {
+        _applyNative = applyNative ?? GfMonitorNativePresentation.Apply;
         Name = "GfResourceMonitor";
         Text = "Monitor GF";
         AccessibleName = "Monitor GF — somente leitura";
@@ -404,7 +406,7 @@ internal sealed class GfResourceMonitorForm : Form
     }
     internal bool RefreshNativePresentation()
     {
-        _nativeReady = GfMonitorNativePresentation.Apply(Handle,_fixed,(int)Math.Round(Opacity*100));
+        _nativeReady = _applyNative(Handle,_fixed,(int)Math.Round(Opacity*100));
         return _nativeReady;
     }
 

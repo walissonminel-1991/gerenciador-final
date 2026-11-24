@@ -10,7 +10,15 @@ internal sealed class GfMonitorHost : IDisposable
     private readonly int _thread = Environment.CurrentManagedThreadId;
     private readonly GfMonitorSnapshotRelay _relay = new();
     private readonly string _preferencesPath;
-    private readonly Func<bool> _desktopForeground;
+    private readonly Func<IntPtr,System.Drawing.Rectangle,bool> _desktopArea;
+    private readonly Func<IntPtr,bool,int,bool> _applyNative;
+    private readonly Func<string,GfResourceMonitorPreferences,bool> _savePreferences;
+    private bool? _lastSaveSucceeded;
+    private long _nextNativeRetry;
+    private const int NativeRetryInterval = 2000;
+    internal event EventHandler? PersistenceStateChanged;
+    internal event EventHandler? NativePresentationStateChanged;
+    private bool? _observedNativeState;
     private readonly System.Windows.Forms.Timer _visibilityTimer;
     private GfResourceMonitorPreferences _preferences;
     private GfResourceMonitorForm? _window;
@@ -21,11 +29,16 @@ internal sealed class GfMonitorHost : IDisposable
     private GfResourceMonitorSnapshot? _lastProjected;
     private bool _animate = true, _disposed, _closingForHost, _applying;
 
-    internal GfMonitorHost(string preferencesPath, Func<bool>? desktopForeground = null)
+    internal GfMonitorHost(string preferencesPath, Func<bool>? desktopForeground = null,
+        Func<IntPtr,bool,int,bool>? applyNative = null,
+        Func<string,GfResourceMonitorPreferences,bool>? savePreferences = null)
     {
         _preferencesPath = Path.GetFullPath(preferencesPath);
         _preferences = GfResourceMonitorPreferencesStore.Load(_preferencesPath);
-        _desktopForeground = desktopForeground ?? GfMonitorNativePresentation.IsDesktopForeground;
+        _desktopArea = desktopForeground is null ? GfMonitorNativePresentation.IsDesktopAreaAvailable :
+            (_,_) => desktopForeground();
+        _applyNative = applyNative ?? GfMonitorNativePresentation.Apply;
+        _savePreferences = savePreferences ?? GfResourceMonitorPreferencesStore.TrySave;
         // Somente visibilidade do desktop; não é timer de hardware.
         _visibilityTimer = new() { Interval = 250 };
         _visibilityTimer.Tick += (_,_) => RefreshVisibility();
@@ -39,20 +52,53 @@ internal sealed class GfMonitorHost : IDisposable
         return _window is { IsDisposed:false } window ? window.NativePresentationReady : null;
     }
 
-    internal void RefreshVisibility()
+    internal bool? LastSaveSucceeded()
+    {
+        Check(); return _lastSaveSucceeded;
+    }
+
+    private void NotifyNativeState()
+    {
+        bool? state = _window is { IsDisposed:false } window ? window.NativePresentationReady : null;
+        if (state == _observedNativeState) return;
+        _observedNativeState = state;
+        NativePresentationStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void RefreshVisibility() => RefreshVisibility(Environment.TickCount64);
+
+    // Relógio monotônico injetável na fixture. A falha permanece oculta,
+    // mas o host tenta recuperar a configuração a cada 2 s, inclusive overlay.
+    internal void RefreshVisibility(long now)
     {
         Check();
         if (_window is not { IsDisposed: false } window) { _visibilityTimer.Stop(); return; }
+        if (!window.NativePresentationReady && now >= _nextNativeRetry)
+        {
+            _nextNativeRetry = now + NativeRetryInterval;
+            window.RefreshNativePresentation();
+        }
         bool show = GfMonitorNativePresentation.ShouldShow(_preferences.Enabled,_preferences.AlwaysOnTop,
-            _preferences.AlwaysOnTop || _desktopForeground(), window.NativePresentationReady);
+            _preferences.AlwaysOnTop || (window.NativePresentationReady && _desktopArea(window.Handle,window.Bounds)),
+            window.NativePresentationReady);
         if(show && !window.Visible)
         {
             window.Show();
-            if(!window.RefreshNativePresentation())window.Hide();
+            if(!window.RefreshNativePresentation())
+            {
+                window.Hide();
+                _nextNativeRetry = now + NativeRetryInterval;
+            }
         }
         else if(!show && window.Visible) window.Hide();
-        // Overlay não precisa sondar foreground; falha nativa permanece oculta.
-        if(_preferences.Enabled && !_preferences.AlwaysOnTop && window.NativePresentationReady) _visibilityTimer.Start();
+        NotifyNativeState();
+        // Sem enumeração de janelas no overlay; timer só para recuperação.
+        if(_preferences.Enabled && (!_preferences.AlwaysOnTop || !window.NativePresentationReady))
+        {
+            int interval = window.NativePresentationReady ? 250 : NativeRetryInterval;
+            if(_visibilityTimer.Interval!=interval)_visibilityTimer.Interval=interval;
+            _visibilityTimer.Start();
+        }
         else _visibilityTimer.Stop();
     }
 
@@ -159,13 +205,18 @@ internal sealed class GfMonitorHost : IDisposable
     {
         Check();
         _preferences = Preferences();
-        return GfResourceMonitorPreferencesStore.TrySave(_preferencesPath, _preferences);
+        bool result = _savePreferences(_preferencesPath,_preferences);
+        bool changed = _lastSaveSucceeded != result;
+        _lastSaveSucceeded = result;
+        if(changed) PersistenceStateChanged?.Invoke(this,EventArgs.Empty);
+        return result;
     }
 
     private void Open(DateTimeOffset now)
     {
         if (_window is { IsDisposed: false }) return;
-        var window = new GfResourceMonitorForm();
+        var window = new GfResourceMonitorForm(_applyNative);
+        _nextNativeRetry = 0;
         _window = window;
         try
         {
@@ -197,12 +248,22 @@ internal sealed class GfMonitorHost : IDisposable
     {
         if (sender is not GfResourceMonitorForm window || !ReferenceEquals(_window, window)) return;
         _visibilityTimer.Stop();
-        var captured = window.CapturePreferences(_closingForHost && _preferences.Enabled);
-        _preferences = _closingForHost ? _preferences with { X = captured.X, Y = captured.Y } : captured;
+        var captured = window.CapturePreferences(_preferences.Enabled);
+        _preferences = PreferencesAfterClose(_preferences,captured,_closingForHost,e.CloseReason);
         window.FormClosed -= OnClosed; window.ModeChanged -= OnModeChanged;
         _binding?.Dispose(); _binding = null; _window = null;
         if (!_closingForHost && !_disposed) Save();
+        NotifyNativeState();
     }
+
+    // Somente fechamento de usuário desabilita; Application.Exit, logoff e
+    // shutdown preservam a habilitação. Fechamento comandado pelo host
+    // conserva as preferências recém-aplicadas.
+    internal static GfResourceMonitorPreferences PreferencesAfterClose(
+        GfResourceMonitorPreferences previous,GfResourceMonitorPreferences captured,
+        bool closingForHost,CloseReason reason) =>
+        closingForHost ? previous with { X=captured.X,Y=captured.Y } :
+        captured with { Enabled=previous.Enabled && reason!=CloseReason.UserClosing };
 
     private void CloseWindow()
     {
@@ -218,6 +279,7 @@ internal sealed class GfMonitorHost : IDisposable
                 window.FormClosed -= OnClosed; window.ModeChanged -= OnModeChanged;
                 _binding?.Dispose(); _binding = null; _window = null;
                 window.Dispose();
+                NotifyNativeState();
             }
         }
     }
