@@ -35,7 +35,9 @@ internal sealed class GfResourceMonitorForm : Form
     private GfResourceMonitorSnapshot? _last;
     private string? _gpuIdentity;
     private Point? _drag;
-    private DateTimeOffset? _arrivedAt;
+    private long? _arrivedTick;
+    private DateTimeOffset? _lastAcceptedAt;
+    private bool _snapToEdges = true;
     internal bool Expanded => _isExpanded;
     internal event EventHandler? ModeChanged;
 
@@ -129,10 +131,19 @@ internal sealed class GfResourceMonitorForm : Form
         _freshness = new() { Interval = 1000 };
         _freshness.Tick += (_, _) =>
         {
-            if (_arrivedAt is DateTimeOffset at && DateTimeOffset.UtcNow - at > TimeSpan.FromSeconds(10))
+            if (_arrivedTick is long tick && Environment.TickCount64 - tick > 10_000)
                 ClearReadings();
         };
-        VisibleChanged += (_, _) => { if (IsDisposed || Disposing) return; if (Visible) _freshness.Start(); else _freshness.Stop(); };
+        VisibleChanged += (_, _) =>
+        {
+            if (IsDisposed || Disposing) return;
+            if (Visible)
+            {
+                if (_arrivedTick is long tick && Environment.TickCount64 - tick > 10_000) ClearReadings();
+                _freshness.Start();
+            }
+            else _freshness.Stop();
+        };
         Configure(V269Theme.AzulGf, true);
         SetExpanded(false);
         ClearReadings();
@@ -226,6 +237,7 @@ internal sealed class GfResourceMonitorForm : Form
             ClientSize = new(SizeFor(552), SizeFor(value ? 232 : 38));
         }
         finally { ResumeLayout(true); }
+        if (Visible) ClampLocation(snap: false);
         if (changed) ModeChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -239,6 +251,29 @@ internal sealed class GfResourceMonitorForm : Form
         };
     }
 
+    // O host decide habilitação e gravação. Não abre monitor nem altera
+    // a inicialização do Windows ao ler preferências.
+    internal void ApplyPreferences(GfResourceMonitorPreferences preferences)
+    {
+        var p = preferences.Normalize();
+        TopMost = p.AlwaysOnTop;
+        Opacity = p.OpacityPercent / 100d;
+        _snapToEdges = p.SnapToEdges;
+        SetExpanded(p.Expanded);
+        if (p.X is int x && p.Y is int y) Location = new(x, y);
+        ClampLocation(snap: false);
+    }
+
+    internal GfResourceMonitorPreferences CapturePreferences(bool enabled) =>
+        new GfResourceMonitorPreferences(1, enabled, Expanded, TopMost,
+            (int)Math.Round(Opacity * 100), _snapToEdges, Location.X, Location.Y).Normalize();
+
+    private void ClampLocation(bool snap)
+    {
+        var area = Screen.FromRectangle(Bounds).WorkingArea;
+        Location = GfResourceMonitorPreferences.Fit(Location, Size, area, snap ? SizeFor(10) : 0);
+    }
+
     private int SizeFor(int logical) => Math.Max(1, (int)Math.Round(logical * DeviceDpi / 96d));
     protected override void OnDpiChanged(DpiChangedEventArgs e)
     {
@@ -249,7 +284,7 @@ internal sealed class GfResourceMonitorForm : Form
     {
         c.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { _drag = Cursor.Position - new Size(Location); c.Capture = true; } };
         c.MouseMove += (_, _) => { if (_drag is Point d && c.Capture) Location = Cursor.Position - new Size(d); };
-        c.MouseUp += (_, _) => { _drag = null; c.Capture = false; };
+        c.MouseUp += (_, _) => { _drag = null; c.Capture = false; ClampLocation(_snapToEdges); };
         c.MouseCaptureChanged += (_, _) => { if (!c.Capture) _drag = null; };
     }
 
@@ -258,7 +293,9 @@ internal sealed class GfResourceMonitorForm : Form
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         if (InvokeRequired) throw new InvalidOperationException("Apresente na thread da interface.");
-        if (_last is not null && snapshot.CapturedAtUtc <= _last.CapturedAtUtc) return;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (!GfResourceMonitorAdapter.IsFresh(snapshot.CapturedAtUtc, now) ||
+            (_lastAcceptedAt is DateTimeOffset accepted && snapshot.CapturedAtUtc <= accepted)) return;
         if (!string.Equals(_gpuIdentity, snapshot.GpuIdentity, StringComparison.Ordinal))
         {
             foreach (int i in new[] { 1, 3, 5 }) _filters[i].Reset();
@@ -267,7 +304,9 @@ internal sealed class GfResourceMonitorForm : Form
         // Não exibir métricas de GPU que não tenham uma identidade selecionada.
         if (string.IsNullOrWhiteSpace(snapshot.GpuIdentity))
             snapshot = snapshot with { GpuPercent = null, VramPercent = null, GpuTemperature = null, GpuThermalLimit = null };
-        _last = snapshot; _arrivedAt = DateTimeOffset.UtcNow;
+        _last = snapshot; _lastAcceptedAt = snapshot.CapturedAtUtc;
+        // Descontar idade anterior à entrega, usando relógio monotônico depois dela.
+        _arrivedTick = Environment.TickCount64 - (long)Math.Max(0, (now - snapshot.CapturedAtUtc).TotalMilliseconds);
         Render(snapshot, updateFilters: true);
     }
 
@@ -296,7 +335,7 @@ internal sealed class GfResourceMonitorForm : Form
 
     private void ClearReadings()
     {
-        _arrivedAt = null; _last = null;
+        _arrivedTick = null; _last = null;
         for (int i = 0; i < 6; i++)
         {
             _filters[i].Reset(); _smoothed[i] = null;

@@ -17,6 +17,32 @@ internal static class GfResourceMonitorTests
         }
     }
 
+    private static void VerifyPreferences()
+    {
+        var defaults = GfResourceMonitorPreferences.Default;
+        Require(!defaults.Enabled && defaults.OpacityPercent == 100, "monitor opcional por padrão");
+        var invalid = defaults with { OpacityPercent = 2, X = int.MaxValue, Y = 10 };
+        Require(invalid.Normalize().OpacityPercent == 40 && invalid.Normalize().X is null,
+            "limitar transparência e rejeitar coordenadas absurdas");
+        var work = new Rectangle(-1440, 0, 1440, 900);
+        Require(GfResourceMonitorPreferences.Fit(new Point(-1440, 880), new Size(552, 232), work, 10) ==
+            new Point(-1440, 668), "reencaixar após mudança de modo ou tela");
+        var folder = Path.Combine(Path.GetTempPath(), "gf-monitor-fixture-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, "monitor.json");
+        try
+        {
+            var selected = defaults with { Enabled = true, Expanded = true, AlwaysOnTop = true, OpacityPercent = 75, X = -600, Y = 100 };
+            Require(GfResourceMonitorPreferencesStore.TrySave(path, selected), "persistir apenas preferências locais");
+            Require(GfResourceMonitorPreferencesStore.Load(path) == selected, "restaurar preferências");
+            File.WriteAllText(path, "{invalid");
+            Require(GfResourceMonitorPreferencesStore.Load(path) == defaults, "configuração inválida deve falhar fechada");
+            File.WriteAllText(path, new string('x', 4097));
+            Require(GfResourceMonitorPreferencesStore.Load(path) == defaults, "limite de tamanho");
+        }
+        finally { Directory.Delete(folder, recursive: true); }
+    }
+
     internal static void Run()
     {
         foreach (V269Theme theme in Enum.GetValues<V269Theme>())
@@ -67,6 +93,13 @@ internal static class GfResourceMonitorTests
         Require(snapshot.CpuPercent == 24 && snapshot.RamPercent == 42 && snapshot.GpuPercent is null &&
             snapshot.CpuTemperature is null && snapshot.VramPercent is null, "adaptador reutiliza CPU/RAM sem inventar GPU/sensores");
 
+        Require(GfResourceMonitorAdapter.IsFresh(now.AddSeconds(-9), now) &&
+            !GfResourceMonitorAdapter.IsFresh(now.AddSeconds(-11), now) &&
+            !GfResourceMonitorAdapter.IsFresh(now.AddSeconds(6), now), "validar tempo de cada fonte");
+        var oldMemory = sample with { Memory = new MemoryRamSample(now.AddSeconds(-30).UtcDateTime, 1000, 580) };
+        Require(GfResourceMonitorAdapter.FromCounters(oldMemory).RamPercent is null, "não renovar RAM obsoleta");
+        VerifyPreferences();
+
         using var form = new GfResourceMonitorForm();
         form.Show();
         Application.DoEvents();
@@ -89,6 +122,8 @@ internal static class GfResourceMonitorTests
                 x.Text.Contains("GB") || x.Text.Contains("atividade", StringComparison.OrdinalIgnoreCase)),
                 "métricas excluídas reapareceram");
         }
+        form.Present(snapshot with { CapturedAtUtc = now.AddMinutes(-1), CpuPercent = 99 });
+        Require(!All(form).OfType<Label>().Any(x => x.Text == "99%"), "rejeitar amostra obsoleta");
         form.Present(snapshot);
         Require(All(form).OfType<Label>().Any(x => x.Text == "24%") &&
             All(form).OfType<Label>().Any(x => x.Text == "42%"), "apresentação de valores reais adaptados");
