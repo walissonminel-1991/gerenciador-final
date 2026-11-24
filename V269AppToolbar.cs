@@ -71,6 +71,7 @@ internal sealed class V269AppToolbarButton:Button
     private readonly bool _primary;
     private V269AppearanceOptions _options=V269AppearanceOptions.Default;
     private Font? _font;private bool _hover,_pressed,_filterSelected;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     internal bool FilterSelected {get=>_filterSelected;set{if(_filterSelected!=value){_filterSelected=value;Invalidate();}}}
     internal V269AppToolbarButton(string caption,bool primary=false)
     {
