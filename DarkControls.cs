@@ -231,6 +231,7 @@ internal sealed class DarkProgramList : Control
     {
         base.OnVisibleChanged(e);
         if (_operationTimer is not null) RefreshOperations();
+        if(_tableMode&&Visible)UpdateMetrics();
     }
     private readonly DarkVScrollBar _scrollbar = new();
     private readonly HScrollBar _horizontal=new(){Visible=false,TabStop=true,AccessibleName="Rolagem horizontal de aplicativos"};
@@ -239,6 +240,8 @@ internal sealed class DarkProgramList : Control
     private ProgramEntry? _dragApp;
     private Font? _tableFont;
     internal bool V269TableMode=>_tableMode;
+    private string _emptyMessage="Nenhum aplicativo identificado.";
+    internal string EmptyMessage {get=>_emptyMessage;set{_emptyMessage=value;Invalidate();}}
     internal int TableHeaderHeight=>_tableMode?V269AppTable.Scale(42,_tableOptions.InterfacePercent,DeviceDpi):0;
     private int HorizontalHeight=>_tableMode&&_horizontal.Visible?_horizontal.Height:0;
     private int RowsHeight=>Math.Max(1,ClientSize.Height-TableHeaderHeight-HorizontalHeight);
@@ -523,6 +526,12 @@ internal sealed class DarkProgramList : Control
         try
         {
             if (_itemHeight <= 0 || ClientSize.Height <= 0) return;
+            if(_tableMode&&_items.Count==0)
+            {
+                TextRenderer.DrawText(e.Graphics,_emptyMessage,Font,new Rectangle(8,TableHeaderHeight+8,Math.Max(1,contentWidth-16),Math.Max(1,RowsHeight-16)),
+                    V269AppTable.Colors(_tableOptions.Theme).Ink,TextFormatFlags.WordBreak|TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping);
+                return;
+            }
             int first = Math.Max(0, _scrollOffset / _itemHeight);
             int last = Math.Min(_items.Count - 1, (_scrollOffset + RowsHeight) / _itemHeight);
             for (int i = first; i <= last; i++)

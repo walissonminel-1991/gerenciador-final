@@ -1062,7 +1062,8 @@ internal sealed partial class MainForm
         var palette = V269Palette;
         if (root is DarkDriverList driverList) driverList.Theme = _v269Appearance.Theme;
         if (root is DarkProgramList appsList) appsList.ApplyV269Table(_v269Appearance);
-        if(root==_v269AppSortChoice)_v269AppSortChoice.ApplyOptions(_v269Appearance);
+        if(root==_v269AppSortChoice){_v269AppSortChoice.ApplyOptions(_v269Appearance);_v269AppSortChoice.DropDownHeight=_v269AppSortChoice.ItemHeight*5+4;}
+        if(root==_search){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Row;root.ForeColor=V269AppTable.Colors(_v269Appearance.Theme).Ink;}
         if(root.Name=="V269AppsPage"&&root.Tag is Action fitApps)fitApps();
         if (root is DarkProgramList or DarkDriverList)
         {

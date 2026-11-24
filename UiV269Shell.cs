@@ -216,7 +216,7 @@ internal sealed class V269Shell : UserControl
     private static readonly (V269Page Page, string Title, string Subtitle)[] Pages =
     [
         (V269Page.Inicio, "Início", "Informações gerais do sistema e do hardware."),
-        (V269Page.Aplicativos, "Aplicativos", "Programas instalados e ações elegíveis"),
+        (V269Page.Aplicativos, "Aplicativos", "Programas instalados, atualizações e remoção controlada."),
         (V269Page.Drivers, "Drivers", "Dispositivos e drivers"),
         (V269Page.Limpeza, "Limpeza e Desempenho", "Prévia e manutenção controlada"),
         (V269Page.Reparo, "Reparo e Rede", "Diagnósticos e reparos supervisionados"),

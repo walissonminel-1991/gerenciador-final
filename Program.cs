@@ -1145,7 +1145,7 @@ internal sealed partial class MainForm : Form
         _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{if(_v269AppSortChoice.SelectedIndex>=0){_v269AppSort=(V269AppSort)_v269AppSortChoice.SelectedIndex;RenderPrograms();}};
         _v269AppSortChoice.Margin=new Padding(4,4,4,4);
         searchBar.Controls.Add(_v269AppSortChoice,2,0);
-        var details=CreateSecondaryButton("Detalhes");details.Name="V269AppsDetails";details.Dock=DockStyle.Fill;
+        var details=new Button{Text="Detalhes",Name="V269AppsDetails",FlatStyle=FlatStyle.Flat,BackColor=AppServices.Gray,ForeColor=Ink};details.Dock=DockStyle.Fill;
         details.Margin=new Padding(3,3,0,3);
         details.Click+=(_,_)=>{
             if(_programList.SelectedItem is {} app)PresentV269AppDetails(app);
@@ -1181,6 +1181,7 @@ internal sealed partial class MainForm : Form
             ()=>_ = ExecuteAsync("Desinstalando selecionados...",UninstallCheckedAsync));
         _clearSelectionButton=MakeAction("Limpar seleção",AppServices.Gray,3,ClearMultiSelection);
         var hiddenReview=MakeAction("Ocultos",AppServices.Gray,4,()=>_ = ReviewHiddenV269AppsAsync());
+        _v269HiddenReviewButton=hiddenReview;
         _toolTips.SetToolTip(hiddenReview,"Consulta separada, somente leitura; não habilita remoção.");
         MakeAction("Limpar pesquisa",AppServices.Gray,5,()=>_search.Clear());
         root.Controls.Add(actions,0,1);
@@ -1232,7 +1233,7 @@ internal sealed partial class MainForm : Form
             "Entradas sem ação autorizada permanecem somente leitura.");
         _toolTips.SetToolTip(_selectedFilterButton,
             "Mostra apenas aplicativos marcados para operações autorizadas.");
-        var more=CreateSecondaryButton("Mais ações");more.Name="V269AppsMore";
+        var more=new Button{Text="Mais ações",Name="V269AppsMore",FlatStyle=FlatStyle.Flat,BackColor=AppServices.Gray,ForeColor=Ink};
         more.Dock=DockStyle.Fill;more.Margin=new Padding(2,3,0,3);
         more.Click+=(_,_)=>{if(_batchUpdatesActive&&expanded)return;expanded=!expanded;
             actions.Visible=expanded;more.Text=expanded?"Recolher":"Mais ações";FitToolbar();};
@@ -1307,10 +1308,13 @@ internal sealed partial class MainForm : Form
     }
 
 
+    private Button? _v269HiddenReviewButton;
     private async Task ReviewHiddenV269AppsAsync()
     {
-        if(_busy||_batchUpdatesActive||_betaClose.IsClosing||_v269Confirming)return;
+        if(_busy||_batchUpdatesActive||_betaClose.IsClosing||_v269Confirming||_v269HiddenReviewButton is not {Enabled:true} button)return;
+        button.Enabled=false;
         try{await ShowHiddenAppsReviewAsync();}catch(Exception ex){ReportError(ex);}
+        finally{if(!button.IsDisposed)button.Enabled=true;}
     }
 
     private async Task ShowHiddenAppsReviewAsync()
