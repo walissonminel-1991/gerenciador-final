@@ -403,6 +403,16 @@ internal static class V269IntegrationTests
                     theme.SelectedIndex=index;surface.PerformLayout();Application.DoEvents();
                     Require(shell.RightPane.Controls.Find("V269AppOperationHistory",true).Single().Visible,
                         "histórico operacional presente nos três temas");
+                    if(phase=="CONFIRMACAO")
+                    {
+                        foreach(string name in new[]{"V269AcceptConfirmation","V269CancelConfirmation"})
+                        {
+                            var action=shell.RightPane.Controls.Find(name,true).OfType<V269AppFlowButton>().Single();
+                            Require(action.Visible&&action.Width>=action.RequiredAppTextWidth(),"texto operacional completo nos três temas");
+                        }
+                        var operationHost=(Control)typeof(V269RightPane).GetField("_operationContent",flags)!.GetValue(shell.RightPane)!;
+                        Require(!operationHost.Visible,"autorização não exibe status residual de outra operação");
+                    }
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));
                     image.Save($"LayoutCaptures/v269-aplicativos-{phase}-HISTORICO-SINTETICO-{(V269Theme)index}-{surface.Width}x{surface.Height}.png");

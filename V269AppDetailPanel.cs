@@ -51,6 +51,18 @@ internal sealed class V269AppFlowButton : Button
         else BackColor=SystemColors.Control;
         Invalidate();
     }
+    internal int RequiredAppTextWidth()
+    {
+        int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
+        return TextRenderer.MeasureText(Text,Font,Size.Empty,TextFormatFlags.SingleLine|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding).Width
+            + S(6)*2+(_dismiss?0:S(12)+S(5))+2;
+    }
+    public override Size GetPreferredSize(Size proposedSize)
+    {
+        var size=base.GetPreferredSize(proposedSize);
+        return _appStyle?new Size(Math.Max(size.Width,RequiredAppTextWidth()),
+            Math.Max(size.Height,V269AppTable.Scale(30,_percent,DeviceDpi))):size;
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
         if(!_appStyle){base.OnPaint(e);return;}

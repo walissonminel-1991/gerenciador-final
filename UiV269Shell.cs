@@ -230,6 +230,7 @@ internal sealed class V269RightPane : UserControl
         _title.Visible=!active||!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
         if(changed)ApplyPaneSurface();
         else if(active)ApplyAppTitleMetrics();
+        UpdateOperationContentLayout();
     }
     internal void RefreshAppOperationHistory()
     {
@@ -292,10 +293,7 @@ internal sealed class V269RightPane : UserControl
         _applicationDetails.Present(structured?presentation!.Application:null);
         _description.Visible=!structured;_applicationDetails.Visible=structured;
         if(structured)_applicationDetails.BringToFront();
-        _operationContent.Visible=!structured;
-        _layout.RowStyles[4].SizeType=_hasOperationContent&&!structured?SizeType.Percent:SizeType.Absolute;
-        _layout.RowStyles[4].Height=_hasOperationContent&&!structured?55:0;
-        _layout.RowStyles[2].Height=_hasOperationContent&&!structured?45:100;
+        UpdateOperationContentLayout();
         bool inProgress = presentation is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
         _progress.Visible = inProgress;
         _layout.RowStyles[1].Height = inProgress ? 34 : 0;
@@ -304,6 +302,18 @@ internal sealed class V269RightPane : UserControl
         AccessibleDescription = presentation?.Title ?? "";
         RefreshAppOperationHistory();FitOperationHistory();
         PresentationChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void UpdateOperationContentLayout()
+    {
+        // A autorização de Aplicativos não exibe o status/log de uma execução anterior.
+        // Os controles reais permanecem intactos e voltam durante o progresso.
+        bool show=!_structuredApp&&!(_appFlow&&Current?.Kind==V269PanelKind.Confirmation);
+        _operationContent.Visible=show;
+        bool reserve=show&&_hasOperationContent;
+        _layout.RowStyles[4].SizeType=reserve?SizeType.Percent:SizeType.Absolute;
+        _layout.RowStyles[4].Height=reserve?55:0;
+        _layout.RowStyles[2].Height=reserve?45:100;
     }
 
     internal void ApplyPalette(V269Palette palette)
@@ -319,7 +329,11 @@ internal sealed class V269RightPane : UserControl
         BackColor = palette.RightPanel;
         _titleHost.BackColor=palette.RightPanel;_appFlowHeading.ForeColor=palette.Text;
         foreach(var button in _choices.Controls.OfType<V269AppFlowButton>())
+        {
             button.ApplyAppStyle(_appFlow,_appPaneTheme,_appInterfacePercent);
+            button.MinimumSize=_appFlow?button.GetPreferredSize(Size.Empty):new Size(70,26);
+        }
+        _choices.PerformLayout();
         _layout.BackColor = palette.RightPanel;
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
