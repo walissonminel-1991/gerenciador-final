@@ -19,6 +19,9 @@ internal static class V269IntegrationTests
         VerifyAppOrdering();
         VerifyAppTableGeometry();
         VerifyAppIconSources();
+        Require(form.Controls.Find("V269WindowsUpdateHistory", true).OfType<Button>().Single().Text == "Histórico" &&
+            form.Controls.Find("V269History", true).OfType<Button>().Single().Text == "Histórico de registro",
+            "históricos específicos previstos no HTML, sem botão genérico compartilhado");
         var homeSnapshot = VerifyHome(form, views[0]);
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
         Require(paneToggle.Parent?.Name == "V269HomeFooter",

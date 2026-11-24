@@ -642,7 +642,7 @@ internal static class LayoutTests
                         {
                             "Consumo e memória disponível. Histórico local, também na bandeja.",
                             "Consulte e revise os planos de energia do Windows.",
-                            "Procure, selecione e instale atualizações oficiais.",
+                            "Verifique e instale atualizações oficiais individualmente.",
                             "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos."
                         };
                         if (descriptions.Length != 4 ||

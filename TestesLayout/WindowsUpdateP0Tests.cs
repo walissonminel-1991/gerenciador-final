@@ -26,6 +26,17 @@ public static class WindowsUpdateP0Tests
             return exchange.Result;
         }
 
+        var history = new HistorySession(55, new HistoryEntry(new DateTime(2026, 11, 24, 10, 30, 0),
+            "Atualização sintética", 1, 2, 0));
+        string historyText = WindowsUpdateClient.ReadHistory(() => history);
+        Check(history.Requested == 50 && history.Start == 0 &&
+            historyText.Contains("Exibição parcial") && historyText.Contains("Atualização sintética") &&
+            historyText.Contains("Instalação · Concluída"),
+            "histórico consulta somente os últimos registros locais e identifica resultado real");
+        var emptyHistory = new HistorySession(0);
+        Check(WindowsUpdateClient.ReadHistory(() => emptyHistory).Contains("Nenhum evento") &&
+            emptyHistory.Requested == -1, "histórico vazio não chama QueryHistory");
+
         var success = new Session(Second, First);
         var confirmed = Execute(success);
         Check(confirmed.Outcome == WindowsUpdateOutcome.Installation && confirmed.FullySucceeded &&
@@ -110,6 +121,24 @@ public static class WindowsUpdateP0Tests
     }
 
     // Contratos IDispatch simulados. Nenhum objeto COM ou serviço do Windows é criado.
+    public sealed record HistoryEntry(DateTime Date, string Title, int Operation, int ResultCode, int HResult);
+    public sealed class HistoryCollection(HistoryEntry[] entries)
+    {
+        public int Count => entries.Length;
+        public HistoryEntry Item(int index) => entries[index];
+    }
+    public sealed class HistorySession(int total, params HistoryEntry[] entries)
+    {
+        public int Requested = -1;
+        public int Start = -1;
+        public HistorySession CreateUpdateSearcher() => this;
+        public int GetTotalHistoryCount() => total;
+        public HistoryCollection QueryHistory(int start, int count)
+        {
+            Start = start; Requested = count; return new(entries);
+        }
+    }
+
     public sealed record Identity(string UpdateID, int RevisionNumber);
     public sealed record Behavior(int Impact);
     public sealed record Offer(Identity Identity, bool EulaAccepted = true, bool IsDownloaded = true)
