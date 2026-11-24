@@ -478,8 +478,13 @@ internal sealed class V269GeneralSettingsPanel : V269SettingsCard
             int copyHeight=titleHeight+S(1)+descHeight, actionsHeight=_actions[i].Max(x=>x.Height);
             bool separate=wrap && actionWidth>rowRight-copyX;
             if(separate) actionsHeight=_actions[i].Sum(x=>x.Height)+S(8)*(_actions[i].Length-1);
-            int minimumRowHeight=i==5&&width<=S(540)?S(78):S(60);
-            int rowHeight=Math.Max(minimumRowHeight,wrap?copyHeight+actionsHeight+S(22):Math.Max(copyHeight,actionsHeight)+S(16));
+            bool compactDiagnostic=i==5&&width<=S(540);
+            int minimumRowHeight=compactDiagnostic?S(78):S(60);
+            // Em 760px, o texto WinForms ocupa 67px contra os 62px
+            // do CSS. Reduzir somente o espaço livre vertical, sem cortar
+            // texto nem limitar a altura em escalas maiores.
+            int rowPadding=compactDiagnostic?S(11):S(16);
+            int rowHeight=Math.Max(minimumRowHeight,wrap?copyHeight+actionsHeight+S(22):Math.Max(copyHeight,actionsHeight)+rowPadding);
             int textY=y+(wrap?S(8):(rowHeight-copyHeight)/2);
             _names[i].Bounds=new Rectangle(copyX,textY,copyWidth,titleHeight);
             _descriptions[i].Bounds=new Rectangle(copyX,textY+titleHeight+S(1),copyWidth,descHeight);

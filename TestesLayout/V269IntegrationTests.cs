@@ -237,6 +237,21 @@ internal static class V269IntegrationTests
                         Cards=new[]{(Control)page.General,page.Appearance}.Select(card=>{
                             var p=card.PointToScreen(Point.Empty);return new{card.Name,X=p.X-origin.X,Y=p.Y-origin.Y,card.Width,card.Height};}).ToArray()};
                     Console.WriteLine("V269-SETTINGS-GEOMETRY "+System.Text.Json.JsonSerializer.Serialize(geom));
+                    if(geom.Dpi==96&&geom.WorkAreaHeight<=810&&surface.Size==size)
+                    {
+                        // Medidas do HTML original PR #109, mesma classe
+                        // de viewport e escalas 100%. Tolerância de arredondamento.
+                        Rectangle[] expected=size.Width==760
+                            ? [new(212,152,520,437),new(212,596,520,258)]
+                            : [new(212,152,752,419),new(212,578,752,187)];
+                        for(int cardIndex=0;cardIndex<expected.Length;cardIndex++)
+                        {
+                            var actual=geom.Cards[cardIndex];var target=expected[cardIndex];
+                            Require(Math.Abs(actual.X-target.X)<=2&&Math.Abs(actual.Y-target.Y)<=2&&
+                                Math.Abs(actual.Width-target.Width)<=2&&Math.Abs(actual.Height-target.Height)<=2,
+                                $"geometria HTML Configurações {theme}/{size}: {actual} vs {target}");
+                        }
+                    }
                     using(var shot=new Bitmap(surface.Width,surface.Height))
                     {
                         surface.DrawToBitmap(shot,new Rectangle(Point.Empty,surface.Size));
