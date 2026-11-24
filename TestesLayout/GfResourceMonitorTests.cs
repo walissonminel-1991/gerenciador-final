@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using GerenciadorAplicativos;
 
@@ -14,6 +15,98 @@ internal static class GfResourceMonitorTests
         {
             yield return child;
             foreach (Control descendant in All(child)) yield return descendant;
+        }
+    }
+
+    // DrawToBitmap registra uma superfície retangular, não prova o recorte
+    // do HWND. Consultar somente a região dos nossos próprios controles.
+    [DllImport("gdi32.dll", ExactSpelling = true)]
+    private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
+
+    [DllImport("gdi32.dll", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PtInRegion(IntPtr region, int x, int y);
+
+    [DllImport("gdi32.dll", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeleteObject(IntPtr handle);
+
+    private static void VerifyNativeRoundedRegion(Control control, string name)
+    {
+        Require(control.Visible && control.IsHandleCreated && control.Width > 4 && control.Height > 4,
+            "geometria nativa inválida: " + name);
+        var region = control.Region;
+        Require(region is not null, "região gerenciada ausente: " + name);
+        Point[] corners = [new(0, 0), new(control.Width - 1, 0),
+            new(0, control.Height - 1), new(control.Width - 1, control.Height - 1)];
+        Point center = new(control.Width / 2, control.Height / 2);
+        Require(corners.All(p => !region!.IsVisible(p)) && region!.IsVisible(center),
+            "recorte gerenciado não arredondado: " + name);
+        IntPtr native = CreateRectRgn(0, 0, 0, 0);
+        Require(native != IntPtr.Zero, "alocação de região de teste");
+        try
+        {
+            int kind = GetWindowRgn(control.Handle, native);
+            Require(kind is 2 or 3, "HWND não possui região válida: " + name);
+            Require(corners.All(p => !PtInRegion(native, p.X, p.Y)) &&
+                PtInRegion(native, center.X, center.Y), "recorte Win32 divergente: " + name);
+        }
+        finally { DeleteObject(native); }
+    }
+
+    private static void VerifyRoundedRegions(GfResourceMonitorForm form)
+    {
+        VerifyNativeRoundedRegion(form, "janela");
+        var logos = All(form).OfType<GfMonitorLogoLabel>().Where(x => x.Visible).ToArray();
+        Require(logos.Length == 1, "modo ativo possui exatamente um logo");
+        VerifyNativeRoundedRegion(logos[0], "logo GF");
+    }
+
+    private static Rectangle CaptureBounds(Control control, Form form, Bitmap bitmap) =>
+        Rectangle.Intersect(new Rectangle(form.PointToClient(control.PointToScreen(Point.Empty)), control.Size),
+            new Rectangle(Point.Empty, bitmap.Size));
+
+    private static int MatchingPixels(Bitmap bitmap, Rectangle area, Color foreground)
+    {
+        int count = 0;
+        for (int y = area.Top; y < area.Bottom; y++)
+            for (int x = area.Left; x < area.Right; x++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (Math.Abs(p.R - foreground.R) + Math.Abs(p.G - foreground.G) + Math.Abs(p.B - foreground.B) < 65)
+                    count++;
+            }
+        return count;
+    }
+
+    private static void VerifyExpandedCapture(GfResourceMonitorForm form, Bitmap bitmap)
+    {
+        var all = All(form).Where(x => x.Visible).ToArray();
+        var bars = all.OfType<GfDynamicProgressBar>().ToArray();
+        Require(bars.Length == 6, "expandido exige seis barras");
+        (string Name, string Value)[] expected = [
+            ("Utilização CPU", "14%"), ("Utilização RAM", "42%"),
+            ("Utilização GPU", "12%"), ("Utilização VRAM", "15%"),
+            ("Temperatura CPU", "48°C"), ("Temperatura GPU", "46°C")
+        ];
+        foreach (var metric in expected)
+        {
+            var labels = all.OfType<Label>().Where(x => x.AccessibleName == metric.Name).ToArray();
+            var matchingBars = bars.Where(x => x.AccessibleName == metric.Name).ToArray();
+            Require(labels.Length == 1 && labels[0].Text == metric.Value && matchingBars.Length == 1,
+                "métrica expandida ausente ou duplicada: " + metric.Name);
+            var label = labels[0]; var bar = matchingBars[0];
+            var labelArea = CaptureBounds(label, form, bitmap);
+            var barArea = CaptureBounds(bar, form, bitmap);
+            Require(labelArea.Width > 0 && labelArea.Height > 0 && barArea.Width > 0 && barArea.Height > 0,
+                "métrica expandida fora da captura: " + metric.Name);
+            Require(MatchingPixels(bitmap, labelArea, label.ForeColor) >= 5,
+                "valor expandido não renderizado: " + metric.Name);
+            Require(MatchingPixels(bitmap, barArea, label.ForeColor) >= 5,
+                "preenchimento de barra ausente: " + metric.Name);
         }
     }
 
@@ -229,13 +322,16 @@ internal static class GfResourceMonitorTests
                 Require(preview.ClientSize.Width > 0 && preview.ClientSize.Height > 0, "captura com área válida");
                 using var bitmap = new Bitmap(preview.ClientSize.Width, preview.ClientSize.Height);
                 preview.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-                if (!expanded) VerifyCompactCapture(preview, bitmap);
+                VerifyRoundedRegions(preview);
+                if (expanded) VerifyExpandedCapture(preview, bitmap);
+                else VerifyCompactCapture(preview, bitmap);
                 bitmap.Save(Path.Combine("LayoutCaptures", $"MonitorGF-{theme}-{(expanded ? "Expandido" : "Compacto")}.png"),
                     System.Drawing.Imaging.ImageFormat.Png);
             }
             preview.Close();
         }
         form.Close();
+        Console.WriteLine("OK Monitor GF: regiões gerenciada e Win32, logo e pixels dos seis valores/barras nos três temas.");
         Console.WriteLine("OK Monitor GF: seis métricas, três temas, interpolação, limites, ausência e progresso.");
     }
 }
