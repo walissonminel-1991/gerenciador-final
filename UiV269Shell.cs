@@ -213,7 +213,10 @@ internal sealed class V269Shell : UserControl
 
     private readonly Dictionary<V269Page, V269NavButton> _navigation = new();
     private readonly Dictionary<V269Page, Control> _pages = new();
-    private readonly List<Font> _ownedFonts = [];
+    // WinForms pode manter uma instância Font anterior quando o novo
+    // valor é equivalente. Cache finito pelas escalas normalizadas:
+    // nunca destruir uma fonte enquanto algum controle pode referenciá-la.
+    private readonly Dictionary<(float Size, FontStyle Style, int Scale), Font> _ownedFonts = new();
     private int _appliedTextScale;
     private readonly TableLayoutPanel _columns;
     private readonly TableLayoutPanel _navigationLayout;
@@ -458,12 +461,12 @@ internal sealed class V269Shell : UserControl
     {
         if (_appliedTextScale == TextScalePercent) return;
         _appliedTextScale = TextScalePercent;
-        var previous = _ownedFonts.ToArray();
-        _ownedFonts.Clear();
         Font NewFont(float size, FontStyle style = FontStyle.Regular)
         {
+            var key = (size, style, TextScalePercent);
+            if (_ownedFonts.TryGetValue(key, out Font? existing)) return existing;
             var value = new Font("Segoe UI", size * TextScalePercent / 100f, style);
-            _ownedFonts.Add(value);
+            _ownedFonts.Add(key, value);
             return value;
         }
         Font = NewFont(9.5f);
@@ -472,7 +475,7 @@ internal sealed class V269Shell : UserControl
         _rightPane.SetFonts(NewFont(12f, FontStyle.Bold), NewFont(9.5f));
         foreach (var navButton in _navigation.Values)
             navButton.Font = NewFont(_homeGeometry ? 9f : 10f);
-        foreach (var old in previous) old.Dispose();
+        // As fontes são liberadas somente após a destruição dos controles.
     }
 
     private void ApplyDimensions()
@@ -618,7 +621,7 @@ internal sealed class V269Shell : UserControl
         base.Dispose(disposing);
         if (disposing)
         {
-            foreach (var font in _ownedFonts) font.Dispose();
+            foreach (var font in _ownedFonts.Values) font.Dispose();
             _ownedFonts.Clear();
         }
     }
