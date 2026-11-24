@@ -126,10 +126,11 @@ internal static class V269IntegrationTests
         var storage = WindowsStorageSensorProvider.Join([], []);
         var acpi = new AcpiThermalZoneSnapshot(at, HardwareDiscoveryState.Unavailable, [], null);
         var platform = WindowsPlatformHardwareProvider.Join(
-            [new WmiCpuSocketRaw("CPU0", "CPU fixture", 8U, 16U, 3600U)],
+            [new WmiCpuSocketRaw("CPU0", "CPU fixture", 8U, 16U, 3600U,
+                9U, 32768U, true, "Socket fixture")],
             [new WmiRamModuleRaw("BANK0", "DIMM0", 16UL << 30, 3200U, 26U)],
             [new WmiMotherboardRaw("Base Board", "Fabricante fixture", "Modelo fixture", "Rev 1")],
-            []);
+            [], reportedBiosVersion: "BIOS fixture");
         var snapshot = new HardwareSensorPortfolio(at, sample, pnp, gpu, storage, acpi,
             PlatformHardware: platform);
         var models = MainForm.V269HomeModels(snapshot);
@@ -147,6 +148,24 @@ internal static class V269IntegrationTests
             models[3].Specs.Any(x => x.Label == "Modelo" && x.Value == "Modelo fixture") &&
             models[3].Sensors.All(x => x.Value == "N/D"),
             "RAM e placa-mãe vêm das fontes reais; nenhuma temperatura é inventada");
+        Require(models[0].Specs.Any(x => x.Label == "Arquitetura" && x.Value == "x64 (ISA)") &&
+            models[0].Specs.Any(x => x.Label == "Cache L3" && x.Value == "32 MiB") &&
+            models[0].Specs.Where(x => x.Label is "Frequência base" or "Frequência turbo")
+                .All(x => x.Value == "N/D") &&
+            models[3].Specs.Any(x => x.Label == "BIOS" && x.Value == "BIOS fixture") &&
+            models[3].Specs.Any(x => x.Label == "Soquete" && x.Value == "Designação: Socket fixture") &&
+            models[4].Sensors.Any(x => x.Label == "Virtualização" && x.Value == "Ativa (firmware)"),
+            "ISA, cache, designação do soquete, BIOS e virtualização não são inferidos");
+        foreach (var pair in new[] { (18U, "DDR"), (19U, "DDR2"), (20U, "DDR2 FB-DIMM"), (21U, "N/D") })
+        {
+            var legacy = WindowsPlatformHardwareProvider.Join([], 
+                [new WmiRamModuleRaw("B0", "D0", 1UL << 30, 400U, pair.Item1)], [], []);
+            var legacyModel = MainForm.V269HomeModels(snapshot with { PlatformHardware = legacy });
+            Require(legacyModel[2].Specs.Single(x => x.Label == "Tipo").Value == pair.Item2,
+                "enumeração SMBIOS Type 17 " + pair.Item1);
+            Require(legacyModel[4].Sensors.Single(x => x.Label == "Virtualização").Value == "N/D",
+                "virtualização desconhecida não vira inativa");
+        }
 
         // O dashboard real conserva instâncias e permite comparação nos três temas.
         var identity = home.Cards.ToArray();
