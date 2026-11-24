@@ -10,6 +10,9 @@ internal sealed partial class MainForm
     private readonly LiveHardwareMonitor _v269Monitor = new();
     private CancellationTokenSource? _v269HardwareQuery;
     private bool _v269HardwareLoaded;
+    private System.Windows.Forms.Timer? _v269LiveTimer;
+    private bool _v269LiveSampling;
+    private IReadOnlyList<V269HomeModel>? _v269LastHomeModels;
     private readonly Label _v269HardwareStatus = new() { Dock = DockStyle.Fill, AutoEllipsis = true };
     private V269HomeDashboard? _v269Home;
     private string? _v269HardwareDetails;
@@ -71,7 +74,8 @@ internal sealed partial class MainForm
             var snapshot = await StaWorker.Run(() =>
                 HardwareSensorPortfolioReader.CaptureOnDemand(_v269Monitor, request.Token));
             if (request.IsCancellationRequested || IsDisposed || Disposing) return;
-            _v269Home?.SetModels(V269HomeModels(snapshot));
+            _v269LastHomeModels = V269HomeModels(snapshot);
+            _v269Home?.SetModels(_v269LastHomeModels);
             _v269HardwareDetails = string.Join(Environment.NewLine + Environment.NewLine,
                 V269HardwareCards(snapshot).Select(x => x.Title + Environment.NewLine + x.Body));
             _v269HardwareLoaded = true;
@@ -94,6 +98,64 @@ internal sealed partial class MainForm
             }
         }
         finally { _v269HardwareQuery = null; }
+    }
+
+    // Atualização leve, apenas em Início visível e após consulta completa.
+    // Não repetir inventário PnP/WMI, ACPI ou consultas de manutenção no timer.
+    // GPU/TPM/firmware continuam com o horário da consulta completa.
+    private void StartV269LiveSampling()
+    {
+        if (_v269LiveTimer is not null) return;
+        _v269LiveTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+        _v269LiveTimer.Tick += async (_, _) =>
+        {
+            if (_v269LiveSampling || !_v269HardwareLoaded || _v269HardwareQuery is not null ||
+                _busy || _v269Confirming || IsDisposed || Disposing ||
+                IsInTray || !Visible || _nav.SelectedPage != V269Page.Inicio ||
+                _v269LastHomeModels is null) return;
+            _v269LiveSampling = true;
+            try
+            {
+                var sample = await Task.Run(() => _v269Monitor.Capture());
+                if (IsDisposed || Disposing || IsInTray || !Visible ||
+                    _nav.SelectedPage != V269Page.Inicio || _busy || _v269Confirming ||
+                    _v269HardwareQuery is not null || _v269LastHomeModels is null) return;
+                _v269LastHomeModels = UpdateV269LiveRows(_v269LastHomeModels, sample);
+                _v269Home?.SetModels(_v269LastHomeModels);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            { /* Manter a última consulta explícita; não inventar leituras. */ }
+            finally { _v269LiveSampling = false; }
+        };
+        FormClosed += (_, _) =>
+        {
+            _v269LiveTimer?.Stop();
+            _v269LiveTimer?.Dispose();
+            _v269LiveTimer = null;
+        };
+        _v269LiveTimer.Start();
+    }
+
+    internal static IReadOnlyList<V269HomeModel> UpdateV269LiveRows(
+        IReadOnlyList<V269HomeModel> models, LiveHardwareSample sample)
+    {
+        static IReadOnlyList<V269HomeRow> Replace(IReadOnlyList<V269HomeRow> rows,
+            string label, string value) => rows.Select(r => r.Label == label ? r with { Value = value } : r).ToArray();
+        static string Show<T>(MonitorReading<T> reading, Func<T, string> format) where T : struct =>
+            reading.Availability == MonitorAvailability.Available && reading.Value is { } value
+                ? format(value) : "N/D";
+        var mem = sample.Memory;
+        return models.Select(model => model.Key switch
+        {
+            "cpu" => model with { Sensors = Replace(model.Sensors, "Uso",
+                Show(sample.CpuUsagePercent, x => $"{x:0.#}%")) },
+            "ram" => model with { Sensors = Replace(Replace(model.Sensors, "Uso atual",
+                mem is { TotalBytes: > 0 } ? Gib(mem.UsedBytes) : "N/D"), "Disponível",
+                mem is { TotalBytes: > 0 } ? Gib(mem.AvailableBytes) : "N/D") },
+            "windows" => model with { Specs = Replace(model.Specs, "Tempo de atividade",
+                Show(sample.SystemUptime, x => $"{(int)x.TotalDays}d {x.Hours}h {x.Minutes}min")) },
+            _ => model
+        }).ToArray();
     }
 
     private static IEnumerable<(string Title, string Body)> V269HardwareCards(HardwareSensorPortfolio snapshot)
@@ -227,9 +289,16 @@ internal sealed partial class MainForm
             R("Consumo", M(sample?.Sensors.CpuPowerWatts, x => $"{x:0.#} W")),
             R("Ventoinha (CPU)", M(sample?.Sensors.CpuFanRpm, Rpm)) };
 
+        // NVML reporta o link para o dispositivo consultado. Não associar
+        // ao DXGI por índice/nome; o driver NVIDIA é versão global NVML,
+        // não a versão WMI do pacote de cada adaptador.
+        string links = Join(nvml.Where(x => x.CurrentPcieLink is not null)
+            .Select(x => x.Name + ": " + x.CurrentPcieLink));
+        string? nvidiaDriver = nvml.Count > 0 && snapshot?.NvidiaGpus.NvidiaDriverVersion is { } driver
+            ? driver + " (NVIDIA NVML)" : null;
         var graphics = new List<V269HomeRow> {
-            R("Memória dedicada (DXGI)", Join(dxgi.Select(x => x.Name + ": " + Gib(x.DedicatedVideoMemory)))),
-            R("Barramento", nd), R("Resizable BAR", nd), R("Driver", nd), R("Arquitetura", nd) };
+            R("Memória", Join(dxgi.Select(x => x.Name + ": " + Gib(x.DedicatedVideoMemory) + " (DXGI)"))),
+            R("Barramento", links), R("Resizable BAR", nd), R("Driver", nvidiaDriver), R("Arquitetura", nd) };
         var gpuSensors = new List<V269HomeRow>();
         if (nvml.Count == 0)
         {
@@ -322,7 +391,7 @@ internal sealed partial class MainForm
             virtualization = cpu.All(x => x.FirmwareVirtualizationEnabled == true) ? "Ativa (firmware)" :
                 cpu.All(x => x.FirmwareVirtualizationEnabled == false) ? "Não ativa (WMI)" : "Mista (firmware)";
         var windowsSensors = new V269HomeRow[] { R("Inicialização segura", secureBoot),
-            R("TPM", nd), R("Virtualização", virtualization) };
+            R("TPM", snapshot?.TpmDescription), R("Virtualização", virtualization) };
         return [
             new("cpu", "Processador (CPU)", R("", cpuName).Value, cpuRows, cpuSensors),
             new("gpu", "Placa de vídeo (GPU)", R("", gpuName).Value, graphics, gpuSensors),
@@ -894,7 +963,24 @@ internal sealed class V269HomeCard : Control
         int nameHeight = model.Name.Length == 0 ? 0 :
             Math.Max(S(20), HeightOf(model.Name, nameFont, specsWidth)) + S(4);
         int dataHeight = nameHeight + Rows(null, model.Specs, dataX, bodyY + nameHeight, specsWidth);
-        int sensorsHeight = Rows(null, model.Sensors, sensorX, bodyY, sensorWidth);
+        bool sensorGrid = windowWidth <= 850 && !wide && sensorWidth >= S(200);
+        int sensorColumnWidth = sensorGrid ? Math.Max(1, (sensorWidth - gap) / 2) : sensorWidth;
+        int DrawSensors(Graphics? target, int y)
+        {
+            if (!sensorGrid) return Rows(target, model.Sensors, sensorX, y, sensorWidth);
+            // CSS .hw-sensors: grid-template-columns:1fr 1fr em <=850.
+            int height = 0;
+            for (int i = 0; i < model.Sensors.Count; i += 2)
+            {
+                int leftHeight = Rows(target, new[] { model.Sensors[i] }, sensorX, y + height, sensorColumnWidth);
+                int rightHeight = i + 1 < model.Sensors.Count
+                    ? Rows(target, new[] { model.Sensors[i + 1] }, sensorX + sensorColumnWidth + gap,
+                        y + height, sensorColumnWidth) : 0;
+                height += Math.Max(leftHeight, rightHeight);
+            }
+            return height;
+        }
+        int sensorsHeight = DrawSensors(null, bodyY);
         int sensorY = wide ? bodyY : bodyY + Math.Max(imageHeight, dataHeight) + gap;
         int totalHeight = bodyY + (wide
             ? Math.Max(imageHeight, Math.Max(dataHeight, sensorsHeight))
@@ -962,7 +1048,7 @@ internal sealed class V269HomeCard : Control
         Rows(g, model.Specs, dataX, bodyY + nameHeight, specsWidth);
         if (wide) g.DrawLine(rule, sensorX - sensorPad, bodyY, sensorX - sensorPad,
             bodyY + sensorsHeight);
-        Rows(g, model.Sensors, sensorX, sensorY, sensorWidth);
+        DrawSensors(g, sensorY);
         return totalHeight;
 
         int Rows(Graphics? target, IReadOnlyList<V269HomeRow> rows, int x, int y, int w)

@@ -122,7 +122,9 @@ internal static class V269IntegrationTests
             [new NvidiaGpuSensorSample(0, "GPU fixture NVML", null,
                 available, MonitorReading<double>.Available(61, "fixture"),
                 missing, MonitorReading<double>.Available(35, "fixture"),
-                MonitorReading<ulong>.Available(2UL << 30, "fixture"))], null);
+                MonitorReading<ulong>.Available(2UL << 30, "fixture"))
+                { CurrentPcieLink = NvidiaNvmlSensorProvider.FormatPcie(4, 8) }], null)
+            { NvidiaDriverVersion = NvidiaNvmlSensorProvider.ValidateDriverVersion("576.02") };
         var storage = WindowsStorageSensorProvider.Join([], []);
         var acpi = new AcpiThermalZoneSnapshot(at, HardwareDiscoveryState.Unavailable, [], null);
         var platform = WindowsPlatformHardwareProvider.Join(
@@ -132,8 +134,37 @@ internal static class V269IntegrationTests
             [new WmiMotherboardRaw("Base Board", "Fabricante fixture", "Modelo fixture", "Rev 1")],
             [], reportedBiosVersion: "BIOS fixture");
         var snapshot = new HardwareSensorPortfolio(at, sample, pnp, gpu, storage, acpi,
-            PlatformHardware: platform);
+            PlatformHardware: platform)
+            { TpmDescription = V269TpmReader.Describe(0, 1, 2) };
         var models = MainForm.V269HomeModels(snapshot);
+        Require(models[4].Sensors.Single(x => x.Label == "TPM").Value == "Presente (2.0)" &&
+            V269TpmReader.Describe(0, 1, 1) == "Presente (1.2)" &&
+            V269TpmReader.Describe(0x8028400F, 0, 0) == "Não detectado (TBS)" &&
+            V269TpmReader.Describe(0x80284002, 1, 2) is null &&
+            V269TpmReader.Describe(0, 99, 2) is null &&
+            V269TpmReader.Describe(0, 1, 99) is null,
+            "TPM confirmado, não encontrado e inconclusivo permanecem distintos");
+        Require(models[1].Specs.Single(x => x.Label == "Barramento").Value ==
+                "GPU fixture NVML: PCIe 4.0 x8 (atual)" &&
+            models[1].Specs.Single(x => x.Label == "Driver").Value == "576.02 (NVIDIA NVML)" &&
+            models[1].Specs.Single(x => x.Label == "Resizable BAR").Value == "N/D" &&
+            NvidiaNvmlSensorProvider.FormatPcie(4, null) is null &&
+            NvidiaNvmlSensorProvider.FormatPcie(4, 3) is null &&
+            NvidiaNvmlSensorProvider.FormatPcie(0, 8) is null &&
+            NvidiaNvmlSensorProvider.ValidateDriverVersion("unknown") is null,
+            "PCIe e driver vêm da NVML sem presumir ReBAR ou converter versões");
+        var live = MainForm.UpdateV269LiveRows(models, sample with {
+            CpuUsagePercent = MonitorReading<double>.Available(37, "fixture ao vivo"),
+            Memory = new MemoryRamSample(DateTime.UtcNow, 16UL << 30, 4UL << 30),
+            SystemUptime = MonitorReading<TimeSpan>.Available(TimeSpan.FromHours(4), "fixture ao vivo")
+        });
+        Require(live[0].Sensors.Single(x => x.Label == "Uso").Value == "37%" &&
+            live[2].Sensors.Single(x => x.Label == "Disponível").Value == "4 GiB" &&
+            live[4].Specs.Single(x => x.Label == "Tempo de atividade").Value == "0d 4h 0min" &&
+            live[0].Specs.SequenceEqual(models[0].Specs) &&
+            ReferenceEquals(live[1], models[1]) && ReferenceEquals(live[3], models[3]) &&
+            live[4].Sensors.SequenceEqual(models[4].Sensors),
+            "amostra leve atualiza CPU/RAM/uptime sem inventar ou recapturar dados estáticos");
         Require(models[0].Name == "CPU fixture" &&
             models[0].Specs.Any(x => x.Label == "Núcleos / Threads" && x.Value == "8 / 16") &&
             models[0].Sensors.Any(x => x.Label == "Uso" && x.Value == "0%") &&

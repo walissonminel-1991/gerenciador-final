@@ -12,11 +12,17 @@ internal sealed record NvidiaGpuSensorSample(
     MonitorReading<double> TemperatureC,
     MonitorReading<double> PowerWatts,
     MonitorReading<double> FanPercent,
-    MonitorReading<ulong> VramUsedBytes);
+    MonitorReading<ulong> VramUsedBytes)
+{
+    internal string? CurrentPcieLink { get; init; }
+}
 
 internal sealed record NvidiaGpuSensorSnapshot(
     DateTimeOffset CapturedAtUtc, bool ProviderAvailable,
-    IReadOnlyList<NvidiaGpuSensorSample> Devices, string? Limitation);
+    IReadOnlyList<NvidiaGpuSensorSample> Devices, string? Limitation)
+{
+    internal string? NvidiaDriverVersion { get; init; }
+}
 
 internal static class NvidiaNvmlSensorProvider
 {
@@ -52,6 +58,22 @@ internal static class NvidiaNvmlSensorProvider
     private delegate int GetFan(IntPtr device, out uint percent);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int GetMemory(IntPtr device, out MemoryInfo memory);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int GetDeviceUInt(IntPtr device, out uint value);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int GetDriverVersion([Out] byte[] version, uint length);
+
+    internal static string? FormatPcie(uint? generation, uint? width) =>
+        generation is >= 1 and <= 7 && width is 1 or 2 or 4 or 8 or 12 or 16 or 32
+            ? $"PCIe {generation}.0 x{width} (atual)" : null;
+
+    internal static string? ValidateDriverVersion(string? value)
+    {
+        if (value is null || value.Length > 32) return null;
+        var parts = value.Split('.');
+        return parts.Length is >= 2 and <= 4 && parts.All(p =>
+            p.Length is >= 1 and <= 6 && p.All(char.IsAsciiDigit)) ? value : null;
+    }
 
     internal static MonitorReading<double> Percent(uint? raw, string metric) =>
         raw is <= 100 ? MonitorReading<double>.Available(raw.Value, Source + " " + metric)
@@ -146,6 +168,13 @@ internal static class NvidiaNvmlSensorProvider
             var power = Export<GetPower>(library, "nvmlDeviceGetPowerUsage");
             var fan = Export<GetFan>(library, "nvmlDeviceGetFanSpeed");
             var memory = Export<GetMemory>(library, "nvmlDeviceGetMemoryInfo");
+            var pcieGeneration = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkGeneration");
+            var pcieWidth = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkWidth");
+            var driverVersion = Export<GetDriverVersion>(library, "nvmlSystemGetDriverVersion");
+            var versionBuffer = new byte[96];
+            string? version = driverVersion is not null &&
+                driverVersion(versionBuffer, (uint)versionBuffer.Length) == Success
+                ? ValidateDriverVersion(Decode(versionBuffer)) : null;
             var devices = new List<NvidiaGpuSensorSample>();
             bool partial = total > MaxDevices;
             for (uint index = 0; index < Math.Min(total, (uint)MaxDevices); ++index)
@@ -173,16 +202,22 @@ internal static class NvidiaNvmlSensorProvider
                     fan(device, out var reported) == Success ? reported : null;
                 MemoryInfo? vram = memory is not null &&
                     memory(device, out var info) == Success ? info : null;
+                uint? gen = pcieGeneration is not null && pcieGeneration(device, out uint reportedGen) == Success
+                    ? reportedGen : null;
+                uint? lanes = pcieWidth is not null && pcieWidth(device, out uint reportedLanes) == Success
+                    ? reportedLanes : null;
                 devices.Add(new(index, deviceName, identity,
                     Percent(gpuPercent, "utilização"),
                     Temperature(gpuTemp), Watts(gpuPower),
                     Percent(fanPct, "ventoinha (%; não RPM)"),
                     vram is { } m && IsPlausibleMemory(m.Total, m.Free, m.Used)
                         ? MonitorReading<ulong>.Available(m.Used, Source + " VRAM (WDDM)")
-                        : MonitorReading<ulong>.Unavailable(Source + " VRAM (WDDM)")));
+                        : MonitorReading<ulong>.Unavailable(Source + " VRAM (WDDM)"))
+                { CurrentPcieLink = FormatPcie(gen, lanes) });
             }
             return new(now, true, devices.AsReadOnly(),
-                partial ? "Enumeração NVIDIA parcial" : null);
+                partial ? "Enumeração NVIDIA parcial" : null)
+            { NvidiaDriverVersion = devices.Count > 0 ? version : null };
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or BadImageFormatException
             or InvalidOperationException or SEHException or ArgumentException)

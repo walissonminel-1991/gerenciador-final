@@ -789,6 +789,7 @@ internal sealed partial class MainForm : Form
         };
         root.Controls.Add(_nav, 0, 1);
         ApplyV269ContentAppearance(root);
+        if (startServices) StartV269LiveSampling();
         void FitWorkspace()
         {
             var rows = StartupWindowSizing.WorkspaceRows(
