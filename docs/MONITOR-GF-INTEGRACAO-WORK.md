@@ -21,8 +21,23 @@ PR Draft #114, branch ui/v269-monitor-gf-barras-dinamicas-20261124. Este documen
 7. No encerramento definitivo, parar/cancelar o produtor pelo mecanismo já existente e impedir novos callbacks. Dispose do host na thread UI fecha janela, libera relay e preserva preferência de habilitação. Não confundir fechamento manual do monitor (desabilita) com encerramento do shell (preserva).
 8. Tratar retorno false de Apply/Save como persistência não concluída, mantendo estado em memória; comunicar sem modal/tooltip conforme interface aprovada.
 
-## Configurações
-Criar GfMonitorSettingsPanel no local aprovado em Configurações > Geral. Hidratar com LoadPreferences(host.Preferences()) e Configure(theme). No evento PreferencesChanged, usar ReadPreferences(host.Preferences()) para conservar a posição da janela e passar ao host.Apply. O WORK deve integrar esse evento ao mecanismo existente de gravação/debounce, evitando gravação em cada deslocamento do slider. Não alterar a aparência aprovada de outras configurações. Sincronizar ao reabrir a aba e após mudança de modo/fechamento manual. Não abrir janelas extras de configuração.
+## Configurações — aba interna Monitor (decisão visual do proprietário, 24/11/2026)
+Na página Configurações, criar uma aba interna **Monitor** imediatamente à direita de **Geral**, na mesma linha do cabeçalho do cartão superior, no local indicado pelo proprietário na imagem de 24/11/2026. Geral permanece a seleção inicial. Ao selecionar Monitor, substituir apenas o conteúdo interno do cartão superior pelas preferências do monitor flutuante; Geral e seus seis controles permanecem intactos ao retornar. O cartão Aparência permanece abaixo, independente e inalterado. Não criar uma entrada na barra lateral principal, um terceiro cartão abaixo de Aparência, uma janela modal, painel direito ou seção adicional dentro de Geral. Não duplicar título Monitor dentro do conteúdo. As duas abas devem ter seleção claramente visível nos três temas e acesso por teclado.
+
+Reutilizar a identidade visual existente da PR #113 (V269SettingsPage, V269GeneralSettingsPanel, V269SettingsSwitch, V269SettingsRange, tokens, fontes, margens e escala de interface/texto). Não reproduzir os controles genéricos de checkbox do painel isolado como aparência final: conectar as preferências do GfMonitorSettingsPanel/host aos mesmos switches e slider usados por Configurações. Manter rótulos à esquerda e switches à direita, divisórias discretas entre linhas, sem tooltips, legendas ou botões Aplicar/Salvar redundantes.
+
+Opções reais, vinculadas a GfResourceMonitorPreferences:
+| Rótulo | Campo | Padrão |
+| --- | --- | --- |
+| Ativar Monitor GF | Enabled | Desligado |
+| Restaurar no modo expandido | Expanded | Desligado (compacto) |
+| Sempre no topo | AlwaysOnTop | Desligado |
+| Encaixar nas bordas | SnapToEdges | Ligado |
+| Opacidade | OpacityPercent | 100%; intervalo 40–100% |
+
+A abertura/fechamento do monitor ocorre somente por habilitação explícita ou restauração de preferência já salva pelo host; selecionar a aba não inicia coleta nem habilita o monitor. Hidratar a apresentação a partir de host.Preferences(), sem disparar eventos de ação; conservar X/Y atuais ao editar. Passar alterações reais ao host.Apply e sincronizar após mudança de modo/fechamento manual. Integrar o slider ao mecanismo de gravação/debounce, evitando gravação em cada deslocamento, sem simular persistência. Tratar falha de gravação conforme contrato do host. O WORK deve executar a integração em V269SettingsPage e MainForm na branch única; não alterar essas classes isoladamente na PR #114.
+
+Aceite dirigido: alternar Geral/Monitor por mouse e teclado, verificar seleção, cinco controles e estados reais, persistência, sincronização após fechar/reabrir o monitor, Geral e Aparência preservados, três temas, escalas e 1440×900/2560×1440; sem rolagem adicional quando o conteúdo cabe. A aba Monitor não é uma nova aba principal. Esta decisão substitui a instrução anterior de inserir o painel em Geral.
 
 ## Evidência térmica
 A saída D3DKMT da PR #106 ainda não fornece o par TemperatureWarning e TemperatureMax; não fabricar capacidade por nome, família ou temperatura genérica. Quando o contrato real existir, construir GfThermalEvidence.FromD3dKmt apenas com consulta de capacidades bem-sucedida, mesma chave física, mesma geração, valores nativos em décimos de °C e instante de capacidades associado ao sensor. Sem par válido, omitir evidence. Não descartar uma leitura medida somente por ultrapassar máximo reportado; reconciliar com as regras de validade do provedor. A escala de referência sem limites não equivale a diagnóstico. Temperaturas CPU também dependem de sensor comprovado. Nenhuma mudança em #106 é feita por este documento.
