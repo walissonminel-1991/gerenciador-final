@@ -167,6 +167,7 @@ internal sealed class GfDynamicProgressBar : Control
     protected override void OnVisibleChanged(EventArgs e)
     {
         base.OnVisibleChanged(e);
+        if (IsDisposed || Disposing || _animation is null) return;
         if (!Visible) Snap();
         else if (_animate && _target.State == GfMeterState.Indeterminate) _animation.Start();
     }
