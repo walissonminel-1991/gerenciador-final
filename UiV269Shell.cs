@@ -275,7 +275,9 @@ internal sealed class V269Shell : UserControl
     private Button? _paneToggle;
     private bool _compactPaneOpen;
     private bool? _appPaneOpen;
-    private bool _appPaneAtBottom;
+    private int _appPanePlacement;
+    private int _appPaneWidth=305;
+    private V269AppSplitter? _appSplitter;
     private bool? _dashboardPaneOpen;
     private bool _movingHomeToggle;
 
@@ -635,11 +637,11 @@ internal sealed class V269Shell : UserControl
         {
             bool compact=windowWidth<=1040;
             showRight=mandatory||(!compact||(_appPaneOpen??retained));
-            right=S(windowWidth<=1250?275:305);
+            right=S(_appPaneWidth);
         }
         bool below=apps&&windowWidth<=1040&&showRight;
-        if(!showRight||below)right=0;
-        PlaceV269AppPane(below);
+        if(!showRight||apps)right=0;
+        PlaceV269AppPane(apps&&showRight?below?2:1:0);
         if (home)
         {
             // As medidas CSS já incluem borda e padding da barra lateral.
@@ -647,7 +649,7 @@ internal sealed class V269Shell : UserControl
             sidebar = S(sidebarCss + 11);
             _columns.Padding = new Padding(S(9));
             _sidebar.Margin = new Padding(0, 0, S(11), 0);
-            _content.Margin = new Padding(0,0,showRight&&!below?S(10):0,below?S(6):0);
+            _content.Margin = new Padding(0,0,showRight&&!apps?S(10):0,0);
             _navigationLayout.Padding = new Padding(S(8), S(8), S(8), S(9));
         }
         else
@@ -659,7 +661,7 @@ internal sealed class V269Shell : UserControl
         }
         _columns.ColumnStyles[0].Width = sidebar;
         _columns.ColumnStyles[2].Width = right;
-        _rightPane.Visible = right > 0 || below;
+        _rightPane.Visible = right > 0 || apps&&showRight;
         int navHeight = _paneToggle is null ? 48 :
             Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
         // No HTML, Configurações pertence a .nav-end, não a .nav-list.
@@ -731,32 +733,60 @@ internal sealed class V269Shell : UserControl
 
     // Gradientes e bordas da última cascata do HTML congelado, somente
     // na aba Início. Os demais painéis conservam sua paleta original.
-    // Exclusivo de Aplicativos: a referência compacta coloca detalhes abaixo
-    // da área principal, sem roubar a largura das seis colunas.
-    private void PlaceV269AppPane(bool below)
+    // A superfície de Aplicativos contém toolbar, tabela, divisor e painel,
+    // sem alterar as posições de Início, Configurações ou outras views.
+    private void PlaceV269AppPane(int placement)
     {
-        if(_appPaneAtBottom==below)return;
-        _appPaneAtBottom=below;
-        _columns.SuspendLayout();
-        try
+        int S(int value)=>V269VisualTokens.Scale(value,InterfaceScalePercent);
+        if(_appPanePlacement!=placement)
         {
-            if(below)
+            _columns.SuspendLayout();_centralLayout.SuspendLayout();
+            try
             {
-                _columns.RowCount=2;_columns.RowStyles[0].Height=58;
-                _columns.RowStyles.Add(new RowStyle(SizeType.Percent,42));
-                _columns.SetRowSpan(_sidebar,2);
-                _columns.SetCellPosition(_rightPane,new TableLayoutPanelCellPosition(1,1));
+                _rightPane.Parent?.Controls.Remove(_rightPane);
+                if(_appSplitter?.Parent is not null)_appSplitter.Parent.Controls.Remove(_appSplitter);
+                _centralLayout.SetColumnSpan(_headingLayout,1);
+                _centralLayout.ColumnCount=1;_centralLayout.RowCount=2;
+                while(_centralLayout.ColumnStyles.Count>1)_centralLayout.ColumnStyles.RemoveAt(1);
+                while(_centralLayout.RowStyles.Count>2)_centralLayout.RowStyles.RemoveAt(2);
+                _centralLayout.RowStyles[1].Height=100;
+                if(placement==1)
+                {
+                    _centralLayout.ColumnCount=3;
+                    _centralLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,S(25)));
+                    _centralLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,S(_appPaneWidth)));
+                    _centralLayout.SetColumnSpan(_headingLayout,3);
+                    if(_appSplitter is null)
+                    {
+                        _appSplitter=new V269AppSplitter();
+                        _appSplitter.MoveBy+=delta=>{
+                            int logical=(int)Math.Round(delta*100d/InterfaceScalePercent);
+                            _appPaneWidth=Math.Clamp(_appPaneWidth-logical,210,480);
+                            ApplyDimensions();
+                        };
+                    }
+                    _centralLayout.Controls.Add(_appSplitter,1,1);
+                    _centralLayout.Controls.Add(_rightPane,2,1);
+                }
+                else if(placement==2)
+                {
+                    _centralLayout.RowCount=3;_centralLayout.RowStyles[1].Height=58;
+                    _centralLayout.RowStyles.Add(new RowStyle(SizeType.Percent,42));
+                    _centralLayout.Controls.Add(_rightPane,0,2);
+                }
+                else _columns.Controls.Add(_rightPane,2,0);
+                _appPanePlacement=placement;
             }
-            else
-            {
-                _columns.SetCellPosition(_rightPane,new TableLayoutPanelCellPosition(2,0));
-                _columns.SetRowSpan(_sidebar,1);
-                _columns.RowCount=1;
-                if(_columns.RowStyles.Count>1)_columns.RowStyles.RemoveAt(1);
-                _columns.RowStyles[0].Height=100;
-            }
+            finally{_centralLayout.ResumeLayout(true);_columns.ResumeLayout(true);}
         }
-        finally{_columns.ResumeLayout(true);}
+        if(placement==1)
+        {
+            int width=Math.Min(S(_appPaneWidth),Math.Max(S(170),(int)(_centralLayout.ClientSize.Width*.45)));
+            _centralLayout.ColumnStyles[1].Width=S(25);
+            _centralLayout.ColumnStyles[2].Width=width;
+            if(_appSplitter is not null)_appSplitter.ForeColor=V269VisualTokens.ForTheme(Theme).Border;
+        }
+        _rightPane.Margin=placement==2?new Padding(0,S(10),0,0):Padding.Empty;
     }
 
     private void ApplyHomeSurfaces(bool home)
@@ -1043,6 +1073,45 @@ internal sealed class V269HomeSurfacePanel : Panel
         using var outline = new Pen(border);
         e.Graphics.FillPath(fill, path);
         e.Graphics.DrawPath(outline, path);
+    }
+}
+
+internal sealed class V269AppSplitter:Control
+{
+    private int _lastX;private bool _drag;
+    internal event Action<int>? MoveBy;
+    internal V269AppSplitter()
+    {
+        Name="V269AppSplitter";Dock=DockStyle.Fill;Margin=Padding.Empty;TabStop=true;
+        AccessibleName="Redimensionar painel de detalhes";AccessibleRole=AccessibleRole.Separator;
+        Cursor=Cursors.VSplit;BackColor=Color.Transparent;
+        SetStyle(ControlStyles.UserPaint|ControlStyles.SupportsTransparentBackColor|
+            ControlStyles.OptimizedDoubleBuffer|ControlStyles.Selectable,true);
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        using var pen=new Pen(ForeColor,Focused?3:2);
+        e.Graphics.DrawLine(pen,Width/2,Height*42/100,Width/2,Height*58/100);
+        if(Focused)ControlPaint.DrawFocusRectangle(e.Graphics,ClientRectangle);
+    }
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);if(e.Button!=MouseButtons.Left)return;
+        Focus();_drag=true;_lastX=PointToScreen(e.Location).X;Capture=true;
+    }
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);if(!_drag||!Capture)return;
+        int now=PointToScreen(e.Location).X,delta=now-_lastX;_lastX=now;
+        if(delta!=0)MoveBy?.Invoke(delta);
+    }
+    protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);_drag=false;Capture=false;}
+    protected override void OnMouseCaptureChanged(EventArgs e){base.OnMouseCaptureChanged(e);if(!Capture)_drag=false;}
+    protected override bool IsInputKey(Keys keyData)=>(keyData&Keys.KeyCode) is Keys.Left or Keys.Right||base.IsInputKey(keyData);
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if(e.KeyCode is Keys.Left or Keys.Right){MoveBy?.Invoke(e.KeyCode==Keys.Left?-12:12);e.Handled=true;return;}
+        base.OnKeyDown(e);
     }
 }
 

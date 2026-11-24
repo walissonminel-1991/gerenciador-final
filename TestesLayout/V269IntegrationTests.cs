@@ -197,13 +197,21 @@ internal static class V269IntegrationTests
                     details.PerformClick();Application.DoEvents();
                     Require(shell.RightPane.Visible&&shell.RightPane.Current?.Kind==V269PanelKind.Details,"detalhes compactos acessíveis");
                     var columns=(TableLayoutPanel)shell.RightPane.Parent!;
-                    Require(columns.GetRow(shell.RightPane)==1&&columns.GetColumn(shell.RightPane)==1,"painel compacto fica abaixo da tabela");
+                    Require(columns.Name=="V269MainLayout"&&columns.GetRow(shell.RightPane)==2&&columns.GetColumn(shell.RightPane)==0,"painel compacto fica abaixo da tabela");
                     Require(shell.RightPane.Current?.Application is {Fields.Count:7}&&
                         shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
                         "painel estruturado expõe fatos locais e motivos");
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-DETALHES-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");
                     details.PerformClick();Application.DoEvents();
+                }
+                if(size.Width>1040)
+                {
+                    var splitter=form.Controls.Find("V269AppSplitter",true).Single();
+                    int previous=shell.RightPane.Width;
+                    typeof(V269AppSplitter).GetMethod("OnKeyDown",flags)!.Invoke(splitter,[new KeyEventArgs(Keys.Left)]);
+                    Application.DoEvents();Require(shell.RightPane.Width>previous,"divisor real redimensiona painel por teclado");
+                    typeof(V269AppSplitter).GetMethod("OnKeyDown",flags)!.Invoke(splitter,[new KeyEventArgs(Keys.Right)]);
                 }
                 more.PerformClick();Application.DoEvents();
                 Require(form.Controls.Find("V269AppsExtraCommands",true).Single().Visible,"comandos complementares alcançáveis");
