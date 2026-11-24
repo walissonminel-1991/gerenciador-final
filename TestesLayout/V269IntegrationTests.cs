@@ -123,7 +123,8 @@ internal static class V269IntegrationTests
                 available, MonitorReading<double>.Available(61, "fixture"),
                 missing, MonitorReading<double>.Available(35, "fixture"),
                 MonitorReading<ulong>.Available(2UL << 30, "fixture"))
-                { CurrentPcieLink = NvidiaNvmlSensorProvider.FormatPcie(4, 8) }], null)
+                { CurrentPcieLink = NvidiaNvmlSensorProvider.FormatPcie(4, 8),
+                    ReportedArchitecture = NvidiaNvmlSensorProvider.FormatArchitecture(10) }], null)
             { NvidiaDriverVersion = NvidiaNvmlSensorProvider.ValidateDriverVersion("576.02") };
         var storage = WindowsStorageSensorProvider.Join([], []);
         var acpi = new AcpiThermalZoneSnapshot(at, HardwareDiscoveryState.Unavailable, [], null);
@@ -148,6 +149,10 @@ internal static class V269IntegrationTests
                 "GPU fixture NVML: PCIe 4.0 x8 (atual)" &&
             models[1].Specs.Single(x => x.Label == "Driver").Value == "576.02 (NVIDIA NVML)" &&
             models[1].Specs.Single(x => x.Label == "Resizable BAR").Value == "N/D" &&
+            models[1].Specs.Single(x => x.Label == "Arquitetura").Value == "GPU fixture NVML: Blackwell (NVML)" &&
+            NvidiaNvmlSensorProvider.FormatArchitecture(7) == "Ampere" &&
+            NvidiaNvmlSensorProvider.FormatArchitecture(uint.MaxValue) is null &&
+            NvidiaNvmlSensorProvider.FormatArchitecture(null) is null &&
             NvidiaNvmlSensorProvider.FormatPcie(4, null) is null &&
             NvidiaNvmlSensorProvider.FormatPcie(4, 3) is null &&
             NvidiaNvmlSensorProvider.FormatPcie(0, 8) is null &&

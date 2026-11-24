@@ -493,12 +493,17 @@ internal sealed class V269Shell : UserControl
         // As fontes são liberadas somente após a destruição dos controles.
     }
 
+    // A referência usa a largura da superfície da janela (gfwindow).
+    // O Form pode ter outra largura nos testes de resolução simulada.
+    internal int LayoutWindowWidth => Math.Max(1, (int)Math.Round(
+        (Parent?.ClientSize.Width ?? ClientSize.Width) * 96d / DeviceDpi));
+
     private void ApplyDimensions()
     {
         if (_columns is null || _navigationLayout is null) return;
         int width = Math.Max(1, ClientSize.Width);
         bool home = SelectedPage == V269Page.Inicio;
-        int windowWidth = (int)Math.Round((FindForm()?.ClientSize.Width ?? width) * 96d / DeviceDpi);
+        int windowWidth = LayoutWindowWidth;
         // Início usa os breakpoints do CSS congelado, medidos pela janela.
         int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
         if (_homeGeometry != home)

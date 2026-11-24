@@ -298,7 +298,9 @@ internal sealed partial class MainForm
             ? driver + " (NVIDIA NVML)" : null;
         var graphics = new List<V269HomeRow> {
             R("Memória", Join(dxgi.Select(x => x.Name + ": " + Gib(x.DedicatedVideoMemory) + " (DXGI)"))),
-            R("Barramento", links), R("Resizable BAR", nd), R("Driver", nvidiaDriver), R("Arquitetura", nd) };
+            R("Barramento", links), R("Resizable BAR", nd), R("Driver", nvidiaDriver),
+            R("Arquitetura", Join(nvml.Where(x => x.ReportedArchitecture is not null)
+                .Select(x => x.Name + ": " + x.ReportedArchitecture + " (NVML)"))) };
         var gpuSensors = new List<V269HomeRow>();
         if (nvml.Count == 0)
         {
@@ -791,7 +793,10 @@ internal sealed class V269HomeDashboard : Panel
             int S(int px) => Math.Max(1, (int)Math.Round(px * _appearance.InterfacePercent / 100d * DeviceDpi / 96d));
             // Breakpoints da janela do HTML (gfwindow), não da largura
             // restante do painel: 940..1090 restaura as duas colunas.
-            int windowWidth = (int)Math.Round((FindForm()?.ClientSize.Width ?? ClientSize.Width) * 96d / DeviceDpi);
+            Control? ancestor = Parent;
+            while (ancestor is not null && ancestor is not V269Shell) ancestor = ancestor.Parent;
+            int windowWidth = ancestor is V269Shell shell ? shell.LayoutWindowWidth :
+                (int)Math.Round((FindForm()?.ClientSize.Width ?? ClientSize.Width) * 96d / DeviceDpi);
             bool compactHeight = Screen.FromControl(this).WorkingArea.Height * 96d / DeviceDpi <= 950;
             int padding = S(2), gap = S(compactHeight ? 7 : 10);
             int width = Math.Max(1, ClientSize.Width - 2 * padding);
@@ -934,6 +939,8 @@ internal sealed class V269HomeCard : Control
         using var font = TextFont(fontPixels);
         using var bold = TextFont(fontPixels, FontStyle.Bold);
         using var nameFont = TextFont(13, FontStyle.Bold);
+        // A cascata de .app-window .hw-card mantém o padding 10/11
+        // também nos breakpoints compactos; gap de 12px prevalece no CSS.
         int pad = S(11), gap = S(12), verticalPad = S(10);
         int heading = Math.Max(S(compactHeight ? 28 : 31), title.Height + S(compactHeight ? 7 : 10));
         int contentWidth = Math.Max(1, width - 2 * pad - S(2));
@@ -1056,9 +1063,20 @@ internal sealed class V269HomeCard : Control
             int start = y;
             foreach (var row in rows)
             {
-                bool stacked = w < S(104);
-                int left = stacked ? w : Math.Max(1, (w - S(6)) * 48 / 100);
-                int right = stacked ? w : Math.Max(1, w - left - S(6));
+                // .hw-kv/.hw-sensor continuam lado a lado no CSS de 940–1090.
+                // Distribuir conforme a largura natural do rótulo/valor,
+                // sem a quebra artificial em duas linhas para toda coluna estreita.
+                bool stacked = w < S(48);
+                int rowGap = S(8);
+                int available = Math.Max(2, w - rowGap);
+                int labelNatural = TextRenderer.MeasureText(row.Label, font, Size.Empty,
+                    TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine).Width;
+                int valueNatural = TextRenderer.MeasureText(row.Value, bold, Size.Empty,
+                    TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine).Width;
+                int left = stacked ? w : Math.Clamp(
+                    (int)Math.Round(available * labelNatural / (double)Math.Max(1, labelNatural + valueNatural)),
+                    Math.Max(1, available / 3), Math.Max(1, available - available / 4));
+                int right = stacked ? w : Math.Max(1, available - left);
                 int h1 = HeightOf(row.Label, font, left), h2 = HeightOf(row.Value, bold, right);
                 int vertical = S(compactHeight ? 3 : 6);
                 int h = (stacked ? h1 + h2 : Math.Max(h1, h2)) + 2 * vertical + S(1);
@@ -1066,7 +1084,7 @@ internal sealed class V269HomeCard : Control
                 {
                     TextRenderer.DrawText(target, row.Label, font, new Rectangle(x, y + vertical, left, h1), muted, Flags);
                     TextRenderer.DrawText(target, row.Value, bold,
-                        new Rectangle(stacked ? x : x + left + S(6), y + vertical + (stacked ? h1 : 0), right, h2),
+                        new Rectangle(stacked ? x : x + left + rowGap, y + vertical + (stacked ? h1 : 0), right, h2),
                         ink, Flags | (stacked ? TextFormatFlags.Left : TextFormatFlags.Right));
                     using var line = new Pen(soft);
                     target.DrawLine(line, x, y + h - 1, x + w, y + h - 1);

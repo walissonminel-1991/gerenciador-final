@@ -15,6 +15,7 @@ internal sealed record NvidiaGpuSensorSample(
     MonitorReading<ulong> VramUsedBytes)
 {
     internal string? CurrentPcieLink { get; init; }
+    internal string? ReportedArchitecture { get; init; }
 }
 
 internal sealed record NvidiaGpuSensorSnapshot(
@@ -62,6 +63,15 @@ internal static class NvidiaNvmlSensorProvider
     private delegate int GetDeviceUInt(IntPtr device, out uint value);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int GetDriverVersion([Out] byte[] version, uint length);
+
+    // Enum oficial nvmlDeviceArchitecture_t. Não inferir pelo nome,
+    // compute capability, memória, índice DXGI ou geração PCIe.
+    internal static string? FormatArchitecture(uint? raw) => raw switch
+    {
+        2 => "Kepler", 3 => "Maxwell", 4 => "Pascal", 5 => "Volta",
+        6 => "Turing", 7 => "Ampere", 8 => "Ada", 9 => "Hopper",
+        10 => "Blackwell", _ => null
+    };
 
     internal static string? FormatPcie(uint? generation, uint? width) =>
         generation is >= 1 and <= 7 && width is 1 or 2 or 4 or 8 or 12 or 16 or 32
@@ -170,6 +180,7 @@ internal static class NvidiaNvmlSensorProvider
             var memory = Export<GetMemory>(library, "nvmlDeviceGetMemoryInfo");
             var pcieGeneration = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkGeneration");
             var pcieWidth = Export<GetDeviceUInt>(library, "nvmlDeviceGetCurrPcieLinkWidth");
+            var architecture = Export<GetDeviceUInt>(library, "nvmlDeviceGetArchitecture");
             var driverVersion = Export<GetDriverVersion>(library, "nvmlSystemGetDriverVersion");
             var versionBuffer = new byte[96];
             string? version = driverVersion is not null &&
@@ -213,7 +224,12 @@ internal static class NvidiaNvmlSensorProvider
                     vram is { } m && IsPlausibleMemory(m.Total, m.Free, m.Used)
                         ? MonitorReading<ulong>.Available(m.Used, Source + " VRAM (WDDM)")
                         : MonitorReading<ulong>.Unavailable(Source + " VRAM (WDDM)"))
-                { CurrentPcieLink = FormatPcie(gen, lanes) });
+                {
+                    CurrentPcieLink = FormatPcie(gen, lanes),
+                    ReportedArchitecture = architecture is not null &&
+                        architecture(device, out uint reportedArchitecture) == Success
+                        ? FormatArchitecture(reportedArchitecture) : null
+                });
             }
             return new(now, true, devices.AsReadOnly(),
                 partial ? "Enumeração NVIDIA parcial" : null)

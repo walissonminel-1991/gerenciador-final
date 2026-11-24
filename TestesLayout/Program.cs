@@ -803,6 +803,21 @@ internal static class LayoutTests
 
                     if (capture)
                     {
+                        // A matriz continua verificando foco e visibilidade de todas as ações.
+                        // A captura de Início deve, porém, representar o estado de abertura
+                        // e não a posição de rolagem do último botão testado.
+                        if (tab == V269Page.Inicio && nav.PageContent(tab) is V269HomeDashboard home)
+                        {
+                            home.Focus();
+                            Application.DoEvents();
+                            home.AutoScrollPosition = Point.Empty;
+                            home.PerformLayout();
+                            Application.DoEvents();
+                            if (nav.LayoutWindowWidth is >= 940 and <= 1090 &&
+                                home.ClientSize.Width >= 470 * home.DeviceDpi / 96 &&
+                                home.Cards[0].Top != home.Cards[1].Top)
+                                throw new Exception("Início perdeu as duas colunas do breakpoint CSS de 940–1090.");
+                        }
                         // Nao criar bitmaps gigantes (5K/8K); nesses casos a
                         // cobertura verifica geometria, foco e navegabilidade.
                         using var shot = new Bitmap(surface.Width, surface.Height);
