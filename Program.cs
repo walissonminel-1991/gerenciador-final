@@ -997,25 +997,29 @@ internal sealed partial class MainForm : Form
     private Control BuildHeader()
     {
         var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5));
+        panel.Name = "V269BrandHeader";
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        panel.Controls.Add(new Panel
+        var mark = new V269BrandMark(() => _v269Appearance.Theme)
         {
-            Dock = DockStyle.Fill, BackColor = AppServices.Blue,
-            Margin = new Padding(0, 7, 0, 8)
-        }, 0, 0);
+            Name = "V269BrandMark", Dock = DockStyle.Fill, Margin = new Padding(11, 0, 0, 0),
+            AccessibleName = "GF", AccessibleRole = AccessibleRole.Graphic
+        };
+        panel.Controls.Add(mark, 0, 0);
+        panel.SetRowSpan(mark, 2);
+        panel.BackColorChanged += (_, _) => mark.Invalidate();
         panel.Controls.Add(new Label
         {
-            Text = "GERENCIADOR FINAL", Dock = DockStyle.Fill,
+            Name = "V269BrandTitle", Text = "GERENCIADOR FINAL", Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 15.5F, FontStyle.Bold), ForeColor = Ink,
             Margin = new Padding(13, 0, 0, 0), TextAlign = ContentAlignment.MiddleLeft
         }, 1, 0);
         panel.Controls.Add(new Label
         {
-            Text = "Programas, atualizações e manutenção do Windows em um só lugar.",
+            Name = "V269BrandSubtitle", Text = "Manutenção e otimização do Windows · V2.6.9",
             Dock = DockStyle.Fill, Margin = new Padding(13, 0, 0, 0),
             ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft,
             AutoEllipsis = true
@@ -4488,3 +4492,37 @@ internal static class NativeMethods
 }
 
 
+
+
+// Marca GF da especificação visual; não cria ações de janela.
+internal sealed class V269BrandMark : Control
+{
+    private readonly Func<V269Theme> _theme;
+    internal V269BrandMark(Func<V269Theme> theme)
+    {
+        _theme = theme;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.SupportsTransparentBackColor | ControlStyles.ResizeRedraw, true);
+        BackColor = Color.Transparent;
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        int n = Math.Min(Math.Min(Width,Height)-2,Math.Max(1,55*DeviceDpi/96));
+        if(n < 8) return;
+        var r = new Rectangle((Width-n)/2,(Height-n)/2,n,n);
+        Color H(string hex) => ColorTranslator.FromHtml(hex);
+        var (top,bottom,border) = _theme() switch {
+            V269Theme.Dark => (H("#6d747b"),H("#3a4046"),H("#a7b2ba")),
+            V269Theme.Claro => (H("#2271aa"),H("#124a79"),H("#58a8d8")),
+            _ => (H("#1a7bb0"),H("#0d57b0"),H("#58a8d8")) };
+        using var path = V269Shell.Rounded(r,13);
+        using var brush = new System.Drawing.Drawing2D.LinearGradientBrush(r,top,bottom,135f);
+        using var pen = new Pen(border);
+        g.FillPath(brush,path); g.DrawPath(pen,path);
+        using var font = new Font("Segoe UI",n*0.45f,FontStyle.Bold,GraphicsUnit.Pixel);
+        TextRenderer.DrawText(g,"GF",font,r,Color.White,TextFormatFlags.HorizontalCenter |
+            TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+    }
+}
