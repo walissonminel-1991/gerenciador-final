@@ -17,6 +17,32 @@ internal static class GfResourceMonitorTests
         }
     }
 
+    // Gate de pixels: um PNG com os painéis presentes mas sem texto não passa.
+    private static void VerifyCompactCapture(GfResourceMonitorForm form, Bitmap bitmap)
+    {
+        var labels = All(form).OfType<Label>().Where(x => x.Name.StartsWith("MonitorCompactMetric", StringComparison.Ordinal)).ToArray();
+        Require(labels.Length == 5 && labels.All(x => x.Visible && x.Width > 0 && x.Height > 0), "compacto exige cinco métricas visíveis");
+        Require(All(form).OfType<GfMonitorGlyph>().Count(x => x.Visible) == 5, "compacto exige cinco pictogramas");
+        Require(All(form).OfType<Button>().Count(x => x.Visible) == 2, "compacto exige expandir e fechar");
+        string[] expected = ["CPU 14%", "GPU 12%", "RAM 42%", "CPU 48°C", "GPU 46°C"];
+        Require(expected.All(x => labels.Any(l => l.Text == x)), "compacto deve apresentar os cinco valores da fixture");
+        foreach (var label in labels)
+        {
+            var box = Rectangle.Intersect(new Rectangle(form.PointToClient(label.PointToScreen(Point.Empty)), label.Size),
+                new Rectangle(Point.Empty, bitmap.Size));
+            Require(box.Width > 0 && box.Height > 0, "métrica fora da janela");
+            var foreground = label.ForeColor;
+            int pixels = 0;
+            for (int y = box.Top; y < box.Bottom; y++)
+                for (int x = box.Left; x < box.Right; x++)
+                {
+                    var p = bitmap.GetPixel(x, y);
+                    if (Math.Abs(p.R - foreground.R) + Math.Abs(p.G - foreground.G) + Math.Abs(p.B - foreground.B) < 65) pixels++;
+                }
+            Require(pixels >= 5, "captura sem texto renderizado: " + label.Name);
+        }
+    }
+
     private static void VerifyPreferences()
     {
         var defaults = GfResourceMonitorPreferences.Default;
@@ -152,6 +178,7 @@ internal static class GfResourceMonitorTests
                 Require(preview.ClientSize.Width > 0 && preview.ClientSize.Height > 0, "captura com área válida");
                 using var bitmap = new Bitmap(preview.ClientSize.Width, preview.ClientSize.Height);
                 preview.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                if (!expanded) VerifyCompactCapture(preview, bitmap);
                 bitmap.Save(Path.Combine("LayoutCaptures", $"MonitorGF-{theme}-{(expanded ? "Expandido" : "Compacto")}.png"),
                     System.Drawing.Imaging.ImageFormat.Png);
             }

@@ -180,15 +180,40 @@ internal sealed class GfDynamicProgressBar : Control
         var p = V269VisualTokens.ForTheme(_theme);
         using var track = new SolidBrush(p.Border);
         using var fill = new SolidBrush(_shownColor);
-        e.Graphics.FillRectangle(track, 0, 0, Width, Height);
+        using var outline = Capsule(new RectangleF(0, 0, Width, Height));
+        e.Graphics.FillPath(track, outline);
+        var saved = e.Graphics.Save();
+        e.Graphics.SetClip(outline);
         if (_target.State == GfMeterState.Indeterminate)
         {
             int w = Math.Max(1, Width / 4);
             int x = _animate ? (int)((Environment.TickCount64 % 1200) * (Width - w) / 1200) : (Width - w) / 2;
-            e.Graphics.FillRectangle(fill, x, 0, w, Height);
+            using var segment = Capsule(new RectangleF(x, 0, w, Height));
+            e.Graphics.FillPath(fill, segment);
         }
-        else if (_target.Fraction.HasValue)
-            e.Graphics.FillRectangle(fill, 0, 0, (float)(Width * Math.Clamp(_shown, 0, 1)), Height);
+        else if (_target.Fraction.HasValue && _shown > 0)
+        {
+            float w = (float)(Width * Math.Clamp(_shown, 0, 1));
+            using var segment = Capsule(new RectangleF(0, 0, w, Height));
+            e.Graphics.FillPath(fill, segment);
+        }
+        e.Graphics.Restore(saved);
+    }
+
+    private static GraphicsPath Capsule(RectangleF bounds)
+    {
+        var path = new GraphicsPath();
+        float d = Math.Min(bounds.Height, bounds.Width);
+        if (d <= 0) return path;
+        if (bounds.Width < bounds.Height)
+        {
+            path.AddEllipse(bounds);
+            return path;
+        }
+        path.AddArc(bounds.Left, bounds.Top, d, d, 90, 180);
+        path.AddArc(bounds.Right - d, bounds.Top, d, d, 270, 180);
+        path.CloseFigure();
+        return path;
     }
 
     protected override void Dispose(bool disposing)

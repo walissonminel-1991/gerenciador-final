@@ -26,3 +26,10 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 - Preferências do monitor versionadas e locais (habilitação opt-in, modo, sempre no topo, opacidade 40–100%, encaixe, coordenadas). Caminho explicitamente fornecido pelo futuro host; arquivo separado, leitura limitada, escrita temporária + substituição, fallback seguro. Formulário expõe aplicar/capturar e ajusta posição à área de trabalho. Nenhuma ativação ou persistência automática no shell.
 - Adapter verifica frescor de CPU, RAM, WDDM, DXGI e D3DKMT, sem renovar valor antigo; rejeita denominador DXGI para múltiplos índices físicos observados. UI rejeita replay e amostra velha, conserva watermark e invalida com relógio monotônico.
 - A CI anterior 45404416680 foi cancelada na regressão pelo novo HEAD; integridade 45404416783 aprovada. Não atribuir aprovação global anterior aos novos commits. Capturas e CI do SHA final ainda pendentes. Limite térmico real depende do contrato do provedor; nenhuma alteração nas PRs #106/#113.
+
+
+## 24/11 — gate de captura e correção visual
+- HEAD f7165a3: CI Windows 45405273087 e integridade 45405273024 SUCCESS; regressão executou os testes Monitor GF. Checkout de PR: merge de teste 2f7db2d071384fa4f808ea62e0d2656a75f9586e, comprovado pelos logs. Nenhum merge efetivo.
+- Artefato Residuos-layout (14925942444) recuperado e seis PNGs inspecionados. Compactos 552x38: ícones/textos/botões ausentes nos três temas. Expandidos 552x232: seis métricas e legenda presentes, barras retangulares e tipografia pouco hierarquizada. Gate visual REPROVADO.
+- Correção: uma superfície ativa na árvore de controles; linhas explícitas no compacto; rótulos nomeados; títulos/valores em negrito; barras arredondadas por caminho GDI+; descarte dos painéis e fontes. Captura compacta agora exige cinco rótulos, cinco ícones, dois botões, valores esperados e pixels da cor de cada texto. O mecanismo de publicação existente permanece intacto.
+- Correção ainda exige novos PNGs e CIs. Não avançar em integração ou sensores antes da confirmação visual. As cores continuam seguindo as âncoras aprovadas, não os números verdes ilustrativos da imagem.

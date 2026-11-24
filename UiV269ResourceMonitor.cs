@@ -24,6 +24,7 @@ internal sealed class GfResourceMonitorForm : Form
     private readonly List<Control> _surfaces = [];
     private readonly List<Control> _text = [];
     private readonly List<Button> _buttons = [];
+    private readonly List<Font> _ownedFonts = [];
     private readonly List<GfMonitorGlyph> _glyphs = [];
     private readonly Label _compactLogo, _expandedLogo;
     private readonly GfMonitorLegend _legend;
@@ -56,6 +57,7 @@ internal sealed class GfResourceMonitorForm : Form
         var strip = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 8,
             Margin = Padding.Empty, Padding = new(3) };
         _surfaces.Add(strip);
+        strip.RowStyles.Add(new(SizeType.Percent, 100));
         strip.ColumnStyles.Add(new(SizeType.Absolute, 32));
         foreach (int weight in new[] { 19, 19, 19, 21, 22 })
             strip.ColumnStyles.Add(new(SizeType.Percent, weight));
@@ -68,12 +70,15 @@ internal sealed class GfResourceMonitorForm : Form
         {
             var cell = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2,
                 Margin = new(2, 0, 2, 0), Padding = Padding.Empty };
+            cell.RowStyles.Add(new(SizeType.Percent, 100));
             cell.ColumnStyles.Add(new(SizeType.Absolute, 19));
             cell.ColumnStyles.Add(new(SizeType.Percent, 100));
             _surfaces.Add(cell);
             AddSeparator(cell);
             cell.Controls.Add(Glyph(i), 0, 0);
             var label = MakeLabel("—", i >= 4 ? "Temperatura " + Names[i] : "Utilização " + Names[i]);
+            label.Name = "MonitorCompactMetric" + i;
+            label.TextAlign = ContentAlignment.MiddleCenter;
             _compactValues[i] = label;
             cell.Controls.Add(label, 1, 0);
             strip.Controls.Add(cell, col++, 0);
@@ -92,6 +97,7 @@ internal sealed class GfResourceMonitorForm : Form
         layout.RowStyles.Add(new(SizeType.Absolute, 40));
         _surfaces.Add(layout);
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Margin = Padding.Empty };
+        header.RowStyles.Add(new(SizeType.Percent, 100));
         header.ColumnStyles.Add(new(SizeType.Absolute, 29));
         header.ColumnStyles.Add(new(SizeType.Percent, 100));
         header.ColumnStyles.Add(new(SizeType.Absolute, 26));
@@ -99,6 +105,7 @@ internal sealed class GfResourceMonitorForm : Form
         _surfaces.Add(header);
         _expandedLogo = Logo();
         var title = MakeLabel("Monitor GF", "Monitor GF");
+        Emphasize(title, 11f);
         header.Controls.Add(_expandedLogo, 0, 0); header.Controls.Add(title, 1, 0);
         header.Controls.Add(Chrome("⌄", "Recolher monitor", () => SetExpanded(false)), 2, 0);
         header.Controls.Add(Chrome("×", "Fechar monitor", Close), 3, 0);
@@ -106,6 +113,7 @@ internal sealed class GfResourceMonitorForm : Form
         layout.Controls.Add(header, 0, 0);
 
         var panels = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2, Margin = new(0, 3, 0, 3) };
+        panels.RowStyles.Add(new(SizeType.Percent, 100));
         panels.ColumnStyles.Add(new(SizeType.Percent, 57));
         panels.ColumnStyles.Add(new(SizeType.Percent, 43));
         _surfaces.Add(panels);
@@ -116,7 +124,10 @@ internal sealed class GfResourceMonitorForm : Form
             AccessibleName = "Escalas cromáticas de utilização e temperatura" };
         layout.Controls.Add(_legend, 0, 2);
         _expanded.Controls.Add(layout);
-        Controls.Add(_expanded); Controls.Add(_compact);
+        // Somente a superfície ativa fica na árvore visual: evita sobreposição
+        // de painéis Dock.Fill e captura de filhos do modo oculto.
+        _expanded.Visible = false;
+        Controls.Add(_compact);
 
         var menu = new ContextMenuStrip();
         var top = new ToolStripMenuItem("Sempre no topo") { CheckOnClick = true };
@@ -149,8 +160,19 @@ internal sealed class GfResourceMonitorForm : Form
         ClearReadings();
     }
 
-    private Label Logo() => new() { Text = "GF", AccessibleName = "Gerenciador Final", Dock = DockStyle.Fill,
-        TextAlign = ContentAlignment.MiddleCenter, Margin = new(2), ForeColor = Color.White };
+    private void Emphasize(Control control, float size)
+    {
+        var font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Point);
+        _ownedFonts.Add(font);
+        control.Font = font;
+    }
+    private Label Logo()
+    {
+        var label = new Label { Text = "GF", AccessibleName = "Gerenciador Final", Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleCenter, Margin = new(2), ForeColor = Color.White };
+        Emphasize(label, 10f);
+        return label;
+    }
     private Label MakeLabel(string text, string accessible)
     {
         var l = new Label { Text = text, AccessibleName = accessible, Dock = DockStyle.Fill, AutoEllipsis = true,
@@ -176,7 +198,9 @@ internal sealed class GfResourceMonitorForm : Form
         var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = indices.Length + 1,
             Padding = new(4), Margin = new(2, 0, 2, 0), CellBorderStyle = TableLayoutPanelCellBorderStyle.None };
         panel.ColumnStyles.Add(new(SizeType.Percent, 100)); panel.RowStyles.Add(new(SizeType.Absolute, 20));
-        panel.Controls.Add(MakeLabel(caption, caption), 0, 0);
+        var heading = MakeLabel(caption, caption);
+        Emphasize(heading, 9f);
+        panel.Controls.Add(heading, 0, 0);
         _surfaces.Add(panel);
         _outlined.Add(panel);
         panel.Paint += (_, e) => { using var pen = new Pen(V269VisualTokens.ForTheme(_theme).Border); e.Graphics.DrawRectangle(pen, 0, 0, Math.Max(0, panel.Width - 1), Math.Max(0, panel.Height - 1)); };
@@ -198,6 +222,7 @@ internal sealed class GfResourceMonitorForm : Form
             row.Controls.Add(MakeLabel(Names[i], Names[i]), 1, 0);
             var value = MakeLabel("—", (thermal ? "Temperatura " : "Utilização ") + Names[i]);
             value.TextAlign = ContentAlignment.MiddleRight; _values[i] = value;
+            Emphasize(value, 9f);
             row.Controls.Add(value, thermal ? 2 : 3, 0);
             var bar = new GfDynamicProgressBar { Anchor = AnchorStyles.Left | AnchorStyles.Right, Height = 8, Margin = new(1, 0, 0, 0), AccessibleName = value.AccessibleName };
             _bars[i] = bar;
@@ -232,11 +257,18 @@ internal sealed class GfResourceMonitorForm : Form
         SuspendLayout();
         try
         {
-            _compact.Visible = !value; _expanded.Visible = value;
-            (value ? _expanded : _compact).BringToFront();
+            Panel active = value ? _expanded : _compact;
+            Panel inactive = value ? _compact : _expanded;
+            inactive.Visible = false;
+            if (inactive.Parent == this) Controls.Remove(inactive);
             ClientSize = new(SizeFor(552), SizeFor(value ? 232 : 38));
+            if (active.Parent != this) Controls.Add(active);
+            active.Visible = true;
+            active.BringToFront();
         }
         finally { ResumeLayout(true); }
+        (value ? _expanded : _compact).PerformLayout();
+        Invalidate(true);
         if (Visible) ClampLocation(snap: false);
         if (changed) ModeChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -348,8 +380,18 @@ internal sealed class GfResourceMonitorForm : Form
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _freshness.Dispose();
+        if (disposing)
+        {
+            _freshness.Dispose();
+            if (_compact.Parent != this) _compact.Dispose();
+            if (_expanded.Parent != this) _expanded.Dispose();
+        }
         base.Dispose(disposing);
+        if (disposing)
+        {
+            foreach (Font font in _ownedFonts) font.Dispose();
+            _ownedFonts.Clear();
+        }
     }
 }
 
