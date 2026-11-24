@@ -43,13 +43,12 @@ internal sealed partial class MainForm
 
         var searchBar = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
             Margin = Padding.Empty, BackColor = AppServices.Background
         };
         searchBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
         var searchLabel = new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -67,12 +66,6 @@ internal sealed partial class MainForm
             Margin = new Padding(0, 3, 8, 3)
         };
         searchBar.Controls.Add(search, 1, 0);
-        var clear = CreateSecondaryButton("Limpar");
-        clear.Margin = new Padding(0, 3, 8, 3);
-        clear.Dock = DockStyle.Fill;
-        clear.Click += (_, _) => search.Clear();
-        SuppressHoverHint(clear, "Limpa apenas o campo de pesquisa, sem alterar drivers.");
-        searchBar.Controls.Add(clear, 2, 0);
         root.Controls.Add(searchBar, 0, 0);
 
         // Barra de ações gerais: somente leitura e investigação.
@@ -84,7 +77,7 @@ internal sealed partial class MainForm
         };
         actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
@@ -95,17 +88,6 @@ internal sealed partial class MainForm
         actionPanel.Controls.Add(refresh, 0, 0);
         SuppressHoverHint(refresh,
             "Consulta dispositivos e ofertas WUA, sem instalar ou remover.");
-        var updateDrivers = CreateButton("Atualizar drivers", AppServices.Green, Color.White);
-        updateDrivers.Name = "DriverUpdateEligible";
-        updateDrivers.AccessibleName = "Revisar drivers com oferta WUA elegível";
-        updateDrivers.AccessibleDescription =
-            "Abre a seleção de ofertas oficiais exatas e elegíveis nesta consulta. " +
-            "Cada instalação requer revalidação, backup OEM, UAC e consentimento separado.";
-        updateDrivers.Dock = DockStyle.Fill;
-        updateDrivers.Margin = new Padding(0, 2, 6, 2);
-        updateDrivers.Enabled = false;
-        actionPanel.Controls.Add(updateDrivers, 1, 0);
-        SuppressHoverHint(updateDrivers, updateDrivers.AccessibleDescription);
         var actionInfo = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         var actionHint = new Label
         {
@@ -128,7 +110,8 @@ internal sealed partial class MainForm
         SuppressHoverHint(compactFilter,
             "Filtro somente visual: todos, presentes, problemas PnP, sem driver ou não confirmados.");
         actionInfo.Controls.Add(actionHint);
-        actionInfo.Controls.Add(compactFilter);
+        // Filtros legados existem apenas no laboratório sintético, nunca na página do produto.
+        if (readForTest is not null) actionInfo.Controls.Add(compactFilter);
         var investigate = CreateSecondaryButton("Detalhes");
         investigate.Name = "DriverReadOnlyInvestigation";
         investigate.AccessibleName = "Detalhes e evidências de drivers";
@@ -219,7 +202,8 @@ internal sealed partial class MainForm
             "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
         other.AccessibleDescription = uncertainFilterExplanation;
         SuppressHoverHint(other, uncertainFilterExplanation);
-        root.Controls.Add(heading, 0, 2);
+        if (readForTest is not null) root.Controls.Add(heading, 0, 2);
+        else root.RowStyles[2].Height = 0;
 
         var list = new DarkDriverList { Dock = DockStyle.Fill, Margin = Padding.Empty };
         list.AccessibleName = "Drivers associados a dispositivos; ações sujeitas à elegibilidade";
@@ -385,10 +369,6 @@ internal sealed partial class MainForm
             list.SetActionPolicy(actionable, device => lastResult is not null
                 ? DriverSilentUninstall.Evaluate(lastResult, device)
                 : new DriverSilentUninstallDecision(false, "Inventário indisponível."));
-            if (!updateDrivers.IsDisposed)
-                updateDrivers.Enabled = actionable &&
-                    officialGeneration == inventoryGeneration &&
-                    latestOfficial is { Partial: false } && eligibleUpdateIds.Count > 0;
         }
         list.SelectionChanged += (_, _) =>
         {
@@ -488,79 +468,6 @@ internal sealed partial class MainForm
             dialog.ShowDialog(this);
         }
 
-        void SelectDriverUpdate()
-        {
-            if (!updateDrivers.Enabled || lastResult is not { } inventory) return;
-            var candidates = inventory.Items.Where(item =>
-                eligibleUpdateIds.Contains(item.DeviceId))
-                .OrderBy(item => item.DeviceName, StringComparer.CurrentCultureIgnoreCase)
-                .ToArray();
-            if (candidates.Length == 0) return;
-            using var picker = new Form
-            {
-                Text = "Drivers — escolher atualização WUA",
-                Name = "DriverUpdatePicker",
-                Width = 730, Height = 380, MinimumSize = new Size(470, 290),
-                StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
-                BackColor = AppServices.Background, ForeColor = Ink
-            };
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
-                Padding = new Padding(10)
-            };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            layout.Controls.Add(new Label
-            {
-                Dock = DockStyle.Fill, ForeColor = Ink,
-                Text = "Selecione um dispositivo. A oferta será revalidada; nenhuma instalação automática.",
-                TextAlign = ContentAlignment.MiddleLeft
-            }, 0, 0);
-            var options = new ListView
-            {
-                Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
-                HideSelection = false, MultiSelect = false, BackColor = PanelBackground,
-                ForeColor = Ink, AccessibleName = "Drivers com oferta WUA elegível"
-            };
-            options.Columns.Add("Dispositivo", 380);
-            options.Columns.Add("Fornecedor", 220);
-            foreach (var candidate in candidates)
-            {
-                var row = new ListViewItem(string.IsNullOrWhiteSpace(candidate.DeviceName)
-                    ? "Dispositivo não identificado" : candidate.DeviceName)
-                { Tag = candidate };
-                row.SubItems.Add(candidate.Provider);
-                options.Items.Add(row);
-            }
-            layout.Controls.Add(options, 0, 1);
-            var confirmUpdate = CreateButton("Revisar atualização", AppServices.Green, Color.White);
-            confirmUpdate.Enabled = false;
-            confirmUpdate.Dock = DockStyle.Right;
-            confirmUpdate.Width = 182;
-            confirmUpdate.Click += (_, _) =>
-            {
-                if (options.SelectedItems.Count == 1)
-                {
-                    picker.DialogResult = DialogResult.OK;
-                    picker.Close();
-                }
-            };
-            options.SelectedIndexChanged += (_, _) =>
-                confirmUpdate.Enabled = options.SelectedItems.Count == 1;
-            options.DoubleClick += (_, _) =>
-            {
-                if (confirmUpdate.Enabled) confirmUpdate.PerformClick();
-            };
-            layout.Controls.Add(confirmUpdate, 0, 2);
-            picker.Controls.Add(layout);
-            if (picker.ShowDialog(this) == DialogResult.OK &&
-                options.SelectedItems.Count == 1 &&
-                options.SelectedItems[0].Tag is DriverInventoryEntry chosen)
-                OpenDriverUpdate(chosen);
-        }
-        updateDrivers.Click += (_, _) => SelectDriverUpdate();
         // Um handler por operação. O clique virtual entrega o mesmo objeto que
         // foi selecionado; nenhuma ação usa índice antigo nem nome do dispositivo.
         async Task RunDriverUninstall(DriverInventoryEntry requested)
@@ -837,7 +744,6 @@ internal sealed partial class MainForm
             _driverReusableOfficial = null;
             list.SetOfferDevices(Array.Empty<string>());
             list.SetEligibleUpdateDevices(Array.Empty<string>());
-            updateDrivers.Enabled = false;
             SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
             copySummary.Enabled = false;
@@ -1062,17 +968,15 @@ internal sealed partial class MainForm
                 TextRenderer.MeasureText("Consultar drivers", refresh.Font).Width + Scale(20));
             int investigationWidth = Math.Max(Scale(108),
                 TextRenderer.MeasureText("Detalhes", investigate.Font).Width + Scale(20));
-            int updateWidth = Math.Max(Scale(148),
-                TextRenderer.MeasureText("Atualizar drivers", updateDrivers.Font).Width + Scale(20));
             bool narrow = root.ClientSize.Width < Math.Max(Scale(760),
-                refreshWidth + updateWidth + investigationWidth + Scale(110));
-            bool compactFilters = tiny || root.ClientSize.Width < Scale(760);
+                refreshWidth + investigationWidth + Scale(110));
+            bool compactFilters = readForTest is not null && (tiny || root.ClientSize.Width < Scale(760));
             bool showCopy = !tiny && !narrow;
             // A ação global ocupa uma coluna extra. Em janela estreita,
             // também nas fixtures com Simular, mover o filtro compacto para
             // a segunda linha em vez de deixá-lo com 0-24 px.
             bool splitActions = root.ClientSize.Width <
-                refreshWidth + updateWidth + investigationWidth +
+                refreshWidth + investigationWidth +
                 (labOpen is null ? Scale(92) : Scale(230));
             // O rótulo quebrava "Pesquisar:" em duas linhas no PC FORTE
             // porque a primeira coluna era fixa em 80 px, sem medir a fonte.
@@ -1084,20 +988,19 @@ internal sealed partial class MainForm
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
             root.RowStyles[1].Height = splitActions ? Scale(tiny ? 68 : 79) :
                 tiny ? Scale(35) : Scale(44);
-            root.RowStyles[2].Height = compactFilters ? 0 : Scale(36);
+            root.RowStyles[2].Height = readForTest is null || compactFilters ? 0 : Scale(36);
             // Em SVGA, devolver altura à lista; no modo tiny o histórico
             // já fica oculto e o estado completo continua no tooltip.
             root.RowStyles[4].Height = tiny ? Scale(19) :
                 compact ? Scale(41) : Scale(78);
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
-            heading.Visible = !compactFilters;
+            heading.Visible = readForTest is not null && !compactFilters;
             bool proportionalActions = splitActions && labOpen is null;
-            var widths = new[] { refreshWidth, updateWidth, investigationWidth };
-            for (int i = 0; i < widths.Length; i++)
+            foreach (var (column, width) in new[] { (0, refreshWidth), (2, investigationWidth) })
             {
-                actionPanel.ColumnStyles[i].SizeType = proportionalActions ? SizeType.Percent : SizeType.Absolute;
-                actionPanel.ColumnStyles[i].Width = proportionalActions ? 100f / widths.Length : widths[i];
+                actionPanel.ColumnStyles[column].SizeType = proportionalActions ? SizeType.Percent : SizeType.Absolute;
+                actionPanel.ColumnStyles[column].Width = proportionalActions ? 50f : width;
             }
             actionPanel.ColumnStyles[3].SizeType = proportionalActions ? SizeType.Absolute : SizeType.Percent;
             actionPanel.ColumnStyles[3].Width = proportionalActions ? 0 : 100;
@@ -1165,6 +1068,7 @@ internal sealed partial class MainForm
         }
         root.SizeChanged += (_, _) => FitVerticalSpace();
         root.DpiChangedAfterParent += (_, _) => FitVerticalSpace();
+        if (readForTest is null) root.Disposed += (_, _) => { heading.Dispose(); compactFilter.Dispose(); };
         Render();
         FitVerticalSpace();
         return root;

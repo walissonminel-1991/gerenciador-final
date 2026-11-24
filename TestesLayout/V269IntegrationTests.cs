@@ -28,8 +28,9 @@ internal static class V269IntegrationTests
         paneToggle.PerformClick();
         Application.DoEvents();
         Require(shell.RightPane.Visible &&
-            form.Controls.Find("LocalReliabilityReportButton", true).OfType<Button>().Single().Visible,
-            "abertura manual conserva o acesso à exportação do histórico local");
+            form.Controls.Find("V269LocalHistory", true).Length == 0 &&
+            form.Controls.Find("LocalReliabilityReportButton", true).Length == 0,
+            "painel compartilhado sem atalhos duplicados de histórico; registro acessível em Configurações");
         paneToggle.PerformClick();
         Application.DoEvents();
         Require(!shell.RightPane.Visible, "fechar painel restaura o dashboard");

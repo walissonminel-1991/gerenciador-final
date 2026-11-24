@@ -18,7 +18,6 @@ internal sealed partial class MainForm
     private Button? _exportHardwareButton;
     private IReadOnlyList<HardwareGroup> _hardwareGroups = Array.Empty<HardwareGroup>();
     private sealed record HardwareGroup(string Title, string Content);
-    private Button? _installSelectedUpdates;
     private readonly HashSet<string> _updateSelection = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<WinUpdateChoice> _updateCatalog = Array.Empty<WinUpdateChoice>();
     private readonly System.Windows.Forms.Timer _memoryTimer = new() { Interval = ProcessSamplingPolicy.BackgroundIntervalMs };
@@ -110,11 +109,10 @@ internal sealed partial class MainForm
         details.Controls.Add(_systemPanelSummary, 0, 1);
         _windowsUpdateActionsPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2,
+            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 1,
             BackColor = PanelBackground, Margin = Padding.Empty,
             Padding = Padding.Empty, Visible = false
         };
-        _windowsUpdateActionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 192));
         _windowsUpdateActionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _searchWindowsUpdatesButton = CreateButton("Buscar atualizações", AppServices.Blue, Color.White);
         _searchWindowsUpdatesButton.Name = "WindowsUpdateExplicitSearch";
@@ -126,12 +124,6 @@ internal sealed partial class MainForm
         _searchWindowsUpdatesButton.Click += async (_, _) => await ScanWindowsUpdatesAsync();
         _actionControls.Add(_searchWindowsUpdatesButton);
         _windowsUpdateActionsPanel.Controls.Add(_searchWindowsUpdatesButton, 0, 0);
-        _installSelectedUpdates = CreateButton("Baixar e instalar selecionadas (0)", AppServices.Green, Color.White);
-        _installSelectedUpdates.Dock = DockStyle.Fill;
-        _installSelectedUpdates.Margin = new Padding(3, 1, 3, 5);
-        _installSelectedUpdates.Click += async (_, _) => await InstallSelectedWindowsUpdatesAsync();
-        _actionControls.Add(_installSelectedUpdates);
-        _windowsUpdateActionsPanel.Controls.Add(_installSelectedUpdates, 1, 0);
         details.Controls.Add(_windowsUpdateActionsPanel, 0, 2);
         _systemPanelCards = new DarkScrollableFlow { Dock = DockStyle.Fill, BackColor = PanelBackground };
         _systemPanelCards.Content.BackColor = PanelBackground;
@@ -204,7 +196,7 @@ internal sealed partial class MainForm
         _activeSystemView = view; // Coleta em background permanece independente.
         if (changing && view is "startup" or "update" or "hardware")
             ReplaceSystemCards([]);
-        if (_systemDetails is null || _installSelectedUpdates is null || _windowsUpdateActionsPanel is null) return;
+        if (_systemDetails is null || _windowsUpdateActionsPanel is null) return;
         bool showInstall = view == "update";
         bool showMemory = view == "memory";
         _systemDetails.RowStyles[2].Height = showInstall ? 38 : 0;
@@ -788,7 +780,7 @@ internal sealed partial class MainForm
         }
     }
 
-    private bool CanSelectWindowsUpdates => !_busy && !_batchUpdatesActive &&
+    private bool CanSelectWindowsUpdates => !_busy && !_batchUpdatesActive && !_v269Confirming &&
         !_betaClose.IsClosing && !_windowsUpdateInstalling &&
         !_windowsUpdateScanning && _windowsUpdateChecked && _windowsUpdateRebootRequired is not true;
 
@@ -800,9 +792,11 @@ internal sealed partial class MainForm
             search.Enabled = WindowsUpdateViewActive && !_busy && !_batchUpdatesActive &&
                 !_betaClose.IsClosing && !_windowsUpdateInstalling && !_windowsUpdateScanning;
         }
-        if (_installSelectedUpdates is not { IsDisposed: false } button) return;
-        button.Text = $"Baixar e instalar selecionadas ({_updateSelection.Count})";
-        button.Enabled = WindowsUpdateViewActive && CanSelectWindowsUpdates && _updateSelection.Count > 0;
+        if (_systemPanelCards is null) return;
+        foreach (var card in _systemPanelCards.Content.Controls.OfType<TableLayoutPanel>())
+            foreach (var button in card.Controls.OfType<Button>())
+                if (button.Name == "V269InstallWindowsUpdate" && button.Tag is WinUpdateChoice offer)
+                    button.Enabled = WindowsUpdateViewActive && CanSelectWindowsUpdates && offer.EulaAccepted;
     }
 
     private void ShowWindowsUpdateStatus(string title, string summary)
@@ -877,19 +871,22 @@ internal sealed partial class MainForm
             (update.EulaAccepted ? " · Licença já aceita" : " · Licença pendente no Windows Update"),
             Dock = DockStyle.Fill, ForeColor = Muted, Font = new Font("Segoe UI", 8.7F) };
         card.Controls.Add(details, 0, 1);
-        var toggle = CreateButton(_updateSelection.Contains(update.Id) ? "✓ Selecionada" : "Selecionar atualização",
-            _updateSelection.Contains(update.Id) ? AppServices.Green : AppServices.Blue, Color.White);
+        var toggle = CreateButton("Instalar", AppServices.Blue, Color.White);
+        toggle.Name = "V269InstallWindowsUpdate";
+        toggle.Tag = update;
+        toggle.AccessibleName = "Instalar atualização: " + update.Title;
         toggle.Dock = DockStyle.Fill;
-        toggle.Enabled = update.EulaAccepted && _windowsUpdateRebootRequired is not true;
+        toggle.Enabled = WindowsUpdateViewActive && CanSelectWindowsUpdates && update.EulaAccepted;
         toggle.Margin = Padding.Empty;
-        toggle.Click += (_, _) =>
+        toggle.Click += async (_, _) =>
         {
-            if (!CanSelectWindowsUpdates || !update.EulaAccepted) return;
-            if (!_updateSelection.Add(update.Id)) _updateSelection.Remove(update.Id);
-            toggle.Text = _updateSelection.Contains(update.Id) ? "✓ Selecionada" : "Selecionar atualização";
-            toggle.BackColor = _updateSelection.Contains(update.Id) ? AppServices.Green : AppServices.Blue;
-            toggle.Invalidate();
-            RefreshWindowsUpdateInstallButton();
+            if (!WindowsUpdateViewActive || _nav.SelectedPage != V269Page.Sistema ||
+                !CanSelectWindowsUpdates || !update.EulaAccepted ||
+                !_updateCatalog.Any(offer => EqualityComparer<WinUpdateChoice>.Default.Equals(offer, update))) return;
+            // Cada clique da interface seleciona exatamente uma identidade.
+            _updateSelection.Clear();
+            _updateSelection.Add(update.Id);
+            await InstallSelectedWindowsUpdatesAsync();
         };
         card.Controls.Add(toggle, 0, 2);
         return card;
@@ -951,7 +948,9 @@ internal sealed partial class MainForm
         if (!await ConfirmV269Async("Confirmar Windows Update",
             $"Baixar e instalar {selected.Length} atualização(ões) do Windows? " +
             "Algumas podem exigir reinicialização." + Environment.NewLine + Environment.NewLine + titles)) return;
-        if (!CanSelectWindowsUpdates || !_updateSelection.SetEquals(selected.Select(update => update.Id))) return;
+        if (!WindowsUpdateViewActive || _nav.SelectedPage != V269Page.Sistema || !CanSelectWindowsUpdates ||
+            !_updateSelection.SetEquals(selected.Select(update => update.Id)) ||
+            selected.Any(update => !_updateCatalog.Any(offer => EqualityComparer<WinUpdateChoice>.Default.Equals(offer, update)))) return;
 
         await ExecuteAsync("Aguardando autorização administrativa…", async () =>
         {

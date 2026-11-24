@@ -469,17 +469,11 @@ internal static class LayoutTests
             throw new Exception("Busca ou aviso de consulta segura ausente.");
         if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
             throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
-        if (!Descendants(placeholder).OfType<Button>().Any(b =>
-                b.Text == "Outros" &&
-                b.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true) ||
-            Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
-            throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
-        if (!Descendants(placeholder).OfType<Button>().Any(b =>
-                b.Text == "Falhas PnP" && b.AccessibleName.Contains("Problemas PnP")))
-            throw new Exception("Filtro de falhas PnP ausente.");
         if (Descendants(placeholder).OfType<Button>().Any(b =>
-            b.Name is "DriverSyntheticLabOpen" or "DriverUpdateAction" or "DriverUninstallAction"))
-            throw new Exception("Drivers: laboratório e ações globais não pertencem à interface normal.");
+                b.Text is "Todos" or "Presentes" or "Falhas PnP" or "Sem driver" or "Outros" or "Limpar" or "Atualizar drivers" ||
+                b.Name is "DriverSyntheticLabOpen" or "DriverUpdateAction" or "DriverUninstallAction" or "DriverUpdateEligible") ||
+            Descendants(placeholder).Any(c => c.Name == "DriverCompactFilter"))
+            throw new Exception("Drivers: filtros, limpeza de pesquisa e atualização global não pertencem ao HTML aprovado.");
         // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
         if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
             throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
@@ -732,18 +726,15 @@ internal static class LayoutTests
                     // A página apresenta ações individuais, inativas antes da consulta.
                     if (tab == V269Page.Drivers)
                     {
-                        bool tinyDrivers = placeholder.Height < DriverRowGeometry.Scale(265, placeholder.DeviceDpi);
                         int minDriverHeight = DriverRowGeometry.Height(driverCards.DeviceDpi,
                             Math.Max(1, driverCards.ClientSize.Width - 20));
                         if (driverCards.Height < minDriverHeight ||
                             driverCards.Width < placeholder.Width - 70)
                             throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution} " +
                                 $"lista={driverCards.Size} raiz={placeholder.Size}");
-                        var mobileFilter = Descendants(placeholder).OfType<ComboBox>()
-                            .SingleOrDefault(c => c.Name == "DriverCompactFilter");
-                        if (mobileFilter is null || mobileFilter.Visible != (tinyDrivers || placeholder.Width < DriverRowGeometry.Scale(760, placeholder.DeviceDpi)) ||
-                            mobileFilter.Items.Count != 5)
-                            throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
+                        if (Descendants(placeholder).Any(c => c.Name == "DriverCompactFilter") ||
+                            placeholder is not TableLayoutPanel driverRoot || driverRoot.RowStyles[2].Height != 0)
+                            throw new Exception($"Drivers: faixa de filtros não liberou espaço: {name} {resolution}");
                         var driverButtons = Descendants(placeholder).OfType<Button>().ToArray();
                         if (Descendants(placeholder).OfType<DataGridView>().Any() ||
                             driverCards.ActionsCurrent ||

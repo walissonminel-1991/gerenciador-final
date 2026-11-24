@@ -17,14 +17,16 @@ internal static class Lote4LayoutTests
         for (int i = 0; i < 150; i++)
             history.RecordUninstall(new(UninstallStage.Pending, secret, secret));
         string expected = DarkLogView.NormalizeWindowsLineBreaks(history.Report([], false));
-        var open = Descendants(owner).OfType<Button>()
-            .Single(b => b.Name == "LocalReliabilityReportButton");
-        if (!open.Visible)
-        {
-            owner.Controls.Find("V269PaneToggle", true).OfType<Button>().Single().PerformClick();
-            Application.DoEvents();
-        }
-        if (!open.Visible) throw new Exception("L4 exportação local inacessível no painel compacto.");
+        var shell = Descendants(owner).OfType<V269Shell>().Single();
+        shell.SelectPage(V269Page.Configuracoes);
+        shell.PresentPanel(null);
+        Application.DoEvents();
+        var open = Descendants(owner).OfType<Button>().Single(b => b.Name == "V269History");
+        if (!open.Visible) throw new Exception("L4 histórico de registro inacessível em Configurações.");
+        open.PerformClick();
+        Application.DoEvents();
+        if (shell.RightPane.Current?.Kind != V269PanelKind.History)
+            throw new Exception("L4 histórico não apresentado no painel antes da exportação.");
         Exception? failure = null;
         int inspected = 0;
         using var timer = new System.Windows.Forms.Timer { Interval = 50 };
