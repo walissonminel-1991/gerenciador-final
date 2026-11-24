@@ -232,6 +232,7 @@ internal sealed class V269Shell : UserControl
     internal V269RightPane RightPane => _rightPane;
     private Button? _paneToggle;
     private bool _compactPaneOpen;
+    private bool? _dashboardPaneOpen;
 
     internal void SetOperationContent(Control content)
     {
@@ -242,7 +243,11 @@ internal sealed class V269Shell : UserControl
         _paneToggle = toggle;
         toggle.Click += (_, _) =>
         {
-            _compactPaneOpen = !_compactPaneOpen;
+            bool open = !_rightPane.Visible;
+            if (SelectedPage is V269Page.Inicio or V269Page.Configuracoes)
+                _dashboardPaneOpen = open;
+            else
+                _compactPaneOpen = open;
             ApplyDimensions();
         };
         _navigationLayout.Controls.Add(toggle, 0, Pages.Length);
@@ -358,7 +363,10 @@ internal sealed class V269Shell : UserControl
         {
             if (_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress
                 or V269PanelKind.Result or V269PanelKind.History)
+            {
                 _compactPaneOpen = true;
+                _dashboardPaneOpen = null;
+            }
             ApplyDimensions();
         };
         SizeChanged += (_, _) => ApplyDimensions();
@@ -390,6 +398,7 @@ internal sealed class V269Shell : UserControl
     {
         if (!Enum.IsDefined(page)) throw new ArgumentOutOfRangeException(nameof(page));
         bool changed = SelectedPage != page;
+        if (changed) _dashboardPaneOpen = null;
         SelectedPage = page;
         var descriptor = Pages[(int)page];
         _pageTitle.Text = descriptor.Title;
@@ -468,12 +477,16 @@ internal sealed class V269Shell : UserControl
         if (_paneToggle is { } toggle)
         {
             bool compact = width < 1060;
-            toggle.Visible = compact && (!dashboard || mandatory || retained);
+            // O painel é fechado por padrão no dashboard, mas o histórico
+            // e a exportação local continuam acessíveis por comando explícito.
+            toggle.Visible = compact || dashboard;
             var palette = V269VisualTokens.ForTheme(Theme);
             toggle.BackColor = palette.Sidebar;
             toggle.ForeColor = palette.Text;
             toggle.Enabled = !mandatory;
-            showRight = mandatory || (showRight && (!compact || _compactPaneOpen));
+            showRight = mandatory || (dashboard
+                ? _dashboardPaneOpen ?? (retained && (!compact || _compactPaneOpen))
+                : !compact || _compactPaneOpen);
             toggle.Text = showRight ? "Fechar painel" : "Abrir painel";
             if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
         }
