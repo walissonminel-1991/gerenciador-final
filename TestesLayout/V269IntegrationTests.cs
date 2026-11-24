@@ -381,6 +381,20 @@ internal static class V269IntegrationTests
             }
             theme.SelectedIndex=historyTheme;surface.PerformLayout();Application.DoEvents();
             Console.WriteLine("PASS Aplicativos V2.6.9: seis capturas de histórico contextual nos três temas.");
+            // Reproduzir a restauração de um resultado já registrado enquanto
+            // a janela estava oculta, sem iniciar a bandeja ou manutenção real.
+            var pendingResult=typeof(MainForm).GetField("_pendingUninstallResult",flags)!;
+            var resumeResult=typeof(MainForm).GetMethod("ResumeUninstallResult",flags)!;
+            Require(pendingResult.GetValue(form) is null,"fixture sem resultado pendente");
+            pendingResult.SetValue(form,oldResult);
+            resumeResult.Invoke(form,[]);Application.DoEvents();
+            Require(ReferenceEquals(shell.RightPane.Current,oldResult)&&pendingResult.GetValue(form) is null,
+                "restauração preserva identidade e consome resultado pendente");
+            list.SelectedIndex=0;Application.DoEvents();
+            Require(shell.RightPane.Current?.Application is {PreviousResults:{Count:1}} restored&&
+                restored.Name==entries[0].Name&&restored.PreviousResults[0].Description==oldResult.Description,
+                "resultado restaurado não bloqueia seleção e permanece no histórico contextual");
+            Console.WriteLine("PASS Aplicativos V2.6.9: resultado restaurado conserva identidade e seleção.");
             var previousRow=shell.RightPane.Controls.Find("V269AppPreviousResult",true).Single();
             var dismiss=previousRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
             Require(dismiss.Enabled&&dismiss.AccessibleName?.Contains(oldResult.Title,StringComparison.Ordinal)==true,
