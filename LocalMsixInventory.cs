@@ -7,7 +7,12 @@ namespace GerenciadorAplicativos;
 // remover. Para todas as identidades não auditadas: somente inventário.
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
     string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "",
-    string PackageFullName = "", string PublisherId = "", bool? SystemSigned = null);
+    string PackageFullName = "", string PublisherId = "", bool? SystemSigned = null)
+{
+    internal DateOnly? DeclaredDate { get; init; }
+    internal string ObservedLocation { get; init; } = "";
+    internal string ObservedArchitecture { get; init; } = "";
+}
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
     bool Retried = false, string FailureStage = "", string Apartment = "",
@@ -154,7 +159,8 @@ internal static class LocalMsixInventory
             var candidate = Recognize(id.Name, id.PublisherId,
                 v.Major, v.Minor, v.Build, v.Revision);
             if (candidate is not null) return new(candidate with
-            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId });
+            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId,
+                DeclaredDate=ReadDeclaredDate(package),ObservedLocation=ReadObservedLocation(package),ObservedArchitecture=ReadObservedArchitecture(package) });
             if (package.IsFramework || package.IsResourcePackage) return new(null);
             // Apenas apps efetivamente listados pelo Windows para o usuário.
             var app = package.GetAppListEntries().FirstOrDefault();
@@ -166,12 +172,25 @@ internal static class LocalMsixInventory
             return new(described is null ? null : described with
             {
                 PackageFamilyName = id.FamilyName, PackageFullName = id.FullName,
-                PublisherId = id.PublisherId, SystemSigned = ReadSystemSignature(package)
+                PublisherId = id.PublisherId, SystemSigned = ReadSystemSignature(package),
+                DeclaredDate=ReadDeclaredDate(package),ObservedLocation=ReadObservedLocation(package),ObservedArchitecture=ReadObservedArchitecture(package)
             },
                 Launchable: true);
         });
         return scan with { ObservedMainPackageFullNames = observedMainPackages };
     }
+
+    // Microsoft Package.InstalledDate documenta instalação OU última
+    // atualização. Nunca interpretar como data original comprovada.
+    private static DateOnly? ReadDeclaredDate(Windows.ApplicationModel.Package package)
+    {
+        try{return V269AppOrdering.PackageDate(package.InstalledDate);}
+        catch(Exception){return null;}
+    }
+    private static string ReadObservedLocation(Windows.ApplicationModel.Package package)
+    {try{return package.InstalledLocation?.Path??"";}catch(Exception){return "";}}
+    private static string ReadObservedArchitecture(Windows.ApplicationModel.Package package)
+    {try{return package.Id.Architecture.ToString();}catch(Exception){return "";}}
 
     private static bool? ReadSystemSignature(Windows.ApplicationModel.Package package)
     {

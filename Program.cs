@@ -96,6 +96,8 @@ internal sealed class ProgramEntry
     public string Publisher { get; init; } = "";
     public string DisplayIcon { get; init; } = "";
     internal DateOnly? InstallDate { get; init; }
+    internal string ObservedInstallLocation { get; init; } = "";
+    internal string ObservedPackageArchitecture { get; init; } = "";
     public string UninstallString { get; init; } = "";
     public string QuietUninstallString { get; init; } = "";
     public string InstallLocation { get; init; } = "";
@@ -312,6 +314,9 @@ internal static class AppServices
                 MsixPackageName = app.PackageName,
                 MsixSystemSigned = app.SystemSigned,
                 MsixInventoryComplete = msix.Status == "ok" && msix.Failures == 0 && !app.Stale,
+                InstallDate=app.Stale?null:app.DeclaredDate,
+                ObservedInstallLocation=app.Stale?"":app.ObservedLocation,
+                ObservedPackageArchitecture=app.Stale?"":app.ObservedArchitecture,
                 CatalogIdentity = verified?.Id ?? "",
                 CatalogDisplayName = verified?.Name ?? ""
             });
@@ -1140,6 +1145,7 @@ internal sealed partial class MainForm : Form
         _search.TextChanged+=(_,_)=>RenderPrograms();
         searchBar.Controls.Add(_search,1,0);
         _v269AppSortChoice.AccessibleName="Ordenar aplicativos";
+        _toolTips.SetToolTip(_v269AppSortChoice,"Instalados recentemente usa a data declarada pela fonte: instalação, atualização ou manutenção. Datas desconhecidas ficam no fim.");
         _v269AppSortChoice.Items.AddRange(["Nome (A–Z)","Nome (Z–A)","Instalados recentemente","Atualizações primeiro","Ordem manual"]);
         _v269AppSortChoice.SelectedIndex=0;_v269AppSortChoice.Dock=DockStyle.Fill;
         _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{if(_v269AppSortChoice.SelectedIndex>=0){_v269AppSort=(V269AppSort)_v269AppSortChoice.SelectedIndex;RenderPrograms();}};
@@ -1462,19 +1468,21 @@ internal sealed partial class MainForm : Form
         if(_busy||_v269Confirming||_nav.SelectedPage!=V269Page.Aplicativos||
             _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.Result or V269PanelKind.History)return;
         string Known(string? value)=>string.IsNullOrWhiteSpace(value)?"Não informado":value;
-        string architecture=item.QueryArchitecture=="unknown"?"Não confirmada":Known(item.QueryArchitecture);
+        string architecture=item.ObservedPackageArchitecture.Length>0?item.ObservedPackageArchitecture:
+            item.QueryArchitecture=="unknown"?"Não confirmada":Known(item.QueryArchitecture);
+        string location=Known(item.ObservedInstallLocation.Length>0?item.ObservedInstallLocation:item.InstallLocation);
         string kind=item.InventorySource.Contains("MSIX",StringComparison.OrdinalIgnoreCase)?"MSIX":
             item.MsiProductCode.Length>0?"MSI":item.InventorySource.StartsWith("Registro:",StringComparison.Ordinal)?"Win32 / registro":"Não confirmado";
         string details=$"{item.Name}\r\n{Known(item.Publisher)}\r\n\r\n"+
             $"Tipo: {kind}\r\nOrigem: {Known(item.InventorySource)}\r\nArquitetura: {architecture}\r\n"+
             $"Versão instalada: {DisplayAppVersion(item.Version)}\r\nInstalado em (declarado): {item.InstallDate?.ToString("dd/MM/yyyy")??"Não informado"}\r\n"+
-            $"Local: {Known(item.InstallLocation)}\r\nOferta: {DisplayAppVersion(item.AvailableVersion)}\r\n\r\n"+
+             $"Local: {location}\r\nOferta: {DisplayAppVersion(item.AvailableVersion)}\r\n\r\n"+
             ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item))+
             "\r\n\r\nEnter ou botão direito: ações disponíveis e orientação.";
         var fields=new (string Label,string Value)[]{
             ("Tipo",kind),("Origem",Known(item.InventorySource)),("Arquitetura",architecture),
-            ("Versão",DisplayAppVersion(item.Version)),("Instalado em",item.InstallDate?.ToString("dd/MM/yyyy")??"Não informado"),
-            ("Local",Known(item.InstallLocation)),("Oferta",DisplayAppVersion(item.AvailableVersion))};
+            ("Versão",DisplayAppVersion(item.Version)),("Data declarada",item.InstallDate?.ToString("dd/MM/yyyy")??"Não informado"),
+            ("Local",location),("Oferta",DisplayAppVersion(item.AvailableVersion))};
         _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do aplicativo",details,Application:
             new V269AppDetailModel(item.Name,Known(item.Publisher),fields,
                 ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item)))));

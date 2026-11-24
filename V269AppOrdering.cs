@@ -11,7 +11,9 @@ internal static class V269AppOrdering
     internal static DateOnly? ParseRegistryDate(object? value) =>
         value is string s && s.Length == 8 &&
         DateOnly.TryParseExact(s, "yyyyMMdd", CultureInfo.InvariantCulture,
-            DateTimeStyles.None, out var date) ? date : null;
+            DateTimeStyles.None, out var date) && date.Year>=1980 ? date : null;
+    internal static DateOnly? PackageDate(DateTimeOffset observed)=>observed.Year>=1980?
+        DateOnly.FromDateTime(observed.LocalDateTime):null;
     internal static string Key(ProgramEntry entry) =>
         string.IsNullOrWhiteSpace(entry.InventoryId) ? "" :
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(entry.InventoryId.ToUpperInvariant())));
