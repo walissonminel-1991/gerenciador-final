@@ -166,6 +166,10 @@ internal static class V269IntegrationTests
             inventory.Clear();inventory.AddRange(entries);render.Invoke(form,[]);
             Application.DoEvents();
             Require(list.V269TableMode&&list.Items.Count==5&&sort.Items.Count==5,"view real de seis colunas");
+            var accessible=list.AccessibilityObject;
+            Require(accessible.GetChildCount()==5&&accessible.GetChild(0)?.Name?.Contains("7-Zip")==true&&
+                accessible.GetChild(2)?.GetChild(1)?.State.HasFlag(AccessibleStates.Unavailable)==true,
+                "leitor de tela recebe identidade e ação bloqueada da linha real");
             sort.SelectedIndex=1;Require(list.Items[0].Name=="VLC media player","seletor Z–A conectado ao inventário");
             sort.SelectedIndex=2;Require(list.Items[0].InstallDate.HasValue&&list.Items[^1].InstallDate is null,"datas reais e ausências no fim");
             sort.SelectedIndex=3;Require(list.Items[0].Name=="OBS Studio","ofertas primeiro");

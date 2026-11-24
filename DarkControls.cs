@@ -337,6 +337,99 @@ internal sealed class DarkProgramList : Control
         _operationTimer.Tick += (_, _) => RefreshOperations();
     }
 
+    protected override AccessibleObject CreateAccessibilityInstance()=>new AppListAccessibility(this);
+    private sealed class AppListAccessibility(DarkProgramList owner):ControlAccessibleObject(owner)
+    {
+        public override AccessibleRole Role=>owner._tableMode?AccessibleRole.List:base.Role;
+        public override int GetChildCount()=>owner._tableMode?owner._items.Count:base.GetChildCount();
+        public override AccessibleObject? GetChild(int index)=>owner._tableMode
+            ? index>=0&&index<owner._items.Count?new AppRowAccessibility(owner,owner._items[index]):null
+            : base.GetChild(index);
+        public override AccessibleObject? GetSelected()=>owner._tableMode&&owner.SelectedItem is {} app
+            ? new AppRowAccessibility(owner,app):base.GetSelected();
+        public override AccessibleObject? GetFocused()=>owner.Focused?GetSelected():null;
+    }
+    private sealed class AppRowAccessibility(DarkProgramList owner,ProgramEntry item):AccessibleObject
+    {
+        private int Index=>owner._items.IndexOf(item);
+        public override AccessibleObject? Parent=>owner.AccessibilityObject;
+        public override string? Name
+        {
+            get=>$"{item.Name}, versão {item.Version}, editor {item.Publisher}, instalado em {item.InstallDate?.ToString("dd/MM/yyyy")??"não informado"}";
+            set{}
+        }
+        public override string? Description=>ApplicationCapabilityInspection.Describe(item,owner.OperationFor?.Invoke(item));
+        public override AccessibleRole Role=>AccessibleRole.ListItem;
+        public override AccessibleStates State=>Index<0?AccessibleStates.Unavailable|AccessibleStates.Invisible:
+            AccessibleStates.Selectable|AccessibleStates.Focusable|
+            (ReferenceEquals(owner.SelectedItem,item)?AccessibleStates.Selected:AccessibleStates.None)|
+            (ReferenceEquals(owner.SelectedItem,item)&&owner.Focused?AccessibleStates.Focused:AccessibleStates.None)|
+            (Bounds.IsEmpty?AccessibleStates.Offscreen:AccessibleStates.None);
+        public override Rectangle Bounds=>Index<0?Rectangle.Empty:owner.AccessibleRowBounds(Index);
+        public override string? DefaultAction=>"Abrir ações";
+        public override void Select(AccessibleSelection flags)
+        {
+            owner.OnAccessibleUi(()=>{
+                int index=Index;if(index<0)return;
+                if((flags&AccessibleSelection.TakeFocus)!=0)owner.Focus();
+                if((flags&(AccessibleSelection.TakeSelection|AccessibleSelection.TakeFocus))!=0)owner.SelectIndex(index);
+            });
+        }
+        public override void DoDefaultAction()=>owner.OnAccessibleUi(()=>{
+            int index=Index;if(index<0||!owner._actionsEnabled||owner._multiSelectMode)return;
+            owner.SelectIndex(index);owner.Focus();
+            owner.OpenAppActions(new Point(20,Math.Max(owner.TableHeaderHeight,owner.RowBounds(index).Top)));
+        });
+        public override int GetChildCount()=>Index>=0&&!owner._multiSelectMode?2:0;
+        public override AccessibleObject? GetChild(int index)=>(index is 0 or 1)&&GetChildCount()==2
+            ? new AppActionAccessibility(owner,item,index==1,this):null;
+    }
+    private sealed class AppActionAccessibility(DarkProgramList owner,ProgramEntry item,bool remove,AccessibleObject parent):AccessibleObject
+    {
+        private bool Allowed=>owner._items.Contains(item)&&(remove?owner.AllowsRemoval(item):owner.AllowsUpdate(item));
+        public override AccessibleObject? Parent=>parent;
+        public override string? Name {get=>remove?"Desinstalar "+item.Name:"Atualizar "+item.Name;set{}}
+        public override AccessibleRole Role=>AccessibleRole.PushButton;
+        public override AccessibleStates State=>(Allowed?AccessibleStates.Focusable:AccessibleStates.Unavailable)|
+            (Bounds.IsEmpty?AccessibleStates.Offscreen:AccessibleStates.None);
+        public override Rectangle Bounds
+        {
+            get
+            {
+                int index=owner._items.IndexOf(item);
+                if(index<0)return Rectangle.Empty;
+                Rectangle area=V269AppTable.Action(owner.RowBounds(index),owner._tableOptions.InterfacePercent,owner.DeviceDpi,remove);
+                area.Intersect(new Rectangle(0,owner.TableHeaderHeight,owner.ContentWidth,owner.RowsHeight));
+                return area.Width>0&&area.Height>0?owner.RectangleToScreen(area):Rectangle.Empty;
+            }
+        }
+        public override string? DefaultAction=>Allowed?"Acionar":null;
+        public override void DoDefaultAction()=>owner.OnAccessibleUi(()=>owner.InvokeAccessibleAction(item,remove));
+    }
+    private Rectangle AccessibleRowBounds(int index)
+    {
+        if(!Visible)return Rectangle.Empty;
+        var bounds=Rectangle.Intersect(RowBounds(index),new Rectangle(0,TableHeaderHeight,ContentWidth,RowsHeight));
+        return bounds.Width>0&&bounds.Height>0?RectangleToScreen(bounds):Rectangle.Empty;
+    }
+    private void OnAccessibleUi(Action action)
+    {
+        if(IsDisposed||!IsHandleCreated)return;
+        if(InvokeRequired)
+        {
+            try{BeginInvoke(new Action(()=>{if(!IsDisposed)action();}));}catch(InvalidOperationException){ }
+        }
+        else action();
+    }
+    private void InvokeAccessibleAction(ProgramEntry item,bool remove)
+    {
+        if(!Visible||!Enabled||!_items.Contains(item)||
+            !(remove?this.AllowsRemoval(item):this.AllowsUpdate(item)))return;
+        SelectIndex(_items.IndexOf(item));
+        string? command=remove?item.UninstallAction:VerifiedUpdaters.GetPrimaryAction(item);
+        if(command is not null)ItemActionClicked?.Invoke(item,command);
+    }
+
     private void ResetActionVisuals()
     {
         _feedbackTimer.Stop();

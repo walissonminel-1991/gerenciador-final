@@ -64,6 +64,7 @@ internal sealed class V269RightPane : UserControl
     private readonly ProgressBar _progress;
     private readonly Panel _operationContent;
     private readonly V269AppDetailPanel _applicationDetails=new();
+    private readonly Panel _descriptionHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
     private bool _hasOperationContent;
     private readonly FlowLayoutPanel _choices;
     private TaskCompletionSource<bool>? _confirmation;
@@ -116,8 +117,9 @@ internal sealed class V269RightPane : UserControl
         };
         _layout.Controls.Add(_title, 0, 0);
         _layout.Controls.Add(_progress, 0, 1);
-        _layout.Controls.Add(_description, 0, 2);
-        _layout.Controls.Add(_applicationDetails,0,2);
+        _descriptionHost.Controls.Add(_description);
+        _descriptionHost.Controls.Add(_applicationDetails);
+        _layout.Controls.Add(_descriptionHost,0,2);
         _choices = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false, Visible = false };
         foreach (var (caption, accepted) in new[] { ("Cancelar", false), ("Confirmar", true) })
         {
@@ -209,6 +211,7 @@ internal sealed class V269RightPane : UserControl
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
         _description.BackColor = palette.RightPanel;
+        _descriptionHost.BackColor=palette.RightPanel;
         _description.ForeColor = palette.SecondaryText;
         _applicationDetails.ApplyPalette(palette);
     }
