@@ -453,6 +453,12 @@ internal sealed class V269Shell : UserControl
         if (changed) NavigationChanged?.Invoke(this, new V269NavigationEventArgs(page));
     }
 
+    internal void ShowV269AppPane()
+    {
+        if(SelectedPage!=V269Page.Aplicativos)return;
+        _compactPaneOpen=!_rightPane.Visible;ApplyDimensions();
+    }
+
     internal void PresentPanel(V269PanelPresentation? presentation) =>
         _rightPane.Present(presentation);
 
@@ -527,7 +533,8 @@ internal sealed class V269Shell : UserControl
     {
         if (_columns is null || _navigationLayout is null) return;
         int width = Math.Max(1, ClientSize.Width);
-        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
+        bool apps=SelectedPage==V269Page.Aplicativos;
+        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos;
         int windowWidth = LayoutWindowWidth;
         // Início usa os breakpoints do CSS congelado, medidos pela janela.
         int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
@@ -586,10 +593,10 @@ internal sealed class V269Shell : UserControl
                 }
                 finally { _movingHomeToggle = false; }
             }
-            bool compact = width < 1060;
+            bool compact = apps ? windowWidth<=1040 : width < 1060;
             // O painel é fechado por padrão no dashboard, mas o histórico
             // e a exportação local continuam acessíveis por comando explícito.
-            toggle.Visible = compact || dashboard;
+            toggle.Visible = !apps && (compact || dashboard);
             var palette = V269VisualTokens.ForTheme(Theme);
             toggle.BackColor = palette.Sidebar;
             toggle.ForeColor = palette.Text;
@@ -600,6 +607,7 @@ internal sealed class V269Shell : UserControl
             toggle.Text = showRight ? "Fechar painel" : "Abrir painel";
             if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
         }
+        if(apps)right=S(windowWidth<=1250?275:305);
         if (!showRight) right = 0;
         if (home)
         {

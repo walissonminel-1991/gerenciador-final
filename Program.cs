@@ -767,7 +767,7 @@ internal sealed partial class MainForm : Form
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes ? 0 : _caption?.Height ?? 0;
+            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos ? 0 : _caption?.Height ?? 0;
             var bounds = new Rectangle(
                 0, caption, Math.Max(1, ClientSize.Width),
                 Math.Max(1, ClientSize.Height - caption));
@@ -782,7 +782,7 @@ internal sealed partial class MainForm : Form
         if (_caption is not null) _caption.Visible = false;
         void ApplyHomeChrome()
         {
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos;
             if (homeChrome != home)
             {
                 // Nos testes de viewport a superfície interna tem largura
@@ -810,6 +810,7 @@ internal sealed partial class MainForm : Form
         _nav.NavigationChanged += async (_, e) =>
         {
             ApplyHomeChrome();
+            if(e.Page==V269Page.Aplicativos&&_programList.SelectedItem is {} app)PresentV269AppDetails(app);
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
@@ -830,7 +831,7 @@ internal sealed partial class MainForm : Form
         {
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos;
             int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
                 V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))
@@ -1110,195 +1111,113 @@ internal sealed partial class MainForm : Form
     private V269AppSort _v269AppSort=V269AppSort.NameAscending;
     private string[] _v269ManualOrder=[];
     private bool _v269OrderLive;
-    private readonly ComboBox _v269AppSortChoice=new() { Name="V269AppSort", DropDownStyle=ComboBoxStyle.DropDownList };
+    private readonly V269SettingsCombo _v269AppSortChoice=new() { Name="V269AppSort", DropDownStyle=ComboBoxStyle.DropDownList };
 
     private Control BuildProgramsPanel(bool loadPreferences)
     {
         _v269OrderLive=loadPreferences;
         if(loadPreferences)_v269ManualOrder=V269AppOrderStore.Read(V269AppOrderStore.PathForUser);
-        // Uma única lista: atualização disponível no topo, outras instalações abaixo.
         var root = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
-            Padding = new Padding(4, 5, 4, 3), Margin = Padding.Empty,
-            BackColor = AppServices.Background
+            Name="V269AppsPage",Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,
+            Padding=Padding.Empty,Margin=Padding.Empty,BackColor=AppServices.Background
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        var searchBar = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty,
-            BackColor = AppServices.Background
-        };
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102));
-        searchBar.Controls.Add(new Label
-        {
-            Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
-            TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 0);
-        _search.BorderStyle = BorderStyle.FixedSingle;
-        _search.BackColor = Color.FromArgb(19, 26, 34);
-        _search.ForeColor = Ink;
-        _search.PlaceholderText = "Nome, versão ou fabricante";
-        _search.Margin = new Padding(0, 3, 8, 3);
-        _search.Dock = DockStyle.Fill;
-        _search.TextChanged += (_, _) => RenderPrograms();
-        searchBar.Controls.Add(_search, 1, 0);
-        var clear = CreateSecondaryButton("Limpar");
-        clear.Dock = DockStyle.Fill;
-        clear.Margin = new Padding(0, 3, 8, 3);
-        clear.Click += (_, _) => _search.Clear();
-        _toolTips.SetToolTip(clear, "Apaga apenas o texto da pesquisa.");
-        searchBar.Controls.Add(clear, 2, 0);
-        var hiddenReview = CreateSecondaryButton("Ocultos");
-        hiddenReview.Dock = DockStyle.Fill;
-        hiddenReview.Margin = new Padding(0, 3, 0, 3);
-        hiddenReview.AccessibleName = "Consultar aplicativos ocultos";
-        _toolTips.SetToolTip(hiddenReview,
-            "Consulta separada dos registros marcados pelo Windows como ocultos. " +
-            "Somente leitura; não habilita desinstalação nem modifica componentes.");
-        hiddenReview.Click += async (_, _) =>
-        {
-            if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
-            hiddenReview.Enabled = false;
-            try { await ShowHiddenAppsReviewAsync(); }
-            catch (Exception ex) { ReportError(ex); }
-            finally { if (!hiddenReview.IsDisposed) hiddenReview.Enabled = true; }
-        };
-        searchBar.Controls.Add(hiddenReview, 3, 0);
-        searchBar.ColumnCount=5;
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,142));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,44));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,0));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,34));
+        var searchBar=new TableLayoutPanel{Name="V269AppsToolbar",Dock=DockStyle.Fill,
+            ColumnCount=4,RowCount=1,Margin=Padding.Empty,BackColor=AppServices.Background};
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,100));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,150));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,78));
+        _search.Name="V269AppsSearch";
+        _search.BorderStyle=BorderStyle.FixedSingle;_search.BackColor=Color.FromArgb(19,26,34);
+        _search.ForeColor=Ink;_search.PlaceholderText="Pesquisar aplicativo...";
+        _search.AccessibleName="Pesquisar aplicativo por nome, versão ou editor";
+        _search.Margin=new Padding(4,5,4,5);_search.Dock=DockStyle.Fill;
+        _search.TextChanged+=(_,_)=>RenderPrograms();
+        searchBar.Controls.Add(_search,1,0);
         _v269AppSortChoice.AccessibleName="Ordenar aplicativos";
         _v269AppSortChoice.Items.AddRange(["Nome (A–Z)","Nome (Z–A)","Instalados recentemente","Atualizações primeiro","Ordem manual"]);
-        _v269AppSortChoice.SelectedIndex=0;
-        _v269AppSortChoice.Dock=DockStyle.Fill;
+        _v269AppSortChoice.SelectedIndex=0;_v269AppSortChoice.Dock=DockStyle.Fill;
         _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{if(_v269AppSortChoice.SelectedIndex>=0){_v269AppSort=(V269AppSort)_v269AppSortChoice.SelectedIndex;RenderPrograms();}};
-        searchBar.Controls.Add(_v269AppSortChoice,4,0);
-        // A consulta de ocultos nao altera a lista principal nem a fila de acoes.
-        root.Controls.Add(searchBar, 0, 0);
-
-        var actions = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
-            BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 2)
+        _v269AppSortChoice.Margin=new Padding(4,4,4,4);
+        searchBar.Controls.Add(_v269AppSortChoice,2,0);
+        var details=CreateSecondaryButton("Detalhes");details.Name="V269AppsDetails";details.Dock=DockStyle.Fill;
+        details.Margin=new Padding(3,3,0,3);
+        details.Click+=(_,_)=>{
+            if(_programList.SelectedItem is {} app)PresentV269AppDetails(app);
+            _nav.ShowV269AppPane();
         };
-        foreach (int width in new[] { 208, 150, 155, 190 })
-            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, width));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Button MakeAction(string title, Color color, int column, Action onClick)
+        searchBar.Controls.Add(details,3,0);
+        _checkUpdatesButton=CreateButton("Verificar",AppServices.Blue,Color.White);
+        _checkUpdatesButton.Name="V269AppsVerify";_checkUpdatesButton.AccessibleName="Verificar inventário e atualizações";
+        _checkUpdatesButton.Dock=DockStyle.Fill;_checkUpdatesButton.Margin=new Padding(0,3,4,3);
+        _checkUpdatesButton.Click+=(_,_)=>_ = CheckUpdatesFromButtonAsync();
+        _toolTips.SetToolTip(_checkUpdatesButton,"Renova inventário e consulta versões por HTTPS; não instala nada. Durante consulta, clique novamente para cancelar.");
+        searchBar.Controls.Add(_checkUpdatesButton,0,0);
+        root.Controls.Add(searchBar,0,0);
+
+        // Recursos funcionais do GF que não existem no HTML de demonstração.
+        // Recolhidos por padrão; a operação em lote mantém acesso ao botão Parar.
+        var actions=new TableLayoutPanel{Name="V269AppsExtraCommands",Dock=DockStyle.Fill,
+            ColumnCount=2,RowCount=3,Margin=Padding.Empty,BackColor=AppServices.Background,Visible=false};
+        for(int i=0;i<2;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
+        for(int i=0;i<3;i++)actions.RowStyles.Add(new RowStyle(SizeType.Percent,100f/3));
+        Button MakeAction(string title,Color color,int slot,Action onClick)
         {
-            var b = CreateButton(title, color, Color.White);
-            b.Dock = DockStyle.Fill;
-            b.Margin = new Padding(0, 2, 5, 2);
-            if (b is ModernButton modern) modern.AllowMultilineText = false;
-            _toolTips.SetToolTip(b, title);
-            b.Click += (_, _) => onClick();
-            actions.Controls.Add(b, column, 0);
-            _actionControls.Add(b);
-            return b;
+            var button=CreateButton(title,color,Color.White);button.Dock=DockStyle.Fill;
+            button.Margin=new Padding(2,2,2,2);
+            _toolTips.SetToolTip(button,title);button.Click+=(_,_)=>onClick();
+            actions.Controls.Add(button,slot%2,slot/2);_actionControls.Add(button);return button;
         }
-        // Atualiza a fotografia do inventario antes de consultar HTTPS.
-        _checkUpdatesButton = MakeAction("Atualizar e verificar", AppServices.Blue, 0,
-            () => _ = CheckUpdatesFromButtonAsync());
-        _actionControls.Remove(_checkUpdatesButton);
-        _toolTips.SetToolTip(_checkUpdatesButton,
-            "Renova o inventário e consulta versões por HTTPS. Não instala nada; " +
-            "durante a consulta online, clique novamente para cancelar.");
-        _updateAllButton = MakeAction("Atualizar todos", AppServices.Green, 1,
-            () => _ = UpdateAllApprovedAsync());
-        // Deve permanecer clicável durante o lote só para interromper a fila
-        // após a operação em curso, sem cancelar um instalador já iniciado.
+        _updateAllButton=MakeAction("Atualizar todos",AppServices.Green,0,()=>_ = UpdateAllApprovedAsync());
         _actionControls.Remove(_updateAllButton);
-        _toolTips.SetToolTip(_updateAllButton,
-            "Atualizar todos os elegíveis: não inclui Store, ofertas consultivas, itens protegidos ou " +
-            "pacotes sem receita direta aprovada. A confirmação apresenta todos os alvos. " +
-            "Durante o lote, Parar lote impede apenas as próximas tentativas.");
-        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 2, ToggleMultiSelection);
-        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 3,
-            () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
-        _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
-        root.Controls.Add(actions, 0, 1);
-        // Distribuir as cinco ações em três linhas no compacto, sem cortar botões,
-        // necessário; a busca permanece numa faixa separada, sem botões
-        // deslocados para o canto direito.
-        AppActionLayout? lastActionLayout = null;
-        void FitActionRows()
+        _toolTips.SetToolTip(_updateAllButton,"Atualizar todos os elegíveis; confirmação de todos os alvos; Parar lote impede as próximas tentativas.");
+        _selectManyButton=MakeAction("Selecionar vários",AppServices.Gray,1,ToggleMultiSelection);
+        _bulkUninstallButton=MakeAction("Desinstalar selecionados",AppServices.Red,2,
+            ()=>_ = ExecuteAsync("Desinstalando selecionados...",UninstallCheckedAsync));
+        _clearSelectionButton=MakeAction("Limpar seleção",AppServices.Gray,3,ClearMultiSelection);
+        var hiddenReview=MakeAction("Ocultos",AppServices.Gray,4,()=>_ = ReviewHiddenV269AppsAsync());
+        _toolTips.SetToolTip(hiddenReview,"Consulta separada, somente leitura; não habilita remoção.");
+        MakeAction("Limpar pesquisa",AppServices.Gray,5,()=>_search.Clear());
+        root.Controls.Add(actions,0,1);
+        bool expanded=false;
+        void FitToolbar()
         {
-            var metrics = AppActionLayout.Measure(root.ClientSize.Width, root.DeviceDpi);
-            if (!metrics.NeedsReflow(lastActionLayout)) return;
-            lastActionLayout = metrics;
-            double scale = metrics.Dpi / 96d;
-            bool compact = metrics.Compact;
-            var buttons = new Button[]
-            {
-                _checkUpdatesButton, _updateAllButton, _selectManyButton,
-                _bulkUninstallButton, _clearSelectionButton
-            };
-            root.SuspendLayout();
-            actions.SuspendLayout();
+            int S(int px)=>V269AppTable.Scale(px,_v269Appearance.InterfacePercent,root.DeviceDpi);
+            bool compact=root.ClientSize.Width<S(430);
+            searchBar.SuspendLayout();
             try
             {
-                actions.RowStyles.Clear();
-                if (compact)
-                {
-                    root.RowStyles[1].Height = metrics.RowHeight;
-                    actions.RowCount = 3;
-                    for (int row = 0; row < 3; row++)
-                        actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / 3F));
-                    for (int i = 0; i < 5; i++)
-                    {
-                        actions.ColumnStyles[i].SizeType = SizeType.Percent;
-                        actions.ColumnStyles[i].Width = i == 4 ? 0 : 25;
-                    }
-                    for (int i = 0; i < buttons.Length; i++)
-                    {
-                        actions.SetColumnSpan(buttons[i], 1);
-                        actions.SetCellPosition(buttons[i],
-                            new TableLayoutPanelCellPosition((i % 2) * 2, i / 2));
-                        actions.SetColumnSpan(buttons[i], i == buttons.Length - 1 ? 4 : 2);
-                    }
-                }
-                else
-                {
-                    root.RowStyles[1].Height = metrics.RowHeight;
-                    actions.RowCount = 1;
-                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    int[] widths = { 208, 150, 155, 190 };
-                    for (int i = 0; i < 4; i++)
-                    {
-                        actions.ColumnStyles[i].SizeType = SizeType.Absolute;
-                        actions.ColumnStyles[i].Width = (int)Math.Ceiling(widths[i] * scale);
-                    }
-                    actions.ColumnStyles[4].SizeType = SizeType.Percent;
-                    actions.ColumnStyles[4].Width = 100;
-                    for (int i = 0; i < buttons.Length; i++)
-                    {
-                        actions.SetColumnSpan(buttons[i], 1);
-                        actions.SetCellPosition(buttons[i],
-                            new TableLayoutPanelCellPosition(i, 0));
-                    }
-                }
+                searchBar.RowStyles.Clear();searchBar.RowCount=compact?2:1;
+                for(int i=0;i<searchBar.RowCount;i++)searchBar.RowStyles.Add(new RowStyle(SizeType.Percent,100f/searchBar.RowCount));
+                searchBar.ColumnStyles[0].Width=S(90);searchBar.ColumnStyles[2].Width=compact?0:S(145);
+                searchBar.ColumnStyles[3].Width=compact?0:S(75);
+                searchBar.SetColumnSpan(_search,1);searchBar.SetColumnSpan(_v269AppSortChoice,1);
+                searchBar.SetCellPosition(_checkUpdatesButton,new TableLayoutPanelCellPosition(0,0));
+                searchBar.SetCellPosition(_search,new TableLayoutPanelCellPosition(1,0));
+                searchBar.SetCellPosition(_v269AppSortChoice,new TableLayoutPanelCellPosition(compact?1:2,compact?1:0));
+                searchBar.SetCellPosition(details,new TableLayoutPanelCellPosition(compact?0:3,compact?1:0));
+                root.RowStyles[0].Height=S(compact?84:44);
+                root.RowStyles[1].Height=expanded?S(108):0;
+                root.RowStyles[3].Height=S(34);
             }
-            finally { actions.ResumeLayout(true); root.ResumeLayout(true); }
+            finally{searchBar.ResumeLayout(true);}
         }
-        root.SizeChanged += (_, _) => FitActionRows();
-        root.DpiChangedAfterParent += (_, _) => FitActionRows();
-        FitActionRows();
+        root.SizeChanged+=(_,_)=>FitToolbar();root.DpiChangedAfterParent+=(_,_)=>FitToolbar();
+        root.Tag=(Action)FitToolbar;
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty
+            Name="V269AppsFooter",Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
         _listTitle.Dock = DockStyle.Fill;
         _listTitle.AutoEllipsis = false;
         _listTitle.SizeChanged += (_, _) => RenderTitle();
@@ -1313,7 +1232,12 @@ internal sealed partial class MainForm : Form
             "Entradas sem ação autorizada permanecem somente leitura.");
         _toolTips.SetToolTip(_selectedFilterButton,
             "Mostra apenas aplicativos marcados para operações autorizadas.");
-        root.Controls.Add(heading, 0, 2);
+        var more=CreateSecondaryButton("Mais ações");more.Name="V269AppsMore";
+        more.Dock=DockStyle.Fill;more.Margin=new Padding(2,3,0,3);
+        more.Click+=(_,_)=>{if(_batchUpdatesActive&&expanded)return;expanded=!expanded;
+            actions.Visible=expanded;more.Text=expanded?"Recolher":"Mais ações";FitToolbar();};
+        heading.Controls.Add(more,3,0);
+        root.Controls.Add(heading,0,3);
 
         _programList.Dock = DockStyle.Fill;
         _programList.ApplyV269Table(_v269Appearance);
@@ -1375,12 +1299,19 @@ internal sealed partial class MainForm : Form
         _emptyState.Visible = false;
         host.Controls.Add(_programList);
         host.Controls.Add(_emptyState);
-        root.Controls.Add(host, 0, 3);
+        root.Controls.Add(host, 0, 2);
+        FitToolbar();
         UpdateBulkButtons();
         RenderTitle();
         return root;
     }
 
+
+    private async Task ReviewHiddenV269AppsAsync()
+    {
+        if(_busy||_batchUpdatesActive||_betaClose.IsClosing||_v269Confirming)return;
+        try{await ShowHiddenAppsReviewAsync();}catch(Exception ex){ReportError(ex);}
+    }
 
     private async Task ShowHiddenAppsReviewAsync()
     {
@@ -1493,7 +1424,7 @@ internal sealed partial class MainForm : Form
         {
             if (_checkUpdatesButton is { IsDisposed: false } done)
             {
-                done.Text = "Atualizar e verificar";
+                done.Text = "Verificar";
                 done.Enabled = true;
             }
         }
@@ -2837,7 +2768,7 @@ internal sealed partial class MainForm : Form
                 }
                 RenderTitle();
                 if (_checkUpdatesButton is not null)
-                    _checkUpdatesButton.Text = "Atualizar e verificar";
+                    _checkUpdatesButton.Text = "Verificar";
             }
         }
     }
@@ -2934,8 +2865,8 @@ internal sealed partial class MainForm : Form
             : _consultaCatalogoCts is not null
                 ? "Consulta online ativa; inventário local vazio."
                 : "Nenhum aplicativo identificado. Se o inventário estiver parcial, tente novamente.";
-        _emptyState.Visible = match.Length == 0;
-        if (_emptyState.Visible) _emptyState.BringToFront();
+        _emptyState.Visible = false; // a tabela conserva o cabeçalho, inclusive sem linhas
+        _programList.EmptyMessage=_emptyState.Text;
         RenderTitle();
         UpdateBulkButtons();
         ApplyFilterAppearance();
@@ -3516,7 +3447,7 @@ internal sealed partial class MainForm : Form
                         async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
                             await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) is Version installed && installed >= targetVersion, wait.Token), wait.Token, operation.Report, () => installerStarted);
                 }
-                finally { _deploymentWaitCts = null; if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar"; }
+                finally { _deploymentWaitCts = null; if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar"; }
                 operation.Complete(result);
                 _programList.RefreshOperations();
                 bool confirmed = result.State == UpdateAttemptState.Confirmed;
@@ -3551,7 +3482,7 @@ internal sealed partial class MainForm : Form
             finally
             {
                 _deploymentWaitCts = null;
-                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 try { if (!WindowsTerminalUpdater.IsFolderProtected(folder) && Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
@@ -3624,7 +3555,7 @@ internal sealed partial class MainForm : Form
                     {
                         _installerDownloadCts = null;
                         if (!IsDisposed && _checkUpdatesButton is not null)
-                            _checkUpdatesButton.Text = "Atualizar e verificar";
+                            _checkUpdatesButton.Text = "Verificar";
                     }
                 }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
@@ -3677,7 +3608,7 @@ internal sealed partial class MainForm : Form
                     wait.Token, progress: operation.Report,
                     hasConfirmedInstallerStart: () => installerStarted);
                 _deploymentWaitCts = null;
-                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar";
                 operation.Complete(result);
                 _programList.RefreshOperations();
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM estado=" + result.State + " retorno=" + result.ExitCode);
@@ -3733,7 +3664,7 @@ internal sealed partial class MainForm : Form
             finally
             {
                 _deploymentWaitCts = null;
-                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
                 if (_batchUpdatesActive) _batchLastAttempt = operation.Snapshot;
                 if (!_programList.IsDisposed) _programList.RefreshOperations();

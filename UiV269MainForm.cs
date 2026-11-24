@@ -1062,6 +1062,8 @@ internal sealed partial class MainForm
         var palette = V269Palette;
         if (root is DarkDriverList driverList) driverList.Theme = _v269Appearance.Theme;
         if (root is DarkProgramList appsList) appsList.ApplyV269Table(_v269Appearance);
+        if(root==_v269AppSortChoice)_v269AppSortChoice.ApplyOptions(_v269Appearance);
+        if(root.Name=="V269AppsPage"&&root.Tag is Action fitApps)fitApps();
         if (root is DarkProgramList or DarkDriverList)
         {
             root.BackColor = palette.Content;

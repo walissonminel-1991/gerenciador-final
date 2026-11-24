@@ -626,54 +626,28 @@ internal static class LayoutTests
                     }
                     if (tab == V269Page.Aplicativos)
                     {
-                        var commands = Descendants(form).OfType<TableLayoutPanel>()
-                            .FirstOrDefault(panel => panel.Controls.OfType<Button>()
-                                .Any(button => button.Text == "Atualizar e verificar"));
-                        string[] expectedCommands = { "Atualizar e verificar",
-                            "Atualizar todos", "Selecionar vários", "Desinstalar selecionados", "Limpar seleção" };
-                        if (commands is null ||
-                            !commands.Controls.OfType<Button>()
-                                .Select(button => button.Text).SequenceEqual(expectedCommands))
-                            throw new Exception("Os cinco comandos de Aplicativos nao estao juntos.");
-                        var search = Descendants(form).OfType<TableLayoutPanel>()
-                            .FirstOrDefault(panel => panel.Controls.OfType<TextBox>()
-                                .Any(t => t.PlaceholderText.Contains("Nome, versão")));
-                        if (search is null || search.Controls.OfType<Button>()
-                            .Any(button => button.Text == "Atualizar lista"))
-                            throw new Exception("Atualizar lista nao deve aparecer junto da pesquisa.");
-                        var allFilter = Descendants(form).OfType<Button>()
-                            .SingleOrDefault(button => button.Text == "Todos" &&
-                                button.Parent is TableLayoutPanel parent &&
-                                parent.Controls.OfType<Button>().Count() == 2);
-                        if (allFilter is null || !allFilter.Visible ||
-                            allFilter.Parent is not TableLayoutPanel heading ||
-                            heading.ColumnCount != 3 ||
-                            heading.Controls.OfType<Button>().Count() != 2 ||
-                            heading.Controls.OfType<Button>().Any(b =>
-                                b.Text is "Possíveis" or "Inventário"))
-                            throw new Exception("Filtros redundantes permaneceram ou Todos ficou inacessivel.");
-                        foreach (var filterButton in heading.Controls.OfType<Button>())
-                        {
-                            if (filterButton.Right > heading.ClientSize.Width + 2 ||
-                                filterButton.Left < 0 ||
-                                filterButton.Width < 45)
-                                throw new Exception("Filtro de aplicativos cortado: " +
-                                    name + " / " + filterButton.Text);
-                        }
-                        bool expectCompact = commands.ClientSize.Width <
-                            (int)Math.Ceiling(860d * Math.Max(1, commands.DeviceDpi) / 96d);
-                        if (commands.RowCount != (expectCompact ? 3 : 1))
-                            throw new Exception("Acoes com numero incorreto de linhas: " + resolution);
-                        if (commands.Controls.OfType<Button>().Single(b => b.Text == "Atualizar todos").Enabled)
-                            throw new Exception("Atualizar todos não pode iniciar sem catálogo de aplicativos elegíveis.");
-                        foreach (Button button in commands.Controls.OfType<Button>())
-                        {
-                            if (commands.GetRow(button) < 0 ||
-                                commands.GetRow(button) >= commands.RowCount ||
-                                commands.GetColumn(button) < 0 ||
-                                button.Right > commands.ClientSize.Width + 2)
-                                throw new Exception("Acao cortada: " + name + " / " + button.Text);
-                        }
+                        var toolbar=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsToolbar");
+                        var verify=toolbar.Controls.OfType<Button>().Single(b=>b.Name=="V269AppsVerify");
+                        var search=toolbar.Controls.OfType<TextBox>().Single();
+                        var sort=toolbar.Controls.OfType<ComboBox>().Single();
+                        if(!verify.Visible||!search.Visible||!sort.Visible||sort.Items.Count!=5||
+                            toolbar.Controls.Cast<Control>().Any(x=>x.Visible&&x.Right>toolbar.ClientSize.Width+2))
+                            throw new Exception("Barra do HTML de Aplicativos incompleta ou cortada.");
+                        var commands=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsExtraCommands");
+                        string[] expected={"Atualizar todos","Selecionar vários","Desinstalar selecionados","Limpar seleção","Ocultos","Limpar pesquisa"};
+                        if(!commands.Controls.OfType<Button>().Select(x=>x.Text).SequenceEqual(expected)||
+                            commands.Controls.OfType<Button>().Single(x=>x.Text=="Atualizar todos").Enabled)
+                            throw new Exception("Comandos adicionais perdidos ou lote liberado sem catálogo.");
+                        var more=Descendants(form).OfType<Button>().Single(x=>x.Name=="V269AppsMore");
+                        if(!more.Visible)throw new Exception("Comandos adicionais inacessíveis.");
+                        more.PerformClick();Application.DoEvents();
+                        if(!commands.Visible||commands.Controls.OfType<Button>().Any(x=>x.Right>commands.ClientSize.Width+2||x.Width<45))
+                            throw new Exception("Comandos adicionais cortados.");
+                        more.PerformClick();Application.DoEvents();
+                        var footer=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsFooter");
+                        if(!footer.Controls.OfType<Button>().Any(x=>x.Text=="Todos"&&x.Visible)||
+                            !footer.Controls.OfType<Button>().Any(x=>x.Text=="Marcados"&&x.Visible))
+                            throw new Exception("Filtros de aplicativos inacessíveis.");
                     }
                     if (tab == V269Page.Sistema)
                     {
