@@ -184,9 +184,11 @@ internal static class LocalMsixInventory
     // atualização. Nunca interpretar como data original comprovada.
     private static DateOnly? ReadDeclaredDate(Windows.ApplicationModel.Package package)
     {
-        try{return V269AppOrdering.PackageDate(package.InstalledDate);}
+        try{return NormalizeDeclaredDate(package.InstalledDate);}
         catch(Exception){return null;}
     }
+    internal static DateOnly? NormalizeDeclaredDate(DateTimeOffset observed)=>observed.Year>=1980?
+        DateOnly.FromDateTime(observed.LocalDateTime):null;
     private static string ReadObservedLocation(Windows.ApplicationModel.Package package)
     {try{return package.InstalledLocation?.Path??"";}catch(Exception){return "";}}
     private static string ReadObservedArchitecture(Windows.ApplicationModel.Package package)

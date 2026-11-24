@@ -267,8 +267,8 @@ internal static class V269IntegrationTests
         ProgramEntry[] entries=[z,b,a];
         Require(V269AppOrdering.ParseRegistryDate("20260230") is null&&V269AppOrdering.ParseRegistryDate(20261124) is null&&
             V269AppOrdering.ParseRegistryDate("24/11/2026") is null&&V269AppOrdering.ParseRegistryDate("00010101") is null&&
-            V269AppOrdering.PackageDate(DateTimeOffset.MinValue) is null&&
-            V269AppOrdering.PackageDate(new DateTimeOffset(2026,11,24,12,0,0,TimeSpan.Zero)).HasValue,
+            LocalMsixInventory.NormalizeDeclaredDate(DateTimeOffset.MinValue) is null&&
+            LocalMsixInventory.NormalizeDeclaredDate(new DateTimeOffset(2026,11,24,12,0,0,TimeSpan.Zero)).HasValue,
             "datas ARP e MSIX estritas e ausências explícitas");
         Require(V269AppOrdering.Sort(entries,V269AppSort.NameAscending,[]).SequenceEqual(new[]{a,b,z})&&
             V269AppOrdering.Sort(entries,V269AppSort.NameDescending,[]).SequenceEqual(new[]{z,b,a})&&
