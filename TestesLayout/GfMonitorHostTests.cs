@@ -211,8 +211,36 @@ internal static class GfMonitorHostTests
         var edited=p with { Enabled=false,ScalePercent=125 };
         Require(GfMonitorHost.PreferencesAfterClose(edited,captured,true,CloseReason.UserClosing)==(edited with { X=15,Y=20 }),
             "fechamento comandado conserva edição");
-        Require(host.Apply(host.Preferences() with { Enabled=false },DateTimeOffset.UtcNow),"limpar fixture");
+        saveOk=false;
+        window.Close();
+        Require(!host.Preferences().Enabled && host.LastSaveSucceeded()==false &&
+            !host.WantsCollection(false,true),"falha ao fechar não se perde nem conserva janela");
+        saveOk=true;
+        Require(host.Save() && !GfResourceMonitorPreferencesStore.Load(path).Enabled,
+            "repetir gravação após fechamento manual");
         Console.WriteLine("OK Monitor GF: área de desktop, estados de gravação, recuperação nativa e encerramento.");
+    }
+
+    private static void VerifyHostPlacement(string path)
+    {
+        var area=new System.Drawing.Rectangle(0,0,1,1);
+        int queries=0, notices=0;
+        using var host=new GfMonitorHost(path,()=>{queries++;return true;},workArea:_=>area);
+        host.PlacementStateChanged+=(_,_)=>notices++;
+        var p=GfResourceMonitorPreferences.Default with { Enabled=true,AlwaysOnTop=true,ScalePercent=150 };
+        Require(host.Apply(p,DateTimeOffset.UtcNow) && host.PlacementAvailable()==false &&
+            host.EffectiveScalePercent() is null && !host.WantsCollection(false,true),
+            "sem espaço mínimo: overlay oculto e sem demanda própria");
+        area=new System.Drawing.Rectangle(0,0,10000,10000);
+        host.RefreshVisibility();
+        Require(host.PlacementAvailable()==true && host.EffectiveScalePercent()==150 &&
+            host.WantsCollection(false,true) && host.Preferences().ScalePercent==150 && queries==0,
+            "retorno da área útil recupera apresentação, sem sonda de desktop no overlay");
+        area=new System.Drawing.Rectangle(0,0,1,1);
+        host.RefreshVisibility();
+        Require(host.PlacementAvailable()==false && !host.WantsCollection(false,true) &&
+            host.WantsCollection(true,true) && notices>=3,"mudança de área oculta sem bloquear Início");
+        Require(host.Apply(host.Preferences() with { Enabled=false },DateTimeOffset.UtcNow),"limpar fixture");
     }
 
     internal static void Run()
@@ -281,6 +309,7 @@ internal static class GfMonitorHostTests
             VerifyWindowLifecycle(path, key);
             VerifyPresentation(path);
             VerifyAuditCorrections(path);
+            VerifyHostPlacement(path);
         }
         finally { Directory.Delete(folder, recursive: true); }
 

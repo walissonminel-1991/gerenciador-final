@@ -103,3 +103,7 @@ Referência visual aprovada pelo proprietário: GF_V2.6.9_Monitor_Referencia_Vis
 - Política nativa de apresentação conservadora (desktop confirmado, overlay explícito, falha oculta), passagem de mouse layered/transparente/noactivate, sem menus redundantes. Sonda exclusivamente de visibilidade, não de hardware. Renderização de publicação oculta adiada até Show; demanda compartilhada preservada. Cobertura de testes sintéticos e estilos reais, homologação física ainda reservada ao WORK.
 
 - Escala isolada implementada por geometria original e DPI, faixa inicial 100–150%, sem deriva. Testes percorrem três temas, ambos os modos e retorno a 100%; sem legenda. A faixa é decisão conservadora para proteger legibilidade, não aprovação visual da escala física.
+
+
+## Correções da auditoria independente
+A01: desktop por região livre, sem dependência de foreground global; não é ancoragem nativa e precisa de homologação física. A02: estado de gravação observado com evento, inclusive nos caminhos indiretos. A03: recuperação de apresentação limitada a 2 s, sem exibir se falhar. O host também reavalia área útil e DPI, preserva escala solicitada e recupera posição; oculta se 100% não couber. Encerramento externo preserva habilitação, fechamento manual desabilita. Testes dirigidos por fixtures; nenhuma alteração dos sete controles, dos motores ou do layout de referência. Novas CIs e comparação RGB obrigatórias. A04 e startup autônomo permanecem WORK.

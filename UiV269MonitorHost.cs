@@ -12,6 +12,7 @@ internal sealed class GfMonitorHost : IDisposable
     private readonly string _preferencesPath;
     private readonly Func<IntPtr,System.Drawing.Rectangle,bool> _desktopArea;
     private readonly Func<IntPtr,bool,int,bool> _applyNative;
+    private readonly Func<System.Drawing.Point,System.Drawing.Rectangle>? _workArea;
     private readonly Func<string,GfResourceMonitorPreferences,bool> _savePreferences;
     private bool? _lastSaveSucceeded;
     private long _nextNativeRetry;
@@ -34,7 +35,8 @@ internal sealed class GfMonitorHost : IDisposable
 
     internal GfMonitorHost(string preferencesPath, Func<bool>? desktopForeground = null,
         Func<IntPtr,bool,int,bool>? applyNative = null,
-        Func<string,GfResourceMonitorPreferences,bool>? savePreferences = null)
+        Func<string,GfResourceMonitorPreferences,bool>? savePreferences = null,
+        Func<System.Drawing.Point,System.Drawing.Rectangle>? workArea = null)
     {
         _preferencesPath = Path.GetFullPath(preferencesPath);
         _preferences = GfResourceMonitorPreferencesStore.Load(_preferencesPath);
@@ -42,6 +44,7 @@ internal sealed class GfMonitorHost : IDisposable
             (_,_) => desktopForeground();
         _applyNative = applyNative ?? GfMonitorNativePresentation.Apply;
         _savePreferences = savePreferences ?? GfResourceMonitorPreferencesStore.TrySave;
+        _workArea=workArea;
         // Somente visibilidade do desktop; não é timer de hardware.
         _visibilityTimer = new() { Interval = 250 };
         _visibilityTimer.Tick += (_,_) => RefreshVisibility();
@@ -116,14 +119,14 @@ internal sealed class GfMonitorHost : IDisposable
             }
         }
         else if(!show && window.Visible) window.Hide();
-        NotifyNativeState();
-        NotifyPlacementState();
         // Desktop verifica somente oclusão; overlay só recupera geometria e
         // falhas, sem enumerar janelas. Nenhum timer de coleta de hardware.
         int interval = !window.NativePresentationReady ? NativeRetryInterval :
-            _preferences.AlwaysOnTop ? 1000 : 250;
+            _preferences.AlwaysOnTop || !placement ? 1000 : 250;
         if(_visibilityTimer.Interval!=interval)_visibilityTimer.Interval=interval;
         _visibilityTimer.Start();
+        NotifyNativeState();
+        NotifyPlacementState();
     }
 
     private void Check()
@@ -239,7 +242,7 @@ internal sealed class GfMonitorHost : IDisposable
     private void Open(DateTimeOffset now)
     {
         if (_window is { IsDisposed: false }) return;
-        var window = new GfResourceMonitorForm(_applyNative);
+        var window = new GfResourceMonitorForm(_applyNative,_workArea);
         _nextNativeRetry = 0;
         _window = window;
         try
