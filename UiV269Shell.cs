@@ -477,8 +477,9 @@ internal sealed class V269Shell : UserControl
         _rightPane.ApplyPalette(palette);
         _pageTitle.ForeColor = palette.Text;
         _pageSubtitle.ForeColor = palette.SecondaryText;
+        // A regra final do SVG no HTML prevalece sobre o cinza do contêiner.
         _homeGlyph.ForeColor = Theme switch {
-            V269Theme.Dark => ColorTranslator.FromHtml("#c6cdd3"),
+            V269Theme.Dark => ColorTranslator.FromHtml("#65b8ef"),
             V269Theme.Claro => ColorTranslator.FromHtml("#2577a8"),
             _ => ColorTranslator.FromHtml("#69bfe0") };
         ApplyFonts();
@@ -972,8 +973,10 @@ internal sealed class V269HomeHeadingIcon : Control
     }
     protected override void OnPaint(PaintEventArgs e)
     {
-        int n = Math.Min(34,Math.Min(Width,Height));
-        if (n > 1) DrawGlyph(e.Graphics,new Rectangle(3,(Height-n)/2,n,n),V269Page.Inicio,ForeColor);
+        int n = Math.Min((int)Math.Round(34 * DeviceDpi / 96d), Math.Min(Width, Height));
+        int iconBox = Math.Min(Width, (int)Math.Round(43 * DeviceDpi / 96d));
+        if (n > 1) DrawGlyph(e.Graphics, new Rectangle(Math.Max(0, (iconBox - n) / 2),
+            (Height - n) / 2, n, n), V269Page.Inicio, ForeColor);
     }
     // Traçados 24 × 24 da família de ícones aprovada, escala uniforme.
     internal static void DrawGlyph(Graphics g, Rectangle r, V269Page page, Color color)

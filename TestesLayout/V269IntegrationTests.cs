@@ -106,6 +106,12 @@ internal static class V269IntegrationTests
             form.Controls.Find("V269HomeClose", true).Single().Visible &&
             !form.MaximizeBox && header.Height >= 60,
             "cabeçalho único com comandos reais, sem maximização");
+        int logicalHeaderHeight = V269HomeMetrics.HeaderHeight(
+            shellWidth(), V269HomeMetrics.LogicalScreenHeight(form));
+        Require(Math.Abs(header.Height - logicalHeaderHeight * form.DeviceDpi / 96d) <= 2,
+            "altura nativa do cabeçalho segue a media query da referência");
+        int shellWidth() => (int)Math.Round(
+            form.Controls.Find("V269Shell", true).OfType<V269Shell>().Single().LayoutWindowWidth * 1d);
         Require(form.Controls.Find("V269BrandMark", true).Length == 1 &&
             form.Controls.Find("V269HomeHeadingIcon", true).Single().Visible &&
             form.Controls.Find("V269PageSubtitle", true).Single().Text ==
@@ -489,6 +495,10 @@ internal static class V269IntegrationTests
                 {
                     themeChoice.SelectedIndex = (int)theme;
                     home.ApplyAppearance(new V269AppearanceOptions(theme, 100, 100, true));
+                    var headingIcon = form.Controls.Find("V269HomeHeadingIcon", true).Single();
+                    Require(headingIcon.ForeColor == ColorTranslator.FromHtml(theme switch {
+                        V269Theme.Dark => "#65b8ef", V269Theme.Claro => "#2577a8", _ => "#69bfe0" }),
+                        "cor efetiva do SVG de Início no tema " + theme);
                     home.AutoScrollPosition = Point.Empty;
                     surface.PerformLayout(); home.PerformLayout(); Application.DoEvents();
                     Require(home.Cards[0].Width > 0 && home.Cards[0].Height > 0 &&

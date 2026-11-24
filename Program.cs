@@ -822,7 +822,7 @@ internal sealed partial class MainForm : Form
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
                 V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))
                     * DeviceDpi / 96d)) : rows.Header;
-            if (Math.Abs(root.RowStyles[0].Height - headerHeight) > 1)
+            if (Math.Abs(root.RowStyles[0].Height - headerHeight) > (home ? 0 : 1))
                 root.RowStyles[0].Height = headerHeight;
             brandHeader.Configure(home, logicalWidth, _v269Appearance);
         }
@@ -4602,7 +4602,7 @@ internal sealed class V269BrandHeader : TableLayoutPanel
         try
         {
             _chrome.Visible = home;
-            ColumnStyles[3].Width = home ? D(100) : 0;
+            ColumnStyles[3].Width = home ? D((compactHeight ? 14 : 18) + 34 * 2 + 5) : 0;
             if (home)
             {
                 bool compact = width <= 850;
@@ -4628,7 +4628,10 @@ internal sealed class V269BrandHeader : TableLayoutPanel
                 foreach (Button button in _chrome.Controls.OfType<Button>())
                 {
                     button.Size = new Size(D(34), D(28));
-                    button.Margin = new Padding(0, 0, D(5), 0);
+                    // gap de 5px somente entre os botões; a margem
+                    // direita pertence ao cabeçalho, não ao último botão.
+                    button.Margin = new Padding(0, 0,
+                        button.Name == "V269HomeClose" ? 0 : D(5), 0);
                     button.BackColor = ColorTranslator.FromHtml(_theme switch {
                         V269Theme.Dark => "#1b1d20", V269Theme.Claro => "#d8e9f7", _ => "#102234" });
                     button.ForeColor = _title.ForeColor;
