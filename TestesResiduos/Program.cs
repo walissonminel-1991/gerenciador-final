@@ -84,10 +84,10 @@ if (args is ["--from-deep-residual-catalog"]) goto DeepResidualCatalog;
     passed++;
 }
 
-var largeDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1400));
-var regularDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1040));
-var shiftedDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(-1920, 40, 1920, 1080));
-var smallDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1024, 720));
+var largeDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1400),1440);
+var regularDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1040),1080);
+var shiftedDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(-1920, 40, 1920, 1080),1080);
+var smallDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1024, 720),720);
 void Check(bool result, string what)
 {
     if (!result) throw new Exception("FALHA: " + what);
@@ -152,40 +152,44 @@ Check(!ResidualAudit.IsDriverBoosterProduct(new ProgramEntry { Name = "Microsoft
 Check(InventoryReconciler.RequireComplete(Array.Empty<ProgramEntry>(), 0).Count == 0,
     "Inventario vazio completo nao e confundido com erro de acesso");
 
-Check(largeDesktop.Size == new System.Drawing.Size(1344, 1148),
-    "Monitor grande: janela cresce com a area util, mantendo fontes definidas pelo DPI");
-Check(regularDesktop.Size == new System.Drawing.Size(1344, 852) &&
-      regularDesktop.Y == 94 && regularDesktop.X == 288,
-    "1920x1040: abertura centralizada e proporcional");
-Check(shiftedDesktop.Left >= -1920 && shiftedDesktop.Right <= 0 &&
+Check(largeDesktop.Size == new System.Drawing.Size(1152, 840),
+    "Monitor grande: 60% de cada dimensão útil, mantendo fontes definidas pelo DPI");
+Check(regularDesktop.Size == new System.Drawing.Size(1152, 624) &&
+      regularDesktop.Y == 208 && regularDesktop.X == 384,
+    "Full HD: 60% da largura e altura úteis, janela centralizada");
+Check(shiftedDesktop.Size == new System.Drawing.Size(1152,648) &&
+      shiftedDesktop.Left >= -1920 && shiftedDesktop.Right <= 0 &&
       shiftedDesktop.Top >= 40 && shiftedDesktop.Bottom <= 1120,
     "Centralizar em monitor deslocado");
-Check(smallDesktop.Size == new System.Drawing.Size(716, 590) &&
-      StartupWindowSizing.AllowedMinimum(smallDesktop).Width <= smallDesktop.Width,
-    "1024x720: aplicar limite sem impedir abertura");
+Check(smallDesktop.Size == new System.Drawing.Size(819, 576) &&
+      StartupWindowSizing.AllowedMinimum(smallDesktop) == smallDesktop.Size,
+    "1024x720: 80% com tamanho fixo");
 var compactArea = new System.Drawing.Rectangle(0, 0, 1366, 720);
-var compactWindow = StartupWindowSizing.Fit(compactArea);
-Check(compactWindow.Size == new System.Drawing.Size(956, 590) &&
-      (long)compactWindow.Width * compactWindow.Height <=
-          3L * compactArea.Width * compactArea.Height / 5L,
-    "1366x768: janela proporcional dentro dos 60% da area util");
+var compactWindow = StartupWindowSizing.Fit(compactArea,768);
+Check(compactWindow.Size == new System.Drawing.Size(1093,576) &&
+      compactArea.Contains(compactWindow),
+    "1366x768: 80% da largura e altura úteis");
 var tinyArea = new System.Drawing.Rectangle(0, 0, 800, 552);
 Check(StartupWindowSizing.ApplyAreaLimit(tinyArea) &&
-      StartupWindowSizing.Fit(tinyArea).Size == new System.Drawing.Size(560, 452),
-    "A regra de 60% vale tambem para resolucoes menores que 1366x768");
-var referenceDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1440, 852));
-Check(referenceDesktop.Size == new System.Drawing.Size(1008, 698) &&
-      referenceDesktop.X == 216 && referenceDesktop.Y == 77,
-    "1440x900: tamanho proporcional e centralizado");
+      StartupWindowSizing.Fit(tinyArea,600).Size == new System.Drawing.Size(720,497),
+    "800x600: 90% da largura e altura úteis");
+var referenceDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1440, 852),900);
+Check(referenceDesktop.Size == new System.Drawing.Size(1152,682) &&
+      referenceDesktop.X == 144 && referenceDesktop.Y == 85,
+    "1440x900: 80% e centralização");
 var highResolutionArea = new System.Drawing.Rectangle(0, 0, 2560, 1392);
-var highResolution = StartupWindowSizing.Fit(highResolutionArea);
-Check(highResolution.Size == new System.Drawing.Size(1792, 1141) &&
+var highResolution = StartupWindowSizing.Fit(highResolutionArea,1440);
+Check(highResolution.Size == new System.Drawing.Size(1536,835) &&
       highResolution.Width > referenceDesktop.Width,
-    "2560x1440: nao usar dimensoes fixas em monitores grandes");
-Check((long)StartupWindowSizing.MaximumSizeFor(highResolutionArea).Width *
-      StartupWindowSizing.MaximumSizeFor(highResolutionArea).Height <=
-          3L * highResolutionArea.Width * highResolutionArea.Height / 5L,
-    "Tamanho maximo nunca excede 60% da area em 2560x1440");
+    "2560x1440: 60% e crescimento proporcional");
+Check(StartupWindowSizing.MaximumSizeFor(highResolutionArea,1440)==highResolution.Size &&
+      StartupWindowSizing.AllowedMinimum(highResolution)==highResolution.Size,
+    "Tamanho fixo: mínimo e máximo coincidem");
+Check(StartupWindowSizing.MaximumSizeFor(highResolutionArea,1440,90)==new System.Drawing.Size(1382,752) &&
+      StartupWindowSizing.MaximumSizeFor(highResolutionArea,1440,110)==new System.Drawing.Size(1690,919) &&
+      StartupWindowSizing.MaximumSizeFor(highResolutionArea,1440,0)==StartupWindowSizing.MaximumSizeFor(highResolutionArea,1440,90) &&
+      StartupWindowSizing.MaximumSizeFor(highResolutionArea,1440,200)==StartupWindowSizing.MaximumSizeFor(highResolutionArea,1440,110),
+    "Escalas 90/110 e limites da preferência");
 Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
     "Tamanho seguro quando a area util ainda e desconhecida");

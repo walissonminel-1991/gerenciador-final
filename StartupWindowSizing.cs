@@ -18,7 +18,9 @@ internal static class StartupWindowSizing
     {
         if (!ApplyAreaLimit(workingArea)) return PreferredSize;
         int percent=BasePercent(screenHeight>0?screenHeight:workingArea.Height);
-        int scale=V269VisualTokens.InterfacePercent(interfacePercent);
+        // Geometria pura: também compilada isoladamente pelos testes de
+        // resíduos, sem dependência de tokens visuais ou WinForms.
+        int scale=Math.Clamp(interfacePercent,90,110);
         int Dimension(int available)=>Math.Clamp((int)(((long)available*percent*scale+5000L)/10000L),1,available);
         return new Size(Dimension(workingArea.Width),Dimension(workingArea.Height));
     }
