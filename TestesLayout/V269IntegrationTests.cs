@@ -73,6 +73,11 @@ internal static class V269IntegrationTests
     {
         Require(view is V269HomeDashboard, "Início deve usar o dashboard nativo reconstruído");
         var home = (V269HomeDashboard)view;
+        Require(form.Controls.Find("V269BrandMark", true).Length == 1 &&
+            form.Controls.Find("V269HomeHeadingIcon", true).Single().Visible &&
+            form.Controls.Find("V269PageSubtitle", true).Single().Text ==
+                "Informações gerais do sistema e do hardware.",
+            "marca e identidade de Início da especificação visual");
         string[] keys = ["cpu", "gpu", "ram", "motherboard", "windows"];
         Require(home.Cards.Select(x => x.Key).SequenceEqual(keys),
             "cinco cartões do HTML em ordem, sem duplicar um cartão por provedor");
@@ -153,9 +158,25 @@ internal static class V269IntegrationTests
         var failures = home.Cards.Where(x => !x.ArtReady)
             .Select(x => x.Key + "=" + (x.ArtError ?? "timeout")).ToArray();
         Require(failures.Length == 0, "decodificação das cinco artes originais: " + string.Join(", ", failures));
+        Require(!home.HorizontalScroll.Visible && !home.VerticalScroll.Visible,
+            "Início não exibe barras de rolagem nativas");
+        home.AutoScrollPosition = new Point(0, int.MaxValue);
+        Require(-home.AutoScrollPosition.Y == Math.Max(0, home.ContentHeight - home.ClientSize.Height),
+            "rolagem alcança o final sem ultrapassar o conteúdo");
+        var read = home.Controls.Find("V269ReadHardware", true).OfType<Button>().Single();
+        Require(read.Focus(), "consulta manual alcançável pelo teclado");
+        Application.DoEvents();
+        Require(LayoutTests.FullyVisible(read), "foco traz a consulta para a área visível");
+        home.AutoScrollPosition = Point.Empty;
+        Require(home.AutoScrollPosition == Point.Empty && home.Cards[0].Top >= 0,
+            "rolagem retorna ao topo sem cortar o primeiro cartão");
+
         Directory.CreateDirectory("LayoutCaptures");
+        var themeChoice = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
         foreach (var theme in Enum.GetValues<V269Theme>())
         {
+            // Usa a mesma ligação das Configurações, não apenas a paleta do cartão.
+            themeChoice.SelectedIndex = (int)theme;
             home.ApplyAppearance(new V269AppearanceOptions(theme, 100, 100, true));
             home.AutoScrollPosition = Point.Empty;
             home.PerformLayout();
@@ -172,6 +193,9 @@ internal static class V269IntegrationTests
             using var capture = new Bitmap(home.Width, home.Height);
             home.DrawToBitmap(capture, new Rectangle(Point.Empty, home.Size));
             capture.Save($"LayoutCaptures/v269-inicio-{theme}.png");
+            using var full = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(full, new Rectangle(Point.Empty, form.Size));
+            full.Save($"LayoutCaptures/v269-inicio-janela-{theme}.png");
             foreach (var card in cards)
             {
                 using var detail = new Bitmap(card.Width, card.Height);
@@ -179,8 +203,10 @@ internal static class V269IntegrationTests
                 detail.Save($"LayoutCaptures/v269-inicio-{theme}-{card.Key}.png");
             }
         }
+        themeChoice.SelectedIndex = (int)V269Theme.AzulGf;
         home.SetModels(empty);
         home.ApplyAppearance(V269AppearanceOptions.Default);
+        home.AutoScrollPosition = Point.Empty;
         Console.WriteLine("PASS Início V2.6.9: cinco cartões, artes originais, fontes reais, três temas, geometria e capturas.");
     }
 
