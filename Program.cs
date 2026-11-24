@@ -1116,7 +1116,7 @@ internal sealed partial class MainForm : Form
     private V269AppSort _v269AppSort=V269AppSort.NameAscending;
     private string[] _v269ManualOrder=[];
     private bool _v269OrderLive;
-    private readonly V269SettingsCombo _v269AppSortChoice=new() { Name="V269AppSort", DropDownStyle=ComboBoxStyle.DropDownList };
+    private readonly V269AppSortCombo _v269AppSortChoice=new() { Name="V269AppSort", DropDownStyle=ComboBoxStyle.DropDownList };
     private Font? _v269AppSortFont;
 
     private Control BuildProgramsPanel(bool loadPreferences)
@@ -1171,10 +1171,13 @@ internal sealed partial class MainForm : Form
 
         // Recursos funcionais do GF que não existem no HTML de demonstração.
         // Recolhidos por padrão; a operação em lote mantém acesso ao botão Parar.
-        var actions=new TableLayoutPanel{Name="V269AppsExtraCommands",Dock=DockStyle.Fill,
-            ColumnCount=2,RowCount=3,Margin=Padding.Empty,BackColor=AppServices.Background,Visible=false};
+        var actionsHost=new Panel{Name="V269AppsExtraScroll",Dock=DockStyle.Fill,AutoScroll=true,
+            Margin=Padding.Empty,BackColor=AppServices.Background,Visible=false};
+        var actions=new TableLayoutPanel{Name="V269AppsExtraCommands",Dock=DockStyle.Top,
+            ColumnCount=2,RowCount=4,Margin=Padding.Empty,BackColor=AppServices.Background};
         for(int i=0;i<2;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
-        for(int i=0;i<3;i++)actions.RowStyles.Add(new RowStyle(SizeType.Percent,100f/3));
+        for(int i=0;i<4;i++)actions.RowStyles.Add(new RowStyle(SizeType.Percent,25));
+        actionsHost.Controls.Add(actions);
         Button MakeAction(string title,Color color,int slot,Action onClick)
         {
             var button=CreateButton(title,color,Color.White);button.Dock=DockStyle.Fill;
@@ -1193,7 +1196,16 @@ internal sealed partial class MainForm : Form
         _v269HiddenReviewButton=hiddenReview;
         _toolTips.SetToolTip(hiddenReview,"Consulta separada, somente leitura; não habilita remoção.");
         MakeAction("Limpar pesquisa",AppServices.Gray,5,()=>_search.Clear());
-        root.Controls.Add(actions,0,1);
+        MakeAction("Histórico local",AppServices.Gray,6,()=>{
+            if(_busy||_v269Confirming||_batchUpdatesActive||_betaClose.IsClosing)return;
+            if(_nav.RightPane.Current?.Kind==V269PanelKind.History)
+            {
+                _nav.PresentPanel(null);
+                if(_programList.SelectedItem is {} selected)PresentV269AppDetails(selected);
+            }
+            else PresentV269History();
+        });
+        root.Controls.Add(actionsHost,0,1);
         bool expanded=false;
         void FitToolbar()
         {
@@ -1207,33 +1219,36 @@ internal sealed partial class MainForm : Form
                 searchBar.RowStyles.Clear();searchBar.RowCount=compact?2:1;
                 for(int i=0;i<searchBar.RowCount;i++)searchBar.RowStyles.Add(new RowStyle(SizeType.Percent,100f/searchBar.RowCount));
                 searchBar.ColumnStyles[0].Width=S(115);
-                int sortWidth=Math.Clamp(root.ClientSize.Width-S(showDetails?340:270),S(120),S(207));
+                int sortWidth=Math.Clamp(root.ClientSize.Width-S(showDetails?355:270),S(120),S(207));
                 searchBar.ColumnStyles[2].Width=compact?0:sortWidth;
-                searchBar.ColumnStyles[3].Width=compact||!showDetails?0:S(70);
+                searchBar.ColumnStyles[3].Width=compact||!showDetails?0:S(82);
                 searchBar.SetColumnSpan(searchFrame,1);searchBar.SetColumnSpan(_v269AppSortChoice,1);
                 searchBar.SetCellPosition(_checkUpdatesButton,new TableLayoutPanelCellPosition(0,0));
                 searchBar.SetCellPosition(searchFrame,new TableLayoutPanelCellPosition(1,0));
                 searchBar.SetCellPosition(_v269AppSortChoice,new TableLayoutPanelCellPosition(compact?1:2,compact?1:0));
                 searchBar.SetCellPosition(details,new TableLayoutPanelCellPosition(compact?0:3,compact?1:0));
                 root.RowStyles[0].Height=S(compact?84:44);
-                root.RowStyles[1].Height=expanded?S(108):0;
-                root.RowStyles[3].Height=S(30);
+                int desired=S(136);
+                actions.Height=desired;actionsHost.AutoScrollMinSize=new Size(0,desired);
+                // Em janela baixa, os comandos rolam independentemente;
+                // conservar espaço para cabeçalho e parte da tabela.
+                int budget=Math.Max(S(34),root.ClientSize.Height-(int)root.RowStyles[0].Height-
+                    (int)root.RowStyles[3].Height-S(60));
+                root.RowStyles[1].Height=expanded?Math.Min(desired,budget):0;
             }
             finally{searchBar.ResumeLayout(true);}
         }
-        root.SizeChanged+=(_,_)=>FitToolbar();root.DpiChangedAfterParent+=(_,_)=>FitToolbar();
-        root.Tag=(Action)FitToolbar;
-
+ 
         var heading = new TableLayoutPanel
         {
-            Name="V269AppsFooter",Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty
+            Name="V269AppsFooter",Dock = DockStyle.Fill, ColumnCount = 4, RowCount=1, Margin = Padding.Empty
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
         _listTitle.Dock = DockStyle.Fill;
-        _listTitle.AutoEllipsis = false;
+        _listTitle.AutoEllipsis = true;
         _listTitle.SizeChanged += (_, _) => RenderTitle();
         _listTitle.Font = new Font("Segoe UI", 10.0F, FontStyle.Bold);
         _listTitle.ForeColor = Ink;
@@ -1242,16 +1257,54 @@ internal sealed partial class MainForm : Form
         _allFilterButton = AddFilter(heading, "Todos", 1);
         _selectedFilterButton = AddFilter(heading, "Marcados", 2);
         _toolTips.SetToolTip(_allFilterButton,
-            "Mostra todos os aplicativos identificados; candidatos de atualização ficam no topo. " +
+            "Mostra todos os aplicativos identificados na ordem selecionada. " +
             "Entradas sem ação autorizada permanecem somente leitura.");
         _toolTips.SetToolTip(_selectedFilterButton,
             "Mostra apenas aplicativos marcados para operações autorizadas.");
         var more=new V269AppToolbarButton("Mais ações"){Name="V269AppsMore"};
         more.Dock=DockStyle.Fill;more.Margin=new Padding(2,3,0,3);
         more.Click+=(_,_)=>{if(_batchUpdatesActive&&expanded)return;expanded=!expanded;
-            actions.Visible=expanded;more.Text=expanded?"Recolher":"Mais ações";FitToolbar();};
+            actionsHost.Visible=expanded;more.Text=expanded?"Recolher":"Mais ações";more.AccessibleName=more.Text;
+            if(!expanded)actionsHost.AutoScrollPosition=Point.Empty;
+            FitToolbar();};
         heading.Controls.Add(more,3,0);
         root.Controls.Add(heading,0,3);
+        void FitFooter()
+        {
+            int S(int value)=>V269AppTable.Scale(value,_v269Appearance.InterfacePercent,root.DeviceDpi);
+            int W(int value)=>V269AppTable.Scale(value,Math.Max(_v269Appearance.InterfacePercent,_v269Appearance.TextPercent),root.DeviceDpi);
+            int first=W(60),second=W(84),third=W(100),available=Math.Max(3,root.ClientSize.Width);
+            int sum=first+second+third;
+            bool stacked=available<sum+W(105);
+            if(available<sum)
+            {
+                first=Math.Max(1,available*first/sum);
+                second=Math.Max(1,available*second/sum);
+                third=Math.Max(1,available-first-second);
+            }
+            heading.SuspendLayout();
+            try
+            {
+                heading.SetColumnSpan(_listTitle,1);
+                heading.SetCellPosition(_listTitle,new TableLayoutPanelCellPosition(0,0));
+                heading.RowCount=stacked?2:1;
+                heading.RowStyles.Clear();
+                for(int i=0;i<heading.RowCount;i++)heading.RowStyles.Add(new RowStyle(SizeType.Percent,100f/heading.RowCount));
+                heading.ColumnStyles[1].Width=first;
+                heading.ColumnStyles[2].Width=second;
+                heading.ColumnStyles[3].Width=third;
+                heading.SetCellPosition(_allFilterButton,new TableLayoutPanelCellPosition(1,stacked?1:0));
+                heading.SetCellPosition(_selectedFilterButton,new TableLayoutPanelCellPosition(2,stacked?1:0));
+                heading.SetCellPosition(more,new TableLayoutPanelCellPosition(3,stacked?1:0));
+                if(stacked)heading.SetColumnSpan(_listTitle,4);
+                int height=Math.Max(S(32),W(30));
+                root.RowStyles[3].Height=height*(stacked?2:1);
+            }
+            finally{heading.ResumeLayout(true);}
+        }
+        void FitAppLayout(){FitFooter();FitToolbar();}
+        root.SizeChanged+=(_,_)=>FitAppLayout();root.DpiChangedAfterParent+=(_,_)=>FitAppLayout();
+        root.Tag=(Action)FitAppLayout;
 
         _programList.Dock = DockStyle.Fill;
         _programList.ApplyV269Table(_v269Appearance);
@@ -1316,7 +1369,7 @@ internal sealed partial class MainForm : Form
         host.Controls.Add(_emptyState);
         root.Controls.Add(host, 0, 2);
         root.SizeChanged+=(_,_)=>host.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
-        FitToolbar();
+        FitAppLayout();
         UpdateBulkButtons();
         RenderTitle();
         return root;
@@ -1457,10 +1510,9 @@ internal sealed partial class MainForm : Form
 
     private Button AddFilter(TableLayoutPanel heading, string title, int column, string? visibleTitle = null)
     {
-        var button = CreateSecondaryButton(visibleTitle ?? title);
-        button.Dock = DockStyle.Fill;
-        button.Margin = new Padding(4, 3, 0, 3);
-        button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+        var button = new V269AppToolbarButton(visibleTitle ?? title);
+        button.Margin = new Padding(3,3,0,3);
+        button.ApplyOptions(_v269Appearance);
         button.Click += (_, _) =>
         {
             if (_busy || _betaClose.IsClosing) return;
@@ -1493,7 +1545,8 @@ internal sealed partial class MainForm : Form
             ("Local",location),("Oferta",DisplayAppVersion(item.AvailableVersion))};
         _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do aplicativo",details,Application:
             new V269AppDetailModel(item.Name,Known(item.Publisher),fields,
-                ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item)))));
+                ApplicationCapabilityInspection.Describe(item,_updateOperations.Find(item)),
+                _programList.LoadLocalAppIcons?item.DisplayIcon:"")));
     }
 
     private void DrawProgramCard(object? sender, DrawItemEventArgs e)
@@ -1508,18 +1561,13 @@ internal sealed partial class MainForm : Form
         if(bounds.Width<V269AppTable.MinimumWidth(options.InterfacePercent,dpi))
             bounds.Width=V269AppTable.MinimumWidth(options.InterfacePercent,dpi);
         var cells=V269AppTable.Columns(bounds,options.InterfacePercent,dpi);
-        using(var bg=new SolidBrush(selected?colors.Selected:e.Index%2==0?colors.Row:colors.Alternate))g.FillRectangle(bg,bounds);
-        using(var line=new Pen(colors.Border))g.DrawLine(line,bounds.X,bounds.Bottom-1,bounds.Right,bounds.Bottom-1);
-        if(selected)
-        {
-            using var rail=new SolidBrush(colors.Rail);g.FillRectangle(rail,bounds.X,bounds.Y+2,S(3),Math.Max(1,bounds.Height-4));
-        }
+        V269AppTable.DrawRowBackground(g,bounds,options.Theme,selected,e.Index%2!=0,options.InterfacePercent,dpi);
         using var font=new Font("Segoe UI",9f*options.TextPercent/100f);
         using var bold=new Font(font,FontStyle.Bold);
         void Text(string value,Rectangle area,Font? style=null,Color? color=null)
         {
             if(area.Width<1||area.Height<1)return;
-            TextRenderer.DrawText(g,value,style??font,area,color??colors.Ink,
+            TextRenderer.DrawText(g,value,style??font,area,color??V269AppTable.RowInk(options.Theme,selected),
                 TextFormatFlags.SingleLine|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|
                 TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping);
         }
@@ -1551,7 +1599,7 @@ internal sealed partial class MainForm : Form
         var status=Inset(4);
         if(uninstall is not null||update is not null)
         {
-            var label=status;label.Height=Math.Max(1,status.Height-S(7));Text(state,label);
+            var label=status;label.Height=Math.Max(1,status.Height-S(7));Text(state,label,color:V269AppTable.StateInk(options.Theme,selected,true));
             if(update?.Progress.Percent is int percent)
             {
                 using var progress=new SolidBrush(V269Palette.EnabledUpdate);
@@ -1568,7 +1616,7 @@ internal sealed partial class MainForm : Form
                 g.FillRectangle(activity,status.X+x,status.Bottom-S(5),segment,S(3));
             }
         }
-        else Text(state,status);
+        else Text(state,status,color:V269AppTable.StateInk(options.Theme,selected,item.IsUpdate&&_programList.AllowsUpdate(item)));
         if(!_multiSelectMode)
         {
             var u=_programList.ActionVisual(item,VerifiedUpdaters.GetPrimaryAction(item)??"");
@@ -2975,8 +3023,12 @@ internal sealed partial class MainForm : Form
         })
         {
             if (button is null) continue;
-            button.BackColor = _appFilter == name ? Color.FromArgb(43, 66, 89) : Color.FromArgb(43, 56, 70);
-            button.ForeColor = _appFilter == name ? Accent : Ink;
+            if(button is V269AppToolbarButton filter)filter.FilterSelected=_appFilter==name;
+            else
+            {
+                button.BackColor = _appFilter == name ? Color.FromArgb(43, 66, 89) : Color.FromArgb(43, 56, 70);
+                button.ForeColor = _appFilter == name ? Accent : Ink;
+            }
             button.Invalidate();
         }
     }

@@ -634,7 +634,7 @@ internal static class LayoutTests
                             toolbar.Controls.Cast<Control>().Any(x=>x.Visible&&x.Right>toolbar.ClientSize.Width+2))
                             throw new Exception("Barra do HTML de Aplicativos incompleta ou cortada.");
                         var commands=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsExtraCommands");
-                        string[] expected={"Atualizar todos","Selecionar vários","Desinstalar selecionados","Limpar seleção","Ocultos","Limpar pesquisa"};
+                        string[] expected={"Atualizar todos","Selecionar vários","Desinstalar selecionados","Limpar seleção","Ocultos","Limpar pesquisa","Histórico local"};
                         if(!commands.Controls.OfType<Button>().Select(x=>x.Text).SequenceEqual(expected)||
                             commands.Controls.OfType<Button>().Single(x=>x.Text=="Atualizar todos").Enabled)
                             throw new Exception("Comandos adicionais perdidos ou lote liberado sem catálogo.");

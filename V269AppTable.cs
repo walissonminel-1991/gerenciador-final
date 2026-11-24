@@ -32,53 +32,166 @@ internal static class V269AppTable
     internal static Color H(string s)=>ColorTranslator.FromHtml(s);
     internal static (Color Head,Color Row,Color Alternate,Color Selected,Color Ink,Color Border,Color Rail) Colors(V269Theme theme)=>theme switch
     {
-        V269Theme.Dark=>(H("#34383d"),H("#282b2f"),H("#2d3136"),H("#50575f"),H("#cbd1d6"),H("#3d4349"),H("#f1f5f8")),
+        V269Theme.Dark=>(H("#34383d"),H("#282b2f"),H("#2d3136"),H("#50575f"),H("#cbd1d6"),H("#51575e"),H("#c8d0d7")),
         V269Theme.Claro=>(H("#bcdcf3"),H("#eaf4fb"),H("#e4f2fd"),H("#c3dff3"),H("#20435f"),H("#9bbacf"),H("#2374ab")),
-        _=>(H("#17364a"),H("#0b2033"),H("#0c273a"),H("#1c4666"),H("#e4edf6"),H("#25445f"),H("#69bfe0"))
+        _=>(H("#17364a"),H("#091d2d"),H("#0c273a"),H("#1c4666"),H("#e4edf6"),H("#25445f"),H("#7bc2ff"))
     };
     internal static void DrawHeader(Graphics g,Rectangle bounds,V269AppearanceOptions options,Font font,int dpi)
     {
+        if(bounds.Width<1||bounds.Height<1)return;
         var colors=Colors(options.Theme);
-        using var bg=new SolidBrush(colors.Head);g.FillRectangle(bg,bounds);
+        using Brush bg=options.Theme==V269Theme.Dark
+            ?new LinearGradientBrush(bounds,H("#3b4045"),H("#34383d"),LinearGradientMode.Vertical)
+            :new SolidBrush(colors.Head);
+        g.FillRectangle(bg,bounds);
+        Color ink=options.Theme switch
+        {V269Theme.Dark=>H("#cdd3d9"),V269Theme.Claro=>H("#143e60"),_=>H("#bfd2df")};
         var columns=Columns(bounds,options.InterfacePercent,dpi);
         for(int i=0;i<Headers.Length;i++)
         {
             var rect=columns[i];rect.Inflate(-Scale(5,options.InterfacePercent,dpi),0);
-            TextRenderer.DrawText(g,Headers[i],font,rect,colors.Ink,TextFormatFlags.VerticalCenter|
+            TextRenderer.DrawText(g,Headers[i],font,rect,ink,TextFormatFlags.VerticalCenter|
                 TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping);
         }
-        using var line=new Pen(colors.Border);g.DrawLine(line,bounds.Left,bounds.Bottom-1,bounds.Right,bounds.Bottom-1);
+        using var line=new Pen(options.Theme switch
+        {V269Theme.Dark=>H("#656b72"),V269Theme.Claro=>H("#b7d1e2"),_=>H("#355067")});
+        g.DrawLine(line,bounds.Left,bounds.Bottom-1,bounds.Right,bounds.Bottom-1);
+    }
+
+    internal static Color RowInk(V269Theme theme,bool selected)=>!selected?Colors(theme).Ink:theme switch
+    {V269Theme.Dark=>H("#e0e4e7"),V269Theme.Claro=>H("#20435f"),_=>H("#eef7ff")};
+    internal static Color StateInk(V269Theme theme,bool selected,bool available)=>selected||available?RowInk(theme,selected):theme switch
+    {V269Theme.Dark=>H("#a7b0b8"),V269Theme.Claro=>H("#3f627a"),_=>H("#9ab0c2")};
+    internal static void DrawRowBackground(Graphics g,Rectangle bounds,V269Theme theme,bool selected,bool alternate,int scale,int dpi)
+    {
+        if(bounds.Width<1||bounds.Height<1)return;
+        var colors=Colors(theme);
+        var (first,last,selectedBorder)=theme switch
+        {
+            V269Theme.Dark=>(H("#5a626b"),H("#484e56"),H("#aeb9c3")),
+            V269Theme.Claro=>(H("#dcebf7"),H("#d1e3f1"),H("#78a9cb")),
+            _=>(H("#1a456d"),H("#143555"),H("#5c97c3"))
+        };
+        using Brush fill=selected?new LinearGradientBrush(bounds,first,last,LinearGradientMode.Horizontal):
+            new SolidBrush(alternate?colors.Alternate:colors.Row);
+        g.FillRectangle(fill,bounds);
+        using var line=new Pen(theme switch
+        {V269Theme.Dark=>H("#3d4349"),V269Theme.Claro=>H("#b7d1e2"),_=>H("#1a3345")});
+        g.DrawLine(line,bounds.Left,bounds.Bottom-1,bounds.Right,bounds.Bottom-1);
+        if(selected&&bounds.Width>1&&bounds.Height>1)
+        {
+            using var border=new Pen(selectedBorder);
+            g.DrawRectangle(border,bounds.X,bounds.Y,bounds.Width-1,bounds.Height-1);
+            using var rail=new SolidBrush(theme==V269Theme.Claro?H("#7bc2ff"):colors.Rail);
+            int gap=Scale(4,scale,dpi);
+            g.FillRectangle(rail,bounds.X,bounds.Y+gap,Math.Min(gap,bounds.Width),Math.Max(1,bounds.Height-2*gap));
+        }
     }
     internal static void DrawAction(Graphics g,Rectangle r,V269Theme theme,bool remove,bool allowed,bool hover,bool pressed)
     {
         if(r.Width<2||r.Height<2)return;
-        var kind=remove?V269ActionKind.Remover:V269ActionKind.Atualizar;
-        Color back=V269VisualTokens.ActionBackground(theme,kind,allowed),ink=V269VisualTokens.ActionColor(theme,kind,allowed);
-        if(theme==V269Theme.Claro&&allowed)ink=Color.White;
+        var (back,ink,outline)=ActionColors(theme,remove,allowed);
         if(allowed&&hover)back=ControlPaint.Light(back,pressed ? .05f : .15f);
         using var path=ModernButton.RoundRect(new Rectangle(r.X,r.Y,r.Width-1,r.Height-1),6);
-        using var fill=new SolidBrush(back);using var border=new Pen(V269VisualTokens.ActionBorder(theme,kind,allowed));
+        using var fill=new SolidBrush(back);using var border=new Pen(outline);
         g.FillPath(fill,path);g.DrawPath(border,path);
         var state=g.Save();
         try
         {
             g.SmoothingMode=SmoothingMode.AntiAlias;
-            float size=Math.Min(r.Width,r.Height)*.62f;
+            float size=Math.Min(r.Width*20f/32f,r.Height*20f/30f);
             g.TranslateTransform(r.X+(r.Width-size)/2,r.Y+(r.Height-size)/2);g.ScaleTransform(size/24,size/24);
-            using var p=new Pen(ink,2.4f){StartCap=LineCap.Round,EndCap=LineCap.Round,LineJoin=LineJoin.Round};
-            if(remove)
-            {
-                g.DrawLine(p,4,6,20,6);g.DrawLine(p,9,3,15,3);
-                g.DrawLines(p,new PointF[]{new(6,9),new(7,21),new(17,21),new(18,9)});
-                g.DrawLine(p,10,10,10,17);g.DrawLine(p,14,10,14,17);
-            }
-            else
-            {
-                g.DrawArc(p,4,4,16,16,-45,155);g.DrawArc(p,4,4,16,16,135,155);
-                g.DrawLines(p,new PointF[]{new(19,2),new(19,8),new(13,8)});
-                g.DrawLines(p,new PointF[]{new(5,22),new(5,16),new(11,16)});
-            }
+            using var glyph=ActionGlyph(remove);
+            using var symbol=new SolidBrush(ink);
+            g.FillPath(symbol,glyph);
         }
         finally{g.Restore(state);}
+    }
+
+    // Última cascata do HTML aprovado: cores específicas da tabela de Aplicativos.
+    // Não alterar os tokens compartilhados pelas demais páginas.
+    internal static (Color Back,Color Ink,Color Border) ActionColors(V269Theme theme,bool remove,bool allowed)
+    {
+        var (back,ink,border)=(theme,remove,allowed) switch
+        {
+            (V269Theme.Claro,false,true)=>("#278b55","#ffffff","#2da269"),
+            (V269Theme.Claro,false,false)=>("#f0f8fd","#5f97bf","#9ebed6"),
+            (V269Theme.Claro,true,true)=>("#cf465e","#ffffff","#df6075"),
+            (V269Theme.Claro,true,false)=>("#e5edf3","#9ba8b4","#b5c4d0"),
+            (V269Theme.Dark,false,true)=>("#276e49","#e2fff1","#61c891"),
+            (V269Theme.Dark,false,false)=>("#383e44","#bac3ca","#68727b"),
+            (V269Theme.Dark,true,true)=>("#772d39","#ffe4e8","#f3798e"),
+            (V269Theme.Dark,true,false)=>("#373c42","#929ca5","#626a73"),
+            (_,false,true)=>("#1d633e","#caffdf","#46b977"),
+            (_,false,false)=>("#173249","#bfd9ec","#4b6981"),
+            (_,true,true)=>("#722734","#ffd9df","#f66b84"),
+            _=>("#263743","#8997a3","#435766")
+        };
+        return (H(back),H(ink),H(border));
+    }
+
+    // ViewBox 24x24 dos SVG refresh-solid e trash-solid do HTML congelado.
+    internal static GraphicsPath ActionGlyph(bool remove)
+    {
+        var glyph=new GraphicsPath(FillMode.Winding);
+        if(remove)
+        {
+            glyph.StartFigure();
+            glyph.AddLine(6,7,18,7);
+            glyph.AddLine(18,7,18,19);
+            glyph.AddBezier(18,19,18,20.10457f,17.10457f,21,16,21);
+            glyph.AddLine(16,21,8,21);
+            glyph.AddBezier(8,21,6.89543f,21,6,20.10457f,6,19);
+            glyph.AddLine(6,19,6,7);
+            glyph.CloseFigure();
+            glyph.StartFigure();
+            glyph.AddLine(9,9,9,18);
+            glyph.AddLine(9,18,11,18);
+            glyph.AddLine(11,18,11,9);
+            glyph.AddLine(11,9,9,9);
+            glyph.CloseFigure();
+            glyph.StartFigure();
+            glyph.AddLine(13,9,13,18);
+            glyph.AddLine(13,18,15,18);
+            glyph.AddLine(15,18,15,9);
+            glyph.AddLine(15,9,13,9);
+            glyph.CloseFigure();
+            glyph.StartFigure();
+            glyph.AddLine(5,4,9,4);
+            glyph.AddLine(9,4,10,3);
+            glyph.AddLine(10,3,14,3);
+            glyph.AddLine(14,3,15,4);
+            glyph.AddLine(15,4,19,4);
+            glyph.AddLine(19,4,19,6);
+            glyph.AddLine(19,6,5,6);
+            glyph.AddLine(5,6,5,4);
+            glyph.CloseFigure();
+        }
+        else
+        {
+            glyph.StartFigure();
+            glyph.AddLine(12,4,12,1);
+            glyph.AddLine(12,1,8,5);
+            glyph.AddLine(8,5,12,9);
+            glyph.AddLine(12,9,12,6);
+            glyph.AddBezier(12,6,15.31f,6,18,8.69f,18,12);
+            glyph.AddBezier(18,12,18,13.01f,17.75f,13.97f,17.31f,14.8f);
+            glyph.AddLine(17.31f,14.8f,18.77f,16.26f);
+            glyph.AddBezier(18.77f,16.26f,19.57673f,14.98584f,20.00341f,13.50807f,20,12);
+            glyph.AddBezier(20,12,20,7.58f,16.42f,4,12,4);
+            glyph.CloseFigure();
+            glyph.StartFigure();
+            glyph.AddBezier(12,18,8.69f,18,6,15.31f,6,12);
+            glyph.AddBezier(6,12,6,10.99f,6.25f,10.03f,6.69f,9.2f);
+            glyph.AddLine(6.69f,9.2f,5.23f,7.74f);
+            glyph.AddBezier(5.23f,7.74f,4.42327f,9.01416f,3.99659f,10.49193f,4,12);
+            glyph.AddBezier(4,12,4,16.42f,7.58f,20,12,20);
+            glyph.AddLine(12,20,12,23);
+            glyph.AddLine(12,23,16,19);
+            glyph.AddLine(16,19,12,15);
+            glyph.AddLine(12,15,12,18);
+            glyph.CloseFigure();
+        }
+        return glyph;
     }
 }

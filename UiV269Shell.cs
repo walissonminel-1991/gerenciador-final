@@ -216,6 +216,8 @@ internal sealed class V269RightPane : UserControl
         _applicationDetails.ApplyPalette(palette);
     }
 
+    internal void ApplyAppInterfaceScale(int percent)=>_applicationDetails.ApplyInterfaceScale(percent);
+
     internal void SetFonts(Font title, Font body)
     {
         _title.Font = title;
@@ -507,6 +509,7 @@ internal sealed class V269Shell : UserControl
             foreach (Control layout in _content.Controls.Find(name, true))
                 layout.BackColor = palette.Content;
         _rightPane.ApplyPalette(palette);
+        _rightPane.ApplyAppInterfaceScale(InterfaceScalePercent);
         _pageTitle.ForeColor = palette.Text;
         _pageSubtitle.ForeColor = palette.SecondaryText;
         // A regra final do SVG no HTML prevalece sobre o cinza do contêiner.
@@ -574,9 +577,9 @@ internal sealed class V269Shell : UserControl
         _homeGlyph.Visible = home;
         _homeGlyph.Page = SelectedPage;
         _homeGlyph.ForeColor = Theme switch {
-            V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#b998f2" : "#65b8ef"),
-            V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#7046c1" : "#2577a8"),
-            _ => ColorTranslator.FromHtml(SelectedPage == V269Page.Configuracoes ? "#b7a5f5" : "#69bfe0") };
+            V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
+            V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
+            _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };
         _homeGlyph.Invalidate();
         _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 57 : 68) : 70;

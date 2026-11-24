@@ -247,6 +247,7 @@ internal sealed class DarkProgramList : Control
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal string EmptyMessage {get=>_emptyMessage;set{_emptyMessage=value;Invalidate();}}
     internal int TableHeaderHeight=>_tableMode?V269AppTable.Scale(42,_tableOptions.InterfacePercent,DeviceDpi):0;
+    private int TableInterfacePercent=>_tableOptions.InterfacePercent;
     private int HorizontalHeight=>_tableMode&&_horizontal.Visible?_horizontal.Height:0;
     private int RowsHeight=>Math.Max(1,ClientSize.Height-TableHeaderHeight-HorizontalHeight);
     private int ContentWidth=>Math.Max(1,ClientSize.Width-(_scrollbar.Visible?_scrollbar.Width:0));
@@ -398,7 +399,7 @@ internal sealed class DarkProgramList : Control
             {
                 int index=owner._items.IndexOf(item);
                 if(index<0)return Rectangle.Empty;
-                Rectangle area=V269AppTable.Action(owner.RowBounds(index),owner._tableOptions.InterfacePercent,owner.DeviceDpi,remove);
+                Rectangle area=V269AppTable.Action(owner.RowBounds(index),owner.TableInterfacePercent,owner.DeviceDpi,remove);
                 area.Intersect(new Rectangle(0,owner.TableHeaderHeight,owner.ContentWidth,owner.RowsHeight));
                 return area.Width>0&&area.Height>0?owner.RectangleToScreen(area):Rectangle.Empty;
             }

@@ -165,7 +165,8 @@ internal static class V269IntegrationTests
             shell.PresentPanel(null);shell.SelectPage(V269Page.Aplicativos);
             inventory.Clear();inventory.AddRange(entries);render.Invoke(form,[]);
             Application.DoEvents();
-            Require(list.V269TableMode&&list.Items.Count==5&&sort.Items.Count==5,"view real de seis colunas");
+            Require(list.V269TableMode&&list.Items.Count==5&&sort.Items.Count==5&&sort is V269AppSortCombo,
+                "view real de seis colunas e seletor nativo dedicado");
             var accessible=list.AccessibilityObject;
             Require(accessible.GetChildCount()==5&&accessible.GetChild(0)?.Name?.Contains("7-Zip")==true&&
                 accessible.GetChild(2)?.GetChild(1)?.State.HasFlag(AccessibleStates.Unavailable)==true,
@@ -174,7 +175,10 @@ internal static class V269IntegrationTests
             sort.SelectedIndex=2;Require(list.Items[0].InstallDate.HasValue&&list.Items[^1].InstallDate is null,"datas reais e ausências no fim");
             sort.SelectedIndex=3;Require(list.Items[0].Name=="OBS Studio","ofertas primeiro");
             sort.SelectedIndex=0;search.Text="VLC";Require(list.Items.Count==1&&list.Items[0]==entries[4],"pesquisa real");
-            search.Clear();list.SelectedIndex=0;
+            search.Clear();list.Focus();Application.DoEvents();
+            Require(form.Controls.Find("V269AppsSearchCue",true).Single().Visible,
+                "dica de pesquisa visível quando vazia e sem foco");
+            list.SelectedIndex=0;
             typeof(DarkProgramList).GetMethod("OnKeyDown",flags)!.Invoke(list,[new KeyEventArgs(Keys.Alt|Keys.Down)]);
             Require(sort.SelectedIndex==4&&ReferenceEquals(list.Items[1],entries[0]),"reordenação pelo teclado conectada");
             sort.SelectedIndex=0;
@@ -207,6 +211,9 @@ internal static class V269IntegrationTests
                     Require(shell.RightPane.Current?.Application is {Fields.Count:7}&&
                         shell.RightPane.Controls.Find("V269StructuredAppDetails",true).Single().Visible,
                         "painel estruturado expõe fatos locais e motivos");
+                    var icon=shell.RightPane.Controls.Find("V269AppDetailIcon",true).Single();
+                    Require(icon.Visible&&icon.AccessibleName?.Contains("7-Zip",StringComparison.Ordinal)==true,
+                        "identidade visual do painel vinculada à seleção, sem arte fictícia");
                     using var image=new Bitmap(surface.Width,surface.Height);
                     surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-DETALHES-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");
                     details.PerformClick();Application.DoEvents();
@@ -223,6 +230,16 @@ internal static class V269IntegrationTests
                 Require(form.Controls.Find("V269AppsExtraCommands",true).Single().Visible,"comandos complementares alcançáveis");
                 more.PerformClick();Application.DoEvents();
             }
+            more.PerformClick();Application.DoEvents();
+            var history=form.Controls.Find("V269AppsExtraCommands",true).Single().Controls.OfType<Button>()
+                .Single(x=>x.Text=="Histórico local");
+            history.PerformClick();Application.DoEvents();
+            Require(shell.RightPane.Current is {Kind:V269PanelKind.History} report&&
+                report.Description.Contains("RELATÓRIO LOCAL DE CONFIABILIDADE",StringComparison.Ordinal),
+                "histórico de Aplicativos usa o relatório local real, sem iniciar manutenção");
+            history.PerformClick();Application.DoEvents();
+            Require(shell.RightPane.Current?.Kind!=V269PanelKind.History,"retornar do histórico de aplicativos");
+            more.PerformClick();Application.DoEvents();
             // Testar o hit-test sem disparar nenhum executável, inclusive com
             // o deslocamento horizontal aplicado.
             var horizontal=list.Controls.OfType<HScrollBar>().Single();
@@ -261,6 +278,29 @@ internal static class V269IntegrationTests
 
     private static void VerifyAppTableGeometry()
     {
+        using(var trash=V269AppTable.ActionGlyph(true))
+        using(var update=V269AppTable.ActionGlyph(false))
+        {
+            Require(trash.IsVisible(new PointF(7,12))&&!trash.IsVisible(new PointF(10,12))&&
+                !trash.IsVisible(new PointF(14,12))&&trash.IsVisible(new PointF(12,4)),
+                "lixeira sólida preserva corpo e vazados do SVG aprovado");
+            Require(update.IsVisible(new PointF(10,5))&&update.IsVisible(new PointF(14,19))&&
+                !update.IsVisible(new PointF(12,12)),"atualização sólida preserva setas e centro vazio");
+        }
+        foreach(var theme in new[]{V269Theme.AzulGf,V269Theme.Dark,V269Theme.Claro})
+        {
+            var update=V269AppTable.ActionColors(theme,false,true);
+            var noUpdate=V269AppTable.ActionColors(theme,false,false);
+            var remove=V269AppTable.ActionColors(theme,true,true);
+            var noRemove=V269AppTable.ActionColors(theme,true,false);
+            Require(update.Back.G>update.Back.R&&remove.Back.R>remove.Back.G&&
+                update.Back!=noUpdate.Back&&remove.Back!=noRemove.Back,
+                "ações binárias têm contraste de elegibilidade nos três temas");
+        }
+        Require(V269AppTable.ActionColors(V269Theme.AzulGf,false,true).Back==V269AppTable.H("#1d633e")&&
+            V269AppTable.ActionColors(V269Theme.Dark,true,true).Back==V269AppTable.H("#772d39")&&
+            V269AppTable.ActionColors(V269Theme.Claro,false,false).Back==V269AppTable.H("#f0f8fd"),
+            "paleta da última cascata V2.6.9, sem sobrescrever tokens compartilhados");
         foreach(int scale in new[]{90,100,110})
         foreach(int dpi in new[]{96,120,144,192})
         {
