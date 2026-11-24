@@ -589,6 +589,10 @@ internal sealed class V269HomeDashboard : Panel
             button.AutoSize = true;
             button.MinimumSize = new Size(115, 28);
             _footer.Controls.Add(button);
+            // O foco precisa deslocar o viewport externo, não apenas o
+            // FlowLayoutPanel filho. Sem isso SVGA recorta a ação.
+            button.Enter += (_, _) => RevealAction(button);
+            button.GotFocus += (_, _) => RevealAction(button);
         }
         _status.Dock = DockStyle.None;
         _status.AutoSize = true;
@@ -630,6 +634,27 @@ internal sealed class V269HomeDashboard : Panel
     {
         base.OnResize(eventargs);
         Arrange();
+    }
+
+    private void RevealAction(Control action)
+    {
+        if (!IsHandleCreated || IsDisposed || Disposing || !action.Visible) return;
+        void Reveal()
+        {
+            if (IsDisposed || Disposing || action.IsDisposed || !action.ContainsFocus) return;
+            // Coordenadas no viewport real, incluindo os ancestrais do botão.
+            Rectangle bounds = RectangleToClient(action.RectangleToScreen(action.ClientRectangle));
+            int top = Math.Max(0, -AutoScrollPosition.Y);
+            if (bounds.Bottom > ClientSize.Height)
+                top += bounds.Bottom - ClientSize.Height;
+            else if (bounds.Top < 0)
+                top = Math.Max(0, top + bounds.Top);
+            AutoScrollPosition = new Point(0, top);
+        }
+        // O evento Enter pode anteceder a rolagem automática do WinForms.
+        // Conferir novamente após a conclusão da mudança de foco.
+        Reveal();
+        BeginInvoke((Action)Reveal);
     }
 
     private void Arrange()
