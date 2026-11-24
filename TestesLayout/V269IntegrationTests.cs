@@ -343,6 +343,29 @@ internal static class V269IntegrationTests
                 contextHistory.PreviousResults[0].Description==oldResult.Description&&
                 !contextHistory.Reasons.Contains(oldResult.Description,StringComparison.Ordinal),
                 "seleção independente; resultado anterior não atribuído ao novo aplicativo");
+            // Evidência adicional: mesma tabela preenchida, mesmas dimensões,
+            // seleção real e resultados de fixture, sem invocar manutenção.
+            int historyTheme=theme.SelectedIndex;
+            foreach(int historyIndex in new[]{0,1,2})
+            {
+                theme.SelectedIndex=historyIndex;
+                surface.PerformLayout();Application.DoEvents();
+                Require(shell.RightPane.Current?.Application?.PreviousResults is {Count:1} history&&
+                    history[0].Description==oldResult.Description,
+                    "mudar tema não descarta nem atribui o histórico a outra seleção");
+                var captureScroll=shell.RightPane.Controls.Find("V269AppDetailsScroll",true)
+                    .OfType<DarkVScrollBar>().Single();
+                foreach(bool bottom in new[]{false,true})
+                {
+                    captureScroll.Value=bottom?captureScroll.MaximumValue:0;
+                    Application.DoEvents();
+                    using var capture=new Bitmap(surface.Width,surface.Height);
+                    surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
+                    capture.Save($"LayoutCaptures/v269-aplicativos-HISTORICO-SINTETICO-{(V269Theme)historyIndex}-{(bottom?"final":"inicio")}-{surface.Width}x{surface.Height}.png");
+                }
+            }
+            theme.SelectedIndex=historyTheme;surface.PerformLayout();Application.DoEvents();
+            Console.WriteLine("PASS Aplicativos V2.6.9: seis capturas de histórico contextual nos três temas.");
             var previousRow=shell.RightPane.Controls.Find("V269AppPreviousResult",true).Single();
             var dismiss=previousRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
             Require(dismiss.Enabled&&dismiss.AccessibleName?.Contains(oldResult.Title,StringComparison.Ordinal)==true,
