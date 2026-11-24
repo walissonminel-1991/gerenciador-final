@@ -114,7 +114,7 @@ internal sealed class V269AppDetailPanel : Panel
     private readonly V269AppDetailIcon _icon=new();
     private readonly Label _name=new(){AutoSize=true,UseMnemonic=false,Margin=new Padding(3,4,3,1)};
     private readonly Label _publisher=new(){AutoSize=true,UseMnemonic=false,Margin=new Padding(3,0,3,4)};
-    private Font? _identityFont;
+    private Font? _identityFont,_descriptionHeadingFont,_historyHeadingFont;
     internal V269AppDetailPanel()
     {
         Name="V269StructuredAppDetails";AccessibleName="Informações verificáveis e elegibilidade do aplicativo";
@@ -170,12 +170,31 @@ internal sealed class V269AppDetailPanel : Panel
                     AccessibleName=value,Tag=strong,UseMnemonic=false};
                 label.MouseWheel+=ScrollContent;return label;
             }
-            void AddFull(string value,bool strong)
+            void AddFull(string value,bool strong,string name="")
             {
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                var label=Make(value,strong);
-                int S(int n)=>V269AppTable.Scale(n,_interfacePercent,DeviceDpi);
-                label.Margin=new Padding(0,S(strong?16:4),0,S(strong?8:7));
+                var label=Make(value,strong);label.Name=name;
+                ApplyFullMetrics(label);
+                if(name=="V269AppDescriptionHeading"&&_descriptionHeadingFont is not null)
+                    label.Font=_descriptionHeadingFont;
+                if(name=="V269AppHistoryHeading"&&_historyHeadingFont is not null)
+                    label.Font=_historyHeadingFont;
+                if(name is "V269AppDetailNote" or "V269AppHistoryHeading")
+                    label.Paint+=(_,e)=>{
+                        int S(int n)=>V269AppTable.Scale(n,_interfacePercent,DeviceDpi);
+                        if(name=="V269AppHistoryHeading")
+                        {
+                            using var pen=new Pen(V269AppDetailStyle.Divider(_theme));
+                            e.Graphics.DrawLine(pen,0,0,label.Width-1,0);
+                        }
+                        else
+                        {
+                            var accent=_theme switch
+                            {V269Theme.Dark=>V269AppTable.H("#9ca6af"),V269Theme.Claro=>V269AppTable.H("#2577a8"),_=>V269AppTable.H("#497f9f")};
+                            using var brush=new SolidBrush(accent);
+                            e.Graphics.FillRectangle(brush,0,0,S(2),label.Height);
+                        }
+                    };
                 _table.Controls.Add(label,0,row);_table.SetColumnSpan(label,2);
             }
             // A especificação HTML apresenta quatro campos. Versão e data
@@ -190,7 +209,7 @@ internal sealed class V269AppDetailPanel : Panel
                 value.TextAlign=ContentAlignment.TopRight;
                 _table.Controls.Add(value,1,row);
             }
-            AddFull("Descrição",true);
+            AddFull("Descrição",true,"V269AppDescriptionHeading");
             AddFull(string.IsNullOrWhiteSpace(model.Description)?"Não informada pela fonte local.":model.Description,false);
             var offer=model.Fields.FirstOrDefault(field=>field.Label=="Oferta").Value;
             string note=model.Reasons;
@@ -198,10 +217,10 @@ internal sealed class V269AppDetailPanel : Panel
                 note=$"Oferta: {offer}. {note}";
             // A nota única do HTML preserva o motivo real; informações
             // completas continuam no modelo e na descrição acessível.
-            AddFull(note,false);
+            AddFull(note,false,"V269AppDetailNote");
             if(model.PreviousResults is {Count:>0} previous)
             {
-                AddFull("Resultados anteriores",true);
+                AddFull("Resultados anteriores",true,"V269AppHistoryHeading");
                 foreach(var result in previous)
                 {
                     int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -274,8 +293,31 @@ internal sealed class V269AppDetailPanel : Panel
         if(IsDisposed||Disposing)return;
         if(_identityFont is not null&&_identityFont.FontFamily.Equals(Font.FontFamily)&&
             Math.Abs(_identityFont.SizeInPoints-Font.SizeInPoints*16f/12f)<.01f)return;
-        var old=_identityFont;_identityFont=new Font(Font.FontFamily,Font.SizeInPoints*16f/12f,FontStyle.Bold);
-        _name.Font=_identityFont;old?.Dispose();FitLabels();
+        var old=_identityFont;var oldDescription=_descriptionHeadingFont;var oldHistory=_historyHeadingFont;
+        _identityFont=new Font(Font.FontFamily,Font.SizeInPoints*16f/12f,FontStyle.Bold);
+        _descriptionHeadingFont=new Font(Font.FontFamily,Font.SizeInPoints*13f/12f,FontStyle.Bold);
+        _historyHeadingFont=new Font(Font,FontStyle.Bold);
+        _name.Font=_identityFont;
+        foreach(var label in _table.Controls.OfType<Label>())
+        {
+            if(label.Name=="V269AppDescriptionHeading")label.Font=_descriptionHeadingFont;
+            else if(label.Name=="V269AppHistoryHeading")label.Font=_historyHeadingFont;
+        }
+        old?.Dispose();oldDescription?.Dispose();oldHistory?.Dispose();FitLabels();
+    }
+    private void ApplyFullMetrics(Label label)
+    {
+        int S(int n)=>V269AppTable.Scale(n,_interfacePercent,DeviceDpi);
+        label.Padding=Padding.Empty;
+        label.Margin=label.Name switch
+        {
+            "V269AppDescriptionHeading"=>new Padding(0,S(22),0,S(8)),
+            "V269AppDetailNote"=>new Padding(0,S(17),0,0),
+            "V269AppHistoryHeading"=>new Padding(0,S(19),0,S(9)),
+            _=>new Padding(0,S(label.Tag is true?16:4),0,S(label.Tag is true?8:7))
+        };
+        if(label.Name=="V269AppDetailNote")label.Padding=new Padding(S(13),S(7),0,S(7));
+        if(label.Name=="V269AppHistoryHeading")label.Padding=new Padding(0,S(12),0,0);
     }
     internal void ApplyInterfaceScale(int percent)
     {
@@ -284,9 +326,8 @@ internal sealed class V269AppDetailPanel : Panel
         int size=S(48),gap=S(10);
         _identity.Margin=new Padding(0,S(4),0,S(13));
         foreach(Label label in _table.Controls.OfType<Label>())
-            label.Margin=_table.GetColumnSpan(label)==2
-                ?new Padding(0,S(label.Tag is true?16:4),0,S(label.Tag is true?8:7))
-                :new Padding(0,S(11),0,S(11));
+            if(_table.GetColumnSpan(label)==2)ApplyFullMetrics(label);
+            else label.Margin=new Padding(0,S(11),0,S(11));
         _icon.Size=new Size(size,size);
         _identity.ColumnStyles[0].Width=size+gap;
         FitLabels();
@@ -305,7 +346,7 @@ internal sealed class V269AppDetailPanel : Panel
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if(disposing)_identityFont?.Dispose();
+        if(disposing){_identityFont?.Dispose();_descriptionHeadingFont?.Dispose();_historyHeadingFont?.Dispose();}
     }
 }
 

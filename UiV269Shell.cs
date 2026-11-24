@@ -70,6 +70,7 @@ internal sealed class V269RightPane : UserControl
     private V269Palette _basePanePalette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
     private V269Theme _appPaneTheme=V269Theme.AzulGf;
     private int _appInterfacePercent=100;
+    private Font? _normalTitleFont,_appTitleFont;
     private readonly FlowLayoutPanel _choices;
     private TaskCompletionSource<bool>? _confirmation;
 
@@ -237,6 +238,7 @@ internal sealed class V269RightPane : UserControl
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi)):new Padding(13);
+        _title.Font=(_structuredApp?_appTitleFont:_normalTitleFont)??_title.Font;
         _title.Invalidate();Invalidate();
     }
     protected override void OnPaint(PaintEventArgs e)
@@ -260,11 +262,12 @@ internal sealed class V269RightPane : UserControl
         if(_structuredApp)ApplyPaneSurface();
     }
 
-    internal void SetFonts(Font title, Font body)
+    internal void SetFonts(Font title, Font body,Font appTitle,Font appBody)
     {
-        _title.Font = title;
-        _description.Font = body;
-        _applicationDetails.Font=body;
+        _normalTitleFont=title;_appTitleFont=appTitle;
+        _title.Font=_structuredApp?appTitle:title;
+        _description.Font=body;
+        _applicationDetails.Font=appBody;
     }
 }
 
@@ -595,7 +598,8 @@ internal sealed class V269Shell : UserControl
             ? V269HomeMetrics.TitlePixels(LayoutWindowWidth, screenHeight) * .75f : 17f, FontStyle.Bold);
         _pageSubtitle.Font = NewFont(widthClass == 1 ? 7.5f : 9f);
         _homeCopyright.Font = NewFont(widthClass == 1 ? 6.75f : 7.5f);
-        _rightPane.SetFonts(NewFont(12f, FontStyle.Bold), NewFont(9.5f));
+        _rightPane.SetFonts(NewFont(12f, FontStyle.Bold), NewFont(9.5f),
+            NewFont(13.5f,FontStyle.Bold),NewFont(9f));
         foreach (var navButton in _navigation.Values)
             navButton.Font = NewFont(widthClass switch { 1 => 8.25f, 2 => 9f, 3 => 10.5f, _ => 10f });
         // As fontes são liberadas somente após a destruição dos controles.

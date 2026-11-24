@@ -353,6 +353,13 @@ internal static class V269IntegrationTests
                 Require(shell.RightPane.Current?.Application?.PreviousResults is {Count:1} history&&
                     history[0].Description==oldResult.Description,
                     "mudar tema não descarta nem atribui o histórico a outra seleção");
+                var historyHeading=shell.RightPane.Controls.Find("V269AppHistoryHeading",true).OfType<Label>().Single();
+                var descriptionHeading=shell.RightPane.Controls.Find("V269AppDescriptionHeading",true).OfType<Label>().Single();
+                var note=shell.RightPane.Controls.Find("V269AppDetailNote",true).OfType<Label>().Single();
+                Require(historyHeading.Font.Bold&&descriptionHeading.Font.Bold&&
+                    descriptionHeading.Font.SizeInPoints>historyHeading.Font.SizeInPoints&&
+                    note.Padding.Left>0&&historyHeading.Padding.Top>0,
+                    "hierarquia tipográfica, nota destacada e separação do histórico do HTML");
                 var captureScroll=shell.RightPane.Controls.Find("V269AppDetailsScroll",true)
                     .OfType<DarkVScrollBar>().Single();
                 foreach(bool bottom in new[]{false,true})
