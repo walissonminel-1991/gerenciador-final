@@ -791,7 +791,7 @@ internal sealed partial class MainForm : Form
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos ? 0 : _caption?.Height ?? 0;
+            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers ? 0 : _caption?.Height ?? 0;
             var bounds = new Rectangle(
                 0, caption, Math.Max(1, ClientSize.Width),
                 Math.Max(1, ClientSize.Height - caption));
@@ -806,7 +806,7 @@ internal sealed partial class MainForm : Form
         if (_caption is not null) _caption.Visible = false;
         void ApplyHomeChrome()
         {
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers;
             if (homeChrome != home)
             {
                 // Nos testes de viewport a superfície interna tem largura
@@ -838,6 +838,7 @@ internal sealed partial class MainForm : Form
             ApplyHomeChrome();
             ApplyV269AppOperationChrome();
             if(e.Page==V269Page.Aplicativos&&_programList.SelectedItem is {} app)PresentV269AppDetails(app);
+            if(e.Page==V269Page.Drivers) _presentV269DriverDetails?.Invoke(false);
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
@@ -858,7 +859,7 @@ internal sealed partial class MainForm : Form
         {
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers;
             int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
                 V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))

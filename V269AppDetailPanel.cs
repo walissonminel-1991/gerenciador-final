@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 internal sealed record V269AppPreviousResult(Guid Id,string Title,string Description);
 internal sealed record V269AppDetailModel(string Name,string Publisher,
     IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null,string Description="",
-    IReadOnlyList<V269AppPreviousResult>? PreviousResults=null,Action<Guid>? DismissResult=null);
+    IReadOnlyList<V269AppPreviousResult>? PreviousResults=null,Action<Guid>? DismissResult=null, V269DriverGlyph? DriverGlyph=null);
 
 // Superfícies exclusivas do painel estruturado, derivadas da cascata final
 // do HTML. Os motores e painéis de confirmação/progresso não usam estas cores.
@@ -389,6 +389,10 @@ internal sealed class V269AppDetailPanel : Panel
     {
         if(Equals(_model,model))return;
         _model=model;
+        bool driver = model?.DriverGlyph is not null;
+        AccessibleName = driver ? "Informações e elegibilidade do driver" :
+            "Informações verificáveis e elegibilidade do aplicativo";
+        _scroll.AccessibleName = driver ? "Rolagem dos detalhes do driver" : "Rolagem dos detalhes do aplicativo";
         _visibleFieldCount=0;
         AccessibleDescription=model is null?"":string.Join(Environment.NewLine,
             new[]{model.Name,model.Publisher}.Concat(model.Fields.Select(field=>$"{field.Label}: {field.Value}"))
@@ -401,7 +405,7 @@ internal sealed class V269AppDetailPanel : Panel
             _table.RowStyles.Clear();_table.RowCount=1;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _identity.Visible=model is not null;
             _name.Text=model?.Name??"";_publisher.Text=model?.Publisher??"";
-            _icon.SetIdentity(model?.Name??"",model?.IconSource??"",model?.MsixIcon);
+            _icon.SetIdentity(model?.Name??"",model?.IconSource??"",model?.MsixIcon,model?.DriverGlyph);
             if(model is null)return;
             Label Make(string value,bool strong)
             {
@@ -444,7 +448,7 @@ internal sealed class V269AppDetailPanel : Panel
             }
             // A especificação HTML apresenta quatro campos. Versão e data
             // já estão na tabela; a oferta real permanece na nota quando existe.
-            foreach(var field in model.Fields.Where(field=>field.Label is "Tipo" or "Origem" or "Arquitetura" or "Local"))
+            foreach(var field in model.Fields.Where(field=>driver || field.Label is "Tipo" or "Origem" or "Arquitetura" or "Local"))
             {
                 _visibleFieldCount++;
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -454,14 +458,15 @@ internal sealed class V269AppDetailPanel : Panel
                 value.TextAlign=ContentAlignment.TopRight;
                 _table.Controls.Add(value,1,row);
             }
-            AddFull("Descrição",true,"V269AppDescriptionHeading");
-            AddFull(string.IsNullOrWhiteSpace(model.Description)?"Não informada pela fonte local.":model.Description,false);
-            var offer=model.Fields.FirstOrDefault(field=>field.Label=="Oferta").Value;
             string note=model.Reasons;
-            if(!string.IsNullOrWhiteSpace(offer)&&!offer.Equals("não informada",StringComparison.OrdinalIgnoreCase))
-                note=$"Oferta: {offer}. {note}";
-            // A nota única do HTML preserva o motivo real; informações
-            // completas continuam no modelo e na descrição acessível.
+            if (!driver)
+            {
+                AddFull("Descrição",true,"V269AppDescriptionHeading");
+                AddFull(string.IsNullOrWhiteSpace(model.Description)?"Não informada pela fonte local.":model.Description,false);
+                var offer=model.Fields.FirstOrDefault(field=>field.Label=="Oferta").Value;
+                if(!string.IsNullOrWhiteSpace(offer)&&!offer.Equals("não informada",StringComparison.OrdinalIgnoreCase))
+                    note=$"Oferta: {offer}. {note}";
+            }
             AddFull(note,false,"V269AppDetailNote");
             if(model.PreviousResults is {Count:>0} previous)
             {
@@ -607,6 +612,7 @@ internal sealed class V269AppDetailIcon:Control
     private V269Palette _palette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
     private string _source="",_initial="";
     private V269MsixIconSource? _msix;
+    private V269DriverGlyph? _driverGlyph;
     internal V269AppDetailIcon()
     {
         Name="V269AppDetailIcon";AccessibleRole=AccessibleRole.Graphic;TabStop=false;
@@ -615,10 +621,11 @@ internal sealed class V269AppDetailIcon:Control
             ControlStyles.SupportsTransparentBackColor,true);
         BackColor=Color.Transparent;
     }
-    internal void SetIdentity(string name,string source,V269MsixIconSource? msix)
+    internal void SetIdentity(string name,string source,V269MsixIconSource? msix,V269DriverGlyph? driverGlyph)
     {
+        _driverGlyph=driverGlyph;
         _source=source;_msix=msix;_initial=string.IsNullOrWhiteSpace(name)?"?":name.Trim()[0].ToString().ToUpperInvariant();
-        AccessibleName="Ícone do aplicativo "+name;Invalidate();
+        AccessibleName=(driverGlyph.HasValue ? "Ícone do driver " : "Ícone do aplicativo ")+name;Invalidate();
     }
     internal void ApplyPalette(V269Palette palette){_palette=palette;Invalidate();}
     protected override void OnPaint(PaintEventArgs e)
@@ -628,6 +635,12 @@ internal sealed class V269AppDetailIcon:Control
         using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),Math.Max(2,Width/6));
         using var fill=new SolidBrush(_palette.Card);using var border=new Pen(_palette.Border);
         g.FillPath(fill,shape);g.DrawPath(border,shape);
+        if (_driverGlyph is { } glyph)
+        {
+            int size = Math.Max(1, (int)Math.Round(Width * 26d / 48d));
+            V269DriverVisuals.DrawGlyph(g, new Rectangle((Width-size)/2,(Height-size)/2,size,size), glyph, _palette.Accent);
+            return;
+        }
         var image=_source.Length==0&&_msix is null?null:(_cache??=new V269AppIconCache(this)).Get(_source,_msix);
         if(image is not null)
         {

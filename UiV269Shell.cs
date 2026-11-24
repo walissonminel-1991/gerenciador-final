@@ -45,7 +45,7 @@ internal enum V269PanelKind
 /// </summary>
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
-    V269AppDetailModel? Application = null);
+    V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -73,6 +73,7 @@ internal sealed class V269RightPane : UserControl
     private bool _hasOperationContent;
     private bool _structuredApp;
     private bool _appHistoryPage;
+    private bool _driversPage;
     private bool _appFlow;
     private bool _fittingOperationHistory;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _appHistoryProvider;
@@ -217,14 +218,15 @@ internal sealed class V269RightPane : UserControl
     {
         _appHistoryProvider=provider;_appHistoryDismiss=dismiss;RefreshAppOperationHistory();
     }
-    internal void SetAppHistoryPage(bool active)
+    internal void SetAppHistoryPage(bool active, bool drivers = false)
     {
         _appHistoryPage=active;
+        _driversPage=drivers;
         UpdateAppFlowScope();RefreshAppOperationHistory();FitOperationHistory();
     }
     private void UpdateAppFlowScope()
     {
-        bool active=_appHistoryPage&&(Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress);
+        bool active=(_appHistoryPage||_driversPage)&&(Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress);
         bool changed=active!=_appFlow;_appFlow=active;
         _appFlowHeading.Text=Current?.Kind==V269PanelKind.Confirmation?
             "Confirmação da ação":"Operação em andamento";
@@ -238,7 +240,7 @@ internal sealed class V269RightPane : UserControl
     internal void RefreshAppOperationHistory()
     {
         if(IsDisposed||Disposing)return;
-        V269AppPreviousResult[] results=_appFlow?_appHistoryProvider?.Invoke().ToArray()??[]:[];
+        V269AppPreviousResult[] results=_appFlow&&_appHistoryPage?_appHistoryProvider?.Invoke().ToArray()??[]:[];
         if(results.SequenceEqual(_operationHistorySnapshot))return;
         _operationHistorySnapshot=results;
         _operationHistory?.Dispose();_operationHistory=null;
@@ -318,9 +320,10 @@ internal sealed class V269RightPane : UserControl
         Current = presentation;
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
-        bool structured=presentation is {Kind:V269PanelKind.Details,Application:not null};
+        var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver : null;
+        bool structured = detail is not null;
         _structuredApp=structured;UpdateAppFlowScope();ApplyPaneSurface();
-        _applicationDetails.Present(structured?presentation!.Application:null);
+        _applicationDetails.Present(detail);
         _description.Visible=!structured;_applicationDetails.Visible=structured;
         if(structured)_applicationDetails.BringToFront();
         UpdateOperationContentLayout();
@@ -338,7 +341,7 @@ internal sealed class V269RightPane : UserControl
     {
         // A autorização de Aplicativos não exibe o status/log de uma execução anterior.
         // Os controles reais permanecem intactos e voltam durante o progresso.
-        bool show=!_structuredApp&&!(_appFlow&&Current?.Kind==V269PanelKind.Confirmation);
+        bool show=!_driversPage&&!_structuredApp&&!(_appFlow&&Current?.Kind==V269PanelKind.Confirmation);
         _operationContent.Visible=show;
         bool reserve=show&&_hasOperationContent;
         _layout.RowStyles[2].SizeType=_appFlow?SizeType.Absolute:SizeType.Percent;
@@ -353,7 +356,7 @@ internal sealed class V269RightPane : UserControl
         else FitOperationHistory();
     }
 
-    internal bool AppProgressChromeActive=>_appFlow&&Current?.Kind==V269PanelKind.Progress;
+    internal bool AppProgressChromeActive=>_appHistoryPage&&_appFlow&&Current?.Kind==V269PanelKind.Progress;
 
     private void PaintAppFlowHeading(object? sender,PaintEventArgs e)
     {
@@ -500,7 +503,7 @@ internal sealed class V269Shell : UserControl
     [
         (V269Page.Inicio, "Início", "Informações gerais do sistema e do hardware."),
         (V269Page.Aplicativos, "Aplicativos", "Programas instalados, atualizações e remoção controlada."),
-        (V269Page.Drivers, "Drivers", "Dispositivos e drivers"),
+        (V269Page.Drivers, "Drivers", "Consulte dispositivos, verifique atualizações e gerencie drivers elegíveis."),
         (V269Page.Limpeza, "Limpeza e Desempenho", "Prévia e manutenção controlada"),
         (V269Page.Reparo, "Reparo e Rede", "Diagnósticos e reparos supervisionados"),
         (V269Page.Sistema, "Sistema", "Windows Update, energia e memória"),
@@ -731,10 +734,11 @@ internal sealed class V269Shell : UserControl
         if (!Enum.IsDefined(page)) throw new ArgumentOutOfRangeException(nameof(page));
         bool changed = SelectedPage != page;
         if (changed) _dashboardPaneOpen = null;
-        if(changed&&SelectedPage==V269Page.Aplicativos&&_rightPane.Current?.Application is not null)
+        if (changed && ((SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
+            (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null)))
             _rightPane.Present(null);
         SelectedPage = page;
-        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos);
+        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers);
         var descriptor = Pages[(int)page];
         _pageTitle.Text = descriptor.Title;
         _pageSubtitle.Text = descriptor.Subtitle;
@@ -746,14 +750,14 @@ internal sealed class V269Shell : UserControl
 
     internal void ShowV269AppPane()
     {
-        if(SelectedPage!=V269Page.Aplicativos)return;
+        if(SelectedPage is not (V269Page.Aplicativos or V269Page.Drivers))return;
         if(_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)return;
         _appPaneOpen=!_rightPane.Visible;ApplyDimensions();
     }
 
     internal void EnsureV269AppPane()
     {
-        if(SelectedPage!=V269Page.Aplicativos)return;
+        if(SelectedPage is not (V269Page.Aplicativos or V269Page.Drivers))return;
         _appPaneOpen=true;ApplyDimensions();
     }
 
@@ -833,8 +837,8 @@ internal sealed class V269Shell : UserControl
     {
         if (_columns is null || _navigationLayout is null) return;
         int width = Math.Max(1, ClientSize.Width);
-        bool apps=SelectedPage==V269Page.Aplicativos;
-        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos;
+        bool apps=SelectedPage is V269Page.Aplicativos or V269Page.Drivers;
+        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers;
         int windowWidth = LayoutWindowWidth;
         // Início usa os breakpoints do CSS congelado, medidos pela janela.
         int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
@@ -847,7 +851,10 @@ internal sealed class V269Shell : UserControl
         ApplyHomeSurfaces(home);
         _homeGlyph.Visible = home;
         _homeGlyph.Page = SelectedPage;
-        _homeGlyph.ForeColor = Theme switch {
+        _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269AppTable.H(Theme switch
+        {
+            V269Theme.Dark => "#c6cdd3", V269Theme.Claro => "#2b79a8", _ => "#69bfe0"
+        }) : Theme switch {
             V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
             V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
             _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };

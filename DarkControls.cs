@@ -622,20 +622,8 @@ internal sealed class DarkProgramList : Control
             if(_tableMode)
             {
                 _scrollbar.Dock=DockStyle.None;
-                int width=Math.Max(1,ClientSize.Width);
                 int minimum=V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi,TableCompact);
-                int h=Math.Max(12,_horizontal.Height);
-                int v=Math.Max(12,_scrollbar.Width);
-                bool horizontal=minimum>width;
-                bool vertical=(long)_items.Count*_itemHeight>Math.Max(1,ClientSize.Height-TableHeaderHeight-(horizontal?h:0));
-                horizontal=minimum>Math.Max(1,width-(vertical?v:0));
-                vertical=(long)_items.Count*_itemHeight>Math.Max(1,ClientSize.Height-TableHeaderHeight-(horizontal?h:0));
-                int content=Math.Max(1,width-(vertical?v:0));
-                int body=Math.Max(1,ClientSize.Height-TableHeaderHeight-(horizontal?h:0));
-                _horizontal.Bounds=new Rectangle(0,Math.Max(0,ClientSize.Height-h),content,h);
-                _horizontal.SetMetrics(Math.Max(minimum,content),content);
-                _scrollbar.Bounds=new Rectangle(Math.Max(0,width-v),TableHeaderHeight,v,body);
-                _scrollbar.SetMetrics(_items.Count*_itemHeight,body);
+                V269AppTable.FitScrollBars(this,_scrollbar,_horizontal,minimum,TableHeaderHeight,_items.Count*_itemHeight);
             }
             else _scrollbar.SetMetrics(_items.Count*_itemHeight,Math.Max(1,ClientSize.Height));
             _scrollOffset=_scrollbar.Value;

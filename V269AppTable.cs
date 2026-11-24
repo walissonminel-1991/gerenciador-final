@@ -6,27 +6,32 @@ namespace GerenciadorAplicativos;
 internal static class V269AppTable
 {
     internal static readonly string[] Headers=["Aplicativo","Versão","Editor","Instalado em","Situação","Ações"];
+    internal static readonly string[] DriverHeaders = ["Dispositivo / Driver", "Versão atual", "Versão disponível", "Ações"];
     internal static int Scale(int px,int scale,int dpi)=>Math.Max(1,(int)Math.Round(px*scale*dpi/9600d));
     // CSS congelado da PR109: minmax(min,fr), não min + fração do excedente.
     private static readonly int[] WideWidths=[185,70,100,88,98,75];
     private static readonly int[] CompactWidths=[150,68,96,80,90,65];
+    private static readonly int[] DriverWideWidths = [190, 90, 100, 74];
+    private static readonly int[] DriverCompactWidths = [155, 87, 90, 68];
     internal static bool IsCompact(int windowWidth)=>windowWidth<=1050;
     // Tracks e padding das células não recebem --uiScale no HTML.
     // Somente a coluna de ações pode crescer para não cortar alvos reais
     // quando os botões escalados ultrapassarem a reserva do protótipo.
-    private static int[] MinimumTracks(int scale,int dpi,bool compact)
+    private static int[] MinimumTracks(int scale,int dpi,bool compact,bool drivers)
     {
-        var tracks=(compact?CompactWidths:WideWidths).Select(n=>Scale(n,100,dpi)).ToArray();
-        tracks[5]=Math.Max(tracks[5],2*Scale(32,scale,dpi));
+        var widths = drivers ? (compact ? DriverCompactWidths : DriverWideWidths) : (compact ? CompactWidths : WideWidths);
+        var tracks = widths.Select(n => Scale(n, 100, dpi)).ToArray();
+        tracks[^1] = Math.Max(tracks[^1], 2 * Scale(32, scale, dpi));
         return tracks;
     }
-    internal static int MinimumWidth(int scale,int dpi,bool compact=false)=>
-        MinimumTracks(scale,dpi,compact).Sum();
+    internal static int MinimumWidth(int scale,int dpi,bool compact=false,bool drivers=false)=>
+        MinimumTracks(scale,dpi,compact,drivers).Sum();
     internal static int CellPadding(int scale,int dpi,bool compact)=>Scale(compact?5:9,100,dpi);
-    internal static Rectangle[] Columns(Rectangle bounds,int scale,int dpi,bool compact=false)
+    internal static Rectangle[] Columns(Rectangle bounds,int scale,int dpi,bool compact=false,bool drivers=false)
     {
-        double[] weights=compact?[2,.8,1.1,.9,1,.6]:[2.1,.8,1.1,.9,1,.65];
-        int[] minimum=MinimumTracks(scale,dpi,compact);
+        double[] weights = drivers ? (compact ? [2, 1, 1, .55] : [2.3, 1, 1, .55])
+            : (compact ? [2, .8, 1.1, .9, 1, .6] : [2.1, .8, 1.1, .9, 1, .65]);
+        int[] minimum=MinimumTracks(scale,dpi,compact,drivers);
         int target=Math.Max(bounds.Width,minimum.Sum());
         double remaining=target, fractions=weights.Sum();
         var fixedTrack=new bool[minimum.Length];
@@ -49,9 +54,9 @@ internal static class V269AppTable
         int left=bounds.Left;
         return sizes.Select(w=>{var rect=new Rectangle(left,bounds.Top,w,bounds.Height);left+=w;return rect;}).ToArray();
     }
-    internal static Rectangle Action(Rectangle bounds,int scale,int dpi,bool remove,bool compact=false)
+    internal static Rectangle Action(Rectangle bounds,int scale,int dpi,bool remove,bool compact=false,bool drivers=false)
     {
-        var cell=Columns(bounds,scale,dpi,compact)[5];
+        var cell=Columns(bounds,scale,dpi,compact,drivers)[^1];
         int width=Scale(32,scale,dpi);
         // O CSS compacto reserva 65px para dois alvos de 32px.
         // Reduzir só folga/padding se necessário, nunca sobrepor alvos.
@@ -62,6 +67,24 @@ internal static class V269AppTable
         int start=cell.Right-padding-width*2-gap;
         return new Rectangle(start+(remove?width+gap:0),bounds.Top+(bounds.Height-height)/2,width,height);
     }
+    internal static void FitScrollBars(Control viewport, DarkVScrollBar vertical,
+        DarkVScrollBar horizontal, int minimum, int headerHeight, int rowsHeight)
+    {
+        int width = Math.Max(1, viewport.ClientSize.Width);
+        int height = viewport.ClientSize.Height;
+        int h = Math.Max(12, horizontal.Height);
+        int v = Math.Max(12, vertical.Width);
+        bool needsHorizontal = minimum > width;
+        bool needsVertical = rowsHeight > Math.Max(1, height - headerHeight - (needsHorizontal ? h : 0));
+        needsHorizontal = minimum > Math.Max(1, width - (needsVertical ? v : 0));
+        int content = Math.Max(1, width - (needsVertical ? v : 0));
+        int body = Math.Max(1, height - headerHeight - (needsHorizontal ? h : 0));
+        horizontal.Bounds = new Rectangle(0, Math.Max(0, height - h), content, h);
+        horizontal.SetMetrics(Math.Max(minimum, content), content);
+        vertical.Bounds = new Rectangle(Math.Max(0, width - v), headerHeight, v, body);
+        vertical.SetMetrics(rowsHeight, body);
+    }
+
     internal static Rectangle Grip(Rectangle bounds,int scale,int dpi)=>
         new(bounds.X,bounds.Y,Scale(19,scale,dpi),bounds.Height);
     internal static Color H(string s)=>ColorTranslator.FromHtml(s);
@@ -80,7 +103,7 @@ internal static class V269AppTable
         V269Theme.Claro=>(H("#bcdcf3"),H("#eaf4fb"),H("#e4f2fd"),H("#c3dff3"),H("#20435f"),H("#9bbacf"),H("#2374ab")),
         _=>(H("#17364a"),H("#091d2d"),H("#0c273a"),H("#1c4666"),H("#e4edf6"),H("#25445f"),H("#7bc2ff"))
     };
-    internal static void DrawHeader(Graphics g,Rectangle bounds,V269AppearanceOptions options,Font font,int dpi,bool compact=false)
+    internal static void DrawHeader(Graphics g,Rectangle bounds,V269AppearanceOptions options,Font font,int dpi,bool compact=false,bool drivers=false)
     {
         if(bounds.Width<1||bounds.Height<1)return;
         var colors=Colors(options.Theme);
@@ -90,11 +113,12 @@ internal static class V269AppTable
         g.FillRectangle(bg,bounds);
         Color ink=options.Theme switch
         {V269Theme.Dark=>H("#cdd3d9"),V269Theme.Claro=>H("#143e60"),_=>H("#bfd2df")};
-        var columns=Columns(bounds,options.InterfacePercent,dpi,compact);
-        for(int i=0;i<Headers.Length;i++)
+        var columns=Columns(bounds,options.InterfacePercent,dpi,compact,drivers);
+        var headers = drivers ? DriverHeaders : Headers;
+        for(int i=0;i<headers.Length;i++)
         {
             var rect=columns[i];rect.Inflate(-CellPadding(options.InterfacePercent,dpi,compact),0);
-            TextRenderer.DrawText(g,Headers[i],font,rect,ink,TextFormatFlags.VerticalCenter|
+            TextRenderer.DrawText(g,headers[i],font,rect,ink,TextFormatFlags.VerticalCenter|
                 TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|TextFormatFlags.PreserveGraphicsClipping);
         }
         using var line=new Pen(options.Theme switch

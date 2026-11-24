@@ -466,16 +466,17 @@ internal static class LayoutTests
             c.Name == "DriversPlaceholder")
             ?? throw new Exception("Pagina DRIVERS ausente.");
         var driverCards = Descendants(placeholder).OfType<DarkDriverList>().SingleOrDefault()
-            ?? throw new Exception("DRIVERS deve usar cartoes do mesmo padrao dos aplicativos.");
+            ?? throw new Exception("DRIVERS deve usar tabela virtualizada.");
         if (!placeholder.Visible || Descendants(placeholder).OfType<DataGridView>().Any() ||
             Descendants(placeholder).OfType<Button>()
                 .Count(b => b.Name == "DriverInventoryRefresh") != 1)
             throw new Exception("DRIVERS nao pode usar grade antiga nem oferecer alteracao de drivers.");
-        if (!Descendants(placeholder).OfType<TextBox>().Any(t =>
-                t.Name == "DriverInventorySearch") ||
-            !Descendants(placeholder).OfType<Label>().Any(c =>
-                c.Text.Contains("Nenhuma alteração em drivers")))
-            throw new Exception("Busca ou aviso de consulta segura ausente.");
+        if (Descendants(placeholder).OfType<TextBox>().SingleOrDefault(t => t.Name == "DriverInventorySearch")
+                is not { PlaceholderText: "Pesquisar driver ou dispositivo..." } ||
+            Descendants(placeholder).OfType<Button>().Single(b => b.Name == "DriverInventoryRefresh")
+                is not { Text: "Verificar" } button ||
+            !button.AccessibleDescription!.Contains("Não modifica drivers"))
+            throw new Exception("Busca ou descrição acessível de consulta segura ausente.");
         if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
             throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
         if (Descendants(placeholder).OfType<Button>().Any(b =>
@@ -497,8 +498,9 @@ internal static class LayoutTests
             "Fabricante de teste", "1.2.3." + i, "oem" + i + ".inf",
             true, i % 3 == 0 ? true : i % 3 == 1 ? false : null)).ToArray();
         driverCards.SetItems(fakeDrivers);
-        if (driverCards.Items.Count != 184 || driverCards.SelectedItem is not null)
-            throw new Exception("Lista de drivers virtualizada perdeu registros ou selecionou automaticamente.");
+        if (!driverCards.TableMode || driverCards.Items.Count != 184 ||
+            !ReferenceEquals(driverCards.SelectedItem, fakeDrivers[0]) || driverCards.ActionsCurrent)
+            throw new Exception("Drivers: a tabela virtualizada perdeu registros ou confundiu seleção visual com autorização.");
         if (DriverListFilters.Apply(fakeDrivers, "Todos", "").Length != 184 ||
             DriverListFilters.Apply(fakeDrivers, "Presentes", "").Length != 62 ||
             DriverListFilters.Apply(fakeDrivers, "Não confirmados", "").Length != 122 ||
@@ -735,14 +737,15 @@ internal static class LayoutTests
                     // A página apresenta ações individuais, inativas antes da consulta.
                     if (tab == V269Page.Drivers)
                     {
-                        int minDriverHeight = DriverRowGeometry.Height(driverCards.DeviceDpi,
-                            Math.Max(1, driverCards.ClientSize.Width - 20));
+                        int minDriverHeight = driverCards.TableHeaderHeight + driverCards.TableRowHeight;
                         if (driverCards.Height < minDriverHeight ||
                             driverCards.Width < placeholder.Width - 70)
-                            throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution} " +
+                            throw new Exception($"DRIVERS não aproveita o espaço para a tabela: {name} {resolution} " +
                                 $"lista={driverCards.Size} raiz={placeholder.Size}");
                         if (Descendants(placeholder).Any(c => c.Name == "DriverCompactFilter") ||
-                            placeholder is not TableLayoutPanel driverRoot || driverRoot.RowStyles[2].Height != 0)
+                            placeholder is not TableLayoutPanel driverRoot ||
+                            driverRoot.RowStyles[1].Height != 0 || driverRoot.RowStyles[2].Height != 0 ||
+                            driverRoot.RowStyles[4].Height != 0)
                             throw new Exception($"Drivers: faixa de filtros não liberou espaço: {name} {resolution}");
                         var driverButtons = Descendants(placeholder).OfType<Button>().ToArray();
                         if (Descendants(placeholder).OfType<DataGridView>().Any() ||

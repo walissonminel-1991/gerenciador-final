@@ -1075,7 +1075,15 @@ internal sealed partial class MainForm
         }
 
         var palette = V269Palette;
-        if (root is DarkDriverList driverList) driverList.Theme = _v269Appearance.Theme;
+        if (root is DarkDriverList driverList)
+        {
+            driverList.Theme = _v269Appearance.Theme;
+            if (driverList.TableMode)
+            {
+                driverList.ApplyTableAppearance(_v269Appearance, _nav.LayoutWindowWidth);
+                return;
+            }
+        }
         if (root is DarkProgramList appsList) appsList.ApplyV269Table(_v269Appearance);
         if(root==_v269AppSortChoice)
         {
@@ -1088,11 +1096,11 @@ internal sealed partial class MainForm
         }
         if(root is V269AppSearchBox appSearch){appSearch.ApplyOptions(_v269Appearance);return;}
         if(root is V269AppToolbarButton appButton){appButton.ApplyOptions(_v269Appearance);return;}
-        if(root.Name=="V269AppsTableFrame"){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Border;
+        if(root.Name is "V269AppsTableFrame" or "V269DriversTableFrame"){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Border;
             root.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
             foreach(Control child in root.Controls)ApplyV269ContentAppearance(child);return;}
         if(root==_search){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Row;root.ForeColor=V269AppTable.Colors(_v269Appearance.Theme).Ink;}
-        if(root.Name=="V269AppsPage"&&root.Tag is Action fitApps)fitApps();
+        if((root.Name is "V269AppsPage" or "DriversPlaceholder")&&root.Tag is Action fitInventory)fitInventory();
         if (root is DarkProgramList or DarkDriverList)
         {
             root.BackColor = root is DarkProgramList

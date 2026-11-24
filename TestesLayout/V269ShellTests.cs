@@ -122,15 +122,12 @@ internal static class V269ShellTests
             ? mainLayout!.RowCount == 3 && mainLayout.GetRow(shell.RightPane) == 2
             : mainLayout!.ColumnCount == 3 && mainLayout.GetColumn(shell.RightPane) == 2,
             "Painel de Aplicativos precisa alternar entre posição inferior e lateral.");
-        // O contrato legado das outras abas permanece independente.
         shell.SelectPage(V269Page.Drivers);
-        int compactWidth = shell.ClientSize.Width < 1040 ? 166 : 210;
-        int compactRight = shell.ClientSize.Width < 1040 ? 240 : 310;
-        Check(columns.ColumnStyles[0].Width == V269VisualTokens.Scale(compactWidth, 110) &&
-            columns.ColumnStyles[2].Width == V269VisualTokens.Scale(compactRight, 110) &&
-            ReferenceEquals(shell.RightPane.Parent, columns) &&
+        Check(columns.ColumnStyles[0].Width == expectedLeft &&
+            columns.ColumnStyles[2].Width == 0 &&
+            ReferenceEquals(shell.RightPane.Parent, mainLayout) &&
             ReferenceEquals(shell.RightPane.Current, result),
-            "A geometria integrada de Aplicativos não pode modificar Drivers.");
+            "Drivers reutiliza o painel responsivo do HTML e preserva o resultado publicado.");
         shell.SelectPage(V269Page.Aplicativos);
 
         var progress = new V269PanelPresentation(V269PanelKind.Progress,

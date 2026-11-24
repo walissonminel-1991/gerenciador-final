@@ -42,9 +42,8 @@ internal static class V269IntegrationTests
         var waiting = (Task<bool>)confirm.Invoke(form, ["Revisão de teste",
             "Alvo sintético. Nenhuma manutenção.", CancellationToken.None])!;
         shell.SelectPage(V269Page.Drivers);
-        Require(!form.Controls.Find("V269HomeMinimize", true).Single().Visible &&
-            paneToggle.Parent?.Name == "V269Navigation",
-            "as demais abas conservam a barra e o controle de operações anteriores");
+        Require(form.Controls.Find("V269HomeMinimize", true).Single().Visible && !paneToggle.Visible,
+            "Drivers reutiliza a barra do HTML e o acesso contextual ao painel");
         Require(!waiting.IsCompleted && shell.RightPane.Visible &&
             shell.RightPane.Current?.Kind == V269PanelKind.Confirmation && !views[2].Enabled,
             "troca de aba conserva a confirmação e impede uma operação concorrente");
@@ -135,8 +134,91 @@ internal static class V269IntegrationTests
             "tema Claro preserva contraste do registro e o resultado publicado");
         VerifySettings(form,shell);
         VerifyApps(form,shell);
+        VerifyDrivers(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyDrivers(MainForm form, V269Shell shell)
+    {
+        var root = shell.PageContent(V269Page.Drivers)!;
+        var list = root.Controls.Find("DriverInventoryList", true).OfType<DarkDriverList>().Single();
+        var sort = root.Controls.Find("V269DriversSort", true).OfType<V269AppSortCombo>().Single();
+        var details = root.Controls.Find("V269DriversDetails", true).OfType<Button>().Single();
+        var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        var originalSize = surface.Size;
+        int originalTheme = theme.SelectedIndex;
+        var panel = shell.RightPane.Current;
+        var inventory = new[]
+        {
+            new DriverInventoryEntry(@"PCI\GF-UI\1", "AMD B550 Chipset", "AMD", "6.07.22.037", "oem401.inf", true, true)
+                { ReportedPnpClass = "System" },
+            new DriverInventoryEntry(@"USB\GF-UI\2", "Intel Wireless Bluetooth", "Intel", "23.100.0.4", "oem402.inf", true, true)
+                { ReportedPnpClass = "Bluetooth" },
+            new DriverInventoryEntry(@"PCI\GF-UI\3", "NVIDIA GeForce RTX 5060 Ti", "NVIDIA", "32.0.15.7602", "oem403.inf", true, true)
+                { ReportedPnpClass = "Display" },
+            new DriverInventoryEntry(@"PCI\GF-UI\4", "Realtek High Definition Audio", "Realtek", "6.0.9733.1", "oem404.inf", true, true)
+                { ReportedPnpClass = "MEDIA" },
+            new DriverInventoryEntry(@"USB\GF-UI\5", "USB Composite Device", "Microsoft", "10.0.26100.1", "usb.inf", true, true)
+                { ReportedPnpClass = "USB" }
+        };
+        var fixture = inventory.Concat(Enumerable.Range(0, 12).Select(i => new DriverInventoryEntry(
+            @"ROOT\GF-UI\" + i, "Dispositivo de teste " + i, "Microsoft", "10.0.26100.1", "test.inf", null, true))).ToArray();
+        try
+        {
+            shell.PresentPanel(null);
+            shell.SelectPage(V269Page.Drivers);
+            Require(list.TableMode && list.Items.Count == 0 && !list.ActionsCurrent &&
+                sort.Items.Cast<string>().SequenceEqual(new[] { "Nome (A–Z)", "Nome (Z–A)", "Atualizações primeiro", "Ordem manual" }),
+                "Drivers inicia sem consulta e usa as quatro opções do HTML");
+            Require(V269AppTable.DriverHeaders.SequenceEqual(new[] { "Dispositivo / Driver", "Versão atual", "Versão disponível", "Ações" }),
+                "tabela de Drivers tem as quatro colunas aprovadas");
+            Require(root.Controls.Find("DriverCopySafetySummary", true).Length == 0 &&
+                root.Controls.Find("DriverInventoryStatus", true).Length == 0,
+                "rodapé legado saiu da superfície de Drivers");
+
+            list.SetItems(fixture);
+            Directory.CreateDirectory("LayoutCaptures");
+            foreach (var size in new[] { new Size(992, 659), new Size(1200, 659) })
+            {
+                surface.Size = size;
+                foreach (V269Theme palette in Enum.GetValues<V269Theme>())
+                {
+                    theme.SelectedIndex = (int)palette;
+                    surface.PerformLayout();
+                    Application.DoEvents();
+                    var vertical = list.Controls.Find("V269DriversVerticalScroll", true).OfType<DarkVScrollBar>().Single();
+                    var horizontal = list.Controls.Find("V269DriversHorizontalScroll", true).OfType<DarkVScrollBar>().Single();
+                    Require(vertical.Visible && vertical.Top == list.TableHeaderHeight && !horizontal.Visible,
+                        "cabeçalho fixo e barras somente quando há excesso");
+                    Require(details.Visible == (size.Width <= 1040), "Detalhes aparece no breakpoint do HTML");
+                    if (details.Visible && !shell.RightPane.Visible)
+                    {
+                        details.PerformClick();
+                        Application.DoEvents();
+                    }
+                    Require(shell.RightPane.Visible && shell.RightPane.Current?.Driver is { } model &&
+                        model.Fields.Select(field => field.Label).SequenceEqual(new[]
+                        {
+                            "Categoria", "Fabricante", "Assinatura", "Barramento", "Versão instalada", "Oferta"
+                        }) && model.Fields[^1].Value == "Não confirmada" &&
+                        !shell.RightPane.Controls.Find("V269AppDescriptionHeading", true).Any(),
+                        "painel apresenta seis campos reais e reserva a indicação de oferta comprovada");
+                    using var capture = new Bitmap(size.Width, size.Height);
+                    surface.DrawToBitmap(capture, new Rectangle(Point.Empty, size));
+                    capture.Save($"LayoutCaptures/v269-drivers-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
+                }
+            }
+        }
+        finally
+        {
+            list.SetItems([]);
+            shell.SelectPage(V269Page.Configuracoes);
+            theme.SelectedIndex = originalTheme;
+            surface.Size = originalSize;
+            shell.PresentPanel(panel);
+        }
     }
 
     private static void VerifyApps(MainForm form,V269Shell shell)
