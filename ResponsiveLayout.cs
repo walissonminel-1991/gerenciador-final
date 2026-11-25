@@ -21,19 +21,20 @@ internal sealed partial class MainForm
         return (int)Math.Ceiling(logical * Math.Max(1d, DeviceDpi / 96d));
     }
 
-    private static bool CleanupPreviewCompact(int availableWidth) => availableWidth < 500;
-
+    private Action? _fitV269CleanupDiskSection;
+    private TableLayoutPanel? _v269CleanupDiskSection;
     private int DiskPanelHeight(int width)
     {
-        int count = _diskCards.Content.Controls.Count;
-        int usable = width - 45;
-        int columns = usable >= 1050 ? 3 : usable >= 740 ? 2 : 1;
-        int rows = Math.Max(1, (Math.Max(1, count) + columns - 1) / columns);
-        float scale = Math.Max(1f, DeviceDpi / 96f);
-        int previewHeight = CleanupPreviewCompact(width - 32) ? 70 : 38;
-        int fixedRows = 34 + previewHeight + 20 + 8 + 2 + 4;
-        int cards = rows * (98 + 7);
-        return (int)Math.Ceiling((fixedRows + cards) * scale) + CleanupReportHeight(width);
+        _fitV269CleanupDiskSection?.Invoke();
+        int S(int x) => V269AppTable.Scale(x,_v269Appearance.InterfacePercent,DeviceDpi);
+        int reportHeight=CleanupReportHeight(width);
+        var section=_v269CleanupDiskSection;
+        int fixedRows=section is null?S(160):section.Padding.Vertical+
+            section.RowStyles.Cast<RowStyle>().Where((row,index)=>index!=3&&index!=5).Sum(row=>(int)Math.Ceiling(row.Height));
+        int area=Math.Max(1,width-(section?.Padding.Horizontal??S(26))-_diskCards.Content.Padding.Horizontal);
+        int cards=_diskCards.Content.Controls.OfType<V269CleanupDiskCard>()
+            .Sum(card=>card.HeightForWidth(area)+S(8));
+        return fixedRows + reportHeight + Math.Max(S(6),cards+_diskCards.Content.Padding.Vertical);
     }
 
     // A pagina inteira rola quando necessario, mas nunca acrescenta barras

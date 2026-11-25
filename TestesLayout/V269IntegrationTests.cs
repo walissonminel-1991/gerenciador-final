@@ -144,8 +144,80 @@ internal static class V269IntegrationTests
         VerifySettings(form,shell);
         VerifyApps(form,shell,confirmationContext);
         VerifyDrivers(form,shell);
+        VerifyCleanup(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyCleanup(MainForm form,V269Shell shell)
+    {
+        const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
+        var disks=(DarkScrollableFlow)typeof(MainForm).GetField("_diskCards",flags)!.GetValue(form)!;
+        var actions=(List<Control>)typeof(MainForm).GetField("_actionControls",flags)!.GetValue(form)!;
+        var create=typeof(MainForm).GetMethod("CreateDiskCard",flags)!;
+        var set=typeof(MainForm).GetMethod("SetCleanupRow",flags)!;
+        var relayout=(Action)typeof(MainForm).GetField("_relayoutCleaning",flags)!.GetValue(form)!;
+        var theme=form.Controls.Find("V269ThemeChoice",true).OfType<ComboBox>().Single();
+        var surface=form.Controls.OfType<TableLayoutPanel>().Single();
+        var originalSize=surface.Size;int originalTheme=theme.SelectedIndex;
+        var previous=shell.RightPane.Current;var previousPage=shell.SelectedPage;
+        var original=disks.Content.Controls.Cast<Control>().ToArray();
+        var fixtures=new[]
+        {
+            (Control)create.Invoke(form,[new DiskUsageInfo(@"C:\\","Disco local",1024000000000L,558700000000L,"NTFS")])!,
+            (Control)create.Invoke(form,[new DiskUsageInfo(@"D:\\","Dados",931500000000L,652900000000L,"NTFS")])!
+        };
+        try
+        {
+            Directory.CreateDirectory("LayoutCaptures");
+            disks.Content.Controls.Clear();
+            foreach(var fixture in fixtures)disks.Content.Controls.Add(fixture);
+            foreach(var target in CleanupTarget.All)set.Invoke(form,[target,"Prévia · 4 arquivos · 1,1 GiB"]);
+            shell.SelectPage(V269Page.Limpeza);
+            foreach(var size in new[]{new Size(1200,659),new Size(1400,861)})
+            foreach(V269Theme palette in Enum.GetValues<V269Theme>())
+            {
+                theme.SelectedIndex=(int)palette;surface.Size=size;surface.PerformLayout();relayout();Application.DoEvents();
+                var cards=form.Controls.Find("V269CleanupActions",true).OfType<DarkScrollableFlow>().Single();
+                Require(cards.Content.Controls.Count==6&&cards.Content.Controls.OfType<V269CleanupCard>().Count()==6,
+                    "Limpeza mantém seis ferramentas, sem executar manutenção");
+                Require(disks.Content.Controls.Cast<Control>().All(x=>x.Width>0&&x.Height>0)&&
+                    fixtures[0].Top<fixtures[1].Top,"discos em linhas verticais");
+                var first=cards.Content.Controls.OfType<V269CleanupCard>().First();
+                var select=typeof(Control).GetMethod("OnClick",flags)!;
+                shell.PresentPanel(null);
+                Require(first.TabStop&&fixtures.All(disk=>disk.TabStop),"ferramentas e discos alcançáveis pelo teclado");
+                select.Invoke(first,[EventArgs.Empty]);Application.DoEvents();
+                Require(shell.RightPane.Current?.Cleanup?.CleanupGlyph=="folder","seleção de ferramenta apresenta detalhes estruturados");
+                select.Invoke(fixtures[0],[EventArgs.Empty]);Application.DoEvents();
+                Require(shell.RightPane.Current?.Cleanup?.Fields.Any(x=>x.Label=="Espaço livre")==true,"seleção de disco apresenta leitura de espaço da fixture");
+                select.Invoke(first,[EventArgs.Empty]);Application.DoEvents();
+                foreach(var card in cards.Content.Controls.OfType<V269CleanupCard>())
+                {
+                    Require(card.ClientRectangle.Contains(card.Command.Bounds)&&card.Command.Width>0,
+                        "comando de limpeza permanece dentro do cartão");
+                }
+                var toolbar=form.Controls.Find("V269CleanupToolbar",true).OfType<TableLayoutPanel>().Single();
+                Require(toolbar.Controls.OfType<Button>().Count()==3&&toolbar.Controls.OfType<Button>()
+                    .All(button=>toolbar.ClientRectangle.Contains(button.Bounds)&&button.Width>0&&button.Height>0),
+                    "três comandos da barra permanecem dentro da área útil");
+                using var capture=new Bitmap(surface.Width,surface.Height);
+                surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
+                capture.Save($"LayoutCaptures/v269-limpeza-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
+            }
+            VerifyInventoryFlowStates(form,shell,V269Page.Limpeza);
+        }
+        finally
+        {
+            disks.Content.Controls.Clear();
+            foreach(var fixture in fixtures)fixture.Dispose();
+            actions.RemoveAll(c=>c.IsDisposed);
+            foreach(var card in original)disks.Content.Controls.Add(card);
+            foreach(var target in CleanupTarget.All)set.Invoke(form,[target,"Aguardando análise"]);
+            theme.SelectedIndex=originalTheme;surface.Size=originalSize;shell.SelectPage(previousPage);shell.PresentPanel(previous);
+            surface.PerformLayout();Application.DoEvents();
+        }
+        Console.WriteLine("PASS Limpeza V2.6.9: seis cartões, discos verticais, painel operacional e seis capturas sintéticas.");
     }
 
     private static void VerifyDrivers(MainForm form, V269Shell shell)
@@ -706,7 +778,7 @@ internal static class V269IntegrationTests
         var originalSize = surface.Size;
         var originalTheme = theme.SelectedIndex;
         var previous = shell.RightPane.Current;
-        string tab = page == V269Page.Drivers ? "drivers" : "aplicativos";
+        string tab = page == V269Page.Drivers ? "drivers" : page == V269Page.Limpeza ? "limpeza" : "aplicativos";
         var oldContext = SynchronizationContext.Current;
         using var cancellation = new CancellationTokenSource();
         try
@@ -774,9 +846,9 @@ internal static class V269IntegrationTests
                 Require(!confirmation.Result, "a captura não confirma uma ação");
 
                 bool cancelled = false;
-                Action? cancel = page == V269Page.Drivers ? () => cancelled = true : null;
+                Action? cancel = page is V269Page.Drivers or V269Page.Limpeza ? () => cancelled = true : null;
                 shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "7 de 25 itens consultados.",
-                    28, CancelFlow: cancel));
+                    28, CancelFlow: cancel, FlowPage:page));
                 surface.PerformLayout();
                 Application.DoEvents();
                 var meter = Find("V269FlowPercentMeter");
@@ -788,7 +860,7 @@ internal static class V269IntegrationTests
                 if (cancel is not null)
                 {
                     var cancelAction = (Button)Find("V269CancelOwnedFlow");
-                    Require(cancelAction.Visible, "cancelamento segue acessível no painel de Drivers");
+                    Require(cancelAction.Visible, "cancelamento segue acessível no painel da operação");
                     cancelAction.PerformClick();
                     Require(cancelled, "cancelamento usa a ação da operação");
                 }

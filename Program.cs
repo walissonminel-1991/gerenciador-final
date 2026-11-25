@@ -833,12 +833,14 @@ internal sealed partial class MainForm : Form
         _nav.SetOperationContent(BuildOperationsPanel());
         _nav.RightPane.PresentationChanged+=(_,_)=>ApplyV269AppOperationChrome();
         _nav.RightPane.ConfigureAppHistory(()=>_v269AppPreviousResults.ToArray(),DismissV269AppResult);
+        _nav.RightPane.ConfigureCleanupHistory(()=>_v269CleanupPreviousResults.ToArray(),DismissV269CleanupResult);
         _nav.NavigationChanged += async (_, e) =>
         {
             ApplyHomeChrome();
             ApplyV269AppOperationChrome();
             if(e.Page==V269Page.Aplicativos&&_programList.SelectedItem is {} app)PresentV269AppDetails(app);
             if(e.Page==V269Page.Drivers) _presentV269DriverDetails?.Invoke(false);
+            if(e.Page==V269Page.Limpeza) PresentV269CleanupRetained();
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
@@ -1738,7 +1740,7 @@ internal sealed partial class MainForm : Form
 
         // Cores de impacto: azul = rotina, cinza = baixo impacto/inspeção,
         // âmbar = atenção, vermelho = interrupção sensível ou remoção definitiva.
-        var cleaningActions = CreateToolsFlow(new[]
+        var cleaningActions = CreateV269CleanupTools(new[]
         {
             Tool("Temporários do usuário",
                 "Remove temporários antigos, preservando arquivos recentes, protegidos e em uso.",
@@ -1765,10 +1767,10 @@ internal sealed partial class MainForm : Form
                 AppServices.Gray,
                 () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução.")),
 
-        }, compact: true);
+        });
         var cleaningLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = Padding.Empty,
+            Name = "V269CleanupPage", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
@@ -1872,6 +1874,79 @@ internal sealed partial class MainForm : Form
         compact && name == "Limpeza de Disco automática"
             ? "Limpeza de Disco\nautomática"
             : name;
+
+    // Apresentação exclusiva de Limpeza; os seis manipuladores reais permanecem intactos.
+    private Control CreateV269CleanupTools(IEnumerable<ToolInfo> tools)
+    {
+        var host = new DarkScrollableFlow
+        {
+            Name = "V269CleanupActions", Dock = DockStyle.Fill, Margin = Padding.Empty,
+            EmbeddedInPage = true, BackColor = AppServices.Background
+        };
+        var flow = host.Content;
+        flow.Padding = Padding.Empty;
+        flow.BackColor = AppServices.Background;
+        var cards = new List<V269CleanupCard>();
+        string[] glyphs = ["folder", "monitor", "refresh", "trash", "brush", "cpu"];
+        string[] risks = ["Baixo", "Médio", "Atenção", "Irreversível", "Variável", "Baixo"];
+        CleanupTarget?[] targets = [CleanupTarget.UserTemp,CleanupTarget.WindowsTemp,CleanupTarget.UpdateCache,CleanupTarget.RecycleBin,null,CleanupTarget.DirectX];
+        foreach (var tool in tools)
+        {
+            int index=cards.Count;
+            var card = new V269CleanupCard(tool.Name, tool.Description, index);
+            cards.Add(card);
+            _actionControls.Add(card.Command);
+            void Select()
+            {
+                SelectV269CleanupItem(card,()=>new V269AppDetailModel(tool.Name,"Ferramenta de manutenção",
+                    [("Risco",risks[index]),("Estimativa",targets[index] is {} target&&_cleanupRows.TryGetValue(target,out var row)?row.State.Text:
+                        index==4?"Definida na ferramenta do Windows":"Aguardando análise")],
+                    "A operação real exige autorização e respeita as verificações de segurança do Windows.",
+                    Description:tool.Description,CleanupGlyph:glyphs[index],CleanupDescriptionHeading:"O que faz"));
+            }
+            if(index==0)_v269CleanupDefault=Select;
+            card.Enter += (_, _) => Select();
+            card.Click += (_, _) => Select();
+            card.Command.Click += async (_, _) =>
+            {
+                if (_busy || _betaClose.IsClosing) return;
+                Select();
+                try { await tool.Action(); }
+                catch (Exception ex) { ReportError(ex); }
+            };
+            flow.Controls.Add(card);
+        }
+        _v269CleanupDefault?.Invoke();
+        bool fitting = false;
+        void Fit()
+        {
+            if (fitting || host.IsDisposed || host.ClientSize.Width <= 0) return;
+            fitting = true;
+            try
+            {
+                int S(int x) => V269AppTable.Scale(x, _v269Appearance.InterfacePercent, host.DeviceDpi);
+                int gap = S(9);
+                int width = Math.Max(1, host.ClientSize.Width - Math.Max(16, S(16)));
+                int columns = _nav.LayoutWindowWidth <= 850 || width < S(540) ? 2 : 3;
+                if (width < S(330)) columns = 1;
+                int cardWidth = Math.Max(1, (width - gap * (columns - 1)) / columns);
+                for (int i = 0; i < cards.Count; i++)
+                {
+                    var card = cards[i];
+                    card.Margin = new Padding(0, 0, i % columns == columns - 1 ? 0 : gap, gap);
+                    card.Size = new Size(cardWidth, S(114));
+                    card.ApplyOptions(_v269Appearance);
+                }
+                host.Reflow();
+            }
+            finally { fitting = false; }
+        }
+        host.Tag = (Action)Fit;
+        host.SizeChanged += (_, _) => Fit();
+        host.DpiChangedAfterParent += (_, _) => Fit();
+        Fit();
+        return host;
+    }
 
     private Control CreateToolsFlow(IEnumerable<ToolInfo> tools, bool compact = false)
     {
@@ -2035,67 +2110,74 @@ internal sealed partial class MainForm : Form
 
     private Control BuildDiskPanel()
     {
-        var root = new TableLayoutPanel
+        var root = new V269CleanupSection
         {
-            Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1,
-            Margin = new Padding(7, 0, 7, 2), Padding = new Padding(9, 4, 9, 4),
+            Name = "V269DiskSection", Dock = DockStyle.Fill, RowCount = 6, ColumnCount = 1,
+            Margin = Padding.Empty, Padding = new Padding(13, 11, 13, 11),
             BackColor = PanelBackground
         };
-        // Linhas dimensionadas pelo DPI real. Evitar que botoes e seletor sejam
-        // cortados pelo resumo de discos em 125% / 150%, sem aumentar cards.
-        float dpiFactor = Math.Max(1f, DeviceDpi / 96f);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(34 * dpiFactor)));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(38 * dpiFactor)));
-        var reportRow = new RowStyle(SizeType.Absolute, 110);
+        int D(int x) => V269AppTable.Scale(x,_v269Appearance.InterfacePercent,root.DeviceDpi);
+        _v269CleanupDiskSection=root;
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, D(30)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, D(49)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, D(32)));
+        var reportRow = new RowStyle(SizeType.Absolute, D(100));
         root.RowStyles.Add(reportRow);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(20 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, D(20)));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155));
-        heading.Controls.Add(new Label
+        var heading = new Label
         {
-            Text = "ESPAÇO EM DISCO", Dock = DockStyle.Fill,
-            ForeColor = Ink, Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 0);
-        _refreshDisksButton = CreateSecondaryButton("Atualizar discos");
-        _refreshDisksButton.Dock = DockStyle.Fill;
-        _refreshDisksButton.Margin = new Padding(5, 4, 0, 4);
-        _refreshDisksButton.MinimumSize = new Size(0, 25);
-        _refreshDisksButton.Click += async (_, _) => await RefreshDiskUsageAsync();
-        _toolTips.SetToolTip(_refreshDisksButton, "Reconsultar o espaço livre e ocupado de cada unidade local.");
-        _actionControls.Add(_refreshDisksButton);
-        heading.Controls.Add(_refreshDisksButton, 1, 0);
+            Name = "V269DiskHeading", Text = "Espaço em disco", Dock = DockStyle.Fill,
+            ForeColor = Ink, BackColor = Color.Transparent, Font = new Font("Segoe UI", 13.5F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(D(30), 0, 0, 0), Margin = Padding.Empty
+        };
+        heading.Paint += (_, e) => V269CleanupGlyph.Draw(e.Graphics, "disk", new Rectangle(D(1), Math.Max(0, (heading.Height - D(21))/2), D(21), D(21)), _v269Appearance.Theme);
         root.Controls.Add(heading, 0, 0);
-        var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = PanelBackground };
+
+        var previewRow = new TableLayoutPanel { Name = "V269CleanupToolbar", Dock = DockStyle.Fill,
+            ColumnCount = 4, RowCount = 1, BackColor = Color.Transparent, Margin = Padding.Empty };
         previewRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 159));
-        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 204));
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, D(137)));
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, D(169)));
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, D(137)));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var previewButton = _cleanupPreviewButton = CreateSecondaryButton("Analisar limpeza");
+        var previewButton = _cleanupPreviewButton = new V269CleanupButton("Analisar limpeza", "search", true);
         previewButton.Dock = DockStyle.Fill;
-        previewButton.Margin = new Padding(0, 3, 8, 3);
+        previewButton.Margin = new Padding(0, D(4), D(9), D(15));
         previewButton.Click += async (_, _) => await ShowCleanupPreviewAsync();
         _actionControls.Add(previewButton);
         previewRow.Controls.Add(previewButton, 0, 0);
-        var fullAudit = CreateSecondaryButton("Diagnóstico completo");
+        var fullAudit = new V269CleanupButton("Diagnóstico completo", "shield");
         fullAudit.Dock = DockStyle.Fill;
-        fullAudit.Margin = new Padding(0, 3, 8, 3);
+        fullAudit.Margin = new Padding(0, D(4), D(9), D(15));
         fullAudit.Click += async (_, _) =>
             await ExecuteAsync("Analisando instalações, dispositivos e proteção...", RunMaintenanceAuditAsync);
-        fullAudit.AccessibleName = "Diagnóstico completo";
-        _toolTips.SetToolTip(fullAudit, "Revisa inventário, dispositivos e situação geral do antivírus " +
-            "e firewall pelo Centro de Segurança do Windows. Somente leitura.");
+        fullAudit.AccessibleDescription = "Revisa inventário, dispositivos, antivírus e firewall. Somente leitura.";
         _actionControls.Add(fullAudit);
         previewRow.Controls.Add(fullAudit, 1, 0);
-        var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        _refreshDisksButton = new V269CleanupButton("Atualizar discos", "refresh");
+        _refreshDisksButton.Dock = DockStyle.Fill;
+        _refreshDisksButton.Margin = new Padding(0, D(4), D(9), D(15));
+        _refreshDisksButton.Click += async (_, _) => await RefreshDiskUsageAsync();
+        _refreshDisksButton.AccessibleDescription = "Reconsultar o espaço livre e ocupado de cada unidade local.";
+        _actionControls.Add(_refreshDisksButton);
+        previewRow.Controls.Add(_refreshDisksButton, 2, 0);
+        previewRow.Paint += (_, e) =>
+        {
+            using var pen = new Pen(V269Palette.Border);
+            e.Graphics.DrawLine(pen, 0, previewRow.Height - 1, previewRow.Width - 1, previewRow.Height - 1);
+        };
+        root.Controls.Add(previewRow, 0, 1);
+        var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty, BackColor = Color.Transparent };
         modePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         _cleanupPreview.Text = "Estimativa por categoria";
         _cleanupPreview.Dock = DockStyle.Fill;
-        _cleanupPreview.ForeColor = Muted;
+        _cleanupPreview.ForeColor = Ink;
+        _cleanupPreview.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        _cleanupPreview.BackColor = Color.Transparent;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
         _cleanupPreview.AutoEllipsis = true;
         modePanel.Controls.Add(_cleanupPreview, 0, 0);
@@ -2123,155 +2205,131 @@ internal sealed partial class MainForm : Form
             }
             else Log("Coleta detalhada de testes desativada.");
         };
-        _toolTips.SetToolTip(testMode, "Escolha o PC para comparar testes. Nada é enviado; " +
-            "sem caminhos, nomes de programas ou IDs. Inspeciona presença do App Installer/alias/PATH sem executar WinGet. Volta ao padrão ao fechar.");
+        testMode.AccessibleDescription = "Coleta local de testes, sem envio; volta ao padrão ao fechar.";
         modePanel.Controls.Add(testMode, 1, 0);
 #endif
-        previewRow.Controls.Add(modePanel, 2, 0);
-        root.Controls.Add(previewRow, 0, 1);
-        bool? previewCompact = null;
+        root.Controls.Add(modePanel, 0, 2);
+        bool fittingCommands=false;
+        string? previousToolbarGeometry=null;
         void FitPreviewCommands()
         {
-            bool compact = CleanupPreviewCompact(root.ClientSize.Width - root.Padding.Horizontal);
-            if (previewCompact == compact) return;
-            previewCompact = compact;
-            previewRow.SuspendLayout();
+            if(fittingCommands||root.IsDisposed)return;
+            fittingCommands=true;
             try
             {
-                var first = previewRow.ColumnStyles[0];
-                var second = previewRow.ColumnStyles[1];
-                var summary = previewRow.ColumnStyles[2];
-                first.SizeType = second.SizeType = compact ? SizeType.Percent : SizeType.Absolute;
-                first.Width = compact ? 50 : 159;
-                second.Width = compact ? 50 : 204;
-                summary.SizeType = compact ? SizeType.Absolute : SizeType.Percent;
-                summary.Width = compact ? 0 : 100;
-                previewRow.SetColumnSpan(modePanel, 1);
-                previewRow.SetCellPosition(modePanel, new TableLayoutPanelCellPosition(compact ? 0 : 2, compact ? 1 : 0));
-                previewRow.SetColumnSpan(modePanel, compact ? 2 : 1);
-                previewRow.RowCount = compact ? 2 : 1;
-                previewRow.RowStyles.Clear();
-                previewRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                if (compact) previewRow.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(32 * dpiFactor)));
-                root.RowStyles[1].Height = (float)Math.Ceiling((compact ? 70 : 38) * dpiFactor);
+                root.Padding=new Padding(D(13),D(11),D(13),D(11));
+                var buttons=new[]{previewButton,fullAudit,_refreshDisksButton!};
+                int available=Math.Max(1,root.ClientSize.Width-root.Padding.Horizontal);
+                int gap=D(9);
+                int[] desired=buttons.Select(button=>
+                    Math.Max(D(80),TextRenderer.MeasureText(button.Text,button.Font,Size.Empty,
+                        TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|TextFormatFlags.SingleLine).Width+D(36))).ToArray();
+                int columns=desired.Sum()+gap*2<=available?3:
+                    Math.Max(desired[0],desired[1])*2+gap<=available?2:1;
+                int rows=(3+columns-1)/columns;
+                int height=Math.Max(D(30),buttons.Max(button=>button.Font.Height)+D(8));
+                string geometry=$"{available}:{columns}:{height}:{string.Join(",",desired)}:{D(9)}:{heading.Font.Height}:{_cleanupPreview.Font.Height}:{_diskSummary.Font.Height}";
+                if(previousToolbarGeometry==geometry)return;
+                previousToolbarGeometry=geometry;
+                previewRow.SuspendLayout();
+                try
+                {
+                    previewRow.Controls.Clear();
+                    previewRow.RowCount=rows;previewRow.ColumnCount=columns+1;
+                    previewRow.ColumnStyles.Clear();previewRow.RowStyles.Clear();
+                    for(int i=0;i<columns;i++)
+                        previewRow.ColumnStyles.Add(columns==3?new ColumnStyle(SizeType.Absolute,desired[i]+gap):
+                            new ColumnStyle(SizeType.Percent,100f/columns));
+                    previewRow.ColumnStyles.Add(columns==3?new ColumnStyle(SizeType.Percent,100):new ColumnStyle(SizeType.Absolute,0));
+                    for(int row=0;row<rows;row++)previewRow.RowStyles.Add(new RowStyle(SizeType.Absolute,height+D(9)+(row==rows-1?D(10):0)));
+                    for(int i=0;i<buttons.Length;i++)
+                    {
+                        buttons[i].Margin=new Padding(0,D(4),gap,D(5)+(i/columns==rows-1?D(10):0));
+                        previewRow.Controls.Add(buttons[i],i%columns,i/columns);
+                    }
+                    root.RowStyles[0].Height=Math.Max(D(30),heading.Font.Height+D(5));
+                    root.RowStyles[1].Height=rows*(height+D(9))+D(10);
+                    root.RowStyles[2].Height=Math.Max(D(32),_cleanupPreview.Font.Height+D(8));
+                    root.RowStyles[4].Height=Math.Max(D(12),_diskSummary.Font.Height+2);
+                }
+                finally{previewRow.ResumeLayout(true);}
             }
-            finally { previewRow.ResumeLayout(true); }
+            finally{fittingCommands=false;}
         }
         root.SizeChanged += (_, _) => FitPreviewCommands();
+        root.DpiChangedAfterParent+=(_,_)=>FitPreviewCommands();
+        _fitV269CleanupDiskSection=FitPreviewCommands;
         FitPreviewCommands();
-        root.Controls.Add(BuildCleanupReport(reportRow), 0, 2);
+        root.Controls.Add(BuildCleanupReport(reportRow), 0, 3);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
         _diskSummary.Dock = DockStyle.Fill;
         _diskSummary.ForeColor = Muted;
         _diskSummary.Font = new Font("Segoe UI", 8.6F);
         _diskSummary.TextAlign = ContentAlignment.MiddleLeft;
-        root.Controls.Add(_diskSummary, 0, 3);
+        _diskSummary.BackColor = Color.Transparent;
+        root.Controls.Add(_diskSummary, 0, 4);
         _diskCards.EmbeddedInPage = true;
         _diskCards.Dock = DockStyle.Fill;
-        _diskCards.Content.Padding = new Padding(1, 4, 1, 2);
+        _diskCards.Content.Padding = new Padding(0, 4, 0, 2);
         _diskCards.Margin = Padding.Empty;
         _diskCards.BackColor = PanelBackground;
         _diskCards.Content.BackColor = PanelBackground;
         _diskCards.Resize += (_, _) => ResizeDiskCards();
-        root.Controls.Add(_diskCards, 0, 4);
+        root.Controls.Add(_diskCards, 0, 5);
         return root;
     }
-
-    private static string DisplayGigabytes(long bytes)
-        => (bytes / 1_000_000_000d).ToString("N1", CultureInfo.CurrentCulture) + " GB";
 
     private Control CreateDiskCard(DiskUsageInfo disk)
     {
         long used = disk.TotalBytes - disk.FreeBytes;
-        double fraction = Math.Clamp((double)used / disk.TotalBytes, 0d, 1d);
+        double fraction = disk.TotalBytes > 0 ? Math.Clamp((double)used / disk.TotalBytes, 0d, 1d) : 0d;
         int percent = (int)Math.Round(fraction * 100);
         string letter = disk.Root.TrimEnd('\\');
         string name = string.IsNullOrWhiteSpace(disk.Label) ? "Disco local" : disk.Label;
-        var card = new TableLayoutPanel
-        {
-            Size = new Size(350, 98), RowCount = 4, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Padding = new Padding(10, 4, 10, 4),
-            Margin = new Padding(0, 0, 10, 7)
-        };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 19));
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var diskHeader = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
-            Margin = Padding.Empty, Padding = Padding.Empty,
-            BackColor = Color.FromArgb(38, 50, 63)
-        };
-        diskHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        diskHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,
-            (int)Math.Ceiling(91d * DeviceDpi / 96d)));
-        diskHeader.Controls.Add(new Label
-        {
-            Text = $"{name} ({letter})", Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = Ink,
-            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true,
-            Margin = Padding.Empty
-        }, 0, 0);
+        var card = new V269CleanupDiskCard($"{name} ({letter})",
+            $"{DisplayGigabytes(used)} de {DisplayGigabytes(disk.TotalBytes)} ({percent}%)",
+            $"{disk.FileSystem} · {DisplayGigabytes(disk.FreeBytes)} livres", fraction);
         string? task = SingleVolumeOptimization.TaskForRoot(disk.Root);
-        var optimize = CreateSecondaryButton("Otimizar");
+        var optimize = card.Command;
         optimize.Name = "OptimizeVolume" + letter.TrimEnd(':');
         optimize.AccessibleName = "Otimizar somente " + letter;
-        optimize.Dock = DockStyle.Fill;
-        optimize.Margin = new Padding(3, 0, 0, 0);
         optimize.Tag = task;
         optimize.Enabled = task is not null &&
             SingleVolumeOptimization.IsEligible(DriveType.Fixed, true, disk.FileSystem);
-        _toolTips.SetToolTip(optimize, optimize.Enabled
+        optimize.AccessibleDescription = optimize.Enabled
             ? "Otimizar apenas " + letter + " com o método adequado ao volume (SSD/HD)."
-            : "Otimização indisponível para este sistema de arquivos ou volume.");
+            : "Otimização indisponível para este sistema de arquivos ou volume.";
         optimize.Click += async (_, _) =>
         {
             if (task is null || !optimize.Enabled || _busy) return;
+            SelectDisk();
             await ConfirmThenRun(task,
                 "Otimizar somente a unidade " + letter +
                 "? O Windows escolherá o método adequado e poderá solicitar autorização.");
         };
+        void SelectDisk() => SelectV269CleanupItem(card,()=>new V269AppDetailModel($"{name} ({letter})",disk.FileSystem,
+            [("Capacidade total",DisplayGigabytes(disk.TotalBytes)),("Espaço utilizado",DisplayGigabytes(used)),
+             ("Espaço livre",DisplayGigabytes(disk.FreeBytes)),("Sistema de arquivos",disk.FileSystem)],
+            optimize.Enabled?"A otimização real afeta apenas a unidade selecionada e exige confirmação.":optimize.AccessibleDescription??"Otimização indisponível.",
+            Description:"O Windows escolhe o método de otimização adequado à unidade.",CleanupGlyph:"disk",CleanupDescriptionHeading:"Otimização"));
+        card.Click+=(_,_)=>SelectDisk();card.Enter+=(_,_)=>SelectDisk();
         _actionControls.Add(optimize);
-        diskHeader.Controls.Add(optimize, 1, 0);
-        card.Controls.Add(diskHeader, 0, 0);
-        card.Controls.Add(new Label
-        {
-            Text = $"Usado: {DisplayGigabytes(used)}    |    Livre: {DisplayGigabytes(disk.FreeBytes)}",
-            Dock = DockStyle.Fill, ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft,
-            AutoEllipsis = true
-        }, 0, 1);
-        card.Controls.Add(new Label
-        {
-            Text = $"Total: {DisplayGigabytes(disk.TotalBytes)}    |    Ocupação: {percent}%",
-            Dock = DockStyle.Fill, ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft,
-            AutoEllipsis = true
-        }, 0, 2);
-        var track = new Panel { Dock = DockStyle.Fill, Height = 13, BackColor = Color.FromArgb(57, 68, 81), Margin = new Padding(0, 7, 0, 0) };
-        var fill = new Panel
-        {
-            BackColor = fraction >= .90d ? AppServices.Red : fraction >= .75d ? AppServices.Orange : AppServices.Blue
-        };
-        track.Controls.Add(fill);
-        void UpdateFill()
-        {
-            fill.SetBounds(0, 0, Math.Clamp((int)Math.Round(track.ClientSize.Width * fraction), 0, track.ClientSize.Width),
-                track.ClientSize.Height);
-        }
-        track.Resize += (_, _) => UpdateFill();
-        card.Controls.Add(track, 0, 3);
+        card.ApplyOptions(_v269Appearance);
         return card;
     }
 
     private void ResizeDiskCards()
     {
         if (_diskCards.IsDisposed || _diskCards.Content.Controls.Count == 0) return;
-        int area = _diskCards.Content.ClientSize.Width - _diskCards.Content.Padding.Horizontal - 23;
+        int area = _diskCards.ClientSize.Width - _diskCards.Content.Padding.Horizontal;
         if (area <= 0) return;
-        int columns = area >= 1050 ? 3 : area >= 740 ? 2 : 1;
-        int target = Math.Max(230, (area / columns) - 14);
-        foreach (Control card in _diskCards.Content.Controls)
-            if (card.Width != target) card.Width = target;
+        foreach (Control control in _diskCards.Content.Controls)
+        {
+            if (control is not V269CleanupDiskCard card) continue;
+            card.ApplyOptions(_v269Appearance);
+            card.Size = new Size(area, card.HeightForWidth(area));
+            card.Margin = new Padding(0, 0, 0, V269AppTable.Scale(8, _v269Appearance.InterfacePercent, card.DeviceDpi));
+        }
         _diskCards.Reflow();
     }
 
@@ -2304,6 +2362,7 @@ internal sealed partial class MainForm : Form
             }
             finally { _diskCards.Content.ResumeLayout(true); }
             _relayoutCleaning?.Invoke();
+            if(_v269CleanupSelected?.IsDisposed==true)PresentV269CleanupSelection();
         }
         catch (Exception ex)
         {
@@ -2476,9 +2535,12 @@ internal sealed partial class MainForm : Form
         }
         _operationResult = text;
         _status.Text = text;
-        if (_busy && _nav.RightPane.Current is not ({ Kind: V269PanelKind.Result } or { CancelFlow: not null }))
+        if (_v269CleanupExecutionActive && _cleanupCancellation is { } && _nav.SelectedPage==V269Page.Limpeza &&
+            _nav.RightPane.Current is not {Kind:V269PanelKind.Result})
+            _nav.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento",text,CancelFlow:RequestCleanupCancellation,FlowPage:V269Page.Limpeza,CancelLabel:"Cancelar limpeza"));
+        else if (_busy && _nav.RightPane.Current is not ({ Kind: V269PanelKind.Result } or { CancelFlow: not null }))
             _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text));
-        _toolTips.SetToolTip(_status, text);
+        _toolTips.SetToolTip(_status, _v269CleanupExecutionActive || _nav.SelectedPage==V269Page.Limpeza ? null : text);
     }
 
     // Preservar o contrato original de três argumentos utilizado pela janela
@@ -2494,6 +2556,8 @@ internal sealed partial class MainForm : Form
         if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
             allowDuringBatch) || _v269Confirming || _betaClose.IsClosing) return;
         bool appExecution=!quietStartup&&_nav.SelectedPage==V269Page.Aplicativos;
+        bool cleanupExecution=!quietStartup&&_nav.SelectedPage==V269Page.Limpeza;
+        if(cleanupExecution){_v269CleanupExecutionActive=true;_v269CleanupOutcome=null;}
         if(appExecution){_v269AppExecutionActive=true;_v269AppExecutionResult=null;}
         _busy = true;
         if (!quietStartup)
@@ -2516,6 +2580,7 @@ internal sealed partial class MainForm : Form
         {
             _busy = false;
             if(appExecution)_v269AppExecutionActive=false;
+            if(cleanupExecution)_v269CleanupExecutionActive=false;
             if (!IsDisposed && !Disposing)
             {
                 if (!quietStartup)
@@ -2541,6 +2606,14 @@ internal sealed partial class MainForm : Form
                         :_operationResult);
                     RecordV269AppResult(result?.Title??description,outcome,result);
                 }
+                if(cleanupExecution)
+                {
+                    var outcome=_v269CleanupOutcome;
+                    _v269CleanupOutcome=null;
+                    RecordV269CleanupResult(outcome?.Title??description, outcome?.Description??
+                        (_operationResult==description?"Nenhum desfecho adicional foi reportado. Consulte o registro.":_operationResult),
+                        outcome?.Complete==true);
+                }
                 UpdateBulkButtons();
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
                     _checkUpdatesButton.Enabled = !_batchUpdatesActive;
@@ -2562,6 +2635,16 @@ internal sealed partial class MainForm : Form
     {
         Log("ERRO: " + ex.Message);
         Status("Não foi possível concluir a operação");
+        if(_v269CleanupExecutionActive)
+        {
+            _v269CleanupOutcome=new("Limpeza e Desempenho",ex.Message,false);
+            return;
+        }
+        if(_nav.SelectedPage==V269Page.Limpeza)
+        {
+            RecordV269CleanupResult("Limpeza e Desempenho",ex.Message,false);
+            return;
+        }
         MessageBox.Show(this, ex.Message, "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
@@ -4154,6 +4237,22 @@ internal sealed partial class MainForm : Form
             ? "Diagnóstico parcial: consulte as informações e limitações no registro."
             : $"Diagnóstico: {report.MissingUninstallers} desinstaladores ausentes; " +
               $"{report.HistoricalPnP?.NotPresent ?? 0} instâncias PnP sem confirmação (não são drivers).");
+        if(_v269CleanupExecutionActive)
+        {
+            bool complete=!report.Incomplete&&!games.Partial&&report.Devices.Supported&&
+                security.All(x=>x.Level is SecurityHealthLevel.Ok or SecurityHealthLevel.Attention);
+            var lines=new List<string>{
+                complete?"Diagnóstico consultivo concluído.":"Diagnóstico consultivo parcial; existem leituras não confirmadas.",
+                $"Aplicativos registrados: {report.Installed}; desinstaladores ausentes: {report.MissingUninstallers}; não verificáveis: {report.UnverifiableUninstallers}.",
+                report.Devices.Supported?$"Dispositivos consultados: {report.Devices.Queried}; presentes com problemas: {report.Devices.WithProblems}.":"Consulta PnP indisponível.",
+                report.HistoricalPnP is {} history?$"Instâncias PnP sem correspondência observada: {history.NotPresent}. Isso não indica drivers removíveis.":"Comparação PnP histórica indisponível.",
+                $"Bibliotecas: Steam {games.Steam}, Epic {games.Epic}."
+            };
+            lines.AddRange(security.Select(health=>$"{health.Category}: {health.Description}"));
+            lines.AddRange(report.Concerns.Select(issue=>$"Revisar: {issue.Category} — {issue.Name}: {issue.Description}"));
+            lines.Add("Nenhum driver, arquivo ou chave do Registro foi removido pelo diagnóstico.");
+            _v269CleanupOutcome=new("Diagnóstico completo",string.Join(Environment.NewLine,lines),complete);
+        }
     }
 
     private async Task VerifyWindowsIntegrityAsync()
@@ -4244,7 +4343,10 @@ internal sealed partial class MainForm : Form
     {
         if (_busy || _betaClose.IsClosing) return;
         string confirmation = task == "windows-repair" ? question : SimpleConfirmation(task);
-        if (!await ConfirmV269Async("Confirmar operação", confirmation))
+        string title = _nav.SelectedPage != V269Page.Limpeza ? "Confirmar operação" :
+            CleanupTarget.FromTask(task) is { } cleanupTarget ? "Limpar " + cleanupTarget.Title :
+            task=="cleanmgr-auto" ? "Limpeza avançada" : task.StartsWith("optimize-volume:",StringComparison.Ordinal) ? "Otimizar " + task["optimize-volume:".Length..] + ":" : "Confirmar operação";
+        if (!await ConfirmV269Async(title, confirmation))
         {
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
                 DiagnosticTrace.Write(audit);

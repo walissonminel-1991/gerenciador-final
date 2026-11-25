@@ -620,6 +620,14 @@ internal static class LayoutTests
                             throw new Exception("Cartoes ainda excessivamente altos em 1440x900: aba " + tab);
                         foreach (Panel card in cards)
                         {
+                            if (tab == V269Page.Limpeza)
+                            {
+                                var command = Descendants(card).OfType<Button>().Single();
+                                if (card is not V269CleanupCard || command.Text is not ("Limpar" or "Abrir") ||
+                                    command.AccessibleName == command.Text || command.Bottom > card.ClientSize.Height ||
+                                    command.Right > card.ClientSize.Width)
+                                    throw new Exception("Cartão de limpeza divergente do HTML: " + command.AccessibleName);
+                            }
                             var label = Descendants(card).OfType<Label>().Single();
                             int required = TextRenderer.MeasureText(label.Text, label.Font,
                                 new Size(Math.Max(90, label.ClientSize.Width -
@@ -705,8 +713,8 @@ internal static class LayoutTests
                         if (diskButton is null || !diskButton.Enabled ||
                             diskButton.Text != "Otimizar" ||
                             (string?)diskButton.Tag != "optimize-volume:C" ||
-                            diskButton.Parent is not TableLayoutPanel titleRow ||
-                            titleRow.Controls.OfType<Label>().Count() != 1)
+                            diskFixture is not V269CleanupDiskCard ||
+                            diskButton.Parent != diskFixture || !diskFixture.ClientRectangle.Contains(diskButton.Bounds))
                             throw new Exception($"Otimizar deve aparecer junto ao nome da unidade: {name}");
                         using var unsupportedFixture = (Control)diskBuilder.Invoke(form,
                             new object[] { new DiskUsageInfo(@"D:\", "Nao elegivel",

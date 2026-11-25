@@ -1052,6 +1052,8 @@ internal sealed partial class MainForm
         {
             foreach (var page in Enum.GetValues<V269Page>())
                 if (_nav.PageContent(page) is { } view) ApplyV269ContentAppearance(view);
+            _fitV269CleanupDiskSection?.Invoke();
+            _relayoutCleaning?.Invoke();
             if (_log.Parent is { } logHost) ApplyV269ContentAppearance(logHost);
             return;
         }
@@ -1096,6 +1098,12 @@ internal sealed partial class MainForm
         }
         if(root is V269AppSearchBox appSearch){appSearch.ApplyOptions(_v269Appearance);return;}
         if(root is V269AppToolbarButton appButton){appButton.ApplyOptions(_v269Appearance);return;}
+        if(root is V269CleanupCard cleanupCard){cleanupCard.ApplyOptions(_v269Appearance);return;}
+        if(root is V269CleanupButton cleanupButton){cleanupButton.ApplyOptions(_v269Appearance);return;}
+        if(root is V269CleanupDiskCard cleanupDisk){cleanupDisk.ApplyOptions(_v269Appearance);return;}
+        if(root is V269CleanupSection cleanupSection)cleanupSection.ApplyOptions(_v269Appearance);
+        if(root.Name=="V269CleanupActions"&&root.Tag is Action fitCleanup)fitCleanup();
+        if(root==_diskCards)ResizeDiskCards();
         if(root.Name is "V269AppsTableFrame" or "V269DriversTableFrame"){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Border;
             root.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
             foreach(Control child in root.Controls)ApplyV269ContentAppearance(child);return;}

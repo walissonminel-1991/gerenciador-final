@@ -11,6 +11,73 @@ internal sealed partial class MainForm
 {
     private readonly Label _cleanupPreview = new();
     private readonly Dictionary<CleanupTarget, (Label Title, Label State)> _cleanupRows = new();
+    private sealed record V269CleanupOutcome(string Title,string Description,bool Complete);
+    private V269CleanupOutcome? _v269CleanupOutcome;
+    private bool _v269CleanupExecutionActive;
+    private readonly List<V269AppPreviousResult> _v269CleanupPreviousResults = new();
+    private V269PanelPresentation? _v269CleanupRetained;
+    private Control? _v269CleanupSelected;
+    private Func<V269AppDetailModel>? _v269CleanupDetails;
+    private Action? _v269CleanupDefault;
+    private void SelectV269CleanupItem(Control control, Func<V269AppDetailModel> details)
+    {
+        if(_v269CleanupSelected!=control)
+        {
+            if(_v269CleanupSelected is V269CleanupCard {IsDisposed:false} tool)tool.SetSelected(false);
+            if(_v269CleanupSelected is V269CleanupDiskCard {IsDisposed:false} disk)disk.SetSelected(false);
+            _v269CleanupSelected=control;
+            if(control is V269CleanupCard selectedTool)selectedTool.SetSelected(true);
+            if(control is V269CleanupDiskCard selectedDisk)selectedDisk.SetSelected(true);
+        }
+        _v269CleanupDetails=details;
+        PresentV269CleanupSelection();
+    }
+    private void PresentV269CleanupSelection()
+    {
+        if(_busy||_v269Confirming||_nav.SelectedPage!=V269Page.Limpeza||
+            _nav.RightPane.Current?.Kind is V269PanelKind.Progress or V269PanelKind.Confirmation or V269PanelKind.Result or V269PanelKind.History)
+            return;
+        if(_v269CleanupSelected is null||_v269CleanupSelected.IsDisposed)
+        {
+            _v269CleanupDefault?.Invoke();
+            return;
+        }
+        if(_v269CleanupDetails is not {} modelProvider)return;
+        var model=modelProvider();
+        _nav.PresentPanel(new(V269PanelKind.Details,
+            _v269CleanupSelected is V269CleanupDiskCard?"Detalhes do armazenamento":"Detalhes da limpeza","",
+            Cleanup:model with {PreviousResults=_v269CleanupPreviousResults.ToArray(),DismissResult=DismissV269CleanupResult}));
+    }
+
+    private void RecordV269CleanupResult(string title,string description,bool complete)
+    {
+        if(IsDisposed||Disposing)return;
+        var entry=new V269AppPreviousResult(Guid.NewGuid(),title,description,complete);
+        _v269CleanupPreviousResults.Insert(0,entry);
+        if(_v269CleanupPreviousResults.Count>4)_v269CleanupPreviousResults.RemoveAt(4);
+        var presentation=new V269PanelPresentation(V269PanelKind.Result,title,description,
+            FlowResult:new(V269Page.Limpeza,complete,()=>DismissV269CleanupResult(entry.Id),entry.Id));
+        _v269CleanupRetained=presentation;
+        if(_nav.SelectedPage==V269Page.Limpeza)_nav.PresentPanel(presentation);
+        _nav.RightPane.RefreshAppOperationHistory();
+    }
+    private void DismissV269CleanupResult(Guid id)
+    {
+        if(IsDisposed||Disposing||_nav.SelectedPage!=V269Page.Limpeza)return;
+        if(_v269CleanupPreviousResults.RemoveAll(x=>x.Id==id)==0)return;
+        if(_v269CleanupRetained?.FlowResult?.HistoryId==id)_v269CleanupRetained=null;
+        if(_nav.RightPane.Current?.FlowResult is { Page: V269Page.Limpeza,HistoryId:var current }&&current==id)
+            _nav.PresentPanel(null);
+        _nav.RightPane.RefreshAppOperationHistory();
+        PresentV269CleanupSelection();
+    }
+    private void PresentV269CleanupRetained()
+    {
+        if(!_busy&&!_v269Confirming&&_v269CleanupRetained is {} result&&
+            _nav.RightPane.Current?.Kind is not (V269PanelKind.Progress or V269PanelKind.Confirmation or V269PanelKind.Result or V269PanelKind.History))
+            _nav.PresentPanel(result);
+        else PresentV269CleanupSelection();
+    }
     private TableLayoutPanel? _cleanupReport;
     private RowStyle? _cleanupReportRow;
     private Button? _cleanupPreviewButton;
@@ -314,25 +381,42 @@ internal sealed partial class MainForm
     {
         var report = new TableLayoutPanel
         {
-            Name = "CleanupCategoryReport", Dock = DockStyle.Fill, Margin = Padding.Empty,
-            RowCount = CleanupTarget.All.Count, ColumnCount = 2, BackColor = PanelBackground
+            Name = "CleanupCategoryReport", Dock = DockStyle.Left, Margin = Padding.Empty,
+            RowCount = 5, ColumnCount = 2, BackColor = Color.Transparent
         };
-        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 41));
-        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 59));
-        foreach (var target in CleanupTarget.All)
+        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        foreach (var target in new[] { CleanupTarget.UserTemp, CleanupTarget.WindowsTemp,
+            CleanupTarget.UpdateCache, CleanupTarget.RecycleBin, CleanupTarget.DirectX })
         {
             int row = _cleanupRows.Count;
             report.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-            var title = new Label { Text = target.Title, Dock = DockStyle.Fill, ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft };
+            string caption = target == CleanupTarget.RecycleBin ? "Esvaziar Lixeira" :
+                target == CleanupTarget.DirectX ? "Cache de shaders DirectX" : target.Title;
+            var title = new Label { Text = caption, Dock = DockStyle.Fill, ForeColor = Muted,
+                BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 8.25F), Margin = new Padding(2, 2, 3, 2) };
             var state = new Label
             {
-                Text = "Aguardando análise", Dock = DockStyle.Fill, ForeColor = Muted,
-                TextAlign = ContentAlignment.MiddleLeft, AccessibleName = target.Title + " — situação"
+                Text = "Aguardando análise", Dock = DockStyle.Fill, ForeColor = Ink,
+                BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight,
+                Font = new Font("Segoe UI", 8.25F, FontStyle.Bold),
+                Margin = new Padding(2, 2, 7, 2), AccessibleName = target.Title + " — situação"
             };
             _cleanupRows.Add(target, (title, state));
             report.Controls.Add(title, 0, row);
             report.Controls.Add(state, 1, row);
         }
+        report.Paint += (_, e) =>
+        {
+            using var pen = new Pen(V269Palette.Border);
+            int y = 0;
+            foreach (int h in report.GetRowHeights())
+            {
+                y += h;
+                if (y > 0) e.Graphics.DrawLine(pen, 0, y - 1, report.Width - 1, y - 1);
+            }
+        };
         _cleanupReport = report;
         _cleanupReportRow = rowStyle;
         return report;
@@ -341,19 +425,52 @@ internal sealed partial class MainForm
     private int CleanupReportHeight(int pageWidth)
     {
         if (_cleanupReport is null || _cleanupReportRow is null) return 0;
-        int usable = Math.Max(1, pageWidth - 42);
-        int left = Math.Max(1, (int)(usable * .41) - 8);
-        int right = Math.Max(1, usable - left - 16);
-        int total = 0;
-        int row = 0;
-        foreach (var pair in _cleanupRows.Values)
+        var report = _cleanupReport;
+        int S(int x) => V269AppTable.Scale(x, _v269Appearance.InterfacePercent, DeviceDpi);
+        int usable = Math.Max(1, Math.Min(S(560), pageWidth - (_v269CleanupDiskSection?.Padding.Horizontal??S(26))));
+        int pairs = usable >= S(500) ? 2 : 1;
+        int rows = (_cleanupRows.Count + pairs - 1) / pairs;
+        report.SuspendLayout();
+        try
         {
-            int height = Math.Max(ReportTextHeight(pair.Title, left), ReportTextHeight(pair.State, right)) + 5;
-            _cleanupReport.RowStyles[row++].Height = height;
-            total += height;
+            report.Width = usable;
+            var values = _cleanupRows.Values.ToArray();
+            // Retirar apenas os controles da grade, sem destruí-los: o motor mantém as referências.
+            bool rebuild = report.ColumnCount != pairs * 2 || report.RowCount != rows;
+            if (rebuild)
+            {
+                report.Controls.Clear();
+                report.ColumnCount = pairs * 2;
+                report.RowCount = rows;
+                report.ColumnStyles.Clear();
+                for (int i = 0; i < pairs; i++)
+                {
+                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f / pairs));
+                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f / pairs));
+                }
+            }
+            report.RowStyles.Clear();
+            int[] heights = new int[rows];
+            int columnWidth = Math.Max(1, usable / (pairs * 2) - S(10));
+            for (int i = 0; i < values.Length; i++)
+            {
+                var pair = values[i];
+                int row = i / pairs;
+                int col = (i % pairs) * 2;
+                if(rebuild)
+                {
+                    report.Controls.Add(pair.Title, col, row);
+                    report.Controls.Add(pair.State, col + 1, row);
+                }
+                heights[row] = Math.Max(heights[row], Math.Max(ReportTextHeight(pair.Title, columnWidth),
+                    ReportTextHeight(pair.State, columnWidth)) + S(7));
+            }
+            foreach (int height in heights) report.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+            int total = heights.Sum();
+            _cleanupReportRow.Height = total;
+            return total;
         }
-        _cleanupReportRow.Height = total;
-        return total;
+        finally { report.ResumeLayout(true); }
     }
 
     private static int ReportTextHeight(Label label, int width) =>
@@ -366,13 +483,14 @@ internal sealed partial class MainForm
         row.State.Text = text;
         row.State.AccessibleDescription = text;
         _relayoutCleaning?.Invoke();
+        if(_nav.RightPane.Current?.Cleanup is not null)PresentV269CleanupSelection();
     }
 
     private void ShowCleanupStatus(string text)
     {
         if (IsDisposed || Disposing) return;
-        _cleanupPreview.Text = text;
-        _toolTips.SetToolTip(_cleanupPreview, text);
+        _cleanupPreview.Text = "Estimativa por categoria";
+        _cleanupPreview.AccessibleDescription = text;
         Status(text);
     }
 
@@ -481,6 +599,7 @@ internal sealed partial class MainForm
             else
                 ShowCleanupStatus((uncertain == 0 ? "Recuperável estimado" : "Prévia incompleta · identificado") +
                     $" · {DisplayCleanupSize(totalBytes)}");
+            _v269CleanupOutcome=new("Analisar limpeza",_operationResult,!cancelled&&uncertain==0);
         });
     }
 
@@ -526,6 +645,7 @@ internal sealed partial class MainForm
                         (result.Failed > 0 ? $" · {result.Failed:N0} falhas/limites" : "");
                 SetCleanupRow(target, description);
                 ShowCleanupStatus($"{target.Title} · {DescribeCleanupState(result.State)}");
+                _v269CleanupOutcome=new(target.Title,description,result.State==CleanupState.Complete);
                 Log($"Limpeza · {target.Title} · {description}" +
                     (result.DirectoriesRemoved > 0 ? $" · {result.DirectoriesRemoved:N0} pastas vazias removidas" : ""));
             });
@@ -550,6 +670,7 @@ internal sealed partial class MainForm
                 + CleanupError(result.Error);
             SetCleanupRow(CleanupTarget.RecycleBin, text);
             ShowCleanupStatus("Lixeira · " + state);
+            _v269CleanupOutcome=new("Esvaziar Lixeira",text,result.State==CleanupState.Complete);
             Log("Limpeza · Lixeira · " + text);
         });
     }

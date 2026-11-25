@@ -49,7 +49,7 @@ internal sealed record V269FlowResult(V269Page Page, bool Complete, Action Dismi
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
     V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null,
-    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269Page? FlowPage = null, string? CancelLabel = null);
+    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269AppDetailModel? Cleanup = null, V269Page? FlowPage = null, string? CancelLabel = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -95,6 +95,9 @@ internal sealed class V269RightPane : UserControl
     private bool _structuredApp;
     private bool _appHistoryPage;
     private bool _driversPage;
+    private bool _cleanupPage;
+    private Func<IReadOnlyList<V269AppPreviousResult>>? _cleanupHistoryProvider;
+    private Action<Guid>? _cleanupHistoryDismiss;
     private bool _appFlow;
     private bool _fittingOperationHistory;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _appHistoryProvider;
@@ -256,18 +259,24 @@ internal sealed class V269RightPane : UserControl
         _driverHistoryDismiss = dismiss;
         RefreshAppOperationHistory();
     }
-    internal void SetAppHistoryPage(bool active, bool drivers = false)
+    internal void ConfigureCleanupHistory(Func<IReadOnlyList<V269AppPreviousResult>> provider, Action<Guid> dismiss)
+    {
+        _cleanupHistoryProvider=provider;_cleanupHistoryDismiss=dismiss;RefreshAppOperationHistory();
+    }
+    internal void SetAppHistoryPage(bool active, bool drivers = false, bool cleanup = false)
     {
         _appHistoryPage=active;
         _driversPage=drivers;
+        _cleanupPage=cleanup;
         UpdateAppFlowScope();RefreshAppOperationHistory();FitOperationHistory();
     }
     private void UpdateAppFlowScope()
     {
         bool result = Current is { Kind: V269PanelKind.Result, FlowResult: { } flow } &&
-            (flow.Page == V269Page.Aplicativos && _appHistoryPage || flow.Page == V269Page.Drivers && _driversPage);
+            (flow.Page == V269Page.Aplicativos && _appHistoryPage || flow.Page == V269Page.Drivers && _driversPage ||
+                flow.Page == V269Page.Limpeza && _cleanupPage);
         bool active = result || Current is { Kind: V269PanelKind.Progress, CancelFlow: not null } ||
-            (_appHistoryPage || _driversPage) &&
+            (_appHistoryPage || _driversPage || _cleanupPage) &&
                 Current?.Kind is (V269PanelKind.Confirmation or V269PanelKind.Progress);
         bool changed=active!=_appFlow;_appFlow=active;
         _appFlowHeading.Text = Current?.Kind switch
@@ -308,8 +317,9 @@ internal sealed class V269RightPane : UserControl
         if(IsDisposed||Disposing)return;
         var flowPage = Current?.FlowPage ?? (Current?.CancelFlow is not null ? V269Page.Drivers : (V269Page?)null);
         var provider = _appHistoryPage && flowPage is (null or V269Page.Aplicativos) ? _appHistoryProvider :
-            _driversPage && flowPage is (null or V269Page.Drivers) ? _driverHistoryProvider : null;
-        var dismiss = _appHistoryPage ? _appHistoryDismiss : _driverHistoryDismiss;
+            _driversPage && flowPage is (null or V269Page.Drivers) ? _driverHistoryProvider :
+            _cleanupPage && flowPage is (null or V269Page.Limpeza) ? _cleanupHistoryProvider : null;
+        var dismiss = _appHistoryPage ? _appHistoryDismiss : _driversPage ? _driverHistoryDismiss : _cleanupHistoryDismiss;
         var currentId = Current?.FlowResult?.HistoryId;
         V269AppPreviousResult[] results = _appFlow
             ? provider?.Invoke().Where(entry => entry.Id != currentId).ToArray() ?? [] : [];
@@ -409,7 +419,7 @@ internal sealed class V269RightPane : UserControl
         }
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
-        var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver : null;
+        var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver ?? presentation.Cleanup : null;
         bool structured = detail is not null;
         _structuredApp=structured;UpdateAppFlowScope();ApplyPaneSurface();
         _applicationDetails.Present(detail);
@@ -446,7 +456,7 @@ internal sealed class V269RightPane : UserControl
         else FitOperationHistory();
     }
 
-    internal bool AppProgressChromeActive=>_appHistoryPage&&_appFlow&&
+    internal bool AppProgressChromeActive=>(_appHistoryPage||_cleanupPage)&&_appFlow&&
         Current is {Kind:V269PanelKind.Progress, CancelFlow:null};
 
     private void PaintAppFlowHeading(object? sender,PaintEventArgs e)
@@ -632,7 +642,7 @@ internal sealed class V269Shell : UserControl
         (V269Page.Inicio, "Início", "Informações gerais do sistema e do hardware."),
         (V269Page.Aplicativos, "Aplicativos", "Programas instalados, atualizações e remoção controlada."),
         (V269Page.Drivers, "Drivers", "Consulte dispositivos, verifique atualizações e gerencie drivers elegíveis."),
-        (V269Page.Limpeza, "Limpeza e Desempenho", "Prévia e manutenção controlada"),
+        (V269Page.Limpeza, "Limpeza e Desempenho", "Ferramentas de limpeza e visão do espaço em disco."),
         (V269Page.Reparo, "Reparo e Rede", "Diagnósticos e reparos supervisionados"),
         (V269Page.Sistema, "Sistema", "Windows Update, energia e memória"),
         (V269Page.Inicializacao, "Inicialização", "Itens de inicialização"),
@@ -870,10 +880,11 @@ internal sealed class V269Shell : UserControl
                 _rightPane.Present(null);
         }
         if (changed && ((SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
-            (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null)))
+            (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
+            (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza))))
             _rightPane.Present(null);
         SelectedPage = page;
-        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers);
+        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza);
         var descriptor = Pages[(int)page];
         _pageTitle.Text = descriptor.Title;
         _pageSubtitle.Text = descriptor.Subtitle;
