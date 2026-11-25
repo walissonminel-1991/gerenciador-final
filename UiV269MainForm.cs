@@ -178,6 +178,7 @@ internal sealed partial class MainForm
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _v269HardwareQuery = null;
+            LocalDiagnosticReport.Session.RecordFailure("HARDWARE.CONSULTA_FALHA",ex);
             if (!IsDisposed && !Disposing)
             {
                 _v269HardwareStatus.Text = "Consulta de hardware inconclusiva.";
