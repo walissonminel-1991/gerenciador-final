@@ -286,8 +286,6 @@ internal sealed partial class MainForm
             _nav.RightPane.RefreshAppOperationHistory();
             if (_nav.RightPane.Current?.Driver is not null) PresentDetails(true);
         }
-        if (v269)
-            _nav.RightPane.ConfigureDriverHistory(() => driverResults, DismissDriverResult);
         int refreshRevision = 0;
         bool syncingStatusAccessibility = false;
         bool statusSyncPending = false;
@@ -470,6 +468,7 @@ internal sealed partial class MainForm
         }
         if (v269)
         {
+            _nav.RightPane.ConfigureDriverHistory(() => driverResults, DismissDriverResult);
             _presentV269DriverDetails = PresentDetails;
             root.Disposed += (_, _) => _presentV269DriverDetails = null;
         }
