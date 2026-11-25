@@ -217,6 +217,25 @@ internal sealed class LocalDiagnosticReport
         return s;
     }
 
+    internal static string FormatWindowsConfiguration()
+    {
+        var text=new StringBuilder("=== CONFIGURAÇÃO DO WINDOWS ==="+Environment.NewLine);
+        try
+        {
+            using var os=Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+            text.AppendLine("Edição: "+ModelText(os?.GetValue("EditionID") as string));
+            text.AppendLine("Versão: "+ModelText(os?.GetValue("DisplayVersion") as string));
+            text.AppendLine("Tipo de instalação: "+ModelText(os?.GetValue("InstallationType") as string));
+            text.AppendLine("Compilação: "+Environment.OSVersion.Version.Build+
+                (os?.GetValue("UBR") is int ubr&&ubr>=0?"."+ubr:" (revisão N/D)"));
+            using var boot=Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\SecureBoot\State");
+            text.AppendLine("Secure Boot: "+(boot?.GetValue("UEFISecureBootEnabled") switch{1=>"ativo",0=>"inativo",_=>"N/D"}));
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {text.AppendLine("Parte da configuração indisponível.");}
+        return text.ToString();
+    }
+
     internal static string FormatHardware(HardwareSensorPortfolio snapshot)
     {
         var text=new StringBuilder();
@@ -240,7 +259,7 @@ internal sealed class LocalDiagnosticReport
         foreach(var gpu in snapshot.DxgiAdapters?.Adapters.Where(x=>!x.IsSoftware)??[])
         {
             string vendor=gpu.VendorId switch{0x10DE=>"NVIDIA",0x1002=>"AMD",0x8086=>"Intel",_=>"N/D"};
-            text.AppendLine($"GPU {++i}: fabricante chip={vendor}; modelo DXGI={ModelText(gpu.Name)}; VRAM dedicada bytes={gpu.DedicatedVideoMemory}; PCIe/ReBAR: heap CPU visível reportado={gpu.DiscreteGpuUploadHeapSupported}");
+            text.AppendLine($"GPU {++i}: fabricante chip={vendor}; modelo DXGI={ModelText(gpu.Name)}; VRAM dedicada bytes={gpu.DedicatedVideoMemory}; heap de VRAM acessível à CPU reportado (não confirma ReBAR)={gpu.DiscreteGpuUploadHeapSupported}");
         }
         if(i==0)text.AppendLine("GPU: modelo DXGI indisponível.");
         i=0;
