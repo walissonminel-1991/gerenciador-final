@@ -299,7 +299,21 @@ internal sealed class LocalDiagnosticReport
         foreach(var disk in snapshot.Storage.Disks)
             text.AppendLine($"Disco físico {++i}: fabricante={ModelText(disk.ReportedManufacturer)}; modelo={ModelText(disk.ReportedModel)}; temperatura C={Reading(disk.TemperatureC)}; desgaste reportado pct={Reading(disk.WearPercent)}; horas={Reading(disk.PowerOnHours)}");
         if(i==0)text.AppendLine("Discos físicos: modelo indisponível.");
-        text.AppendLine("Outros dispositivos: somente cobertura PnP; modelos não incluídos sem fonte específica validada.");
+        text.AppendLine("=== PERIFÉRICOS PnP (descrição do driver, não identificação comercial garantida) ===");
+        text.AppendLine("Não são usados nomes amigáveis, nomes de impressoras em rede, endereços, IDs ou números de série.");
+        var peripherals=snapshot.DeviceInventory.Devices.Where(x=>x.Kind is HardwareDeviceKind.Network or
+            HardwareDeviceKind.Audio or HardwareDeviceKind.Bluetooth or HardwareDeviceKind.Usb or
+            HardwareDeviceKind.Input or HardwareDeviceKind.Monitor or HardwareDeviceKind.Camera or
+            HardwareDeviceKind.Battery or HardwareDeviceKind.Sensor ||
+            (x.Kind==HardwareDeviceKind.Printer&&x.SetupClass.Equals("Printer",StringComparison.OrdinalIgnoreCase)))
+            .Where(x=>!x.SetupClass.Equals("AudioEndpoint",StringComparison.OrdinalIgnoreCase))
+            .GroupBy(x=>(x.Kind,Manufacturer:ModelText(x.Manufacturer),Description:ModelText(x.ReportedDeviceDescription)))
+            .OrderBy(x=>x.Key.Kind).ThenBy(x=>x.Key.Manufacturer,StringComparer.Ordinal)
+            .ThenBy(x=>x.Key.Description,StringComparer.Ordinal).ToArray();
+        foreach(var group in peripherals.Take(128))
+            text.AppendLine($"{group.Key.Kind}: fabricante={group.Key.Manufacturer}; descrição={group.Key.Description}; quantidade={group.Count()}");
+        if(peripherals.Length==0)text.AppendLine("Periféricos: sem descrição técnica disponível.");
+        if(peripherals.Length>128)text.AppendLine($"AVISO: {peripherals.Length-128} grupos adicionais não incluídos.");
         return text.ToString();
     }
 
