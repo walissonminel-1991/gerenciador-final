@@ -165,10 +165,13 @@ internal static class GfMonitorSettingsTests
                 var label = rows[i];
                 var input = inputs[i];
                 var required = TextRenderer.MeasureText(label.Text, label.Font,
-                    new System.Drawing.Size(label.Width, int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+                    new System.Drawing.Size(label.Width, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
                 Require(required.Height <= label.Height && label.Right <= input.Left &&
                     input.Top >= label.Top && input.Bottom <= label.Bottom &&
-                    (i == 0 || rows[i-1].Bottom <= label.Top), "alinhamento e texto integral: " + label.Text);
+                    Math.Abs((input.Top + input.Bottom) - (label.Top + label.Bottom)) <= 1 &&
+                    (i == 0 || rows[i-1].Bottom <= label.Top),
+                    $"alinhamento e texto integral: {label.Text}; tema={theme}; superfície={size}; " +
+                    $"rótulo={label.Bounds}; controle={input.Bounds}; texto={required}");
                 var backgrounds = theme switch
                 {
                     V269Theme.Dark => new[] { "#303438", "#282c30" },

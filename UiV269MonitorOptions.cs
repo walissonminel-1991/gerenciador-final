@@ -150,15 +150,21 @@ internal sealed class V269MonitorOptions : V269SettingsCard
             int copyWidth = Math.Max(1, right - controlWidth - S(24));
             int textHeight = TextRenderer.MeasureText(label.Text, label.Font, new Size(copyWidth, 1000),
                 TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
-            int rowHeight = Math.Max(S(43), textHeight + S(14));
-            label.Bounds = new Rectangle(S(4), y, copyWidth, rowHeight);
-            control.Bounds = new Rectangle(right - controlWidth, y + (rowHeight - S(26)) / 2, controlWidth, S(26));
+            // O TrackBar nativo usa altura automática por padrão. A barra
+            // desenhada pelo GF tem altura explícita, como os demais comandos.
+            if (control is V269SettingsRange slider) slider.AutoSize = false;
+            control.Size = new Size(controlWidth, S(26));
             switch (control)
             {
                 case V269SettingsSwitch sw: sw.Theme = Options.Theme; sw.Invalidate(); break;
                 case V269SettingsRange range: range.ApplyOptions(Options); break;
                 case V269SettingsCombo combo: combo.ApplyOptions(Options); break;
             }
+            // ComboBox nativo pode impor altura própria após ajustar a fonte
+            // e ItemHeight. Centralizar a altura efetiva, sem recortar a linha.
+            int rowHeight = Math.Max(S(43), Math.Max(textHeight, control.Height) + S(14));
+            label.Bounds = new Rectangle(S(4), y, copyWidth, rowHeight);
+            control.Location = new Point(right - controlWidth, y + (rowHeight - control.Height) / 2);
             y += rowHeight;
             if (i < _dividers.Length) _dividers[i] = y - 1;
         }
