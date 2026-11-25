@@ -1563,6 +1563,31 @@ internal static class V269IntegrationTests
             finally{chronological.CloseJournal();}
             Require(Directory.GetFiles(folder,"GF-session-*.tmp").Length==0,
                 "arquivo temporário da sessão removido ao fechar");
+            var crashed=new DiagnosticRecoveryJournal();
+            crashed.Start(folder);
+            crashed.Record(DiagnosticRecoveryKind.OperationBegin,(long)V269Page.Limpeza,checkpoint:true);
+            crashed.Record(DiagnosticRecoveryKind.Failure,unchecked((int)0x80004005),checkpoint:true);
+            crashed.Close(false); // Simular ausência da marca normal, sem matar processo.
+            var restarted=new DiagnosticRecoveryJournal();
+            restarted.Start(folder);
+            try
+            {
+                string recovered=restarted.FormatPrevious();
+                Require(recovered.Contains("OperationBegin aba=Limpeza")&&recovered.Contains("Failure hresult=0x80004005"),
+                    "sessão seguinte recupera operação interrompida e código de falha");
+                restarted.Record(DiagnosticRecoveryKind.ProcessSample,100,200,300,checkpoint:true);
+            }
+            finally{restarted.Close(true);}
+            var third=new DiagnosticRecoveryJournal();
+            third.Start(folder);
+            try
+            {
+                Require(third.FormatPrevious().Contains("OperationBegin aba=Limpeza"),
+                    "encerramento normal não substitui evidência anterior de interrupção");
+                Require(Directory.GetFiles(folder,"GF-recovery-v1-*.bin").Length==2,
+                    "recuperação mantém no máximo dois slots");
+            }
+            finally{third.Close(true);}
             Require(LocalDiagnosticReport.ModelText("Samsung MZ-V8P1T0")== "Samsung MZ-V8P1T0"&&
                 LocalDiagnosticReport.ModelText(@"PCI\VEN_1234")== "N/D"&&
                 LocalDiagnosticReport.ModelText("1234567890ABCDEF")== "N/D"&&
