@@ -1300,7 +1300,9 @@ internal sealed partial class MainForm
             bool accepted = await _nav.RightPane.ConfirmAsync(title, description, token,
                 _v269RepairCommand is not null ? V269Page.Reparo :
                 _nav.SelectedPage is V269Page.Sistema or V269Page.Inicializacao ? _nav.SelectedPage : null);
-            return accepted && !IsDisposed && !Disposing && !_betaClose.IsClosing && !token.IsCancellationRequested;
+            bool confirmed=accepted && !IsDisposed && !Disposing && !_betaClose.IsClosing && !token.IsCancellationRequested;
+            LocalDiagnosticReport.Session.RecordOperation(_nav.SelectedPage,confirmed?"confirmado":"cancelado");
+            return confirmed;
         }
         finally
         {
