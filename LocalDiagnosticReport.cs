@@ -189,12 +189,21 @@ internal sealed class LocalDiagnosticReport
     internal void RecordOperation(V269Page page, string state, bool? complete = null)
     {
         // Estados fechados; nenhum título de aplicativo, comando ou descrição de usuário.
-        if (state is not ("inicio" or "fim" or "resultado" or "bloqueado" or "cancelado")) return;
+        if (state is not ("inicio" or "fim" or "resultado" or "bloqueado" or "cancelado" or "confirmado" or "sem_desfecho")) return;
         lock (_gate)
         {
             Append(_events, FormattableString.Invariant(
                 $"{DateTimeOffset.UtcNow:O} operacao aba={page} estado={state} resultado_confirmado={complete}"),ref _eventTotal);
-            var kind=state switch{"inicio"=>DiagnosticRecoveryKind.OperationBegin,"fim"=>DiagnosticRecoveryKind.OperationEnd,_=>DiagnosticRecoveryKind.OperationResult};
+            var kind=state switch
+            {
+                "inicio"=>DiagnosticRecoveryKind.OperationBegin,
+                "fim"=>DiagnosticRecoveryKind.OperationEnd,
+                "confirmado"=>DiagnosticRecoveryKind.ConfirmationAccepted,
+                "cancelado"=>DiagnosticRecoveryKind.ConfirmationCanceled,
+                "bloqueado"=>DiagnosticRecoveryKind.OperationBlocked,
+                "sem_desfecho"=>DiagnosticRecoveryKind.OutcomeMissing,
+                _=>DiagnosticRecoveryKind.OperationResult
+            };
             _recovery.Record(kind,(long)page,complete==true?1:complete==false?0:-1,checkpoint:true);
         }
     }
