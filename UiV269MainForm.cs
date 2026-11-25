@@ -830,7 +830,7 @@ internal sealed partial class MainForm
         view.General.Privacy.Click+=(_,_)=>PresentV269SettingsInformation("Privacidade e coleta de dados",
             (BetaRuntimePolicy.IsLocalBeta?BetaRuntimePolicy.LocalNotice:TelemetryConsentPolicy.RemoteNotice)+
             Environment.NewLine+Environment.NewLine+
-            PrivacyConsentPresentation.Explanation(AnonymousTelemetryContext.Current?.Consent??TelemetryConsent.NotAsked));
+            PrivacyConsentPresentation.Explanation(AnonymousTelemetryContext.Current?.Consent??TelemetryConsent.NotAsked), view.General.Privacy);
         bool exportingDiagnostic=false;
         view.General.Diagnostic.AccessibleDescription="Cria um novo relatório TXT em Documentos; nenhum envio pelo GF.";
         view.General.Diagnostic.Click+=async(_,_) =>
@@ -866,7 +866,7 @@ internal sealed partial class MainForm
                 if(!loadPreferences&&testExport is null)
                 {
                     // View sintética não grava na pasta real do usuário.
-                    PresentV269SettingsInformation("Diagnóstico local",report);
+                    PresentV269SettingsInformation("Diagnóstico local",report,view.General.Diagnostic);
                     return;
                 }
                 LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
@@ -982,7 +982,7 @@ internal sealed partial class MainForm
                 try{_v269AdminRestartTicket=V269AdminSessionLauncher.Prepare(Environment.ProcessPath??"");}
                 catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
                 {
-                    PresentV269SettingsInformation("Modo Administrador","Não foi possível verificar o executável atual para reabertura.");return;
+                    PresentV269SettingsInformation("Modo Administrador","Não foi possível verificar o executável atual para reabertura.",(Control?)_v269Settings?.General.Administrator??this);return;
                 }
             }
             Close();
@@ -1031,27 +1031,19 @@ internal sealed partial class MainForm
         finally{_v269SettingsBusy=false;RefreshV269General();}
     }
 
-    private void PresentV269SettingsInformation(string title,string description)
+    private void PresentV269SettingsInformation(string title,string description,Control origin)
     {
-        if(_busy||_v269Confirming||_betaClose.IsClosing)return;
-        // Nunca substituir um resultado de manutenção não dispensado.
+        if(_busy||_v269Confirming||_betaClose.IsClosing||
+            _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress)return;
+        // A mesma infraestrutura de Início conserva resultado/histórico,
+        // sem transferir callbacks ou criar uma janela paralela.
         if(_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
         {
-            using var dialog=new Form
-            {
-                Name="V269SettingsInformation",Text=title,Size=new Size(690,500),
-                MinimumSize=new Size(380,270),StartPosition=FormStartPosition.CenterParent,
-                ShowInTaskbar=false,MinimizeBox=false,MaximizeBox=false,
-                BackColor=V269Palette.Content,ForeColor=V269Palette.Text
-            };
-            var text=new TextBox{Name="V269SettingsInformationText",AccessibleName=title,
-                Dock=DockStyle.Fill,ReadOnly=true,Multiline=true,WordWrap=true,ScrollBars=ScrollBars.None,
-                BackColor=V269Palette.Card,ForeColor=V269Palette.Text,Text=description};
-            var close=new Button{Text="Fechar",Dock=DockStyle.Bottom,Height=34,DialogResult=DialogResult.Cancel};
-            var textHost = new V269TextScrollHost(text);
-            textHost.Configure(_v269Appearance.Theme);
-            dialog.Controls.Add(textHost);dialog.Controls.Add(close);dialog.CancelButton=close;
-            dialog.ShowDialog(this);return;
+            if(!_nav.RightPane.TryShowReadOnly(title,description,"V269SettingsInformationText",origin))return;
+            if(!_nav.RightPane.Visible)
+                _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
+            _nav.RightPane.FocusReadOnly();
+            return;
         }
         PresentV269Details(title,description);
         if(!_nav.RightPane.Visible)

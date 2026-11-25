@@ -2708,6 +2708,42 @@ internal static class V269IntegrationTests
                 shell.RightPane.Current is {Kind:V269PanelKind.Details,Title:"Privacidade e coleta de dados"} privacy &&
                 privacy.Description.Contains(BetaRuntimePolicy.IsLocalBeta?BetaRuntimePolicy.LocalNotice:TelemetryConsentPolicy.RemoteNotice),
                 "Saiba mais apresenta o aviso efetivo de consentimento");
+            var retainedSettings = new V269PanelPresentation(V269PanelKind.Result,"Resultado anterior","Fixture preservada");
+            shell.PresentPanel(retainedSettings);
+            void VerifySettingsReadOnly(Button action,string expectedTitle,string expectedContent)
+            {
+                var existing = Application.OpenForms.Cast<Form>().ToArray();
+                bool modal = false;
+                using var watchdog = new System.Windows.Forms.Timer { Interval = 50 };
+                watchdog.Tick += (_,_) =>
+                {
+                    foreach(var unexpected in Application.OpenForms.Cast<Form>().Where(f=>!existing.Contains(f)).ToArray())
+                    { modal=true; unexpected.Close(); }
+                };
+                watchdog.Start();
+                action.PerformClick();Application.DoEvents();
+                watchdog.Stop();
+                var editor = shell.RightPane.Controls.Find("V269SettingsInformationText",true).OfType<TextBox>().Single();
+                Require(!modal && Application.OpenForms.Count==existing.Length && shell.RightPane.ReadOnlyViewActive &&
+                    ReferenceEquals(shell.RightPane.Current,retainedSettings) && editor.Visible && editor.ReadOnly &&
+                    editor.Text.Contains(expectedContent) &&
+                    shell.RightPane.Controls.Find("V269ReadOnlyTitle",true).Single().Text==expectedTitle,
+                    "AUT-SHELL-02 informação de Configurações preserva resultado sem modal");
+                var original = themeChoice.SelectedIndex;
+                string text = editor.Text;
+                themeChoice.SelectedIndex=(original+1)%3;Application.DoEvents();
+                Require(shell.RightPane.ReadOnlyViewActive && editor.Text==text &&
+                    ReferenceEquals(shell.RightPane.Current,retainedSettings),
+                    "tema conserva consulta e resultado");
+                themeChoice.SelectedIndex=original;Application.DoEvents();
+                shell.RightPane.Controls.Find("V269ReadOnlyClose",true).OfType<Button>().Single().PerformClick();
+                Application.DoEvents();
+                Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current,retainedSettings) &&
+                    action.Focused,"retorno ao resultado e foco de Configurações");
+            }
+            VerifySettingsReadOnly(general.Privacy,"Privacidade e coleta de dados",
+                BetaRuntimePolicy.IsLocalBeta?BetaRuntimePolicy.LocalNotice:TelemetryConsentPolicy.RemoteNotice);
+            VerifySettingsReadOnly(general.Diagnostic,"Diagnóstico local","RELATÓRIO LOCAL DE CONFIABILIDADE");
             shell.PresentPanel(null);Application.DoEvents();
             Require(general.Diagnostic.Focus(),"diagnóstico alcançável");
             general.Diagnostic.PerformClick();Application.DoEvents();
