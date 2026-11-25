@@ -162,6 +162,30 @@ internal static class G15CaptureTests
             !Correlate(missingOffer).Matches.Single().CanInstall,
             "G1.5: getter WUA opcional ausente é Unavailable, não falso vazio");
 
+        var missingCategory = Fixture();
+        missingCategory.update.CategoriesGetter = () =>
+            throw new COMException("Categories indisponível", unchecked((int)0x80004002));
+        var missingCategoryReleased = new List<object>();
+        var missingCategoryOffer = DriverOfficialLookup.CaptureOffer(
+            missingCategory.update, CancellationToken.None, missingCategoryReleased.Add);
+        check(missingCategoryOffer?.Relations?.State == DriverOfficialRelationsState.Inconclusive &&
+            missingCategoryReleased.Contains(missingCategory.superseded) &&
+            missingCategoryReleased.Contains(missingCategory.update) &&
+            Correlate(missingCategoryOffer) is { Partial: true, Matches.Count: 0 },
+            "G1.5: getter de categorias falha após início, libera coleção anterior e não publica vínculo");
+
+        var missingEntries = Fixture();
+        missingEntries.update.EntriesGetter = () =>
+            throw new COMException("Entries indisponível", unchecked((int)0x80004002));
+        var missingEntriesReleased = new List<object>();
+        var missingEntriesOffer = DriverOfficialLookup.CaptureOffer(
+            missingEntries.update, CancellationToken.None, missingEntriesReleased.Add);
+        check(missingEntriesOffer?.EntryAudit?.State == DriverOfficialEntryState.Unavailable &&
+            missingEntriesReleased.Contains(missingEntries.identity) &&
+            missingEntriesReleased.Contains(missingEntries.update) &&
+            !Correlate(missingEntriesOffer).Matches.Any(m => m.CanInstall),
+            "G1.5: getter WUA4 indisponível não autoriza instalação");
+
         var countWrong = Fixture();
         countWrong.superseded.CountOverride = () => "2";
         var wrongReleased = new List<object>();

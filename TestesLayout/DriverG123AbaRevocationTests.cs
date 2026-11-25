@@ -316,7 +316,7 @@ internal static class DriverG123AbaRevocationTests
 
     private static Form Open(MainForm owner,
         Func<CancellationToken, Task<DriverInventoryResult>> readForTest,
-        out Action? read, out Action<string>? filter, TimeSpan timeout)
+        out Action read, out Action<string> filter, TimeSpan timeout)
     {
         Action? action = null;
         Action<string>? changeFilter = null;

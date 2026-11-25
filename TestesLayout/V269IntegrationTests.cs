@@ -1523,14 +1523,23 @@ internal static class V269IntegrationTests
         var timer = (System.Windows.Forms.Timer)typeof(MainForm).GetField("_memoryTimer", flags)!.GetValue(fixture)!;
         var reliability = typeof(MainForm).GetField("_reliability", flags)!.GetValue(fixture)!;
         var reliabilityDisposed = reliability.GetType().GetField("disposed", flags)!;
-        bool timerReleased = false;
+        var trayField = typeof(MainForm).GetField("_trayIcon", flags)!;
+        var trayMenuField = typeof(MainForm).GetField("_trayMenu", flags)!;
+        var tray = (NotifyIcon)trayField.GetValue(fixture)!;
+        var trayMenu = (ContextMenuStrip)trayMenuField.GetValue(fixture)!;
+        bool timerReleased = false, trayReleased = false, trayMenuReleased = false;
         timer.Disposed += (_, _) => timerReleased = true;
+        tray.Disposed += (_, _) => trayReleased = true;
+        trayMenu.Disposed += (_, _) => trayMenuReleased = true;
         Require(watcher.GetValue(fixture) is Action && !(bool)reliabilityDisposed.GetValue(reliability)!,
             "recursos registrados antes do descarte direto");
         fixture.Dispose();
         Require(watcher.GetValue(fixture) is null && timerReleased &&
-            (bool)reliabilityDisposed.GetValue(reliability)!,
-            "descarte direto libera evento de tela, timer RAM e histórico sem FormClosed");
+            (bool)reliabilityDisposed.GetValue(reliability)! &&
+            trayReleased && trayMenuReleased && trayField.GetValue(fixture) is null &&
+            trayMenuField.GetValue(fixture) is null &&
+            typeof(MainForm).GetField("_windowIcon", flags)!.GetValue(fixture) is null,
+            "descarte direto libera evento de tela, timer RAM, histórico e bandeja sem FormClosed");
         fixture.Dispose(); // A liberação deve ser idempotente.
         Console.WriteLine("PASS V2.6.9: ciclo de vida do descarte direto.");
     }
@@ -2501,7 +2510,7 @@ internal static class V269IntegrationTests
         var unchangedCpu = models[0] with { Specs = models[0].Specs.ToArray(), Sensors = models[0].Sensors.ToArray() };
         Require(!home.Cards[0].SetModel(unchangedCpu) &&
             home.Cards[0].SetModel(live[0]) &&
-            home.Cards[0].AccessibleDescription.Contains("37%") &&
+            home.Cards[0].AccessibleDescription?.Contains("37%") == true &&
             !home.Cards[0].SetModel(live[0]),
             "amostras idênticas não invalidam cartão; alterações atualizam também a descrição acessível");
         home.SetModels(models);
