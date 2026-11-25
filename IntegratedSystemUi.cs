@@ -29,11 +29,12 @@ internal sealed partial class MainForm
     private bool? _windowsUpdateRebootRequired;
     private WindowsUpdateOperation? _lastWindowsUpdateOperation;
     private WinUpdateChoice[] _lastWindowsUpdateSelection = [];
-    private TableLayoutPanel? _windowsUpdateActionsPanel;
     private Button? _searchWindowsUpdatesButton;
     private Button? _windowsUpdateHistoryButton;
     private bool _windowsUpdateHistoryReading;
-    private string _activeSystemView = "memory";
+    private string _activeSystemView = "update";
+    private readonly Dictionary<V269Page,List<V269AppPreviousResult>> _v269ModuleHistory=new();
+    private readonly Dictionary<V269Page,V269PanelPresentation> _v269ModuleRetained=new();
     private bool _fittingSystemCards;
     private long _systemViewGeneration;
 
@@ -41,188 +42,192 @@ internal sealed partial class MainForm
     {
         var root = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, BackColor = AppServices.Background,
-            ColumnCount = 1, RowCount = 2, Padding = new Padding(5, 5, 5, 4)
+            Name = "V269SystemModules", Dock = DockStyle.Fill, BackColor = Color.Transparent,
+            ColumnCount = 1, RowCount = 4, Margin = Padding.Empty
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        for (int i = 0; i < 3; i++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var actions = new TableLayoutPanel
+        var updates = new V269CleanupSection
         {
-            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 4,
-            Margin = Padding.Empty, BackColor = AppServices.Background
+            Name = "V269WindowsUpdateSection", Dock = DockStyle.Fill, BackColor = Color.Transparent,
+            ColumnCount = 1, RowCount = 3, Padding = new Padding(12), Margin = new Padding(0,0,0,7)
         };
-        for (int i = 0; i < 4; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        AddIntegratedAction(actions, 0, "Memória RAM", "Consumo e memória disponível. Histórico local, também na bandeja.", AppServices.Blue,
-            async () => { await RefreshMemoryRamAsync(); });
-        AddIntegratedAction(actions, 1, "Energia", "Consulte e revise os planos de energia do Windows.", AppServices.Gray,
-            RefreshEnergyInfoAsync);
-        AddIntegratedAction(actions, 2, "Windows Update", "Verifique e instale atualizações oficiais individualmente.", AppServices.Green,
-            () => { DrawWindowsUpdates(); return Task.CompletedTask; });
-        AddIntegratedAction(actions, 3, "Este computador", "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos.", AppServices.Blue,
-            async () =>
-            {
-                long request = _systemViewGeneration;
-                await ExecuteAsync("Consultando hardware...", async () =>
-                {
-                    var snapshot = await StaWorker.Run(DetailedHardware.Capture);
-                    if (!IsCurrentSystemView("hardware", request)) return;
-                    ShowHardwareCompact(snapshot);
-                    Status("Hardware consultado");
-                    Log("Informações detalhadas de hardware atualizadas.");
-                });
-            });
-        root.Controls.Add(actions, 0, 0);
-
-        var details = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 4, Padding = new Padding(8, 4, 8, 4),
-            Margin = new Padding(2, 2, 2, 0)
-        };
-        _systemDetails = details;
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
-        details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 186));
-        _systemPanelTitle.Text = "Painel de informações";
+        _systemDetails = updates;
+        updates.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        updates.RowStyles.Add(new RowStyle(SizeType.Absolute,34));
+        updates.RowStyles.Add(new RowStyle(SizeType.Absolute,38));
+        updates.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty, BackColor = Color.Transparent };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,174));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,98));
+        _systemPanelTitle.Text = "Windows Update";
         _systemPanelTitle.Dock = DockStyle.Fill;
         _systemPanelTitle.Font = new Font("Segoe UI", 11.5F, FontStyle.Bold);
         _systemPanelTitle.ForeColor = Ink;
         _systemPanelTitle.TextAlign = ContentAlignment.MiddleLeft;
-        header.Controls.Add(_systemPanelTitle, 0, 0);
-        _exportHardwareButton = CreateSecondaryButton("Salvar ficha PNG");
-        _exportHardwareButton.Dock = DockStyle.Fill;
-        _exportHardwareButton.Margin = new Padding(4, 1, 1, 3);
-        _exportHardwareButton.Visible = false;
-        _exportHardwareButton.Click += (_, _) => ExportHardwareImage();
-        _toolTips.SetToolTip(_exportHardwareButton, "Salva todas as informações de hardware em uma imagem PNG, sem depender da altura da janela.");
-        _actionControls.Add(_exportHardwareButton);
-        header.Controls.Add(_exportHardwareButton, 1, 0);
-        details.Controls.Add(header, 0, 0);
-        _systemPanelSummary.Text = "Escolha uma área acima. Alterações exigem confirmação explícita.";
+        _systemPanelTitle.Click += (_,_) => SetSystemView("update");
+        header.Controls.Add(_systemPanelTitle,0,0);
+        _searchWindowsUpdatesButton = new V269CleanupButton("Verificar atualizações", "refresh", true)
+        { Name = "WindowsUpdateExplicitSearch", Dock = DockStyle.Fill, Margin = new Padding(3,1,3,1),
+            AccessibleName = "Verificar atualizações do Windows", AccessibleDescription = "Consulta oficial somente sob comando." };
+        _searchWindowsUpdatesButton.Click += async (_,_) => { SetSystemView("update"); await ScanWindowsUpdatesAsync(); };
+        _actionControls.Add(_searchWindowsUpdatesButton);
+        header.Controls.Add(_searchWindowsUpdatesButton,1,0);
+        _windowsUpdateHistoryButton = new V269CleanupButton("Histórico","clock")
+        { Name = "V269WindowsUpdateHistory", Dock = DockStyle.Fill, Margin = new Padding(3,1,0,1),
+            AccessibleName = "Histórico do Windows Update" };
+        _windowsUpdateHistoryButton.Click += async (_,_) => { SetSystemView("update"); await ShowWindowsUpdateHistoryAsync(); };
+        _actionControls.Add(_windowsUpdateHistoryButton);
+        header.Controls.Add(_windowsUpdateHistoryButton,2,0);
+        updates.Controls.Add(header,0,0);
+        int lastColumns=3;
+        void FitHeader()
+        {
+            int S(int n)=>V269AppTable.Scale(n,_v269Appearance.InterfacePercent,updates.DeviceDpi);
+            int width=Math.Max(1,updates.Width-updates.Padding.Horizontal);
+            int columns=width>=S(475)?3:width>=S(270)?2:1;
+            if(lastColumns!=columns)
+            {
+                lastColumns=columns;header.SuspendLayout();
+                try
+                {
+                    header.SetColumnSpan(_systemPanelTitle,1);
+                    header.ColumnCount=columns;header.RowCount=columns==3?1:columns==2?2:3;
+                    header.ColumnStyles.Clear();header.RowStyles.Clear();
+                    if(columns==3)
+                    {
+                        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+                        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,S(174)));
+                        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,S(98)));
+                        header.SetCellPosition(_searchWindowsUpdatesButton,new TableLayoutPanelCellPosition(1,0));
+                        header.SetCellPosition(_windowsUpdateHistoryButton,new TableLayoutPanelCellPosition(2,0));
+                    }
+                    else
+                    {
+                        for(int i=0;i<columns;i++)header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/columns));
+                        header.SetColumnSpan(_systemPanelTitle,columns);
+                        header.SetCellPosition(_searchWindowsUpdatesButton,new TableLayoutPanelCellPosition(0,1));
+                        header.SetCellPosition(_windowsUpdateHistoryButton,new TableLayoutPanelCellPosition(columns==2?1:0,columns==2?1:2));
+                    }
+                    for(int i=0;i<header.RowCount;i++)header.RowStyles.Add(new RowStyle(SizeType.Percent,100f/header.RowCount));
+                }
+                finally{header.ResumeLayout(true);}
+            }
+            updates.RowStyles[0].Height=header.RowCount*Math.Max(S(34),_systemPanelTitle.Font.Height+S(10));
+        }
+        updates.Tag=(Action)FitHeader;updates.SizeChanged+=(_,_)=>FitHeader();
+        _systemPanelSummary.Text = "Consulta sob comando do usuário · aguardando verificação.";
         _systemPanelSummary.Dock = DockStyle.Fill;
-        _systemPanelSummary.Font = new Font("Segoe UI", 9F);
         _systemPanelSummary.ForeColor = Muted;
         _systemPanelSummary.TextAlign = ContentAlignment.MiddleLeft;
-        details.Controls.Add(_systemPanelSummary, 0, 1);
-        _windowsUpdateActionsPanel = new TableLayoutPanel
+        updates.Controls.Add(_systemPanelSummary,0,1);
+        _systemPanelCards = new DarkScrollableFlow
         {
-            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2,
-            BackColor = PanelBackground, Margin = Padding.Empty,
-            Padding = Padding.Empty, Visible = false
+            Name = "V269SystemUpdateList", Dock = DockStyle.Fill, BackColor = Color.Transparent,
+            Margin = Padding.Empty, EmbeddedInPage = true
         };
-        _windowsUpdateActionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 64));
-        _windowsUpdateActionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
-        _searchWindowsUpdatesButton = CreateButton("Buscar atualizações", AppServices.Blue, Color.White);
-        _searchWindowsUpdatesButton.Name = "WindowsUpdateExplicitSearch";
-        _searchWindowsUpdatesButton.AccessibleName = "Buscar atualizações do Windows";
-        _searchWindowsUpdatesButton.AccessibleDescription =
-            "Inicia consulta oficial apenas quando solicitado; abrir o cartão não inicia busca.";
-        _searchWindowsUpdatesButton.Dock = DockStyle.Fill;
-        _searchWindowsUpdatesButton.Margin = new Padding(3, 1, 3, 5);
-        _searchWindowsUpdatesButton.Click += async (_, _) => await ScanWindowsUpdatesAsync();
-        _actionControls.Add(_searchWindowsUpdatesButton);
-        _windowsUpdateActionsPanel.Controls.Add(_searchWindowsUpdatesButton, 0, 0);
-        _windowsUpdateHistoryButton = CreateSecondaryButton("Histórico");
-        _windowsUpdateHistoryButton.Name = "V269WindowsUpdateHistory";
-        _windowsUpdateHistoryButton.AccessibleName = "Histórico do Windows Update";
-        _windowsUpdateHistoryButton.AccessibleDescription = "Consulta somente leitura dos eventos registrados pelo agente Windows Update.";
-        _windowsUpdateHistoryButton.Dock = DockStyle.Fill;
-        _windowsUpdateHistoryButton.Margin = new Padding(3, 1, 3, 5);
-        _windowsUpdateHistoryButton.Click += async (_, _) => await ShowWindowsUpdateHistoryAsync();
-        _actionControls.Add(_windowsUpdateHistoryButton);
-        _windowsUpdateActionsPanel.Controls.Add(_windowsUpdateHistoryButton, 1, 0);
-        details.Controls.Add(_windowsUpdateActionsPanel, 0, 2);
-        _systemPanelCards = new DarkScrollableFlow { Dock = DockStyle.Fill, BackColor = PanelBackground };
-        _systemPanelCards.Content.BackColor = PanelBackground;
-        _systemPanelCards.Content.Padding = new Padding(3, 4, 3, 3);
-        _systemPanelCards.Resize += (_, _) => ResizeIntegratedCards();
-        // Quando a barra de rolagem aparece/desaparece, o viewport real muda
-        // mesmo que o tamanho do controle externo nao se altere.
-        _systemPanelCards.Content.SizeChanged += (_, _) => ResizeIntegratedCards();
-        var contentHost = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
-        contentHost.Controls.Add(_systemPanelCards);
-        contentHost.Controls.Add(BuildMemoryRamDashboard());
-        _hardwareGrid = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3,
-            BackColor = PanelBackground, Margin = Padding.Empty, Padding = Padding.Empty,
-            Visible = false
-        };
-        _hardwareGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        _hardwareGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        for (int i = 0; i < 3; i++) _hardwareGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / 3F));
-        contentHost.Controls.Add(_hardwareGrid);
-        _v269EnergyView = ScrollablePage(BuildEnergyPanel(),
-            _ => (int)Math.Ceiling(405 * DeviceDpi / 96d));
-        _v269EnergyView.Visible = false;
-        contentHost.Controls.Add(_v269EnergyView);
-        _systemPanelCards.BringToFront();
-        details.Controls.Add(contentHost, 0, 3);
-        SetSystemView("memory");
-        root.Controls.Add(details, 0, 1);
-        root.SizeChanged += (_, _) => FitSystemActionsHeight(root, actions);
-        details.SizeChanged += (_, _) => FitSystemSummaryHeight();
-        FitSystemActionsHeight(root, actions);
-        FitSystemSummaryHeight();
-
-        _memoryTimer.Tick += async (_, _) =>
+        _systemPanelCards.ApplyCleanupSurface(_v269Appearance.Theme);
+        _systemPanelCards.Content.Padding = Padding.Empty;
+        _systemPanelCards.Content.WrapContents = false;
+        _systemPanelCards.Content.SizeChanged += (_,_) => ResizeIntegratedCards();
+        updates.Controls.Add(_systemPanelCards,0,2);
+        root.Controls.Add(updates,0,0);
+        _v269EnergyView = BuildEnergyPanel();
+        _v269EnergyView.Name = "V269EnergySection";
+        root.Controls.Add(_v269EnergyView,0,1);
+        root.Controls.Add(BuildMemoryRamDashboard(),0,2);
+        _memoryTimer.Tick += async (_,_) =>
         {
             if (_memorySampling || IsDisposed) return;
             UpdateProcessSamplingCadence();
             await RefreshMemoryRamAsync();
         };
-        FormClosed += (_, _) => _memoryTimer.Dispose();
+        FormClosed += (_,_) => _memoryTimer.Dispose();
         return root;
     }
 
     private int SystemPageMinimumHeight(TableLayoutPanel root)
     {
-        int Scale(int px) => (int)Math.Ceiling(px * Math.Max(1d, DeviceDpi / 96d));
-        float minimumBody = _activeSystemView switch
+        int S(int n) => V269AppTable.Scale(n,_v269Appearance.InterfacePercent,DeviceDpi);
+        int width = Math.Max(1, root.ClientSize.Width);
+        if (_systemDetails is { } updates)
         {
-            "memory" when _memoryDashboardView is TableLayoutPanel dashboard =>
-                dashboard.RowStyles.Cast<RowStyle>().Where(row => row.SizeType == SizeType.Absolute)
-                    .Sum(row => row.Height) + dashboard.Padding.Vertical + Scale(50),
-            "energy" => Scale(405),
-            _ => Scale(180)
-        };
-        float fixedSystem = root.RowStyles[0].Height + root.Padding.Vertical;
-        if (_systemDetails is { } details)
-            fixedSystem += details.RowStyles.Cast<RowStyle>()
-                .Where(row => row.SizeType == SizeType.Absolute).Sum(row => row.Height) +
-                details.Padding.Vertical + details.Margin.Vertical;
-        return Math.Max(Scale(365), (int)Math.Ceiling(fixedSystem + minimumBody));
+            int body = Math.Max(1,width-updates.Padding.Horizontal);
+            if (_systemPanelCards is { } cards)
+            {
+                if(cards.Width!=body) cards.Width=body;
+                ResizeIntegratedCards();
+            }
+            int summary = TextRenderer.MeasureText(_systemPanelSummary.Text,_systemPanelSummary.Font,
+                new Size(body,600),TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height+S(8);
+            if(updates.Tag is Action fitHeader)fitHeader();
+            updates.RowStyles[1].Height = Math.Max(S(35),summary);
+            int rows = _systemPanelCards?.MeasureContentHeight(body) ?? 0;
+            root.RowStyles[0].Height = updates.RowStyles[0].Height+updates.RowStyles[1].Height+
+                Math.Max(S(12),rows)+updates.Padding.Vertical+updates.Margin.Vertical;
+        }
+        if (_v269EnergyView is TableLayoutPanel energy)
+        {
+            if(energy.Tag is Action fitEnergy)fitEnergy();
+            energy.PerformLayout();
+            root.RowStyles[1].Height = Math.Max(S(190),
+                energy.RowStyles.Cast<RowStyle>().Where(x=>x.SizeType==SizeType.Absolute).Sum(x=>x.Height)+energy.Padding.Vertical+energy.Margin.Vertical);
+        }
+        if (_memoryDashboardView is TableLayoutPanel ram)
+        {
+            if(ram.Tag is Action fitRam)fitRam();
+            ram.PerformLayout();
+            root.RowStyles[2].Height = Math.Max(S(224),
+                ram.RowStyles.Cast<RowStyle>().Where(x=>x.SizeType==SizeType.Absolute).Sum(x=>x.Height)+ram.Padding.Vertical+ram.Margin.Vertical);
+        }
+        return (int)Math.Ceiling(root.RowStyles.Cast<RowStyle>().Where(x=>x.SizeType==SizeType.Absolute).Sum(x=>x.Height));
     }
 
     private void SetSystemView(string view)
     {
-        // Navegação imediata: não deixar cartões do modo anterior sob título
-        // da nova aba enquanto operações assíncronas ainda consultam o Windows.
-        ++_systemViewGeneration;
-        bool changing = _activeSystemView != view;
-        _activeSystemView = view; // Coleta em background permanece independente.
-        if (changing && view is "startup" or "update" or "hardware")
-            ReplaceSystemCards([]);
-        if (_systemDetails is null || _windowsUpdateActionsPanel is null) return;
-        bool showInstall = view == "update";
-        bool showMemory = view == "memory";
-        _systemDetails.RowStyles[2].Height = showInstall ? 38 : 0;
-        FitSystemSummaryHeight();
+        if (_activeSystemView != view)
+        {
+            ++_systemViewGeneration;
+            if(_nav.SelectedPage==V269Page.Sistema&&!_busy&&!_v269Confirming&&_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
+                _nav.PresentPanel(null);
+        }
+        _activeSystemView = view;
         UpdateProcessSamplingCadence();
-        _windowsUpdateActionsPanel.Visible = showInstall;
-        if (_exportHardwareButton is not null) _exportHardwareButton.Visible = view == "hardware" && _hardwareGroups.Count > 0;
-        if (_hardwareGrid is not null) _hardwareGrid.Visible = view == "hardware";
-        if (_v269EnergyView is not null) _v269EnergyView.Visible = view == "energy";
-        if (_memoryDashboardView is not null) _memoryDashboardView.Visible = showMemory;
-        if (_systemPanelCards is not null)
-            _systemPanelCards.Visible = view is not ("hardware" or "energy") && !showMemory;
-        _systemDetails.PerformLayout();
-        _relayoutSystem?.Invoke();
+        if(_nav.SelectedPage==V269Page.Sistema) PresentV269SystemDetails();
+    }
+
+    private void PresentV269SystemDetails()
+    {
+        if (_nav.SelectedPage!=V269Page.Sistema || _busy || _v269Confirming ||
+            _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.Result or V269PanelKind.History)
+            return;
+        string title, sub, description, state, glyph;
+        switch(_activeSystemView)
+        {
+            case "energy":
+                title="Planos de Energia"; sub="Perfis do Windows"; glyph="bolt";
+                description="Permite alternar perfis de energia, consultar a hibernação e restaurar o plano anterior da sessão.";
+                state=_currentPowerLabel.Text; break;
+            case "memory":
+                title="Memória RAM"; sub="Gerenciamento de memória"; glyph="memory";
+                description="Acompanha o uso da memória física. Aliviar RAM exige autorização para o aplicativo selecionado; não fecha programas.";
+                state=_memoryUsageLabel.Text; break;
+            default:
+                title="Windows Update"; sub="Atualizações do Windows"; glyph="refresh";
+                description="Consulta ofertas oficiais de software sob comando e permite instalação individual mediante confirmação.";
+                state=_windowsUpdateScanning?"Consultando":_windowsUpdateScanFailure is not null?"Consulta inconclusiva":_windowsUpdateChecked?"Consultado":"Aguardando consulta";
+                break;
+        }
+        var model=new V269AppDetailModel(title,sub,[("Estado",state)],
+            "Operações sensíveis exigem confirmação. O Windows não é reiniciado automaticamente.",
+            Description:description,CleanupGlyph:glyph,CleanupDescriptionHeading:"O que faz",
+            PreviousResults:V269ModuleHistory(V269Page.Sistema),DismissResult:DismissV269ModuleResult);
+        if(_nav.RightPane.Current?.Module is {} old&&old.Name==model.Name&&old.Fields.SequenceEqual(model.Fields)&&
+            (old.PreviousResults??[]).SequenceEqual(model.PreviousResults??[]))return;
+        _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes do módulo","",FlowPage:V269Page.Sistema,Module:model));
     }
 
     private bool IsCurrentSystemView(string view, long request) =>
@@ -316,27 +321,15 @@ internal sealed partial class MainForm
             root.RowStyles[0].Height = totalHeight;
     }
 
-    private void FitSystemSummaryHeight()
-    {
-        if (_systemDetails is null || _systemDetails.IsDisposed ||
-            _systemPanelSummary.IsDisposed) return;
-        int width = Math.Max(180, _systemDetails.ClientSize.Width -
-            _systemDetails.Padding.Horizontal - 10);
-        int measured = TextRenderer.MeasureText(_systemPanelSummary.Text,
-            _systemPanelSummary.Font, new Size(width, 200),
-            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
-        int height = Math.Clamp(measured + 4,
-            (int)Math.Ceiling(26d * Math.Max(1d, DeviceDpi / 96d)),
-            (int)Math.Ceiling(78d * Math.Max(1d, DeviceDpi / 96d)));
-        if (Math.Abs(_systemDetails.RowStyles[1].Height - height) >= 1)
-            _systemDetails.RowStyles[1].Height = height;
-    }
+    private void FitSystemSummaryHeight() => _relayoutSystem?.Invoke();
 
     private void ReplaceSystemCards(IEnumerable<Control> cards, bool startup = false)
     {
         var host = startup ? _v269StartupCards : _systemPanelCards;
         if (host is null || IsDisposed) return;
         var flow = host.Content;
+        var oldSelection=startup?_v269StartupSelected:null;
+        var oldItem=oldSelection?.Item;
         flow.SuspendLayout();
         try
         {
@@ -346,8 +339,16 @@ internal sealed partial class MainForm
             foreach (Control card in cards) flow.Controls.Add(card);
         }
         finally { flow.ResumeLayout(true); }
-        if (startup) ResizeV269StartupCards();
-        else ResizeIntegratedCards();
+        if (startup)
+        {
+            _v269StartupTitle.Visible=flow.Controls.Count==0;
+            _v269StartupSelected=flow.Controls.OfType<V269StartupCard>().FirstOrDefault(x=>
+                oldSelection is not null && (oldItem is null?x.Item is null:Equals(x.Item,oldItem)))??
+                flow.Controls.OfType<V269StartupCard>().FirstOrDefault();
+            _v269StartupSelected?.SetSelected(true);
+            ResizeV269StartupCards(); PresentV269StartupDetails();
+        }
+        else { ResizeIntegratedCards(); _relayoutSystem?.Invoke(); }
     }
 
     private static IReadOnlyList<HardwareGroup> GroupHardware(SystemInfoSnapshot snapshot)
@@ -560,33 +561,26 @@ internal sealed partial class MainForm
 
     private void ResizeIntegratedCards()
     {
-        if (_fittingSystemCards || _systemPanelCards is null ||
-            _systemPanelCards.IsDisposed) return;
+        if (_fittingSystemCards || _systemPanelCards is null || _systemPanelCards.IsDisposed) return;
         _fittingSystemCards = true;
         try
         {
-            FlowLayoutPanel flow = _systemPanelCards.Content;
-            // Usar viewport fisico JA reduzido pela scrollbar escura.
-            // Evita reserva dupla e contempla 720p, ultrawide, 4K e DPI.
-            for (int attempt = 0; attempt < 3; attempt++)
+            var flow=_systemPanelCards.Content;
+            int width=Math.Max(1,_systemPanelCards.ClientSize.Width-flow.Padding.Horizontal);
+            flow.SuspendLayout();
+            try
             {
-                int space = flow.ClientSize.Width - flow.Padding.Horizontal;
-                if (space <= 0) break;
-                int columns = space >= 720 * Math.Max(1, flow.DeviceDpi / 96d) ? 2 : 1;
-                int cardWidth = StartupCardLayout.CardWidth(space, columns, flow.DeviceDpi);
-                int beforeWidth = flow.ClientSize.Width;
-                flow.SuspendLayout();
-                try
+                foreach(Control row in flow.Controls)
                 {
-                    foreach (Control control in flow.Controls)
-                        if (control.Width != cardWidth) control.Width = cardWidth;
+                    int target=Math.Max(1,width-row.Margin.Horizontal);
+                    if(row.Width!=target) row.Width=target;
+                    if(row is V269SystemUpdateRow update) update.Fit();
                 }
-                finally { flow.ResumeLayout(true); }
-                _systemPanelCards.Reflow();
-                if (flow.ClientSize.Width == beforeWidth) break;
             }
+            finally { flow.ResumeLayout(true); }
+            _systemPanelCards.Reflow();
         }
-        finally { _fittingSystemCards = false; }
+        finally { _fittingSystemCards=false; }
     }
 
     private async Task RefreshStartupEntriesAsync(Func<Task<IReadOnlyList<StartupItem>>>? read = null)
@@ -606,124 +600,180 @@ internal sealed partial class MainForm
                 .Concat(entries.Select(BuildStartupCard)).ToArray(), startup: true);
             Status($"{entries.Count} entradas de inicialização consultadas");
             Log($"Inicialização: {entries.Count} entradas consultadas.");
-        });
+        }, quietStartup:true);
+        PresentV269StartupDetails();
+    }
+
+    private V269StartupCard? _v269StartupSelected;
+    private bool _fittingV269Startup;
+
+    private static string StartupScope(StartupItem item) =>
+        item.Details.StartsWith("Meu usuário",StringComparison.Ordinal) ? "Meu usuário" :
+        item.Details.StartsWith("Todos os usuários",StringComparison.Ordinal) ? "Todos os usuários" : "Escopo não informado";
+
+    private void SelectV269StartupCard(V269StartupCard card,bool explicitSelection)
+    {
+        if(_v269StartupSelected!=card)
+        {
+            _v269StartupSelected?.SetSelected(false);
+            _v269StartupSelected=card;card.SetSelected(true);
+        }
+        if(explicitSelection&&!_busy&&!_v269Confirming&&_nav.SelectedPage==V269Page.Inicializacao)
+        {
+            if(_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)_nav.PresentPanel(null);
+        }
+        PresentV269StartupDetails();
+    }
+
+    private V269StartupCard WireV269StartupCard(V269StartupCard card)
+    {
+        card.ApplyOptions(_v269Appearance);
+        card.Click+=(_,_)=>SelectV269StartupCard(card,true);
+        card.Enter+=(_,_)=>SelectV269StartupCard(card,false);
+        card.Command.Enter+=(_,_)=>SelectV269StartupCard(card,false);
+        return card;
+    }
+
+    private void PresentV269StartupDetails()
+    {
+        if(_nav.SelectedPage!=V269Page.Inicializacao||_busy||_v269Confirming||
+            _nav.RightPane.Current?.Kind is V269PanelKind.Progress or V269PanelKind.Confirmation or V269PanelKind.Result or V269PanelKind.History)return;
+        if(_v269StartupSelected is null||_v269StartupSelected.IsDisposed)
+        {
+            _v269StartupSelected=_v269StartupCards.Content.Controls.OfType<V269StartupCard>().FirstOrDefault();
+            _v269StartupSelected?.SetSelected(true);
+        }
+        if(_v269StartupSelected is not {} selected)
+        {
+            _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes da entrada","Aguardando consulta das entradas de inicialização.",FlowPage:V269Page.Inicializacao));
+            return;
+        }
+        var item=selected.Item;
+        string[] parts=item?.Details.Split(" · ",StringSplitOptions.None)??[];
+        string type=item is null?"Registro do GF":parts.Length>1?parts[1]:item.Kind;
+        string path=item is null?"Início na bandeja da sessão do usuário":item.Kind=="file"?item.Locator:
+            parts.Length>2&&!parts[^1].Equals("somente leitura",StringComparison.OrdinalIgnoreCase)?parts[^1]:"Não informado";
+        bool? enabled=item?.Enabled??selected.GfEnabled;
+        var model=new V269AppDetailModel(selected.AccessibleName??"",item is null?"Gerenciador Final":type,
+            [("Escopo",item is null?"Meu usuário":StartupScope(item)),("Tipo",type),("Situação",enabled is true?"Habilitado":enabled is false?"Desabilitado":"Indisponível")],
+            "Apenas entradas do usuário que o motor permite podem ser alteradas. O efeito ocorre no próximo login.",
+            Description:path,CleanupGlyph:"power",CleanupDescriptionHeading:"Caminho",
+            PreviousResults:V269ModuleHistory(V269Page.Inicializacao),DismissResult:DismissV269ModuleResult);
+        if(_nav.RightPane.Current?.Module is {} previous&&previous.Name==model.Name&&previous.Fields.SequenceEqual(model.Fields)&&previous.Description==model.Description&&(previous.PreviousResults??[]).SequenceEqual(model.PreviousResults??[]))return;
+        _nav.PresentPanel(new(V269PanelKind.Details,"Detalhes da entrada","",FlowPage:V269Page.Inicializacao,Module:model));
     }
 
     private Control BuildStartupTrayCard()
     {
-        bool enabled;
+        bool? enabled;
         try { enabled = StartupTrayRegistration.IsEnabled(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             System.Security.SecurityException or InvalidDataException)
         {
-            enabled = false;
+            enabled = null;
             DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=consulta_indisponivel motivo=" + ex.GetType().Name);
         }
-        var card = new TableLayoutPanel
+        var card=WireV269StartupCard(new V269StartupCard("Gerenciador Final","Meu usuário","apps",
+            enabled is true?"Desativar na inicialização":"Ativar na inicialização",enabled.HasValue,null,enabled));
+        card.Command.Click+=async (_,_) =>
         {
-            Name = "GFStartupTrayCard",
-            Width = 390, Height = 108, RowCount = 3, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
-            Padding = new Padding(8, 5, 8, 5)
-        };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
-        card.Controls.Add(new Label
-        {
-            Text = "Gerenciador Final · iniciar com o Windows",
-            Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold)
-        }, 0, 0);
-        card.Controls.Add(new Label
-        {
-            Text = "Opcional: abrir direto na bandeja após entrar na sua conta.",
-            Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.1F), AutoEllipsis = true
-        }, 0, 1);
-        var toggle = CreateButton(enabled ? "Desativar início automático" : "Ativar início na bandeja",
-            enabled ? AppServices.Orange : AppServices.Green, Color.White);
-        toggle.Dock = DockStyle.Fill;
-        toggle.Margin = Padding.Empty;
-        toggle.Click += async (_, _) =>
-        {
-            if (_busy) return;
-            if (!await ConfirmV269Async("Inicialização do Gerenciador Final",
-                enabled ? "Desativar a inicialização do GF com o Windows?" :
-                "Deseja iniciar o GF na bandeja quando entrar no Windows? Sem pedir administrador.")) return;
-            try
+            if(_busy||_v269Confirming||enabled is not bool old)return;
+            SelectV269StartupCard(card,true);
+            if(!await ConfirmV269Async("Inicialização do Gerenciador Final",
+                old?"Desativar a inicialização do GF com o Windows?":"Iniciar o GF na bandeja no próximo login?"))return;
+            await ExecuteAsync("Alterando inicialização do GF...",async ()=>
             {
-                StartupTrayRegistration.SetEnabled(!enabled);
-                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=" + (!enabled ? "ativado" : "desativado"));
-                Status(!enabled ? "GF iniciará na bandeja no próximo login." :
-                    "Início automático do GF desativado.");
-                _ = RefreshStartupEntriesAsync();
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-                System.Security.SecurityException or InvalidDataException)
-            {
-                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=falha motivo=" + ex.GetType().Name);
-                Status("Não foi possível alterar o início automático. Confira o diagnóstico.");
-            }
+                if(StartupTrayRegistration.IsEnabled()!=old)throw new InvalidOperationException("A configuração mudou; consulte novamente.");
+                StartupTrayRegistration.SetEnabled(!old);
+                bool verified=StartupTrayRegistration.IsEnabled()==!old;
+                string message=verified?"Configuração confirmada; efeito no próximo login.":"Não foi possível confirmar a configuração.";
+                Status(message);
+                PresentV269ModuleResult(V269Page.Inicializacao,"Inicialização do Gerenciador Final",message,verified);
+                if(_nav.SelectedPage==V269Page.Inicializacao)
+                {
+                    var entries=await Task.Run(StartupManager.Read);
+                    ReplaceSystemCards(new[]{BuildStartupTrayCard()}.Concat(entries.Select(BuildStartupCard)),startup:true);
+                }
+            });
         };
-        card.Controls.Add(toggle, 0, 2);
         return card;
     }
 
     private Control BuildStartupCard(StartupItem item)
     {
-        var card = new TableLayoutPanel
+        var card=WireV269StartupCard(new V269StartupCard(item.Name,StartupScope(item),
+            item.Kind=="file"?"folder":"document",
+            !item.Editable?"Somente leitura":item.Enabled?"Desativar na inicialização":"Ativar na inicialização",
+            item.Editable,item,null));
+        card.Command.Click+=async (_,_) =>
         {
-            Name = "StartupEntryCard",
-            Width = 390, Height = 108, RowCount = 3, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
-            Padding = new Padding(8, 5, 8, 5)
-        };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
-        var name = new Label { Text = item.Name, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold),
-            AutoEllipsis = true, AccessibleDescription = item.Name };
-        var desc = new Label { Text = item.Details, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.1F),
-            AutoEllipsis = true, AccessibleDescription = item.Details };
-        _toolTips.SetToolTip(name, item.Name);
-        _toolTips.SetToolTip(desc, item.Details);
-        card.Controls.Add(name, 0, 0);
-        card.Controls.Add(desc, 0, 1);
-        var toggle = CreateButton(item.Editable ? (item.Enabled ? "Desativar na inicialização" : "Reativar na inicialização") : "Somente leitura",
-            item.Editable ? (item.Enabled ? AppServices.Orange : AppServices.Green) : AppServices.Gray, Color.White);
-        toggle.Dock = DockStyle.Fill;
-        toggle.Margin = Padding.Empty;
-        toggle.Enabled = item.Editable;
-        toggle.Click += async (_, _) =>
-        {
-            if (_busy) return;
-            string verb = item.Enabled ? "desativar" : "reativar";
-            if (!await ConfirmV269Async("Confirmar inicialização",
-                $"Deseja {verb} '{item.Name}' na inicialização do Windows?")) return;
-            long request = _systemViewGeneration;
-            await ExecuteAsync("Alterando inicialização...", async () =>
+            if(_busy||_v269Confirming||!item.Editable)return;
+            SelectV269StartupCard(card,true);
+            string verb=item.Enabled?"desativar":"ativar";
+            if(!await ConfirmV269Async("Confirmar inicialização",$"Deseja {verb} '{item.Name}' na inicialização do Windows?"))return;
+            long request=_systemViewGeneration;
+            await ExecuteAsync("Alterando inicialização...",async ()=>
             {
-                await Task.Run(() => StartupManager.Toggle(item));
-                Log($"Inicialização: {item.Name} — " + (item.Enabled ? "desativado" : "reativado") + ".");
-                var entries = await Task.Run(StartupManager.Read);
-                if (!IsCurrentSystemView("startup", request)) return;
-                ReplaceSystemCards(new[] { BuildStartupTrayCard() }
-                .Concat(entries.Select(BuildStartupCard)).ToArray(), startup: true);
-                Status("Inicialização alterada. Efeito no próximo login.");
+                var before=await Task.Run(StartupManager.Read);
+                if(!before.Contains(item))throw new InvalidOperationException("A entrada mudou; consulte novamente.");
+                await Task.Run(()=>StartupManager.Toggle(item));
+                var entries=await Task.Run(StartupManager.Read);
+                string target=item.Kind=="file"?(item.Enabled?item.Locator+".disabled":item.Locator[..^9]):item.Locator;
+                bool verified=entries.Any(x=>x.Kind==item.Kind&&x.Locator.Equals(target,StringComparison.OrdinalIgnoreCase)&&x.Enabled!=item.Enabled);
+                string message=verified?"Inicialização alterada e confirmada. Efeito no próximo login.":"Alteração não confirmada na nova consulta.";
+                Log("Inicialização: "+item.Name+" — "+message);
+                Status(message);
+                PresentV269ModuleResult(V269Page.Inicializacao,item.Name,message,verified);
+                if(!IsCurrentSystemView("startup",request))return;
+                ReplaceSystemCards(new[]{BuildStartupTrayCard()}.Concat(entries.Select(BuildStartupCard)),startup:true);
             });
         };
-        card.Controls.Add(toggle, 0, 2);
         return card;
+    }
+
+    private IReadOnlyList<V269AppPreviousResult> V269ModuleHistory(V269Page page) =>
+        _v269ModuleHistory.TryGetValue(page,out var results)?results.ToArray():[];
+
+    private void DismissV269ModuleResult(Guid id)
+    {
+        foreach(var list in _v269ModuleHistory.Values)list.RemoveAll(x=>x.Id==id);
+        foreach(var pair in _v269ModuleRetained.Where(x=>x.Value.FlowResult?.HistoryId==id).ToArray())
+            _v269ModuleRetained.Remove(pair.Key);
+        if(_nav.RightPane.Current?.FlowResult?.HistoryId==id)_nav.PresentPanel(null);
+        _nav.RightPane.RefreshAppOperationHistory();
+        if(_nav.SelectedPage==V269Page.Sistema)PresentV269SystemDetails();
+        if(_nav.SelectedPage==V269Page.Inicializacao)PresentV269StartupDetails();
+    }
+
+    private void PresentV269ModuleRetained(V269Page page)
+    {
+        if(!_busy&&!_v269Confirming&&_nav.RightPane.Current?.Kind is not (V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.Result or V269PanelKind.History)
+            &&_v269ModuleRetained.TryGetValue(page,out var result))
+            _nav.PresentPanel(result);
+        else if(page==V269Page.Sistema)PresentV269SystemDetails();else PresentV269StartupDetails();
+    }
+
+    private void PresentV269ModuleResult(V269Page page,string title,string message,bool complete)
+    {
+        if(IsDisposed||Disposing)return;
+        var id=Guid.NewGuid();
+        if(!_v269ModuleHistory.TryGetValue(page,out var history))_v269ModuleHistory[page]=history=new();
+        history.Insert(0,new V269AppPreviousResult(id,title,message,complete));
+        if(history.Count>20)history.RemoveAt(history.Count-1);
+        var result=new V269PanelPresentation(V269PanelKind.Result,title,message,
+            FlowResult:new V269FlowResult(page,complete,()=>DismissV269ModuleResult(id),id),FlowPage:page);
+        _v269ModuleRetained[page]=result;
+        if(_nav.SelectedPage==page&&_nav.RightPane.Current?.Kind!=V269PanelKind.Confirmation &&
+            (_nav.RightPane.Current?.Kind!=V269PanelKind.Progress || _nav.RightPane.Current.FlowPage is null || _nav.RightPane.Current.FlowPage==page))
+            _nav.PresentPanel(result);
+        else if(_nav.RightPane.Current is {Kind:V269PanelKind.Progress,FlowPage:var owner}&&owner==page)
+            _nav.PresentPanel(null);
     }
 
     private void UpdateProcessSamplingCadence()
     {
         if (IsDisposed) return;
-        bool visible = Visible && !IsInTray && _nav.SelectedPage == V269Page.Sistema &&
-                       _activeSystemView == "memory";
+        bool visible = Visible && !IsInTray && _nav.SelectedPage == V269Page.Sistema;
         int interval = ProcessSamplingPolicy.IntervalMs(visible, IsInTray || !Visible);
         if (_memoryTimer.Interval != interval) _memoryTimer.Interval = interval;
     }
@@ -739,11 +789,11 @@ internal sealed partial class MainForm
 
     private Task ScanWindowsUpdatesAsync() => ScanWindowsUpdatesInBackgroundAsync(force: true);
 
-    private bool WindowsUpdateViewActive => !IsDisposed && !Disposing && _activeSystemView == "update";
+    private bool WindowsUpdateViewActive => !IsDisposed && !Disposing && _nav.SelectedPage==V269Page.Sistema;
 
     private async Task ScanWindowsUpdatesInBackgroundAsync(bool force = false)
     {
-        if (IsDisposed || Disposing || _betaClose.IsClosing || _windowsUpdateInstalling) return;
+        if (IsDisposed || Disposing || _betaClose.IsClosing || _windowsUpdateInstalling || _busy || _v269Confirming) return;
         if (_windowsUpdateScanning || (!force && (_windowsUpdateChecked || _lastWindowsUpdateOperation is not null)))
         {
             if (WindowsUpdateViewActive) DrawWindowsUpdates();
@@ -751,6 +801,7 @@ internal sealed partial class MainForm
         }
 
         _windowsUpdateScanning = true;
+        if(WindowsUpdateViewActive) _nav.PresentPanel(new(V269PanelKind.Progress,"Verificar atualizações","Consultando ofertas oficiais de software…",FlowPage:V269Page.Sistema));
         _updateSelection.Clear();
         RenderTitle();
         if (WindowsUpdateViewActive) DrawWindowsUpdates();
@@ -769,6 +820,7 @@ internal sealed partial class MainForm
             DiagnosticTrace.Write($"WINDOWS_UPDATE.CONSULTA_OK quantidade={_updateCatalog.Count}");
             if (WindowsUpdateViewActive && _nav.SelectedPage == V269Page.Sistema)
                 Status($"Windows Update: {_updateCatalog.Count} atualização(ões) disponível(is)");
+            if(force)PresentV269ModuleResult(V269Page.Sistema,"Verificar atualizações",$"{_updateCatalog.Count} oferta(s) de software consultada(s).",true);
         }
         catch (Exception ex)
         {
@@ -780,6 +832,7 @@ internal sealed partial class MainForm
             Log("Windows Update: consulta inconclusiva " + _windowsUpdateScanFailure + ".");
             if (WindowsUpdateViewActive && _nav.SelectedPage == V269Page.Sistema)
                 Status("Windows Update: consulta inconclusiva");
+            if(force)PresentV269ModuleResult(V269Page.Sistema,"Verificar atualizações","Consulta inconclusiva "+_windowsUpdateScanFailure+".",false);
         }
         finally
         {
@@ -825,7 +878,7 @@ internal sealed partial class MainForm
     {
         if (_searchWindowsUpdatesButton is { IsDisposed: false } search)
         {
-            search.Text = _windowsUpdateScanning ? "Buscando atualizações..." : "Buscar atualizações";
+            search.Text = _windowsUpdateScanning ? "Verificando..." : "Verificar atualizações";
             search.Enabled = WindowsUpdateViewActive && !_busy && !_batchUpdatesActive &&
                 !_betaClose.IsClosing && !_windowsUpdateInstalling && !_windowsUpdateScanning;
         }
@@ -833,7 +886,7 @@ internal sealed partial class MainForm
             history.Enabled = WindowsUpdateViewActive && !_busy && !_batchUpdatesActive && !_v269Confirming &&
                 !_betaClose.IsClosing && !_windowsUpdateScanning && !_windowsUpdateInstalling && !_windowsUpdateHistoryReading;
         if (_systemPanelCards is null) return;
-        foreach (var card in _systemPanelCards.Content.Controls.OfType<TableLayoutPanel>())
+        foreach (var card in _systemPanelCards.Content.Controls.OfType<V269SystemUpdateRow>())
             foreach (var button in card.Controls.OfType<Button>())
                 if (button.Name == "V269InstallWindowsUpdate" && button.Tag is WinUpdateChoice offer)
                     button.Enabled = WindowsUpdateViewActive && CanSelectWindowsUpdates && offer.EulaAccepted;
@@ -841,7 +894,7 @@ internal sealed partial class MainForm
 
     private void ShowWindowsUpdateStatus(string title, string summary)
     {
-        _systemPanelTitle.Text = title;
+        _systemPanelTitle.Text = "Windows Update";
         _systemPanelSummary.Text = summary;
         FitSystemSummaryHeight();
     }
@@ -876,9 +929,9 @@ internal sealed partial class MainForm
         }
 
         string summary = _windowsUpdateScanFailure is string failure
-            ? $"Consulta inconclusiva {failure}. Clique em Buscar atualizações para tentar novamente."
+            ? $"Consulta inconclusiva {failure}. Clique em Verificar atualizações para tentar novamente."
             : _lastWindowsUpdateOperation?.Summary ??
-                "Nenhuma busca nesta sessão. Clique em Buscar atualizações para consultar.";
+                "Nenhuma busca nesta sessão. Clique em Verificar atualizações para consultar.";
         if (_lastWindowsUpdateOperation is { } result && _windowsUpdateScanFailure is null)
         {
             summary += WindowsUpdateOperation.ErrorText(result.Overall.Error);
@@ -886,7 +939,7 @@ internal sealed partial class MainForm
                 !result.RequiresRestart)
                 summary += " O Windows não confirmou se é necessário reiniciar.";
             if (!result.RequiresRestart)
-                summary += " Clique em Buscar atualizações para consultar novamente.";
+                summary += " Clique em Verificar atualizações para consultar novamente.";
         }
         ShowWindowsUpdateStatus(_windowsUpdateScanFailure is not null ? "Windows Update · consulta inconclusiva" :
             "Windows Update · resultado", summary + restart);
@@ -895,67 +948,29 @@ internal sealed partial class MainForm
 
     private Control BuildUpdateCard(WinUpdateChoice update)
     {
-        var card = new TableLayoutPanel
-        {
-            Width = 390, Height = 125, RowCount = 3, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
-            Padding = new Padding(8, 5, 8, 5)
-        };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
-        card.Controls.Add(new Label { Text = update.Title, Dock = DockStyle.Fill,
-            ForeColor = Ink, Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = false }, 0, 0);
-        var details = new Label { Text = (update.Kb.Length > 0 ? update.Kb + " · " : "") +
-            (update.Downloaded ? "Baixada" : "Download necessário") +
-            (update.EulaAccepted ? " · Licença já aceita" : " · Licença pendente no Windows Update"),
-            Dock = DockStyle.Fill, ForeColor = Muted, Font = new Font("Segoe UI", 8.7F) };
-        card.Controls.Add(details, 0, 1);
-        var toggle = CreateButton("Instalar", AppServices.Blue, Color.White);
-        toggle.Name = "V269InstallWindowsUpdate";
-        toggle.Tag = update;
-        toggle.AccessibleName = "Instalar atualização: " + update.Title;
-        toggle.Dock = DockStyle.Fill;
-        toggle.Enabled = WindowsUpdateViewActive && CanSelectWindowsUpdates && update.EulaAccepted;
-        toggle.Margin = Padding.Empty;
-        toggle.Click += async (_, _) =>
+        string description=(update.Kb.Length>0?update.Kb+" · ":"")+
+            (update.Downloaded?"Baixada":"Download necessário")+
+            (update.EulaAccepted?" · Licença já aceita":" · Licença pendente no Windows Update");
+        var row = new V269SystemUpdateRow(update.Title,description,"Instalar",_v269Appearance);
+        var toggle=row.Command!;
+        toggle.Name="V269InstallWindowsUpdate"; toggle.Tag=update;
+        toggle.AccessibleName="Instalar atualização: "+update.Title;
+        toggle.Enabled=WindowsUpdateViewActive && CanSelectWindowsUpdates && update.EulaAccepted;
+        toggle.Click += async (_,_) =>
         {
             if (!WindowsUpdateViewActive || _nav.SelectedPage != V269Page.Sistema ||
                 !CanSelectWindowsUpdates || !update.EulaAccepted ||
                 !_updateCatalog.Any(offer => EqualityComparer<WinUpdateChoice>.Default.Equals(offer, update))) return;
-            // Cada clique da interface seleciona exatamente uma identidade.
-            _updateSelection.Clear();
-            _updateSelection.Add(update.Id);
+            SetSystemView("update");
+            _updateSelection.Clear(); _updateSelection.Add(update.Id);
             await InstallSelectedWindowsUpdatesAsync();
         };
-        card.Controls.Add(toggle, 0, 2);
-        return card;
+        row.Click += (_,_)=>SetSystemView("update");
+        return row;
     }
 
-    private Control BuildWindowsUpdateResultCard(WinUpdateChoice update, int index)
-    {
-        var result = _lastWindowsUpdateOperation!;
-        string details = DescribeWindowsUpdateItem(result, index);
-        var card = new TableLayoutPanel
-        {
-            Width = 390, Height = 92, RowCount = 2, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
-            Padding = new Padding(8, 5, 8, 5), AccessibleName = update.Title
-        };
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
-        card.Controls.Add(new Label
-        {
-            Text = update.Title, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = true
-        }, 0, 0);
-        card.Controls.Add(new Label
-        {
-            Text = details, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.7F)
-        }, 0, 1);
-        return card;
-    }
+    private Control BuildWindowsUpdateResultCard(WinUpdateChoice update, int index) =>
+        new V269SystemUpdateRow(update.Title,DescribeWindowsUpdateItem(_lastWindowsUpdateOperation!,index),null,_v269Appearance);
 
     private static string DescribeWindowsUpdateItem(WindowsUpdateOperation result, int index)
     {
@@ -1037,6 +1052,9 @@ internal sealed partial class MainForm
             if (result.RequiresRestart)
                 Log("Windows Update: reinicialização necessária. Salve o trabalho e reinicie manualmente.");
             Status(result.RequiresRestart ? "Windows Update · reinicialização necessária" : result.Summary);
+            PresentV269ModuleResult(V269Page.Sistema,"Windows Update",result.Summary,
+                result.Outcome==WindowsUpdateOutcome.Installation && result.Items.Count==selected.Length &&
+                result.FullySucceeded);
             if (WindowsUpdateViewActive) DrawWindowsUpdates();
         });
     }
@@ -1052,8 +1070,7 @@ internal sealed partial class MainForm
             var sample = MemoryRamReader.Capture();
             if (!IsDisposed && sample is not null)
             {
-                if (Visible && !IsInTray && _nav.SelectedPage == V269Page.Sistema &&
-                    _activeSystemView == "memory")
+                if (Visible && !IsInTray && _nav.SelectedPage == V269Page.Sistema)
                     ShowMemoryRamSample(sample);
                 else
                     _memoryHistory.Add(sample);

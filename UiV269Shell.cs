@@ -49,7 +49,7 @@ internal sealed record V269FlowResult(V269Page Page, bool Complete, Action Dismi
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
     V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null,
-    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269AppDetailModel? Cleanup = null, V269Page? FlowPage = null, string? CancelLabel = null, V269AppDetailModel? Repair = null);
+    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269AppDetailModel? Cleanup = null, V269Page? FlowPage = null, string? CancelLabel = null, V269AppDetailModel? Repair = null, V269AppDetailModel? Module = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -100,6 +100,9 @@ internal sealed class V269RightPane : UserControl
     private bool _driversPage;
     private bool _cleanupPage;
     private bool _repairPage;
+    private V269Page? _modulePage;
+    private Func<V269Page,IReadOnlyList<V269AppPreviousResult>>? _moduleHistory;
+    private Action<Guid>? _moduleDismiss;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _repairHistoryProvider;
     private Action<Guid>? _repairHistoryDismiss;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _cleanupHistoryProvider;
@@ -274,6 +277,7 @@ internal sealed class V269RightPane : UserControl
                      previous.Driver is not null && !_driversPage ||
                      previous.Cleanup is not null && !_cleanupPage ||
                      previous.Repair is not null && !_repairPage ||
+                     previous.Module is not null && previous.FlowPage != _modulePage ||
                      previous.FlowResult is { } result && !IsFlowPageSelected(result.Page)))
                     previous = null;
                 PresentCore(previous);
@@ -287,6 +291,7 @@ internal sealed class V269RightPane : UserControl
         V269Page.Drivers => _driversPage,
         V269Page.Limpeza => _cleanupPage,
         V269Page.Reparo => _repairPage,
+        V269Page.Sistema or V269Page.Inicializacao => _modulePage==page,
         _ => true
     };
 
@@ -317,25 +322,28 @@ internal sealed class V269RightPane : UserControl
         _repairHistoryDismiss = dismiss;
         RefreshAppOperationHistory();
     }
-    internal void SetAppHistoryPage(bool active, bool drivers = false, bool cleanup = false, bool repair = false)
+    internal void SetAppHistoryPage(bool active, bool drivers = false, bool cleanup = false, bool repair = false, V269Page? module = null)
     {
         _appHistoryPage=active;
         _driversPage=drivers;
         _cleanupPage=cleanup;
         _repairPage=repair;
+        _modulePage=module;
         UpdateAppFlowScope();RefreshAppOperationHistory();FitOperationHistory();
     }
+    internal void ConfigureModuleHistory(Func<V269Page,IReadOnlyList<V269AppPreviousResult>> provider, Action<Guid> dismiss)
+    { _moduleHistory=provider;_moduleDismiss=dismiss; }
     private bool CleanupConfirmationChrome => _cleanupPage &&
         Current is { Kind: V269PanelKind.Confirmation, FlowPage: null or V269Page.Limpeza };
 
     private void UpdateAppFlowScope()
     {
         bool result = Current is { Kind: V269PanelKind.Result, FlowResult: { } flow } &&
-            flow.Page is (V269Page.Aplicativos or V269Page.Drivers or V269Page.Limpeza or V269Page.Reparo) &&
+            flow.Page is (V269Page.Aplicativos or V269Page.Drivers or V269Page.Limpeza or V269Page.Reparo or V269Page.Sistema or V269Page.Inicializacao) &&
             IsFlowPageSelected(flow.Page);
         bool active = result || Current is { Kind: V269PanelKind.Progress, CancelFlow: not null } ||
             Current is { Kind: V269PanelKind.Progress or V269PanelKind.Confirmation, FlowPage: V269Page.Reparo } ||
-            (_appHistoryPage || _driversPage || _cleanupPage || _repairPage) &&
+            (_appHistoryPage || _driversPage || _cleanupPage || _repairPage || _modulePage is not null) &&
                 Current?.Kind is (V269PanelKind.Confirmation or V269PanelKind.Progress);
         bool changed=active!=_appFlow;_appFlow=active;
         _appFlowHeading.Text = Current?.Kind switch
@@ -382,6 +390,8 @@ internal sealed class V269RightPane : UserControl
             _repairPage && flowPage is (null or V269Page.Reparo) ? _repairHistoryProvider : null;
         var dismiss = _appHistoryPage ? _appHistoryDismiss : _driversPage ? _driverHistoryDismiss :
             _cleanupPage ? _cleanupHistoryDismiss : _repairHistoryDismiss;
+        if(_modulePage is {} module && (flowPage is null || flowPage==module))
+        { provider=_moduleHistory is null?null:()=>_moduleHistory(module);dismiss=_moduleDismiss; }
         var currentId = Current?.FlowResult?.HistoryId;
         V269AppPreviousResult[] results = _appFlow
             ? provider?.Invoke().Where(entry => entry.Id != currentId).ToArray() ?? [] : [];
@@ -541,7 +551,7 @@ internal sealed class V269RightPane : UserControl
         }
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
-        var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver ?? presentation.Cleanup ?? presentation.Repair : null;
+        var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver ?? presentation.Cleanup ?? presentation.Repair ?? presentation.Module : null;
         bool structured = detail is not null;
         _structuredApp=structured;UpdateAppFlowScope();ApplyPaneSurface();
         _applicationDetails.Present(detail);
@@ -570,7 +580,7 @@ internal sealed class V269RightPane : UserControl
     {
         // A autorização de Aplicativos não exibe o status/log de uma execução anterior.
         // Os controles reais permanecem intactos e voltam durante o progresso.
-        bool show=!_driversPage&&!_repairPage&&!_structuredApp&&Current?.CancelFlow is null &&
+        bool show=!_driversPage&&!_repairPage&&!_structuredApp&&_modulePage is null&&Current?.CancelFlow is null &&
             Current?.FlowPage != V269Page.Reparo &&
             Current?.Kind != V269PanelKind.DriverReview && (!_appFlow||Current?.Kind==V269PanelKind.Progress);
         _operationContent.Visible=show;
@@ -1029,13 +1039,15 @@ internal sealed class V269Shell : UserControl
                 _rightPane.Present(null);
         }
         if (changed && (_rightPane.Current?.FlowResult is not null ||
+            (_rightPane.Current?.Module is not null && _rightPane.Current.FlowPage==SelectedPage) ||
             (SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
             (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
             (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza)) ||
             (SelectedPage == V269Page.Reparo && (_rightPane.Current?.Repair is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Reparo))))
             _rightPane.Present(null);
         SelectedPage = page;
-        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza, page==V269Page.Reparo);
+        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza, page==V269Page.Reparo,
+            page is V269Page.Sistema or V269Page.Inicializacao ? page : null);
         var descriptor = Pages[(int)page];
         _pageTitle.Text = descriptor.Title;
         _pageSubtitle.Text = descriptor.Subtitle;
@@ -1166,8 +1178,9 @@ internal sealed class V269Shell : UserControl
         bool apps=SelectedPage is V269Page.Aplicativos or V269Page.Drivers;
         bool repair = SelectedPage == V269Page.Reparo;
         bool cleanup = SelectedPage == V269Page.Limpeza;
-        bool split = apps || repair || cleanup;
-        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza;
+        bool modules = SelectedPage is V269Page.Sistema or V269Page.Inicializacao;
+        bool split = apps || repair || cleanup || modules;
+        bool home = true;
         int windowWidth = LayoutWindowWidth;
         // Início usa os breakpoints do CSS congelado, medidos pela janela.
         int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
@@ -1185,6 +1198,7 @@ internal sealed class V269Shell : UserControl
             V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
             V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
             _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };
+        if(SelectedPage==V269Page.Inicializacao) _homeGlyph.ForeColor=Theme==V269Theme.Claro?ColorTranslator.FromHtml("#ad690d"):ColorTranslator.FromHtml("#f2c477");
         _homeGlyph.Invalidate();
         _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 57 : 68) : 70;
@@ -1247,7 +1261,7 @@ internal sealed class V269Shell : UserControl
             showRight=mandatory||(!compact||(_appPaneOpen??retained));
             right=S(_appPaneWidth);
         }
-        if (repair) showRight = mandatory || windowWidth > 1040 || _compactPaneOpen;
+        if (repair || modules) showRight = mandatory || windowWidth > 1040 || _compactPaneOpen || (modules && retained);
         if (cleanup) showRight = mandatory || windowWidth > 1040 || _compactPaneOpen || retained;
         bool below=split&&windowWidth<=1040&&showRight;
         if(!showRight||split)right=0;

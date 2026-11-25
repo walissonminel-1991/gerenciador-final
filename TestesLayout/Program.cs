@@ -666,31 +666,16 @@ internal static class LayoutTests
                     }
                     if (tab == V269Page.Sistema)
                     {
-                        var descriptions = Descendants(form).OfType<Label>()
-                            .Where(label => label.Name.StartsWith("SystemActionDescription",
-                                StringComparison.Ordinal)).OrderBy(label => label.Name).ToArray();
-                        var expectedDescriptions = new[]
-                        {
-                            "Consumo e memória disponível. Histórico local, também na bandeja.",
-                            "Consulte e revise os planos de energia do Windows.",
-                            "Verifique e instale atualizações oficiais individualmente.",
-                            "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos."
-                        };
-                        if (descriptions.Length != 4 ||
-                            !descriptions.Select(x => x.Text).SequenceEqual(expectedDescriptions) ||
-                            descriptions.Any(x => x.Height < 35 || x.Width < 60))
-                            throw new Exception("Descricoes dos quatro botoes do Sistema ausentes ou comprimidas.");
-                        if (descriptions.Any(x => !x.Visible))
-                            throw new Exception("Descricoes do Sistema ocultas na aba selecionada.");
-                        foreach (var label in descriptions)
-                        {
-                            int heightNeeded = TextRenderer.MeasureText(label.Text,
-                                label.Font, new Size(Math.Max(80, label.ClientSize.Width -
-                                    label.Padding.Horizontal), 800),
-                                TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
-                            if (label.ClientSize.Height - label.Padding.Vertical + 4 < heightNeeded)
-                                throw new Exception($"Descricao cortada no Sistema: {name} / {label.Name}, altura={label.Height}, texto={heightNeeded}");
-                        }
+                        var modules=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269SystemModules");
+                        var update=modules.Controls.Find("V269WindowsUpdateSection",false).Single();
+                        var energy=modules.Controls.Find("V269EnergySection",false).Single();
+                        var ram=modules.Controls.Find("MemoryRamDashboard",false).Single();
+                        if(!update.Visible||!energy.Visible||!ram.Visible||
+                            update.Top>=energy.Top||energy.Top>=ram.Top||
+                            update.Right>modules.ClientSize.Width||energy.Right>modules.ClientSize.Width||
+                            ram.Right>modules.ClientSize.Width)
+                            throw new Exception("Sistema: três módulos devem coexistir e respeitar o viewport.");
+
                     }
 
                     // Somente a pagina pode rolar quando o conteudo ultrapassar
@@ -868,7 +853,7 @@ internal static class LayoutTests
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         setSystemView.Invoke(form, ["energy"]);
         Application.DoEvents();
-        var activateButtons = Descendants(form).OfType<ModernButton>()
+        var activateButtons = Descendants(form).OfType<Button>()
             .Where(b => b.Text == "Ativar" && b.Parent is TableLayoutPanel).ToArray();
         if (activateButtons.Length != 3 ||
             activateButtons.Any(b => b.Width > 130 || b.Height > 33))
@@ -931,9 +916,9 @@ internal static class LayoutTests
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
         // DRIVERS agora usa a mesma lista virtualizada de Aplicativos,
-        // sem rolagem externa duplicada. Outras quatro paginas a preservam.
-        if (pageViewports.Length != 4)
-            throw new Exception($"Esperadas quatro paginas com rolagem controlada e " +
+        // sem rolagem externa duplicada. Limpeza, Reparo e Sistema têm um viewport cada.
+        if (pageViewports.Length != 3)
+            throw new Exception($"Esperadas três páginas com rolagem controlada e " +
                 $"DRIVERS com lista propria; encontradas {pageViewports.Length}");
         var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
             .SelectMany(flow => flow.Content.Controls.Cast<Control>());
@@ -1098,9 +1083,7 @@ internal static class LayoutTests
     {
         var graph = Descendants(form).OfType<MemoryRamChart>().Single();
         if (!graph.Visible ||
-            Descendants(form).OfType<Button>().All(x =>
-                x.Name != "OpenWindowsTaskManager" || x.Text != "Abrir tarefas" ||
-                x.AccessibleName?.Contains("Gerenciador de Tarefas", StringComparison.Ordinal) != true) ||
+            graph.ContextMenuStrip?.Items.Cast<ToolStripItem>().Any(x=>x.Text=="Abrir Gerenciador de Tarefas")!=true ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryAutoOptimization") ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryManualOptimization") ||
             Descendants(form).OfType<Label>().All(x => x.Name != "MemoryCandidates"))

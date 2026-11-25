@@ -199,108 +199,96 @@ internal sealed partial class MainForm
 
     private Control BuildEnergyPanel()
     {
-        var root = new TableLayoutPanel
+        var root=new V269CleanupSection
         {
-            Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1,
-            Padding = new Padding(8, 6, 8, 6), Margin = Padding.Empty,
-            BackColor = AppServices.Background
+            Name="V269EnergySection",Dock=DockStyle.Fill,RowCount=3,ColumnCount=1,
+            BackColor=Color.Transparent,Padding=new Padding(12),Margin=new Padding(0,0,0,7)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 172));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        var header = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
-            BackColor = AppServices.Background };
-        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
-        header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        header.Controls.Add(new Label { Text = "PLANOS DE ENERGIA", Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 13F, FontStyle.Bold), ForeColor = Ink,
-            TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        _currentPowerLabel.Text = "Consultando o plano ativo do Windows...";
-        _currentPowerLabel.Dock = DockStyle.Fill;
-        _currentPowerLabel.ForeColor = Muted;
-        _currentPowerLabel.TextAlign = ContentAlignment.MiddleLeft;
-        header.Controls.Add(_currentPowerLabel, 0, 1);
-        root.Controls.Add(header, 0, 0);
-
-        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
-            BackColor = AppServices.Background, Margin = Padding.Empty };
-        for (int i = 0; i < 3; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100 / 3f));
-        grid.Controls.Add(PowerCard("balanced", "PADRÃO", "Equilibrado: ajusta o consumo conforme a atividade. Recomendado para uso diário.", AppServices.Blue), 0, 0);
-        grid.Controls.Add(PowerCard("saver", "ECONOMIA", "Prioriza economia de energia. Pode limitar parte do desempenho.", AppServices.Green), 1, 0);
-        grid.Controls.Add(PowerCard("ultimate", "DESEMPENHO MÁXIMO", "Plano oficial Ultimate Performance. Pode aumentar consumo, calor e ruído. Sem garantia de ganho em jogos.", AppServices.Orange), 2, 0);
-        root.Controls.Add(grid, 0, 1);
-
-        var hibernate = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 2,
-            BackColor = PanelBackground, Padding = new Padding(11, 7, 11, 7), Margin = new Padding(3, 3, 3, 0) };
-        hibernate.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        hibernate.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 123));
-        hibernate.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        hibernate.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        hibernate.Controls.Add(new Label { Text = "HIBERNAÇÃO", Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        _hibernateStateLabel.Text = "Consultando o estado...";
-        _hibernateStateLabel.Dock = DockStyle.Fill;
-        _hibernateStateLabel.ForeColor = Muted;
-        _hibernateStateLabel.TextAlign = ContentAlignment.MiddleLeft;
-        hibernate.Controls.Add(_hibernateStateLabel, 0, 1);
-        _hibernateToggle = CreateSecondaryButton("Consultar...");
-        _hibernateToggle.Dock = DockStyle.None;
-        _hibernateToggle.Anchor = AnchorStyles.Right | AnchorStyles.Top;
-        _hibernateToggle.Size = new Size(108, 30);
-        _hibernateToggle.Margin = new Padding(2, 7, 0, 0);
-        _hibernateToggle.Enabled = false;
-        _hibernateToggle.Click += async (_, _) => await ToggleHibernateAsync();
-        _actionControls.Add(_hibernateToggle);
-        hibernate.Controls.Add(_hibernateToggle, 1, 0);
-        hibernate.SetRowSpan(_hibernateToggle, 2);
-        root.Controls.Add(hibernate, 0, 2);
-        var restoreRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
-            Margin = new Padding(5, 2, 5, 0), BackColor = AppServices.Background };
-        restoreRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        restoreRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 194));
-        restoreRow.Controls.Add(new Label { Text = "Reversão disponível nesta sessão, após uma alteração feita pelo Gerenciador.",
-            Dock = DockStyle.Fill, ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        _restorePreviousPowerButton = CreateSecondaryButton("Restaurar plano anterior");
-        _restorePreviousPowerButton.Dock = DockStyle.Fill;
-        _restorePreviousPowerButton.Margin = new Padding(3, 5, 0, 5);
-        _restorePreviousPowerButton.Enabled = false;
-        _restorePreviousPowerButton.Click += async (_, _) => await RestorePreviousPowerAsync();
-        _actionControls.Add(_restorePreviousPowerButton);
-        restoreRow.Controls.Add(_restorePreviousPowerButton, 1, 0);
-        root.Controls.Add(restoreRow, 0, 3);
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,37));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,108));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,42));
+        var heading=new Label{Text="Planos de Energia",Dock=DockStyle.Fill,Font=new Font("Segoe UI",11.5f,FontStyle.Bold),ForeColor=Ink,TextAlign=ContentAlignment.MiddleLeft};
+        heading.Click+=(_,_)=>SetSystemView("energy");
+        _currentPowerLabel.Text="Aguardando consulta ao Windows";
+        root.Controls.Add(heading,0,0);
+        var grid = new TableLayoutPanel {Name="V269PowerPlans",Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=Padding.Empty,BackColor=Color.Transparent};
+        for(int i=0;i<3;i++)grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/3));
+        grid.Controls.Add(PowerCard("balanced","Padrão","Equilíbrio no uso diário.",AppServices.Blue),0,0);
+        grid.Controls.Add(PowerCard("saver","Economia","Menor consumo de energia.",AppServices.Green),1,0);
+        grid.Controls.Add(PowerCard("ultimate","Desempenho máximo","Prioriza desempenho.",AppServices.Orange),2,0);
+        root.Controls.Add(grid,0,1);
+        var secondary=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,BackColor=Color.Transparent,Margin=Padding.Empty};
+        secondary.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,83));
+        secondary.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,48));
+        secondary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        secondary.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,142));
+        secondary.Controls.Add(new Label{Text="Hibernação",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Ink},0,0);
+        _hibernateToggle=new V269SystemSwitch("V269Hibernation","Hibernação"){Dock=DockStyle.None,Anchor=AnchorStyles.Left,Size=new Size(43,24),Enabled=false,Margin=Padding.Empty};
+        _hibernateToggle.Click+=async (_,_)=>{SetSystemView("energy");await ToggleHibernateAsync();};
+        _actionControls.Add(_hibernateToggle);secondary.Controls.Add(_hibernateToggle,1,0);
+        _hibernateStateLabel.Text="Aguardando consulta";_hibernateStateLabel.Dock=DockStyle.Fill;_hibernateStateLabel.TextAlign=ContentAlignment.MiddleLeft;_hibernateStateLabel.ForeColor=Muted;
+        secondary.Controls.Add(_hibernateStateLabel,2,0);
+        _restorePreviousPowerButton=new V269CleanupButton("Restaurar plano","refresh"){Dock=DockStyle.Fill,Margin=new Padding(1,5,0,5),Enabled=false,AccessibleName="Restaurar plano anterior"};
+        _restorePreviousPowerButton.Click+=async (_,_)=>{SetSystemView("energy");await RestorePreviousPowerAsync();};
+        _actionControls.Add(_restorePreviousPowerButton);secondary.Controls.Add(_restorePreviousPowerButton,3,0);
+        root.Controls.Add(secondary,0,2);
+        bool? compact=null;
+        void Fit()
+        {
+            if(root.Width<=0)return;
+            int S(int n)=>V269AppTable.Scale(n,_v269Appearance.InterfacePercent,root.DeviceDpi);
+            bool small=root.ClientSize.Width-root.Padding.Horizontal<S(415);
+            if(compact!=small)
+            {
+                compact=small;secondary.SuspendLayout();
+                try
+                {
+                    secondary.SetCellPosition(_restorePreviousPowerButton,new TableLayoutPanelCellPosition(small?0:3,small?1:0));
+                    secondary.SetColumnSpan(_restorePreviousPowerButton,small?4:1);
+                    secondary.ColumnStyles[3].Width=small?0:S(142);
+                    secondary.RowCount=small?2:1;secondary.RowStyles.Clear();
+                    for(int i=0;i<secondary.RowCount;i++)secondary.RowStyles.Add(new RowStyle(SizeType.Percent,100f/secondary.RowCount));
+                }
+                finally{secondary.ResumeLayout(true);}
+            }
+            int columns=root.ClientSize.Width-root.Padding.Horizontal<S(325)?1:3;
+            if(grid.ColumnCount!=columns)
+            {
+                grid.SuspendLayout();
+                var cards=grid.Controls.Cast<Control>().ToArray();grid.ColumnCount=columns;grid.RowCount=3/columns;
+                grid.ColumnStyles.Clear();grid.RowStyles.Clear();
+                for(int i=0;i<columns;i++)grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/columns));
+                for(int i=0;i<grid.RowCount;i++)grid.RowStyles.Add(new RowStyle(SizeType.Percent,100f/grid.RowCount));
+                for(int i=0;i<cards.Length;i++)grid.SetCellPosition(cards[i],new TableLayoutPanelCellPosition(i%columns,i/columns));
+                grid.ResumeLayout(true);
+            }
+            root.RowStyles[0].Height=S(34);
+            root.RowStyles[1].Height=(3/columns)*S(root.Width<S(535)?126:108);
+            root.RowStyles[2].Height=S(small?76:42);
+        }
+        root.SizeChanged+=(_,_)=>Fit();root.Tag=(Action)Fit;Fit();
         return root;
     }
 
-    private Control PowerCard(string key, string title, string description, Color accent)
+    private Control PowerCard(string key,string title,string description,Color accent)
     {
-        var card = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1,
-            BackColor = PanelBackground, Padding = new Padding(9, 6, 9, 5), Margin = new Padding(3, 3, 3, 4) };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
-        card.Controls.Add(new Label { Text = title, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-            AutoEllipsis = false, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        card.Controls.Add(new Label { Text = description, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 9F), TextAlign = ContentAlignment.TopLeft }, 0, 1);
-        var badge = new Label { Text = "Consultando...", Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft };
-        _powerBadges[key] = badge;
-        card.Controls.Add(badge, 0, 2);
-        var button = CreateButton("Ativar", accent, Color.White);
-        button.Dock = DockStyle.None;
-        button.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
-        button.Size = new Size(112, 30);
-        button.Enabled = false;
-        button.Margin = Padding.Empty;
-        button.Click += async (_, _) => await ChoosePowerPlanAsync(key, title);
-        _actionControls.Add(button);
-        _powerButtons[key] = button;
-        card.Controls.Add(button, 0, 3);
+        var card=new V269CleanupSection{Dock=DockStyle.Fill,RowCount=4,ColumnCount=1,BackColor=Color.Transparent,
+            Padding=new Padding(8,6,8,5),Margin=new Padding(0,1,6,3),AccessibleName=title,TabStop=true};
+        card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute,24));card.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute,17));card.RowStyles.Add(new RowStyle(SizeType.Absolute,28));
+        var name=new Label{Text=title,Dock=DockStyle.Fill,ForeColor=Ink,Font=new Font("Segoe UI",9.75f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
+        var hint=new Label{Text=description,Dock=DockStyle.Fill,ForeColor=Muted,Font=new Font("Segoe UI",8.5f)};
+        card.Controls.Add(name,0,0);card.Controls.Add(hint,0,1);
+        name.Click+=(_,_)=>SetSystemView("energy");hint.Click+=(_,_)=>SetSystemView("energy");card.Click+=(_,_)=>SetSystemView("energy");
+        var badge=new Label{Text="Aguardando consulta",Dock=DockStyle.Fill,ForeColor=Muted,Font=new Font("Segoe UI",8f),TextAlign=ContentAlignment.MiddleLeft,AutoEllipsis=true};
+        _powerBadges[key]=badge;card.Controls.Add(badge,0,2);
+        var button=new V269CleanupButton("Ativar","check"){Dock=DockStyle.None,Anchor=AnchorStyles.Right|AnchorStyles.Bottom,
+            Size=new Size(87,28),Enabled=false,Margin=Padding.Empty,AccessibleName="Ativar plano "+title};
+        button.Click+=async (_,_)=>{SetSystemView("energy");await ChoosePowerPlanAsync(key,title);};
+        _actionControls.Add(button);_powerButtons[key]=button;card.Controls.Add(button,0,3);
+        card.SizeChanged+=(_,_)=>{button.Width=Math.Min(96,Math.Max(1,card.ClientSize.Width-card.Padding.Horizontal));};
         return card;
     }
 
@@ -326,9 +314,9 @@ internal sealed partial class MainForm
             foreach (string key in _powerButtons.Keys)
             {
                 bool selected = snapshot.ActiveGuid is not null && snapshot.For(key) == snapshot.ActiveGuid;
-                _powerBadges[key].Text = selected ? "● ATIVO" : snapshot.For(key) is not null ? "Disponível" : "Pode exigir criação do plano";
+                _powerBadges[key].Text = selected ? "Ativo" : snapshot.For(key) is not null ? "Disponível" : "A confirmar";
                 _powerBadges[key].ForeColor = selected ? Color.FromArgb(117, 221, 167) : Muted;
-                _powerButtons[key].Text = selected ? "Plano ativo" : "Ativar";
+                _powerButtons[key].Text = selected ? "Ativo" : "Ativar";
                 _powerButtons[key].Enabled = !_busy && !selected && snapshot.Error is null;
             }
             if (_restorePreviousPowerButton is not null)
@@ -336,6 +324,7 @@ internal sealed partial class MainForm
                     snapshot.ActiveGuid != _previousPowerGuid;
             if (_hibernateToggle is not null)
             {
+                if(_hibernateToggle is V269SystemSwitch toggle)toggle.SetState(_hibernateEnabled);
                 _hibernateToggle.Text = _hibernateEnabled switch
                 {
                     true => "Desativar",
@@ -345,8 +334,8 @@ internal sealed partial class MainForm
                 _hibernateToggle.Enabled = !_busy && _hibernateEnabled is not null;
                 _hibernateStateLabel.Text = _hibernateEnabled switch
                 {
-                    true => "Configuração ativada. Desativar pode afetar a Inicialização Rápida.",
-                    false => "Configuração desativada. Ativar requer espaço para o arquivo de hibernação.",
+                    true => "Ativada",
+                    false => "Desativada",
                     _ => "Estado não disponível neste computador. Nenhuma alteração será feita."
                 };
             }
@@ -356,7 +345,7 @@ internal sealed partial class MainForm
             _currentPowerLabel.Text = "Erro na consulta de energia: " + ex.Message;
             Log("Energia: " + ex.Message);
         }
-        finally { _refreshingEnergy = false; }
+        finally { _refreshingEnergy = false; if(_nav.SelectedPage==V269Page.Sistema) PresentV269SystemDetails(); }
     }
 
     private async Task ChoosePowerPlanAsync(string key, string title)
@@ -378,6 +367,8 @@ internal sealed partial class MainForm
                 _previousPowerGuid = before;
                 Log("Plano anterior guardado somente na memória desta sessão para reversão.");
             }
+            bool verified=after.ActiveGuid is Guid active && after.For(key)==active;
+            PresentV269ModuleResult(V269Page.Sistema,"Ativar "+title,verified?"Plano ativo confirmado pelo Windows.":"Não foi possível confirmar a ativação do plano.",verified);
         });
         await RefreshEnergyInfoAsync();
     }
@@ -397,6 +388,7 @@ internal sealed partial class MainForm
                 Log("Plano anterior restaurado; reversão da sessão concluída.");
             }
             else Log("Restauração não confirmada; consulte o registro da operação.");
+            PresentV269ModuleResult(V269Page.Sistema,"Restaurar plano anterior",now.ActiveGuid==previous?"Plano anterior confirmado.":"Restauração não confirmada.",now.ActiveGuid==previous);
         });
         await RefreshEnergyInfoAsync();
     }
@@ -413,6 +405,8 @@ internal sealed partial class MainForm
         {
             await RunElevatedAsync(enable ? "hibernate-on" : "hibernate-off");
             await RefreshEnergyInfoAsync();
+            bool verified=_hibernateEnabled==enable;
+            PresentV269ModuleResult(V269Page.Sistema,"Hibernação",verified?"Estado confirmado pelo Windows.":"Alteração não confirmada.",verified);
         });
         await RefreshEnergyInfoAsync();
     }

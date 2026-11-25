@@ -38,10 +38,10 @@ internal sealed partial class MainForm
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
-        bool themedTools = trackCleaning || trackRepair;
+        bool themedTools = trackCleaning || trackRepair || trackSystem;
         if (themedTools)
         {
-            host.Name = trackCleaning ? "V269CleanupViewport" : "V269RepairViewport";
+            host.Name = trackCleaning ? "V269CleanupViewport" : trackRepair ? "V269RepairViewport" : "V269SystemViewport";
             host.ApplyCleanupSurface(_v269Appearance.Theme);
         }
         host.Content.Padding = Padding.Empty;

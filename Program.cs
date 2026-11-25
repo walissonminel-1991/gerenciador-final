@@ -793,7 +793,7 @@ internal sealed partial class MainForm : Form
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza ? 0 : _caption?.Height ?? 0;
+            int caption = 0;
             var bounds = new Rectangle(
                 0, caption, Math.Max(1, ClientSize.Width),
                 Math.Max(1, ClientSize.Height - caption));
@@ -808,7 +808,7 @@ internal sealed partial class MainForm : Form
         if (_caption is not null) _caption.Visible = false;
         void ApplyHomeChrome()
         {
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza;
+            bool home = true;
             if (homeChrome != home)
             {
                 // Nos testes de viewport a superfície interna tem largura
@@ -837,6 +837,7 @@ internal sealed partial class MainForm : Form
         _nav.RightPane.ConfigureAppHistory(()=>_v269AppPreviousResults.ToArray(),DismissV269AppResult);
         _nav.RightPane.ConfigureCleanupHistory(()=>_v269CleanupPreviousResults.ToArray(),DismissV269CleanupResult);
         _nav.RightPane.ConfigureRepairHistory(() => _v269RepairPreviousResults.ToArray(), DismissV269RepairResult);
+        _nav.RightPane.ConfigureModuleHistory(V269ModuleHistory,DismissV269ModuleResult);
         _nav.NavigationChanged += async (_, e) =>
         {
             ApplyHomeChrome();
@@ -845,16 +846,19 @@ internal sealed partial class MainForm : Form
             if(e.Page==V269Page.Drivers) _presentV269DriverDetails?.Invoke(false);
             if(e.Page==V269Page.Limpeza) PresentV269CleanupRetained();
             if(e.Page==V269Page.Reparo) PresentV269RepairRetained();
+            if(e.Page is V269Page.Sistema or V269Page.Inicializacao) PresentV269ModuleRetained(e.Page);
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
             if (!startServices || _v269Confirming) return;
             if (e.Page == V269Page.Limpeza) await RefreshDiskUsageAsync();
             if (e.Page == V269Page.Inicializacao) await RefreshStartupEntriesAsync();
-            if (e.Page == V269Page.Sistema && _activeSystemView == "memory")
-                await RefreshMemoryRamAsync();
-            if (e.Page == V269Page.Sistema && _activeSystemView == "update")
+            if (e.Page == V269Page.Sistema)
+            {
                 DrawWindowsUpdates();
+                await RefreshMemoryRamAsync();
+                await RefreshEnergyInfoAsync();
+            }
             if (e.Page == V269Page.Inicio && !_v269HardwareLoaded)
                 await RefreshV269HardwareAsync();
         };
@@ -865,7 +869,7 @@ internal sealed partial class MainForm : Form
         {
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza;
+            bool home = true;
             int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
                 V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))
@@ -2512,7 +2516,7 @@ internal sealed partial class MainForm : Form
             _nav.RightPane.Current is not {Kind:V269PanelKind.Result})
             _nav.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento",text,CancelFlow:RequestCleanupCancellation,FlowPage:V269Page.Limpeza,CancelLabel:"Cancelar limpeza"));
         else if (_busy && _nav.RightPane.Current is not ({ Kind: V269PanelKind.Result } or { CancelFlow: not null }))
-            _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text));
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text, FlowPage:_nav.RightPane.Current?.FlowPage));
         _toolTips.SetToolTip(_status, _v269CleanupExecutionActive || _v269RepairExecutionActive ||
             _nav.SelectedPage is V269Page.Limpeza or V269Page.Reparo ? null : text);
     }
@@ -2556,7 +2560,8 @@ internal sealed partial class MainForm : Form
         _status.Text = description;
         if (repairExecution) PresentV269RepairProgress(description);
         else if (!quietStartup)
-            _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", description));
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", description, FlowPage:
+                _nav.SelectedPage is V269Page.Sistema or V269Page.Inicializacao ? _nav.SelectedPage : null));
         try { await work(); }
         catch (Exception ex) { if (!IsDisposed && !Disposing && !_betaClose.IsShutdown) ReportError(ex); }
         finally
@@ -2613,7 +2618,7 @@ internal sealed partial class MainForm : Form
                 RefreshWindowsUpdateInstallButton();
                 if (_nav.SelectedPage == V269Page.Limpeza)
                     _ = RefreshDiskUsageAsync();
-                if (_nav.SelectedPage == V269Page.Sistema && _activeSystemView == "energy")
+                if (_nav.SelectedPage == V269Page.Sistema)
                     _ = RefreshEnergyInfoAsync();
                 if (!quietStartup) NotifyV269OperationResult();
                 if (!_batchUpdatesActive) ExitAfterCurrentOperation();

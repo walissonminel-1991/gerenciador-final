@@ -738,36 +738,54 @@ internal sealed partial class MainForm
 
     private Control BuildV269StartupPage()
     {
-        var page = new TableLayoutPanel { Name = "V269StartupPage", ColumnCount = 1, RowCount = 3 };
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        page.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var refresh = CreateSecondaryButton("Consultar inicialização");
-        refresh.Dock = DockStyle.Fill;
-        refresh.Click += async (_, _) => await RefreshStartupEntriesAsync();
-        page.Controls.Add(refresh, 0, 0);
-        page.Controls.Add(_v269StartupTitle, 0, 1);
-        page.Controls.Add(_v269StartupCards, 0, 2);
-        _v269StartupCards.Content.SizeChanged += (_, _) => ResizeV269StartupCards();
+        var page = new Panel { Name="V269StartupPage",Dock=DockStyle.Fill,BackColor=Color.Transparent };
+        _v269StartupCards.Name="V269StartupViewport";
+        _v269StartupCards.Margin=Padding.Empty;
+        _v269StartupCards.ApplyCleanupSurface(_v269Appearance.Theme);
+        _v269StartupCards.Content.Padding=Padding.Empty;
+        page.Controls.Add(_v269StartupCards);
+        _v269StartupTitle.Dock=DockStyle.Top;
+        _v269StartupTitle.Height=30;
+        _v269StartupTitle.ForeColor=Muted;
+        page.Controls.Add(_v269StartupTitle);
+        _v269StartupTitle.BringToFront();
+        _v269StartupCards.Content.SizeChanged+=(_,_)=>ResizeV269StartupCards();
+        _v269StartupCards.ToolViewportResized+=(_,_)=>ResizeV269StartupCards();
+        _v269StartupCards.DpiChangedAfterParent+=(_,_)=>ResizeV269StartupCards();
         return page;
     }
 
-    private void ResizeV269StartupCards() => SizeV269Cards(_v269StartupCards);
-
-    private static void SizeV269Cards(DarkScrollableFlow host)
+    private void ResizeV269StartupCards()
     {
-        var flow = host.Content;
-        int space = flow.ClientSize.Width - flow.Padding.Horizontal;
-        if (space <= 0 || host.IsDisposed) return;
-        int columns = StartupCardLayout.ColumnsForSpace(space, flow.DeviceDpi);
-        int width = StartupCardLayout.CardWidth(space, columns, flow.DeviceDpi);
-        flow.SuspendLayout();
+        if(_fittingV269Startup||_v269StartupCards.IsDisposed)return;
+        _fittingV269Startup=true;
         try
         {
-            foreach (Control card in flow.Controls)
-                if (card.Width != width) card.Width = width;
+            var flow=_v269StartupCards.Content;
+            for(int pass=0;pass<2;pass++)
+            {
+                int width=Math.Max(1,flow.ClientSize.Width-flow.Padding.Horizontal);
+                int S(int n)=>V269AppTable.Scale(n,_v269Appearance.InterfacePercent,_v269StartupCards.DeviceDpi);
+                int columns=width>=S(540)?3:width>=S(330)?2:1,gap=S(9);
+                var cards=flow.Controls.OfType<V269StartupCard>().ToArray();
+                int w=Math.Max(1,(width-gap*(columns-1)-1)/columns);
+                flow.SuspendLayout();
+                try
+                {
+                    for(int i=0;i<cards.Length;i+=columns)
+                    {
+                        var row=cards.Skip(i).Take(columns).ToArray();
+                        int h=row.Max(c=>c.HeightForWidth(w));
+                        for(int j=0;j<row.Length;j++)
+                        {row[j].Margin=new Padding(0,0,j==columns-1?0:gap,gap);row[j].Size=new Size(w,h);}
+                    }
+                }
+                finally{flow.ResumeLayout(true);}
+                _v269StartupCards.Reflow();
+                if(flow.ClientSize.Width-flow.Padding.Horizontal==width)break;
+            }
         }
-        finally { flow.ResumeLayout(true); }
+        finally{_fittingV269Startup=false;}
     }
 
     private V269GeneralOptions _v269General = new();
@@ -1052,6 +1070,8 @@ internal sealed partial class MainForm
             _fitV269CleanupDiskSection?.Invoke();
             _relayoutCleaning?.Invoke();
             _relayoutRepair?.Invoke();
+            _relayoutSystem?.Invoke();
+            ResizeV269StartupCards();
             if (_log.Parent is { } logHost) ApplyV269ContentAppearance(logHost);
             return;
         }
@@ -1096,12 +1116,16 @@ internal sealed partial class MainForm
         }
         if(root is V269AppSearchBox appSearch){appSearch.ApplyOptions(_v269Appearance);return;}
         if(root is V269AppToolbarButton appButton){appButton.ApplyOptions(_v269Appearance);return;}
+        if(root is V269StartupCard startupCard){startupCard.ApplyOptions(_v269Appearance);return;}
+        if(root is V269SystemUpdateRow updateRow){updateRow.ApplyOptions(_v269Appearance);return;}
+        if(root is V269SystemSwitch systemSwitch){systemSwitch.ApplyOptions(_v269Appearance);return;}
+        if(root is MemoryRamChart ramChart){ramChart.ApplyOptions(_v269Appearance);return;}
         if(root is V269ToolCard toolCard){toolCard.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupButton cleanupButton){cleanupButton.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupDiskCard cleanupDisk){cleanupDisk.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupSection cleanupSection)cleanupSection.ApplyOptions(_v269Appearance);
         if(root is DarkScrollableFlow cleanupFlow &&
-            root.Name is ("V269CleanupActions" or "V269CleanupViewport" or "V269CleanupDiskList" or "RepairActions" or "V269RepairViewport"))
+            root.Name is ("V269CleanupActions" or "V269CleanupViewport" or "V269CleanupDiskList" or "RepairActions" or "V269RepairViewport" or "V269SystemViewport" or "V269SystemUpdateList" or "V269StartupViewport"))
             cleanupFlow.ApplyCleanupSurface(_v269Appearance.Theme);
         if((root.Name is "V269CleanupActions" or "RepairActions") && root.Tag is Action fitTools)fitTools();
         if(root==_diskCards)ResizeDiskCards();
@@ -1214,7 +1238,8 @@ internal sealed partial class MainForm
         try
         {
             bool accepted = await _nav.RightPane.ConfirmAsync(title, description, token,
-                _v269RepairCommand is not null ? V269Page.Reparo : null);
+                _v269RepairCommand is not null ? V269Page.Reparo :
+                _nav.SelectedPage is V269Page.Sistema or V269Page.Inicializacao ? _nav.SelectedPage : null);
             return accepted && !IsDisposed && !Disposing && !_betaClose.IsClosing && !token.IsCancellationRequested;
         }
         finally
@@ -1232,6 +1257,8 @@ internal sealed partial class MainForm
                         case V269Page.Drivers: _presentV269DriverDetails?.Invoke(false); break;
                         case V269Page.Limpeza: PresentV269CleanupRetained(); break;
                         case V269Page.Reparo: PresentV269RepairRetained(); break;
+                        case V269Page.Sistema: PresentV269SystemDetails(); break;
+                        case V269Page.Inicializacao: PresentV269StartupDetails(); break;
                     }
                 }
             }

@@ -42,6 +42,28 @@ internal static class V269CleanupGlyph
                 g.DrawRectangle(pen,6,6,12,12);g.DrawRectangle(pen,9,9,6,6);
                 foreach(int x in new[]{9,15}){g.DrawLine(pen,x,2,x,6);g.DrawLine(pen,x,18,x,22);g.DrawLine(pen,2,x,6,x);g.DrawLine(pen,18,x,22,x);}
                 break;
+            case "power":
+                g.DrawArc(pen,4,4,16,16,-50,280);g.DrawLine(pen,12,2,12,12);break;
+            case "bolt":
+                g.DrawPolygon(pen,new Point[]{new(13,2),new(4,14),new(11,14),new(10,22),new(20,10),new(13,10)});break;
+            case "memory":
+                g.DrawRectangle(pen,2,6,20,11);
+                foreach(int x in new[]{5,10,15})g.DrawRectangle(pen,x,9,3,5);
+                foreach(int x in new[]{5,9,13,17,21})g.DrawLine(pen,x,17,x,20);break;
+            case "clock":
+                g.DrawEllipse(pen,3,3,18,18);g.DrawLines(pen,new Point[]{new(12,6),new(12,12),new(16,14)});break;
+            case "document":
+                g.DrawPolygon(pen,new Point[]{new(5,3),new(14,3),new(20,9),new(20,21),new(5,21)});
+                g.DrawLines(pen,new Point[]{new(14,3),new(14,9),new(20,9)});g.DrawLine(pen,8,13,17,13);g.DrawLine(pen,8,17,17,17);break;
+            case "apps":
+                for(int x=3;x<=14;x+=11)for(int y=3;y<=14;y+=11)g.DrawRectangle(pen,x,y,7,7);break;
+            case "lock":
+                g.DrawArc(pen,7,2,10,12,180,180);g.DrawRectangle(pen,5,10,14,11);g.DrawLine(pen,12,14,12,17);break;
+            case "download":
+                g.DrawLine(pen,12,2,12,16);g.DrawLines(pen,new Point[]{new(6,10),new(12,16),new(18,10)});
+                g.DrawLines(pen,new Point[]{new(3,16),new(3,21),new(21,21),new(21,16)});break;
+            case "check":
+                g.DrawLines(pen,new Point[]{new(4,12),new(9,17),new(20,6)});break;
             case "search":
                 g.DrawEllipse(pen,3,3,15,15); g.DrawLine(pen,16,16,21,21);
                 break;

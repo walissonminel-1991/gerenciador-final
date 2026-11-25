@@ -153,6 +153,7 @@ internal static class V269IntegrationTests
         Timed("Drivers", () => VerifyDrivers(form,shell));
         Timed("Limpeza", () => VerifyCleanup(form,shell));
         Timed("Reparo", () => VerifyRepair(form,shell));
+        Timed("Sistema e Inicialização",()=>VerifyLastTabs(form,shell));
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
@@ -1076,6 +1077,85 @@ internal static class V269IntegrationTests
             SynchronizationContext.SetSynchronizationContext(oldContext);
             history.Clear(); theme.SelectedIndex = originalTheme; surface.Size = originalSize;
             shell.SelectPage(originalPage); shell.PresentPanel(originalPanel);
+        }
+    }
+
+    private static void VerifyLastTabs(MainForm form,V269Shell shell)
+    {
+        const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
+        var surface=form.Controls.OfType<TableLayoutPanel>().Single();
+        var theme=form.Controls.Find("V269ThemeChoice",true).OfType<ComboBox>().Single();
+        var savedSize=surface.Size;int savedTheme=theme.SelectedIndex;
+        var savedContext=SynchronizationContext.Current;
+        var catalog=typeof(MainForm).GetField("_updateCatalog",flags)!;
+        var checkedField=typeof(MainForm).GetField("_windowsUpdateChecked",flags)!;
+        var draw=typeof(MainForm).GetMethod("DrawWindowsUpdates",flags)!;
+        var setModule=typeof(MainForm).GetMethod("SetSystemView",flags)!;
+        var refresh=typeof(MainForm).GetMethod("RefreshStartupEntriesAsync",flags)!;
+        var confirm=typeof(MainForm).GetMethod("ConfirmV269Async",flags)!;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(new PaneTestSynchronizationContext(form));
+            shell.PresentPanel(null);shell.SelectPage(V269Page.Sistema);
+            draw.Invoke(form,null);
+            Require(form.Controls.Find("WindowsUpdateExplicitSearch",true).OfType<Button>().Single().Enabled&&
+                !(bool)checkedField.GetValue(form)!,"Windows Update aguarda comando e não busca ao abrir");
+            catalog.SetValue(form,new WinUpdateChoice[]{
+                new("00000000-0000-0000-0000-000000000101:1","Atualização cumulativa de teste","KB-FIXTURE",false,true),
+                new("00000000-0000-0000-0000-000000000102:1","Atualização com licença pendente","KB-FIXTURE",true,false)});
+            checkedField.SetValue(form,true);draw.Invoke(form,null);
+            var installs=form.Controls.Find("V269InstallWindowsUpdate",true).OfType<Button>().ToArray();
+            Require(installs.Length==2&&installs[0].Enabled&&!installs[1].Enabled,"ofertas e licença real governam cada botão");
+            form.PreviewMemoryRamForTests(new MemoryRamSample(DateTime.UtcNow,32UL<<30,18UL<<30));
+            form.PreviewMemoryRamForTests(new MemoryRamSample(DateTime.UtcNow,32UL<<30,16UL<<30));
+            Directory.CreateDirectory("LayoutCaptures");
+            foreach(var size in new[]{new Size(1844,1116),new Size(1200,659)})
+            foreach(var palette in Enum.GetValues<V269Theme>())
+            {
+                surface.Size=size;theme.SelectedIndex=(int)palette;surface.PerformLayout();Application.DoEvents();
+                var modules=form.Controls.Find("V269SystemModules",true).Single();
+                var sections=new[]{"V269WindowsUpdateSection","V269EnergySection","MemoryRamDashboard"}
+                    .Select(n=>modules.Controls.Find(n,false).Single()).ToArray();
+                Require(sections.All(c=>c.Visible&&c.Right<=modules.ClientSize.Width)&&sections[0].Bottom<=sections[1].Top&&sections[1].Bottom<=sections[2].Top,
+                    "Sistema: três seções sequenciais sem sobreposição");
+                using var image=new Bitmap(surface.Width,surface.Height);surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));
+                image.Save($"LayoutCaptures/v269-sistema-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
+            }
+            shell.PresentPanel(null);setModule.Invoke(form,["update"]);
+            var pending=(Task<bool>)confirm.Invoke(form,["Confirmar Windows Update","Fixture consultiva, nenhuma operação.",CancellationToken.None])!;
+            Require(shell.RightPane.Current?.Kind==V269PanelKind.Confirmation,"Sistema confirma no painel lateral");
+            shell.SelectPage(V269Page.Inicializacao);shell.RightPane.ResolveConfirmation(false);Pump(pending);
+            Require(!pending.Result,"cancelamento após navegação não autoriza Windows Update");
+            IReadOnlyList<StartupItem> entries=[
+                new("Discord","Meu usuário · Registro Run · C:/Fixture/Discord.exe","registry","Discord",true,true),
+                new("NVIDIA App","Meu usuário · Registro Run · C:/Fixture/Nvidia.exe","registry","Nvidia",false,true),
+                new("Entrada protegida","Todos os usuários · Registro 64 bits · somente leitura · C:/Fixture/System.exe","machine","Protected",true,false),
+                new("Aplicativo de teste","Meu usuário · Pasta Inicializar · C:/Fixture/Startup.lnk","file","C:/Fixture/Startup.lnk",true,true),
+                new("Aplicativo de outro usuário","Todos os usuários · Pasta Inicializar · somente leitura","machine","C:/Fixture/Startup2.lnk",true,false)];
+            var read=(Func<Task<IReadOnlyList<StartupItem>>>)(()=>Task.FromResult(entries));
+            var consult=(Task)refresh.Invoke(form,[read])!;Pump(consult);
+            var cards=form.Controls.Find("StartupEntryCard",true).OfType<V269StartupCard>().ToArray();
+            Require(cards.Length==entries.Count&&cards.All(c=>c.Command.Enabled==c.Item!.Editable)&&
+                cards.Where(c=>!c.Item!.Editable).All(c=>c.Command.Text=="Somente leitura"),"Inicialização respeita motor de elegibilidade");
+            typeof(Control).GetMethod("OnClick",flags)!.Invoke(cards[0],[EventArgs.Empty]);
+            Require(shell.RightPane.Current?.Module?.Name==cards[0].AccessibleName,"seleção de inicialização apresenta exatamente a entrada");
+            foreach(var size in new[]{new Size(1844,1116),new Size(1200,659)})
+            foreach(var palette in Enum.GetValues<V269Theme>())
+            {
+                surface.Size=size;theme.SelectedIndex=(int)palette;surface.PerformLayout();Application.DoEvents();
+                var viewport=form.Controls.Find("V269StartupViewport",true).OfType<DarkScrollableFlow>().Single();
+                Require(cards.All(c=>c.Right<=viewport.Content.ClientSize.Width&&c.Command.Right<=c.Width&&c.Command.Bottom<=c.Height),
+                    "cartões e comandos de Inicialização respeitam área útil");
+                using var image=new Bitmap(surface.Width,surface.Height);surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));
+                image.Save($"LayoutCaptures/v269-inicializacao-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
+            }
+            Console.WriteLine("PASS V2.6.9 Sistema e Inicialização: três módulos simultâneos, inventário, elegibilidade, confirmação e capturas nos três temas.");
+        }
+        finally
+        {
+            catalog.SetValue(form,Array.Empty<WinUpdateChoice>());checkedField.SetValue(form,false);
+            theme.SelectedIndex=savedTheme;surface.Size=savedSize;surface.PerformLayout();
+            SynchronizationContext.SetSynchronizationContext(savedContext);shell.PresentPanel(null);
         }
     }
 

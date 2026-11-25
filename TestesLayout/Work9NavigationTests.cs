@@ -22,9 +22,9 @@ internal static class Work9NavigationTests
         var summary = (Label)typeof(MainForm).GetField("_systemPanelSummary", Private)!.GetValue(form)!;
         bool scanning = (bool)typeof(MainForm).GetField("_windowsUpdateScanning", Private)!.GetValue(form)!;
         bool checkedWU = (bool)typeof(MainForm).GetField("_windowsUpdateChecked", Private)!.GetValue(form)!;
-        check(search.Name == "WindowsUpdateExplicitSearch" && search.Text == "Buscar atualizações" &&
+        check(search.Name == "WindowsUpdateExplicitSearch" && search.Text == "Verificar atualizações" &&
             search.Enabled && !scanning && !checkedWU &&
-            summary.Text.Contains("Buscar atualizações", StringComparison.Ordinal),
+            summary.Text.Contains("Verificar atualizações", StringComparison.Ordinal),
             "WU-UI2 visualização sem consulta e botão de busca explícito");
         foreach (bool leaveMainTab in new[] { false, true })
         {

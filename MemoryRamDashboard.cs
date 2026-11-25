@@ -9,6 +9,8 @@ namespace GerenciadorAplicativos;
 // Grafico GDI leve (sem WebView, servicos, bibliotecas externas ou consultas a PIDs).
 internal sealed class MemoryRamChart : Control
 {
+    private V269AppearanceOptions _options=V269AppearanceOptions.Default;
+    internal void ApplyOptions(V269AppearanceOptions options){_options=options.Normalize();BackColor=V269AppTable.EmptySurface(_options.Theme);Invalidate();}
     private IReadOnlyList<MemoryRamSample> _samples = Array.Empty<MemoryRamSample>();
     internal int SampleCount => _samples.Count;
 
@@ -33,7 +35,8 @@ internal sealed class MemoryRamChart : Control
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         var area = new Rectangle(9, 11, Math.Max(1, Width - 18), Math.Max(1, Height - 23));
-        using var grid = new Pen(Color.FromArgb(48, 66, 83), 1);
+        var palette=V269VisualTokens.ForTheme(_options.Theme);
+        using var grid = new Pen(palette.Border, 1);
         foreach (int percentage in new[] { 0, 25, 50, 75, 100 })
         {
             float y = area.Bottom - area.Height * percentage / 100f;
@@ -42,8 +45,8 @@ internal sealed class MemoryRamChart : Control
         if (_samples.Count == 0)
         {
             using var f = new Font("Segoe UI", 9F);
-            g.DrawString("Aguardando leitura de RAM...", f,
-                Brushes.LightGray, area.Left + 8, area.Top + 8);
+            using var text=new SolidBrush(palette.SecondaryText);
+            g.DrawString("Aguardando leitura de RAM...", f,text,area.Left+8,area.Top+8);
             return;
         }
 
@@ -55,11 +58,11 @@ internal sealed class MemoryRamChart : Control
             float y = area.Bottom - (float)(_samples[i].UsedPercent / 100d) * area.Height;
             points[i] = new PointF(x, y);
         }
-        using var line = new Pen(Color.FromArgb(96, 180, 254), 2.3F);
+        using var line = new Pen(palette.Accent, 2.3F);
         if (points.Length > 1) g.DrawLines(line, points);
         else
         {
-            using var dot = new SolidBrush(Color.FromArgb(96, 180, 254));
+            using var dot = new SolidBrush(palette.Accent);
             g.FillEllipse(dot, points[0].X - 2.5F, points[0].Y - 2.5F, 5, 5);
         }
     }
@@ -82,178 +85,107 @@ internal sealed partial class MainForm
     private int _memoryTrimOperations;
     private WindowsMemoryDetails? _windowsMemoryDetails;
 
+    private int? _v269RamUsagePercent;
+    private Panel? _v269RamMeter;
     private Control BuildMemoryRamDashboard()
     {
-        var root = new TableLayoutPanel
+        var root=new V269CleanupSection
         {
-            Name = "MemoryRamDashboard", Dock = DockStyle.Fill,
-            ColumnCount = 1, RowCount = 5,
-            BackColor = PanelBackground, Padding = new Padding(5, 4, 5, 3)
+            Name="MemoryRamDashboard",Dock=DockStyle.Fill,ColumnCount=1,RowCount=6,
+            Margin=new Padding(0,0,0,7),Padding=new Padding(12),BackColor=Color.Transparent
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 51));
-
-        var top = new TableLayoutPanel
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        foreach(int height in new[]{30,27,10,49,29,38})root.RowStyles.Add(new RowStyle(SizeType.Absolute,height));
+        var header=new Label{Text="Memória RAM",Dock=DockStyle.Fill,ForeColor=Ink,Font=new Font("Segoe UI",11.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
+        header.Click+=(_,_)=>SetSystemView("memory");root.Controls.Add(header,0,0);
+        var top=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty,BackColor=Color.Transparent};
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,53));top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,47));
+        var text=new Label{Text="Uso da memória física nesta sessão",ForeColor=Muted,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft};
+        top.Controls.Add(text,0,0);
+        _memoryUsageLabel.Name="MemoryUsed";_memoryUsageLabel.Text="Aguardando leitura";_memoryUsageLabel.ForeColor=Ink;_memoryUsageLabel.Dock=DockStyle.Fill;_memoryUsageLabel.TextAlign=ContentAlignment.MiddleRight;
+        top.Controls.Add(_memoryUsageLabel,1,0);root.Controls.Add(top,0,1);
+        _v269RamMeter=new Panel{Name="V269RamUsageMeter",Dock=DockStyle.Fill,Margin=new Padding(0,1,0,1),BackColor=Color.Transparent};
+        _v269RamMeter.Paint+=(_,e)=>
         {
-            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2, Margin = Padding.Empty
-        };
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 168));
-        top.Controls.Add(new Label
-        {
-            Text = "Uso da memória física • histórico desta sessão",
-            ForeColor = Ink, Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
-        }, 0, 0);
-        // Texto curto para permanecer legivel nas janelas proporcionais
-        // (ex.: 1150x700), sem abrir um dialogo auxiliar do GF.
-        var taskManager = CreateSecondaryButton("Abrir tarefas");
-        taskManager.Name = "OpenWindowsTaskManager";
-        taskManager.AccessibleName = "Abrir Gerenciador de Tarefas do Windows";
-        taskManager.AccessibleDescription =
-            "Abre o Gerenciador de Tarefas oficial do Windows em uma janela externa.";
-        _toolTips.SetToolTip(taskManager, taskManager.AccessibleDescription);
-        taskManager.Dock = DockStyle.Fill;
-        taskManager.Margin = new Padding(1, 2, 1, 2);
-        taskManager.Click += (_, _) =>
-        {
-            try { Process.Start(new ProcessStartInfo(WindowsSystemTools.Resolve("taskmgr.exe")) { UseShellExecute = true }); }
-            catch (Exception ex) { ReportError(ex); }
-        };
-        _actionControls.Add(taskManager);
-        top.Controls.Add(taskManager, 1, 0);
-        root.Controls.Add(top, 0, 0);
-
-        _memoryChart = new MemoryRamChart { Dock = DockStyle.Fill, Margin = new Padding(2, 1, 2, 3) };
-        root.Controls.Add(_memoryChart, 0, 1);
-
-        var stats = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 3,
-            Margin = Padding.Empty, BackColor = PanelBackground
-        };
-        for (int c = 0; c < 3; c++)
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / 3F));
-        var values = new[] { _memoryUsageLabel, _memoryReadyLabel, _memoryCleanedLabel };
-        string[] defaults =
-        {
-            "Em uso: aguardando",
-            "Disponível: aguardando",
-            "Cache GF descartado: 0 KB"
-        };
-        for (int c = 0; c < values.Length; c++)
-        {
-            values[c].Name = c switch { 0 => "MemoryUsed", 1 => "MemoryAvailable", _ => "MemoryCleaned" };
-            values[c].Text = defaults[c];
-            values[c].Dock = DockStyle.Fill;
-            values[c].TextAlign = ContentAlignment.MiddleLeft;
-            values[c].AutoEllipsis = true;
-            values[c].ForeColor = c == 1 ? Color.FromArgb(137, 213, 178) : Ink;
-            values[c].Padding = new Padding(5, 3, 1, 0);
-            stats.Controls.Add(values[c], c, 0);
-        }
-        root.Controls.Add(stats, 0, 2);
-
-        var cleanupBar = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 3,
-            BackColor = PanelBackground, Margin = Padding.Empty
-        };
-        cleanupBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 154));
-        cleanupBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 152));
-        cleanupBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        _autoMemoryButton = CreateSecondaryButton("Auto: desligada");
-        _autoMemoryButton.Name = "MemoryAutoOptimization";
-        _autoMemoryButton.Dock = DockStyle.Fill;
-        _autoMemoryButton.Margin = new Padding(2, 2, 5, 2);
-        _toolTips.SetToolTip(_autoMemoryButton,
-            "Após uma escolha manual, reduz somente a memória do aplicativo autorizado, sob pressão persistente e com intervalo de 15 minutos.");
-        _autoMemoryButton.Click += (_, _) =>
-        {
-            _memoryCleanupPolicy.AutomaticEnabled = !_memoryCleanupPolicy.AutomaticEnabled;
-            _autoMemoryButton.Text = _memoryCleanupPolicy.AutomaticEnabled ? "Auto: ativada" : "Auto: desligada";
-            UpdateMemoryCacheLabels();
-        };
-        _actionControls.Add(_autoMemoryButton);
-        cleanupBar.Controls.Add(_autoMemoryButton, 0, 0);
-
-        var manual = CreateSecondaryButton("Aliviar RAM");
-        manual.Name = "MemoryManualOptimization";
-        manual.Dock = DockStyle.Fill;
-        manual.Margin = new Padding(2, 2, 4, 2);
-        _toolTips.SetToolTip(manual,
-            "Permite confirmar redução da memória de um aplicativo em segundo plano. Pode recarregar dados e causar lentidão temporária.");
-        manual.Click += (_, _) => RunUserMemoryOptimization();
-        _actionControls.Add(manual);
-        cleanupBar.Controls.Add(manual, 1, 0);
-
-        _memoryCandidatesLabel.Name = "MemoryCandidates";
-        _memoryCandidatesLabel.Text = "Cache interno elegível: 0 KB";
-        _memoryCandidatesLabel.Dock = DockStyle.Fill;
-        _memoryCandidatesLabel.ForeColor = Muted;
-        _memoryCandidatesLabel.TextAlign = ContentAlignment.MiddleLeft;
-        _memoryCandidatesLabel.AutoEllipsis = true;
-        _memoryCandidatesLabel.Padding = new Padding(4, 1, 1, 0);
-        cleanupBar.Controls.Add(_memoryCandidatesLabel, 2, 0);
-        root.Controls.Add(cleanupBar, 0, 3);
-
-        var safetyNote = new Label
-        {
-            Name = "MemorySafetyNote",
-            Text = "RAM em espera pode ser reutilizada pelo Windows. Aliviar RAM ajusta apenas o aplicativo autorizado e pode deixá-lo lento ao retornar. " +
-                   "Não fecha programas nem força limpeza geral do Windows.",
-            ForeColor = Muted, Dock = DockStyle.Fill, AutoEllipsis = false,
-            Font = new Font("Segoe UI", 8.2F),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(5, 2, 4, 1)
-        };
-        root.Controls.Add(safetyNote, 0, 4);
-        bool? compactCommands = null;
-        void FitMemoryCommands()
-        {
-            int width = root.ClientSize.Width - root.Padding.Horizontal;
-            if (width < 1) return;
-            double dpi = Math.Max(1d, root.DeviceDpi / 96d);
-            bool compact = width < 480 * dpi;
-            if (compactCommands != compact)
+            var r=new Rectangle(0,0,Math.Max(1,_v269RamMeter.Width-1),Math.Max(1,_v269RamMeter.Height-1));
+            if(r.Width<3||r.Height<3)return;
+            var p=V269VisualTokens.ForTheme(_v269Appearance.Theme);
+            using var path=V269Shell.Rounded(r,Math.Max(1,r.Height/2));
+            using var fill=new SolidBrush(p.Border);e.Graphics.FillPath(fill,path);
+            if(_v269RamUsagePercent is int percent)
             {
-                compactCommands = compact;
-                cleanupBar.SuspendLayout();
+                var save=e.Graphics.Save();e.Graphics.SetClip(path);
+                using var value=new SolidBrush(p.Accent);e.Graphics.FillRectangle(value,0,0,(int)(r.Width*percent/100d),r.Height);
+                e.Graphics.Restore(save);
+            }
+        };
+        root.Controls.Add(_v269RamMeter,0,2);
+        _memoryChart=new MemoryRamChart{Dock=DockStyle.Fill,Margin=new Padding(0,3,0,3)};
+        root.Controls.Add(_memoryChart,0,3);
+        var stats=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty,BackColor=Color.Transparent};
+        stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,42));stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,58));
+        _memoryReadyLabel.Name="MemoryAvailable";_memoryReadyLabel.Text="Disponível: aguardando";_memoryReadyLabel.Dock=DockStyle.Fill;_memoryReadyLabel.ForeColor=Muted;
+        _memoryCandidatesLabel.Name="MemoryCandidates";_memoryCandidatesLabel.Text="Cache do Windows: aguardando";_memoryCandidatesLabel.Dock=DockStyle.Fill;_memoryCandidatesLabel.ForeColor=Muted;
+        stats.Controls.Add(_memoryReadyLabel,0,0);stats.Controls.Add(_memoryCandidatesLabel,1,0);root.Controls.Add(stats,0,4);
+        var commands=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Margin=Padding.Empty,BackColor=Color.Transparent};
+        commands.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));commands.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,126));
+        commands.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,78));commands.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,47));
+        _memoryCleanedLabel.Name="MemoryCleaned";_memoryCleanedLabel.Text="Cache GF: 0 KB";_memoryCleanedLabel.ForeColor=Muted;_memoryCleanedLabel.Dock=DockStyle.Fill;
+        commands.Controls.Add(_memoryCleanedLabel,0,0);
+        var manual=new V269CleanupButton("Aliviar RAM","brush",true){Name="MemoryManualOptimization",Dock=DockStyle.Fill,Margin=new Padding(2,2,2,2)};
+        manual.Click+=async (_,_)=>{SetSystemView("memory");await RunUserMemoryOptimization();};
+        _actionControls.Add(manual);commands.Controls.Add(manual,1,0);
+        commands.Controls.Add(new Label{Text="Automático",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,ForeColor=Muted},2,0);
+        _autoMemoryButton=new V269SystemSwitch("MemoryAutoOptimization","Controle automático da RAM"){Dock=DockStyle.None,Anchor=AnchorStyles.Left,Size=new Size(43,24)};
+        ((V269SystemSwitch)_autoMemoryButton).SetState(_memoryCleanupPolicy.AutomaticEnabled);
+        _autoMemoryButton.Click+=(_,_)=>{SetSystemView("memory");_memoryCleanupPolicy.AutomaticEnabled=!_memoryCleanupPolicy.AutomaticEnabled;
+            ((V269SystemSwitch)_autoMemoryButton).SetState(_memoryCleanupPolicy.AutomaticEnabled);UpdateMemoryCacheLabels();};
+        _actionControls.Add(_autoMemoryButton);commands.Controls.Add(_autoMemoryButton,3,0);root.Controls.Add(commands,0,5);
+        // A ferramenta nativa e as informações completas permanecem acessíveis pelo menu de contexto.
+        var menu=new ContextMenuStrip();
+        var taskManager=menu.Items.Add("Abrir Gerenciador de Tarefas");
+        taskManager.Click+=(_,_)=>{try{Process.Start(new ProcessStartInfo(WindowsSystemTools.Resolve("taskmgr.exe")){UseShellExecute=true});}catch(Exception ex){ReportError(ex);}};
+        root.ContextMenuStrip=menu;_memoryChart.ContextMenuStrip=menu;
+        root.Disposed+=(_,_)=>menu.Dispose();
+        bool? compact=null;
+        void Fit()
+        {
+            if(root.Width<=0)return;
+            int S(int n)=>V269AppTable.Scale(n,_v269Appearance.InterfacePercent,root.DeviceDpi);
+            bool small=root.ClientSize.Width-root.Padding.Horizontal<S(400);
+            if(compact!=small)
+            {
+                compact=small;
+                commands.SuspendLayout();
                 try
                 {
-                    cleanupBar.ColumnStyles[0].SizeType = cleanupBar.ColumnStyles[1].SizeType =
-                        compact ? SizeType.Percent : SizeType.Absolute;
-                    cleanupBar.ColumnStyles[0].Width = compact ? 50 : (float)Math.Ceiling(154 * dpi);
-                    cleanupBar.ColumnStyles[1].Width = compact ? 50 : (float)Math.Ceiling(152 * dpi);
-                    cleanupBar.ColumnStyles[2].SizeType = compact ? SizeType.Absolute : SizeType.Percent;
-                    cleanupBar.ColumnStyles[2].Width = compact ? 0 : 100;
-                    cleanupBar.SetColumnSpan(_memoryCandidatesLabel, 1);
-                    cleanupBar.SetCellPosition(_memoryCandidatesLabel,
-                        new TableLayoutPanelCellPosition(compact ? 0 : 2, compact ? 1 : 0));
-                    cleanupBar.SetColumnSpan(_memoryCandidatesLabel, compact ? 2 : 1);
-                    cleanupBar.RowCount = compact ? 2 : 1;
-                    cleanupBar.RowStyles.Clear();
-                    cleanupBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    if (compact) cleanupBar.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(26 * dpi)));
-                    root.RowStyles[3].Height = (float)Math.Ceiling((compact ? 64 : 38) * dpi);
+                    commands.SetCellPosition(_memoryCleanedLabel,new TableLayoutPanelCellPosition(0,0));
+                    var button=manual;
+                    if(small)
+                    {
+                        commands.SetColumnSpan(_memoryCleanedLabel,4);
+                        commands.SetCellPosition(button,new TableLayoutPanelCellPosition(0,1));
+                        commands.SetColumnSpan(button,2);
+                        commands.SetCellPosition(commands.Controls.OfType<Label>().Single(x=>x.Text=="Automático"),new TableLayoutPanelCellPosition(2,1));
+                        commands.SetCellPosition(_autoMemoryButton,new TableLayoutPanelCellPosition(3,1));
+                    }
+                    else
+                    {
+                        commands.SetColumnSpan(_memoryCleanedLabel,1);commands.SetColumnSpan(button,1);
+                        commands.SetCellPosition(button,new TableLayoutPanelCellPosition(1,0));
+                        commands.SetCellPosition(commands.Controls.OfType<Label>().Single(x=>x.Text=="Automático"),new TableLayoutPanelCellPosition(2,0));
+                        commands.SetCellPosition(_autoMemoryButton,new TableLayoutPanelCellPosition(3,0));
+                    }
+                    commands.RowCount=small?2:1;commands.RowStyles.Clear();
+                    for(int i=0;i<commands.RowCount;i++)commands.RowStyles.Add(new RowStyle(SizeType.Percent,100f/commands.RowCount));
                 }
-                finally { cleanupBar.ResumeLayout(true); }
+                finally{commands.ResumeLayout(true);}
             }
-            int noteHeight = TextRenderer.MeasureText(safetyNote.Text, safetyNote.Font,
-                new Size(Math.Max(1, width - safetyNote.Padding.Horizontal), 600),
-                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix).Height;
-            root.RowStyles[4].Height = Math.Max((int)Math.Ceiling(51 * dpi),
-                noteHeight + safetyNote.Padding.Vertical + safetyNote.Margin.Vertical);
+            root.RowStyles[0].Height=S(30);root.RowStyles[1].Height=S(small?42:27);root.RowStyles[2].Height=S(10);
+            root.RowStyles[3].Height=S(49);root.RowStyles[4].Height=S(small?50:29);root.RowStyles[5].Height=S(small?68:38);
         }
-        root.SizeChanged += (_, _) => FitMemoryCommands();
-        root.DpiChangedAfterParent += (_, _) => { compactCommands = null; FitMemoryCommands(); };
-        FitMemoryCommands();
-        FormClosed += (_, _) => _memoryPressureSignal.Dispose();
-        _memoryDashboardView = root;
-        return root;
+        root.SizeChanged+=(_,_)=>Fit();root.Tag=(Action)Fit;Fit();
+        FormClosed+=(_,_)=>_memoryPressureSignal.Dispose();_memoryDashboardView=root;return root;
     }
 
     internal void PreviewMemoryRamForTests(MemoryRamSample sample) => ShowMemoryRamSample(sample);
@@ -264,15 +196,14 @@ internal sealed partial class MainForm
         _memoryHistory.Add(sample);
         _windowsMemoryDetails = WindowsMemoryDetailsReader.Capture();
         _memoryChart?.SetSamples(_memoryHistory.Samples);
-        _systemPanelTitle.Text = "Memória RAM · acompanhamento em tempo real";
-        _systemPanelSummary.Text = "Histórico local. Aplicativos em segundo plano só são ajustados com sua autorização.";
+        _v269RamUsagePercent=(int)Math.Round(sample.UsedPercent);
+        _v269RamMeter?.Invalidate();
         static string GiB(ulong bytes) =>
             (bytes / 1073741824d).ToString("N2", CultureInfo.CurrentCulture) + " GB";
-        _memoryUsageLabel.Text = $"Em uso: {GiB(sample.UsedBytes)} ({sample.UsedPercent:N0}%)";
+        _memoryUsageLabel.Text = $"{GiB(sample.UsedBytes)} / {GiB(sample.TotalBytes)} ({sample.UsedPercent:N0}%)";
         _memoryReadyLabel.Text = $"Disponível: {GiB(sample.AvailableBytes)}";
         // Nao inferir limpeza de oscilacoes normais de memoria do Windows.
         UpdateMemoryCacheLabels();
-        FitSystemSummaryHeight();
     }
 
     private void UpdateMemoryCacheLabels()
@@ -282,7 +213,8 @@ internal sealed partial class MainForm
         {
             string cache = (info.CacheBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
             string committed = (info.CommittedBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
-            _memoryCandidatesLabel.Text = $"Cache do Windows: {cache} GB · Comprometida: {committed} GB";
+            _memoryCandidatesLabel.Text = $"Cache: {cache} GB";
+            _memoryCandidatesLabel.AccessibleDescription=$"Memória comprometida: {committed} GB";
             _toolTips.SetToolTip(_memoryCandidatesLabel, "Cache inclui dados em espera, reutilizáveis pelo Windows. Memória comprometida não é igual à memória física ocupada.");
         }
         else
@@ -311,28 +243,29 @@ internal sealed partial class MainForm
         DiagnosticTrace.Write($"RAM.CACHE_INTERNO modo={(automatic ? "auto" : "manual")} bytes_descartados={bytes}");
     }
 
-    private void RunUserMemoryOptimization()
+    private async Task RunUserMemoryOptimization()
     {
         if (IsDisposed || _busy) return;
         var candidate = SelectiveMemoryTrim.ChooseCandidate();
         if (candidate is null)
         {
             Status("Nenhum aplicativo em segundo plano adequado para aliviar RAM agora.");
+            PresentV269ModuleResult(V269Page.Sistema,"Aliviar RAM","Nenhum aplicativo adequado para aliviar RAM agora.",false);
             return;
         }
-        if (DarkConfirmDialog.Confirm(this,
+        if (!await ConfirmV269Async("Aliviar RAM de aplicativo em segundo plano",
             "Permitir que o Windows reduza temporariamente a RAM de " + candidate.Name +
             " (PID " + candidate.Pid + ")?\n\n" + candidate.Executable +
             "\n\nO aplicativo não será fechado e arquivos não serão apagados. " +
             "Ele poderá ficar mais lento ao reutilizar dados. Se o automático estiver ligado, " +
-            "somente este mesmo processo poderá ser ajustado sob pressão de memória nesta sessão.",
-            "Aliviar RAM de aplicativo em segundo plano") != DialogResult.Yes)
+            "somente este mesmo processo poderá ser ajustado sob pressão de memória nesta sessão."))
             return;
         _memoryAuthorizedTarget = candidate;
         bool changed = SelectiveMemoryTrim.TryTrimAuthorized(candidate, out string message);
         if (changed) _memoryTrimOperations++;
         _memoryCleanupPolicy.RecordRun(DateTime.UtcNow);
         Status(message);
+        PresentV269ModuleResult(V269Page.Sistema,"Aliviar RAM",message,changed);
         DiagnosticTrace.Write("RAM.PROCESSO_ESCOLHIDO resultado=" + (changed ? "ok" : "indisponivel"));
         UpdateMemoryCacheLabels();
     }
