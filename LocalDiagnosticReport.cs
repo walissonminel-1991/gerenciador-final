@@ -4,6 +4,8 @@ using System.Text;
 
 namespace GerenciadorAplicativos;
 
+internal enum DiagnosticUiStage { AppSearch, AppListRender, DriverSearch, DriverListRender, Navigation }
+
 // Dados agregados da sessão, sem caminhos, nomes de aplicativos, IDs de
 // dispositivos, mensagens de exceção ou leitura de arquivos pessoais.
 // A exportação manual não é telemetria e não depende de consentimento remoto.
@@ -35,9 +37,9 @@ internal sealed class LocalDiagnosticReport
 
     // Instrumentação leve de trechos síncronos de UI: não mede o tempo
     // até a pintura efetiva, não lê o processo e não escreve no disco.
-    internal IDisposable MeasureUi(string stage) => new UiScope(this, stage);
+    internal IDisposable MeasureUi(DiagnosticUiStage stage, V269Page? page = null) => new UiScope(this, stage, page);
 
-    private sealed class UiScope(LocalDiagnosticReport owner, string stage) : IDisposable
+    private sealed class UiScope(LocalDiagnosticReport owner, DiagnosticUiStage stage, V269Page? page) : IDisposable
     {
         private readonly long _started = Stopwatch.GetTimestamp();
         private readonly long _allocated = GC.GetAllocatedBytesForCurrentThread();
@@ -52,7 +54,7 @@ internal sealed class LocalDiagnosticReport
                 ? GC.GetAllocatedBytesForCurrentThread() - _allocated : null;
             lock (owner._gate)
                 Append(owner._performance, FormattableString.Invariant(
-                    $"{DateTimeOffset.UtcNow:O} etapa={stage} duracao_ms={elapsed:F3} alocacoes_thread_ui_bytes={bytes}"),
+                    $"{DateTimeOffset.UtcNow:O} etapa={stage} aba={page} duracao_ms={elapsed:F3} alocacoes_thread_ui_bytes={bytes}"),
                     ref owner._performanceTotal);
         }
     }
@@ -110,7 +112,7 @@ internal sealed class LocalDiagnosticReport
             text.AppendLine("=== DESEMPENHO DO PROCESSO PRINCIPAL ===");
             text.AppendLine("Unidades: tempo em ms, memória em bytes, CPU normalizada pelos processadores lógicos disponíveis.");
             text.AppendLine("CPU por intervalo; primeira amostra sem percentual. Contexto instantâneo, não prova de repouso contínuo.");
-            text.AppendLine("Alocações e CPU das etapas incluem atividade concorrente; pico de RAM é da sessão.");
+            text.AppendLine("Alocações/CPU do processo incluem atividade concorrente; pico de RAM é da sessão. Alocações da thread UI são separadas; navegação mede apenas o controlador síncrono, não a pintura final.");
             Section("Etapas concluídas", _performance, _performanceTotal);
             Section("Amostras do processo", _process, _processTotal);
             Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
