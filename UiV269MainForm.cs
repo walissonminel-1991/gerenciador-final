@@ -909,10 +909,11 @@ internal sealed partial class MainForm
                 LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
                     _busy || _v269Confirming || _batchUpdatesActive || _windowsUpdateInstalling ||
                     _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
-                report+=Environment.NewLine+Environment.NewLine+LocalDiagnosticReport.Session.Format()+
-                    Environment.NewLine+"=== FIM DO RELATÓRIO ==="+Environment.NewLine;
+                using var exportSnapshot=LocalDiagnosticReport.Session.CaptureForExport();
                 view.SetNotice("Gerando relatório local em Documentos…");
-                string path=await Task.Run(()=>testExport is null?LocalDiagnosticReport.SaveToDocuments(report):testExport(report));
+                string path=await Task.Run(()=>testExport is null
+                    ?LocalDiagnosticReport.SaveToDocuments(report,exportSnapshot)
+                    :testExport(exportSnapshot.FormatForTest(report)));
                 if(!view.IsDisposed&&!IsDisposed&&!Disposing)
                 {
                     view.SetNotice("Relatório criado em Documentos: "+path+" — pronto para leitura e envio manual.");
