@@ -155,7 +155,21 @@ internal static class HardwareMonitoringDiagnosticReportTests
             Storage=WindowsStorageSensorProvider.Join(
                 [new StorageIdentity("SERIAL-PRIVADO","FRIENDLY-PRIVADO","Samsung","SSD 980 PRO")],[])
         };
+        typedHardware=typedHardware with
+        {
+            DeviceInventory=typedHardware.DeviceInventory with
+            {
+                Devices=[..typedHardware.DeviceInventory.Devices,
+                    new HardwareDeviceDescriptor(@"USB\PRIVADO","NOME-AMIGAVEL-PRIVADO","Logitech","HIDClass","USB",HardwareDeviceKind.Input)
+                    {ReportedDeviceDescription="USB Gaming Mouse"},
+                    new HardwareDeviceDescriptor(@"SWD\PRIVADO","IMPRESSORA-PRIVADA","Fabricante","PrintQueue","SWD",HardwareDeviceKind.Printer)
+                    {ReportedDeviceDescription="FILA-PRIVADA"}]
+            }
+        };
         string configuration=LocalDiagnosticReport.FormatHardware(typedHardware);
+        Check(configuration.Contains("Logitech")&&configuration.Contains("USB Gaming Mouse")&&
+            !configuration.Contains("NOME-AMIGAVEL-PRIVADO")&&!configuration.Contains("FILA-PRIVADA"),
+            "periféricos usam descrição técnica, excluem nome amigável e fila de impressão");
         Check(configuration.Contains("AMD Ryzen 7 5700X")&&configuration.Contains("Kingston")&&
             configuration.Contains("KF436C16BB")&&configuration.Contains("TUF GAMING B550-PLUS")&&
             configuration.Contains("SSD 980 PRO")&&configuration.Contains("GPU Intel de exemplo")&&
