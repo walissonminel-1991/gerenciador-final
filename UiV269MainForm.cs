@@ -1653,6 +1653,9 @@ internal sealed class V269HomeCard : Control
     private (int Width, int WindowWidth, bool CompactHeight, int Dpi, int InterfaceScale, int TextScale, V269Theme Theme)? _heightKey;
     private int _preferredHeight;
     internal int PreferredHeightMeasurements { get; private set; }
+    private (int Dpi, int TextScale, int FontPixels, bool CompactHeight)? _fontsKey;
+    private CardFonts? _fonts;
+    internal int FontSetCreations { get; private set; }
 
     internal V269HomeCard(string key)
     {
@@ -1710,8 +1713,46 @@ internal sealed class V269HomeCard : Control
 
     private int S(int n) => Math.Max(1, (int)Math.Round(n *
         _appearance.InterfacePercent / 100d * DeviceDpi / 96d));
-    private Font TextFont(int px, FontStyle style = FontStyle.Regular) =>
-        new("Segoe UI", px * _appearance.TextPercent / 100f * DeviceDpi / 96f, style, GraphicsUnit.Pixel);
+    private sealed class CardFonts : IDisposable
+    {
+        internal readonly Font Title, Body, Bold, Name;
+        internal CardFonts(int dpi, int scale, int pixels, bool compact)
+        {
+            Font Create(string family, int px, FontStyle style) =>
+                new(family, px * scale / 100f * dpi / 96f, style, GraphicsUnit.Pixel);
+            Title = Create("Segoe UI", compact ? 14 : 16, FontStyle.Bold);
+            try
+            {
+                Body = Create("Segoe UI", pixels, FontStyle.Regular);
+                try
+                {
+                    Bold = Create("Segoe UI Semibold", pixels, FontStyle.Regular);
+                    try { Name = Create("Segoe UI", 13, FontStyle.Bold); }
+                    catch { Bold.Dispose(); throw; }
+                }
+                catch { Body.Dispose(); throw; }
+            }
+            catch { Title.Dispose(); throw; }
+        }
+
+        public void Dispose()
+        {
+            Title.Dispose(); Body.Dispose(); Bold.Dispose(); Name.Dispose();
+        }
+    }
+
+    private CardFonts GetRenderFonts(int pixels, bool compact)
+    {
+        var key = (DeviceDpi, _appearance.TextPercent, pixels, compact);
+        if (_fonts is { } current && _fontsKey == key) return current;
+        var next = new CardFonts(key.DeviceDpi, key.TextPercent, pixels, compact);
+        var previous = _fonts;
+        _fonts = next;
+        _fontsKey = key;
+        FontSetCreations++;
+        previous?.Dispose();
+        return next;
+    }
     private static Color Hex(string s) => ColorTranslator.FromHtml(s);
 
     internal int PreferredCardHeight(int width, int windowWidth, bool compactHeight)
@@ -1754,14 +1795,13 @@ internal sealed class V269HomeCard : Control
                 V269Theme.Dark => Hex("#232b33"), V269Theme.Claro => Hex("#d6e8f7"), _ => Hex("#102b46") };
         bool narrowTwo = windowWidth is >= 940 and <= 1090;
         int fontPixels = narrowTwo ? 9 : windowWidth <= 1370 ? 10 : 11;
-        using var title = TextFont(compactHeight ? 14 : 16, FontStyle.Bold);
-        using var font = TextFont(fontPixels);
-        // CSS .hw-kv strong/.hw-sensor strong: peso 600, não 700.
-        // Segoe UI Semibold é a família correspondente no Windows.
-        using var bold = new Font("Segoe UI Semibold",
-            fontPixels * _appearance.TextPercent / 100f * DeviceDpi / 96f,
-            FontStyle.Regular, GraphicsUnit.Pixel);
-        using var nameFont = TextFont(13, FontStyle.Bold);
+        // As mesmas fontes e tamanhos da referência, sem recriar recursos
+        // GDI+ a cada medição ou atualização de sensores.
+        var fonts = GetRenderFonts(fontPixels, compactHeight);
+        var title = fonts.Title;
+        var font = fonts.Body;
+        var bold = fonts.Bold;
+        var nameFont = fonts.Name;
         // A cascata de .app-window .hw-card mantém o padding 10/11
         // também nos breakpoints compactos; gap de 12px prevalece no CSS.
         int pad = S(12), gap = S(12), verticalPad = S(11);
@@ -2017,7 +2057,7 @@ internal sealed class V269HomeCard : Control
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _art?.Dispose(); _art = null; }
+        if (disposing) { _art?.Dispose(); _art = null; _fonts?.Dispose(); _fonts = null; _fontsKey = null; }
         base.Dispose(disposing);
     }
 }
