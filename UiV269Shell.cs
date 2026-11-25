@@ -123,6 +123,10 @@ internal sealed class V269RightPane : UserControl
     private Font? _normalTitleFont,_appTitleFont;
     private readonly FlowLayoutPanel _choices;
     private TaskCompletionSource<bool>? _confirmation;
+    private TableLayoutPanel? _readOnlyView;
+    private Control? _readOnlyOrigin;
+    private bool _readOnlyPreviousScrollVisible;
+    internal bool ReadOnlyViewActive => _readOnlyView is not null;
 
     internal event EventHandler? PresentationChanged;
     internal V269PanelPresentation? Current { get; private set; }
@@ -240,6 +244,101 @@ internal sealed class V269RightPane : UserControl
         _flowViewport.SizeChanged+=(_,_)=>FitOperationHistory();
         Resize+=(_,_)=>{if(_structuredApp||_appFlow)Invalidate();FitOperationHistory();};
         Present(null);
+    }
+
+    // Consulta transitória no próprio painel. Current nunca é substituído:
+    // não guardar/restaurar callbacks, resultados ou confirmações antigas.
+    internal bool TryShowReadOnly(string title, string description, string editorName, Control origin)
+    {
+        if (IsDisposed || Disposing || _confirmation is not null ||
+            Current?.Kind is not (V269PanelKind.Result or V269PanelKind.History)) return false;
+        CloseReadOnly(false);
+        var view = new TableLayoutPanel
+        {
+            Name = "V269ReadOnlyView", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+            Margin = Padding.Empty, TabStop = false, AccessibleName = title
+        };
+        view.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        view.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        view.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        view.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        var heading = new Label { Name = "V269ReadOnlyTitle", Text = title, Dock = DockStyle.Fill,
+            AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+        var editor = new TextBox { Name = editorName, AccessibleName = title, Text = description,
+            Multiline = true, ReadOnly = true, WordWrap = true, ScrollBars = ScrollBars.None,
+            BorderStyle = BorderStyle.None, Dock = DockStyle.Fill };
+        var host = new V269TextScrollHost(editor);
+        var close = new Button { Name = "V269ReadOnlyClose", Text = "Voltar", Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat, AccessibleName = "Voltar ao resultado ou histórico anterior" };
+        close.Click += (_, _) => CloseReadOnly(true);
+        view.Controls.Add(heading, 0, 0);
+        view.Controls.Add(host, 0, 1);
+        view.Controls.Add(close, 0, 2);
+        _readOnlyOrigin = origin;
+        _readOnlyPreviousScrollVisible = _cleanupFlowScroll.Visible;
+        _readOnlyView = view;
+        SuspendLayout();
+        try
+        {
+            _flowViewport.Visible = false;
+            _cleanupFlowScroll.Visible = false;
+            Controls.Add(view);
+            view.BringToFront();
+            ApplyReadOnlyAppearance();
+        }
+        finally { ResumeLayout(true); }
+        return true;
+    }
+
+    internal void FocusReadOnly()
+    {
+        if (_readOnlyView?.GetControlFromPosition(0, 1) is V269TextScrollHost host)
+            host.Controls.OfType<TextBox>().Single().Focus();
+    }
+
+    internal bool CloseReadOnly(bool restoreFocus)
+    {
+        if (_readOnlyView is not { } view) return false;
+        var origin = _readOnlyOrigin;
+        _readOnlyView = null;
+        _readOnlyOrigin = null;
+        SuspendLayout();
+        try
+        {
+            Controls.Remove(view);
+            view.Dispose();
+            _flowViewport.Visible = true;
+            _cleanupFlowScroll.Visible = _readOnlyPreviousScrollVisible;
+            _cleanupFlowScroll.BringToFront();
+        }
+        finally { ResumeLayout(true); }
+        FitOperationHistory();
+        if (restoreFocus && origin is { IsDisposed: false, CanSelect: true }) origin.Focus();
+        return true;
+    }
+
+    private void ApplyReadOnlyAppearance()
+    {
+        if (_readOnlyView is not { } view) return;
+        var palette = _basePanePalette;
+        view.BackColor = palette.RightPanel;
+        var heading = (Label)view.GetControlFromPosition(0, 0)!;
+        var host = (V269TextScrollHost)view.GetControlFromPosition(0, 1)!;
+        var editor = host.Controls.OfType<TextBox>().Single();
+        var close = (Button)view.GetControlFromPosition(0, 2)!;
+        heading.Font = _normalTitleFont ?? _title.Font;
+        heading.ForeColor = palette.Text;
+        host.BackColor = editor.BackColor = palette.RightPanel;
+        editor.ForeColor = palette.Text;
+        editor.Font = close.Font = _description.Font;
+        close.BackColor = palette.Card; close.ForeColor = palette.Text;
+        close.FlatAppearance.BorderColor = palette.Border;
+        view.RowStyles[0].Height = Math.Max(heading.Font.Height * 2 + 8,
+            V269AppTable.Scale(50, _appInterfacePercent, DeviceDpi));
+        view.RowStyles[2].Height = Math.Max(close.Font.Height + 12,
+            V269AppTable.Scale(38, _appInterfacePercent, DeviceDpi));
+        host.Configure(_appPaneTheme);
+        host.Reflow();
     }
 
     internal void SetOperationContent(Control content)
@@ -411,7 +510,7 @@ internal sealed class V269RightPane : UserControl
     }
     private void FitOperationHistory()
     {
-        if(_presentationDepth != 0 || _fittingOperationHistory||IsDisposed||Disposing)return;
+        if(_readOnlyView is not null || _presentationDepth != 0 || _fittingOperationHistory||IsDisposed||Disposing)return;
         _fittingOperationHistory=true;
         try
         {
@@ -489,6 +588,8 @@ internal sealed class V269RightPane : UserControl
     }
     private void PresentCore(V269PanelPresentation? presentation)
     {
+        // Uma publicação nova ou confirmação tem prioridade sobre uma consulta.
+        CloseReadOnly(false);
         // Um estado do painel é uma transação: as mudanças de linhas,
         // visibilidade e conteúdo não precisam rearranjar o viewport
         // separadamente. A medição final usa a geometria já aplicada.
@@ -701,6 +802,7 @@ internal sealed class V269RightPane : UserControl
         _title.Font=(styled?_appTitleFont:_normalTitleFont)??_title.Font;
         ApplyAppTitleMetrics();
         UpdateLegacyMeter();
+        ApplyReadOnlyAppearance();
         _title.Invalidate();Invalidate();
     }
     private void ApplyAppTitleMetrics()
@@ -767,6 +869,7 @@ internal sealed class V269RightPane : UserControl
         _appInterfacePercent=percent;_applicationDetails.ApplyInterfaceScale(percent);
         _operationHistory?.ApplyAppearance(_appPaneTheme,percent,_applicationDetails.Font);
         if(_structuredApp||_appFlow)ApplyPaneSurface();
+        else ApplyReadOnlyAppearance();
         FitOperationHistory();
     }
 
@@ -778,6 +881,7 @@ internal sealed class V269RightPane : UserControl
         _description.Font=body;
         _applicationDetails.Font=appBody;
         _operationHistory?.ApplyAppearance(_appPaneTheme,_appInterfacePercent,appBody);
+        ApplyReadOnlyAppearance();
         ApplyAppTitleMetrics();FitOperationHistory();
     }
 }
@@ -859,6 +963,7 @@ internal sealed class V269Shell : UserControl
         _paneToggle = toggle;
         toggle.Click += (_, _) =>
         {
+            if (_rightPane.Visible && _rightPane.CloseReadOnly(true)) return;
             bool open = !_rightPane.Visible;
             if (SelectedPage is V269Page.Inicio or V269Page.Configuracoes)
                 _dashboardPaneOpen = open;
@@ -1049,7 +1154,11 @@ internal sealed class V269Shell : UserControl
         _selectingPage = true;
         try
         {
-            if (changed) _dashboardPaneOpen = null;
+            if (changed)
+            {
+                _rightPane.CloseReadOnly(false);
+                _dashboardPaneOpen = null;
+            }
             if (changed && SelectedPage == V269Page.Drivers &&
                 _rightPane.Current is { Kind: V269PanelKind.DriverReview, DriverReview: { IsDisposed: false } review })
             {

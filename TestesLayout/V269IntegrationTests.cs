@@ -94,50 +94,72 @@ internal static class V269IntegrationTests
         var previousSnapshot = snapshotField.GetValue(form);
         var detailButton = form.Controls.Find("V269HardwareDetails", true).OfType<Button>().Single();
         var previousEnabled = detailButton.Enabled;
-        bool openedReadOnly = false;
-        using (var closeDialog = new System.Windows.Forms.Timer { Interval = 50 })
+        var retained = shell.RightPane.Current;
+        try
         {
-            var clock = System.Diagnostics.Stopwatch.StartNew();
-            closeDialog.Tick += (_, _) =>
+            snapshotField.SetValue(form, homeSnapshot);
+            detailButton.Enabled = true;
+            detailButton.Focus();
+            Application.DoEvents();
+            Require(detailButton.Visible && detailButton.Enabled && detailButton.CanSelect,
+                "botão de leituras alcançável com resultado preservado");
+            var originalWindows = Application.OpenForms.Cast<Form>().ToArray();
+            bool unexpectedModal = false;
+            // Controle de contenção: uma regressão que volte a abrir o
+            // modal falha rapidamente em vez de travar a execução.
+            using (var watchdog = new System.Windows.Forms.Timer { Interval = 50 })
             {
-                var dialog = Application.OpenForms.Cast<Form>().FirstOrDefault(x => x.Name == "V269HardwareDetailsDialog");
-                if (dialog is not null)
+                watchdog.Tick += (_, _) =>
                 {
-                    var detailText = dialog.Controls.Find("V269HardwareDetailsText", true).OfType<TextBox>().SingleOrDefault();
-                    openedReadOnly = detailText is { ReadOnly: true } &&
-                        detailText.Text.Contains("Processador") && detailText.Text.Contains("Fotografia local") &&
-                        shell.RightPane.Current?.Description == "Resultado preservado";
-                    dialog.Close();
-                }
-                else if (clock.Elapsed > TimeSpan.FromSeconds(3)) closeDialog.Stop();
-            };
-            try
-            {
-                snapshotField.SetValue(form, homeSnapshot);
-                detailButton.Enabled = true;
-                detailButton.Focus();
-                Application.DoEvents();
-                // O clique é imediato; manter a fotografia até o fechamento
-                // do diálogo, independentemente da animação.
-                Require(detailButton.Visible && detailButton.Enabled && detailButton.CanSelect,
-                    "botão de leituras alcançável com resultado preservado");
-                closeDialog.Start();
+                    foreach (var unexpected in Application.OpenForms.Cast<Form>()
+                        .Where(window => !originalWindows.Contains(window)).ToArray())
+                    {
+                        unexpectedModal = true;
+                        unexpected.Close();
+                    }
+                };
+                watchdog.Start();
                 detailButton.PerformClick();
-                var dispatchClock = System.Diagnostics.Stopwatch.StartNew();
-                while (!openedReadOnly && dispatchClock.Elapsed < TimeSpan.FromSeconds(5))
-                {
-                    Application.DoEvents();
-                    Thread.Sleep(10);
-                }
+                Application.DoEvents();
+                watchdog.Stop();
             }
-            finally
-            {
-                closeDialog.Stop();
-                detailButton.Enabled = previousEnabled;
-                snapshotField.SetValue(form, previousSnapshot);
-            }
+            var hardwareEditor = shell.RightPane.Controls.Find("V269HardwareDetailsText", true).OfType<TextBox>().Single();
+            Require(shell.RightPane.ReadOnlyViewActive && hardwareEditor.Visible && hardwareEditor.ReadOnly &&
+                hardwareEditor.WordWrap && hardwareEditor.ScrollBars == ScrollBars.None &&
+                hardwareEditor.Text.Contains("Processador") && hardwareEditor.Text.Contains("Fotografia local") &&
+                ReferenceEquals(shell.RightPane.Current, retained) && !unexpectedModal && Application.OpenForms.Count == originalWindows.Length,
+                "AUT-SHELL-02 consulta hardware no painel real sem modal e sem substituir resultado");
+            var hardwareScroll = hardwareEditor.Parent!.Controls.OfType<DarkVScrollBar>().Single();
+            if (hardwareScroll.Visible)
+                Require(!hardwareEditor.Bounds.IntersectsWith(hardwareScroll.Bounds), "rolagem da consulta sem sobreposição");
+            shell.RightPane.Controls.Find("V269ReadOnlyClose", true).OfType<Button>().Single().PerformClick();
+            Application.DoEvents();
+            Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, retained) &&
+                detailButton.Focused, "retorno ao mesmo resultado e foco original");
+            detailButton.PerformClick();
+            Require(shell.RightPane.ReadOnlyViewActive, "reabrir consulta");
+            shell.SelectPage(V269Page.Configuracoes);
+            Application.DoEvents();
+            Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, retained),
+                "navegação encerra consulta sem descartar resultado");
+            shell.SelectPage(V269Page.Inicio);
+            Application.DoEvents();
+            detailButton.PerformClick();
+            Require(shell.RightPane.ReadOnlyViewActive, "consulta antes de publicação nova");
+            var progress = new V269PanelPresentation(V269PanelKind.Progress, "Operação sintética", "Fixture", 25);
+            shell.PresentPanel(progress);
+            Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, progress),
+                "publicação de operação tem prioridade sobre consulta");
+            Require(!shell.RightPane.TryShowReadOnly("Bloqueado", "Fixture", "BlockedReadOnly", detailButton),
+                "consulta não pode cobrir progresso");
+            shell.PresentPanel(retained);
         }
-        Require(openedReadOnly && shell.RightPane.Current?.Description == "Resultado preservado",
+        finally
+        {
+            detailButton.Enabled = previousEnabled;
+            snapshotField.SetValue(form, previousSnapshot);
+        }
+        Require(ReferenceEquals(shell.RightPane.Current, retained),
             "botão de leituras funciona sem substituir resultado anterior nem consultar hardware real");
         shell.SelectPage(V269Page.Configuracoes);
         Application.DoEvents();

@@ -57,10 +57,13 @@ internal sealed partial class MainForm
                     V269HardwareCards(snapshot).Select(x => x.Title + Environment.NewLine + x.Body));
             if (_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
             {
-                // Um resultado/histórico deve continuar acessível e intacto.
-                // A ação explícita abre uma consulta somente leitura separada.
-                using var dialog = CreateV269HardwareDetailsDialog(description);
-                dialog.ShowDialog(this);
+                if (_nav.RightPane.TryShowReadOnly("Leituras detalhadas do hardware", description,
+                    "V269HardwareDetailsText", details))
+                {
+                    if (!_nav.RightPane.Visible)
+                        _nav.Controls.Find("V269PaneToggle", true).OfType<Button>().Single().PerformClick();
+                    _nav.RightPane.FocusReadOnly();
+                }
                 return;
             }
             PresentV269Details("Leituras detalhadas do hardware", description);
@@ -88,53 +91,6 @@ internal sealed partial class MainForm
         _v269Home.SetModels(V269HomeModels(null));
         _v269Home.ApplyAppearance(_v269Appearance);
         return _v269Home;
-    }
-
-    private Form CreateV269HardwareDetailsDialog(string description)
-    {
-        var palette = V269Palette;
-        var dialog = new Form
-        {
-            Name = "V269HardwareDetailsDialog",
-            Text = "Leituras detalhadas do hardware",
-            StartPosition = FormStartPosition.CenterParent,
-            Size = new Size(690, 500),
-            MinimumSize = new Size(380, 270),
-            ShowInTaskbar = false,
-            MinimizeBox = false,
-            MaximizeBox = false,
-            BackColor = palette.Content,
-            ForeColor = palette.Text
-        };
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
-            Padding = new Padding(12), BackColor = palette.Content
-        };
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        var text = new TextBox
-        {
-            Name = "V269HardwareDetailsText", AccessibleName = "Leituras locais de hardware",
-            Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
-            ScrollBars = ScrollBars.None, WordWrap = true,
-            BackColor = palette.Card, ForeColor = palette.Text, Text = description
-        };
-        var close = CreateSecondaryButton("Fechar");
-        close.Name = "V269HardwareDetailsClose";
-        close.Dock = DockStyle.Right;
-        close.Width = 105;
-        close.BackColor = palette.Card;
-        close.ForeColor = palette.Text;
-        close.DialogResult = DialogResult.Cancel;
-        close.Click += (_, _) => dialog.Close();
-        var textHost = new V269TextScrollHost(text);
-        textHost.Configure(_v269Appearance.Theme);
-        layout.Controls.Add(textHost, 0, 0);
-        layout.Controls.Add(close, 0, 1);
-        dialog.Controls.Add(layout);
-        dialog.CancelButton = close;
-        return dialog;
     }
 
     private async Task RefreshV269HardwareAsync()
@@ -1298,6 +1254,7 @@ internal sealed partial class MainForm
             _nav.RightPane.ResolveConfirmation(false);
             return true;
         }
+        if (keyData == Keys.Escape && _nav.RightPane.CloseReadOnly(true)) return true;
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
