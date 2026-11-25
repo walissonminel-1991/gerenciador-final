@@ -806,7 +806,7 @@ internal sealed partial class MainForm : Form
         if (_caption is not null) _caption.Visible = false;
         void ApplyHomeChrome()
         {
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza;
             if (homeChrome != home)
             {
                 // Nos testes de viewport a superfície interna tem largura
@@ -863,7 +863,7 @@ internal sealed partial class MainForm : Form
         {
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza;
             int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
                 V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))
@@ -1772,11 +1772,12 @@ internal sealed partial class MainForm : Form
         });
         var cleaningLayout = new TableLayoutPanel
         {
-            Name = "V269CleanupPage", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = Padding.Empty,
+            Name = "V269CleanupPage", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 275));
+        cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         cleaningLayout.Controls.Add(cleaningActions, 0, 0);
         cleaningLayout.Controls.Add(BuildDiskPanel(), 0, 1);
         cleaning.Controls.Add(ScrollablePage(cleaningLayout, width =>
@@ -2196,7 +2197,7 @@ internal sealed partial class MainForm : Form
                     root.RowStyles[0].Height=Math.Max(D(30),heading.Font.Height+D(5));
                     root.RowStyles[1].Height=rows*(height+D(9))+D(10);
                     root.RowStyles[2].Height=Math.Max(D(32),_cleanupPreview.Font.Height+D(8));
-                    root.RowStyles[4].Height=Math.Max(D(12),_diskSummary.Font.Height+2);
+                    // A altura da linha de estado é decidida por DiskPanelHeight conforme os dados disponíveis.
                 }
                 finally{previewRow.ResumeLayout(true);}
             }
@@ -2325,6 +2326,7 @@ internal sealed partial class MainForm : Form
         {
             _refreshingDisks = false;
             if (_refreshDisksButton is { IsDisposed: false }) _refreshDisksButton.Enabled = !_busy;
+            if(!IsDisposed&&!Disposing)_relayoutCleaning?.Invoke();
         }
     }
 

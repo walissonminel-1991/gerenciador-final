@@ -19,6 +19,10 @@ internal sealed partial class MainForm
         int S(int x) => V269AppTable.Scale(x,_v269Appearance.InterfacePercent,DeviceDpi);
         int reportHeight=CleanupReportHeight(width);
         var section=_v269CleanupDiskSection;
+        if(section is not null)
+            section.RowStyles[4].Height=_diskCards.Content.Controls.Count>0&&!_refreshingDisks&&
+                !_diskSummary.Text.StartsWith("Não foi possível",StringComparison.Ordinal)?0:
+                Math.Max(S(12),_diskSummary.Font.Height+2);
         int fixedRows=section is null?S(160):section.Padding.Vertical+
             section.RowStyles.Cast<RowStyle>().Where((row,index)=>index!=3&&index!=5).Sum(row=>(int)Math.Ceiling(row.Height));
         int area=Math.Max(1,width-(section?.Padding.Horizontal??S(26))-_diskCards.Content.Padding.Horizontal);

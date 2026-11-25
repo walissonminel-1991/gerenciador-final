@@ -64,6 +64,9 @@ internal sealed class V269RightPane : UserControl
 {
     private readonly TableLayoutPanel _layout;
     private readonly Panel _flowViewport=new(){Name="V269AppFlowViewport",Dock=DockStyle.Fill,Margin=Padding.Empty,TabStop=false};
+    private readonly DarkVScrollBar _cleanupFlowScroll=new(){Name="V269CleanupFlowScroll",Dock=DockStyle.Right,Visible=false,AccessibleName="Rolagem da operação de limpeza"};
+    private readonly WheelDeltaAccumulator _cleanupFlowWheel=new();
+    private bool _cleanupFlowScrollActive;
     private readonly Label _title;
     private readonly Panel _titleHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
     private readonly Label _appFlowHeading=new(){Name="V269AppFlowHeading",Dock=DockStyle.Top,
@@ -205,6 +208,31 @@ internal sealed class V269RightPane : UserControl
         _layout.Controls.Add(_operationContent, 0, 4);
         _layout.Controls.Add(new Panel{Dock=DockStyle.Fill,Margin=Padding.Empty,TabStop=false},0,6);
         _flowViewport.Controls.Add(_layout);Controls.Add(_flowViewport);
+        Controls.Add(_cleanupFlowScroll);_cleanupFlowScroll.BringToFront();
+        _cleanupFlowScroll.ValueChanged+=(_,_)=>{if(_cleanupFlowScrollActive)_layout.Top=-_cleanupFlowScroll.Value;};
+        void TrackCleanupFlow(Control control)
+        {
+            control.MouseWheel+=(_,e)=>
+            {
+                if(!_cleanupFlowScrollActive||e is HandledMouseEventArgs {Handled:true})return;
+                int notches=_cleanupFlowWheel.Consume(e.Delta);
+                if(notches!=0)_cleanupFlowScroll.Value=(int)Math.Clamp(
+                    (long)_cleanupFlowScroll.Value-85L*notches,0,_cleanupFlowScroll.MaximumValue);
+                if(e is HandledMouseEventArgs handled)handled.Handled=true;
+            };
+            control.Enter+=(_,_)=>
+            {
+                if(!_cleanupFlowScrollActive||!control.Visible||!control.IsHandleCreated||
+                    control is not (Button or TextBox))return;
+                var bounds=_layout.RectangleToClient(control.RectangleToScreen(control.ClientRectangle));
+                if(bounds.Top<_cleanupFlowScroll.Value)_cleanupFlowScroll.Value=bounds.Top;
+                else if(bounds.Bottom>_cleanupFlowScroll.Value+_flowViewport.ClientSize.Height)
+                    _cleanupFlowScroll.Value=bounds.Bottom-_flowViewport.ClientSize.Height;
+            };
+            control.ControlAdded+=(_,e)=>{if(e.Control is {} child)TrackCleanupFlow(child);};
+            foreach(Control child in control.Controls)TrackCleanupFlow(child);
+        }
+        TrackCleanupFlow(_flowViewport);
         _flowViewport.SizeChanged+=(_,_)=>FitOperationHistory();
         Resize+=(_,_)=>{if(_structuredApp||_appFlow)Invalidate();FitOperationHistory();};
         Present(null);
@@ -356,6 +384,16 @@ internal sealed class V269RightPane : UserControl
         {
             // Aplicativos usa a mesma política de overflow do aside HTML:
             // medir o conjunto inteiro, sem subdividir em áreas de rolagem.
+            bool themedCleanup=_appFlow&&_cleanupPage&&
+                Current?.FlowPage is (null or V269Page.Limpeza)&&
+                (Current?.FlowResult is null||Current.FlowResult.Page==V269Page.Limpeza);
+            if(!themedCleanup&&_cleanupFlowScrollActive)
+            {
+                _cleanupFlowScrollActive=false;
+                _cleanupFlowScroll.SetMetrics(0,1);
+                _cleanupFlowScroll.Value=0;
+                _layout.Location=Point.Empty;
+            }
             if(!_appFlow)
             {
                 if(_flowViewport.AutoScroll)
@@ -396,13 +434,37 @@ internal sealed class V269RightPane : UserControl
             _flowViewport.SuspendLayout();_layout.SuspendLayout();
             try
             {
-                int content=MeasureFlow(fullWidth);
-                if(content>height)
-                    content=MeasureFlow(Math.Max(1,fullWidth-SystemInformation.VerticalScrollBarWidth));
-                _flowViewport.AutoScroll=true;
-                _layout.Dock=DockStyle.Top;
-                _layout.Height=Math.Max(height,content);
-                _flowViewport.AutoScrollMinSize=new Size(0,content);
+                if(themedCleanup)
+                {
+                    if(_flowViewport.AutoScroll)
+                    {
+                        _flowViewport.AutoScrollPosition=Point.Empty;
+                        _flowViewport.AutoScrollMinSize=Size.Empty;
+                        _flowViewport.AutoScroll=false;
+                    }
+                    _cleanupFlowScrollActive=true;
+                    _cleanupFlowScroll.ApplyAppScrollTheme(_appPaneTheme);
+                    int width=Math.Max(1,ClientSize.Width-Padding.Horizontal);
+                    int content=MeasureFlow(width);
+                    if(content>height)
+                    {
+                        width=Math.Max(1,width-_cleanupFlowScroll.Width);
+                        content=MeasureFlow(width);
+                    }
+                    _cleanupFlowScroll.SetMetrics(content,height);
+                    _layout.Dock=DockStyle.None;
+                    _layout.Bounds=new Rectangle(0,-_cleanupFlowScroll.Value,width,Math.Max(height,content));
+                }
+                else
+                {
+                    int content=MeasureFlow(fullWidth);
+                    if(content>height)
+                        content=MeasureFlow(Math.Max(1,fullWidth-SystemInformation.VerticalScrollBarWidth));
+                    _flowViewport.AutoScroll=true;
+                    _layout.Dock=DockStyle.Top;
+                    _layout.Height=Math.Max(height,content);
+                    _flowViewport.AutoScrollMinSize=new Size(0,content);
+                }
             }
             finally{_layout.ResumeLayout(true);_flowViewport.ResumeLayout(true);}
         }
@@ -1052,8 +1114,9 @@ internal sealed class V269Shell : UserControl
         int width = Math.Max(1, ClientSize.Width);
         bool apps=SelectedPage is V269Page.Aplicativos or V269Page.Drivers;
         bool repair = SelectedPage == V269Page.Reparo;
-        bool split = apps || repair;
-        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo;
+        bool cleanup = SelectedPage == V269Page.Limpeza;
+        bool split = apps || repair || cleanup;
+        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza;
         int windowWidth = LayoutWindowWidth;
         // Início usa os breakpoints do CSS congelado, medidos pela janela.
         int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
@@ -1067,7 +1130,7 @@ internal sealed class V269Shell : UserControl
         _homeGlyph.Visible = home;
         _homeGlyph.Page = SelectedPage;
         _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269DriverVisuals.GlyphInk(V269DriverGlyph.Chip, Theme) :
-            repair ? V269RepairVisuals.WrenchInk(Theme) : Theme switch {
+            repair ? V269RepairVisuals.WrenchInk(Theme) : cleanup ? ColorTranslator.FromHtml(Theme switch { V269Theme.Claro=>"#087d82",V269Theme.Dark=>"#55cbb5",_=>"#6bd6b2" }) : Theme switch {
             V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
             V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
             _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };
@@ -1134,6 +1197,7 @@ internal sealed class V269Shell : UserControl
             right=S(_appPaneWidth);
         }
         if (repair) showRight = mandatory || windowWidth > 1040 || _compactPaneOpen;
+        if (cleanup) showRight = mandatory || windowWidth > 1040 || _compactPaneOpen || retained;
         bool below=split&&windowWidth<=1040&&showRight;
         if(!showRight||split)right=0;
         PlaceV269AppPane(split&&showRight?below?2:1:0);

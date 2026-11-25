@@ -159,6 +159,7 @@ internal static class V269IntegrationTests
 
     private static void VerifyCleanup(MainForm form,V269Shell shell)
     {
+        var cleanupClock=System.Diagnostics.Stopwatch.StartNew();
         const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
         var disks=(DarkScrollableFlow)typeof(MainForm).GetField("_diskCards",flags)!.GetValue(form)!;
         var actions=(List<Control>)typeof(MainForm).GetField("_actionControls",flags)!.GetValue(form)!;
@@ -225,6 +226,16 @@ internal static class V269IntegrationTests
                     Require(card.ClientRectangle.Contains(card.Command.Bounds)&&card.Command.Width>0,
                         "comando de limpeza permanece dentro do cartão");
                 }
+                var section=form.Controls.Find("V269DiskSection",true).OfType<TableLayoutPanel>().Single();
+                var report=form.Controls.Find("CleanupCategoryReport",true).OfType<TableLayoutPanel>().Single();
+                var stableRows=report.RowStyles.Cast<RowStyle>().ToArray();
+                relayout();
+                Require(report.RowStyles.Cast<RowStyle>().SequenceEqual(stableRows),
+                    "medição idêntica de Limpeza não reconstrói a grade de estimativas");
+                Require(section.RectangleToScreen(section.ClientRectangle).Bottom>=fixtures[1].RectangleToScreen(fixtures[1].ClientRectangle).Bottom && section.Height<=section.RowStyles.Cast<RowStyle>().Where(row=>row.SizeType==SizeType.Absolute).Sum(row=>row.Height)+fixtures.Sum(disk=>disk.Height+disk.Margin.Vertical)+section.Padding.Vertical+20,
+                    "Espaço em disco termina após as unidades, sem esticar até o rodapé");
+                var heading=form.Controls.Find("V269HomeHeadingIcon",true).Single();
+                Require(heading.Visible,"Limpeza utiliza o ícone do cabeçalho aprovado");
                 var toolbar=form.Controls.Find("V269CleanupToolbar",true).OfType<TableLayoutPanel>().Single();
                 Require(toolbar.Controls.OfType<Button>().Count()==3&&toolbar.Controls.OfType<Button>()
                     .All(button=>toolbar.ClientRectangle.Contains(button.Bounds)&&button.Width>0&&button.Height>0),
@@ -234,13 +245,15 @@ internal static class V269IntegrationTests
                 capture.Save($"LayoutCaptures/v269-limpeza-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
                 Console.WriteLine($"V269-CLEANUP-CAPTURE {palette} {size.Width}x{size.Height}");
             }
+            Console.WriteLine($"TEMPO Limpeza: detalhes e geometria={cleanupClock.ElapsedMilliseconds} ms");
             // Captura do estado exato da referência: lixeira selecionada e quatro resultados anteriores.
             var context=SynchronizationContext.Current;
             try
             {
+                foreach(var size in new[]{new Size(1200,659),new Size(1844,1116)})
                 foreach(V269Theme palette in Enum.GetValues<V269Theme>())
                 {
-                    theme.SelectedIndex=(int)palette;surface.Size=new Size(1844,1116);
+                    theme.SelectedIndex=(int)palette;surface.Size=size;
                     shell.PresentPanel(null);
                     var recycle=form.Controls.Find("V269CleanupCard3",true).Single();
                     typeof(Control).GetMethod("OnClick",flags)!.Invoke(recycle,[EventArgs.Empty]);
@@ -253,16 +266,35 @@ internal static class V269IntegrationTests
                         surface.PerformLayout();relayout();Application.DoEvents();
                         Require(shell.RightPane.Controls.Find("V269AppPreviousResult",true).Length==4,
                             "quatro resultados anteriores no estado de confirmação da limpeza");
+                        var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
+                        var scroll=shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).OfType<DarkVScrollBar>().Single();
+                        Require(!viewport.AutoScroll,"Limpeza não usa a barra branca nativa no painel de operação");
+                        if(scroll.MaximumValue>0)
+                        {
+                            Require(scroll.Visible,"overflow de Limpeza usa a barra temática");
+                            scroll.Value=scroll.MaximumValue;
+                            Require(viewport.Controls.OfType<TableLayoutPanel>().Single().Top==-scroll.Value,
+                                "rolagem temática alcança o último resultado");
+                        }
+                        // O HTML de referência está no início da rolagem. A captura
+                        // deve ocorrer após a prova de alcance, não antes de restaurar a posição.
+                        scroll.Value=0;
+                        surface.PerformLayout();
+                        Application.DoEvents();
+                        Require(viewport.Controls.OfType<TableLayoutPanel>().Single().Top==0,
+                            "captura comparativa no início da rolagem de Limpeza");
                         using var capture=new Bitmap(surface.Width,surface.Height);
                         surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
-                        capture.Save($"LayoutCaptures/v269-limpeza-REFERENCIA-CONFIRMACAO-{palette}-1844x1116.png");
+                        capture.Save($"LayoutCaptures/v269-limpeza-REFERENCIA-CONFIRMACAO-{palette}-{size.Width}x{size.Height}.png");
                     }
                     finally{shell.RightPane.ResolveConfirmation(false);Pump(confirmation);}
                     Require(!confirmation.Result,"fixture de referência nunca autoriza manutenção");
                 }
             }
             finally{SynchronizationContext.SetSynchronizationContext(context);}
+            Console.WriteLine($"TEMPO Limpeza: confirmação e rolagem acumuladas={cleanupClock.ElapsedMilliseconds} ms");
             VerifyInventoryFlowStates(form,shell,V269Page.Limpeza);
+            Console.WriteLine($"TEMPO Limpeza: fluxo operacional acumulado={cleanupClock.ElapsedMilliseconds} ms");
         }
         finally
         {

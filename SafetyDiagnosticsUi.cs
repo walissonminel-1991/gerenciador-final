@@ -330,8 +330,8 @@ internal sealed partial class MainForm
             Name = "CleanupCategoryReport", Dock = DockStyle.Left, Margin = Padding.Empty,
             RowCount = 5, ColumnCount = 2, BackColor = Color.Transparent
         };
-        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
+        report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
         foreach (var target in new[] { CleanupTarget.UserTemp, CleanupTarget.WindowsTemp,
             CleanupTarget.UpdateCache, CleanupTarget.RecycleBin, CleanupTarget.DirectX })
         {
@@ -368,6 +368,10 @@ internal sealed partial class MainForm
         return report;
     }
 
+    private sealed record CleanupReportMetric(string Text, string FontFamily, float FontSize,
+        FontStyle FontStyle, GraphicsUnit FontUnit, int Dpi, Padding Margin);
+    private (int Width, int Gap, int Pairs, CleanupReportMetric[] Metrics, int Height)? _cleanupReportMeasurement;
+
     private int CleanupReportHeight(int pageWidth)
     {
         if (_cleanupReport is null || _cleanupReportRow is null) return 0;
@@ -376,11 +380,20 @@ internal sealed partial class MainForm
         int usable = Math.Max(1, Math.Min(S(560), pageWidth - (_v269CleanupDiskSection?.Padding.Horizontal??S(26))));
         int pairs = usable >= S(500) ? 2 : 1;
         int rows = (_cleanupRows.Count + pairs - 1) / pairs;
+        var values = _cleanupRows.Values.ToArray();
+        CleanupReportMetric Metric(Label label) => new(label.Text, label.Font.FontFamily.Name,
+            label.Font.Size, label.Font.Style, label.Font.Unit, label.DeviceDpi, label.Margin);
+        var metrics=values.SelectMany(pair=>new[]{Metric(pair.Title),Metric(pair.State)}).ToArray();
+        int gap=S(10);
+        if(_cleanupReportMeasurement is {} cached && cached.Width==usable && cached.Gap==gap &&
+            cached.Pairs==pairs && cached.Metrics.SequenceEqual(metrics) &&
+            report.Width==usable && report.RowCount==rows && report.ColumnCount==pairs*2 &&
+            report.RowStyles.Count==rows && _cleanupReportRow.Height==cached.Height)
+            return cached.Height;
         report.SuspendLayout();
         try
         {
-            report.Width = usable;
-            var values = _cleanupRows.Values.ToArray();
+            if(report.Width!=usable)report.Width = usable;
             // Retirar apenas os controles da grade, sem destruí-los: o motor mantém as referências.
             bool rebuild = report.ColumnCount != pairs * 2 || report.RowCount != rows;
             if (rebuild)
@@ -391,13 +404,14 @@ internal sealed partial class MainForm
                 report.ColumnStyles.Clear();
                 for (int i = 0; i < pairs; i++)
                 {
-                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f / pairs));
-                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f / pairs));
+                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65f / pairs));
+                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35f / pairs));
                 }
             }
             report.RowStyles.Clear();
             int[] heights = new int[rows];
-            int columnWidth = Math.Max(1, usable / (pairs * 2) - S(10));
+            int titleWidth = Math.Max(1, (int)(usable * .65 / pairs) - S(10));
+            int stateWidth = Math.Max(1, (int)(usable * .35 / pairs) - S(10));
             for (int i = 0; i < values.Length; i++)
             {
                 var pair = values[i];
@@ -408,12 +422,13 @@ internal sealed partial class MainForm
                     report.Controls.Add(pair.Title, col, row);
                     report.Controls.Add(pair.State, col + 1, row);
                 }
-                heights[row] = Math.Max(heights[row], Math.Max(ReportTextHeight(pair.Title, columnWidth),
-                    ReportTextHeight(pair.State, columnWidth)) + S(7));
+                heights[row] = Math.Max(heights[row], Math.Max(ReportTextHeight(pair.Title, titleWidth),
+                    ReportTextHeight(pair.State, stateWidth)) + S(7));
             }
             foreach (int height in heights) report.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
             int total = heights.Sum();
-            _cleanupReportRow.Height = total;
+            if(_cleanupReportRow.Height!=total)_cleanupReportRow.Height = total;
+            _cleanupReportMeasurement=(usable,gap,pairs,metrics,total);
             return total;
         }
         finally { report.ResumeLayout(true); }
