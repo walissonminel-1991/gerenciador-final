@@ -186,6 +186,13 @@ internal sealed class LocalDiagnosticReport
     private readonly Queue<string> _hardware = new();
     private long _hardwareTotal;
 
+    internal void RecordDriverAuditPhase(DriverStoreAudit.AuditPhase phase,bool returned,long elapsedMs)
+    {
+        lock(_gate)
+            Append(_events,FormattableString.Invariant(
+                $"{DateTimeOffset.UtcNow:O} DRIVER_AUDIT fase={phase} estado={(returned?"retorno":"inicio")} duracao_ms={elapsedMs}"),ref _eventTotal);
+    }
+
     internal void RecordOperation(V269Page page, string state, bool? complete = null)
     {
         // Estados fechados; nenhum título de aplicativo, comando ou descrição de usuário.
