@@ -410,6 +410,23 @@ internal sealed class V269RightPane : UserControl
     }
     private void PresentCore(V269PanelPresentation? presentation)
     {
+        // Um estado do painel é uma transação: as mudanças de linhas,
+        // visibilidade e conteúdo não precisam rearranjar o viewport
+        // separadamente. A medição final usa a geometria já aplicada.
+        _flowViewport.SuspendLayout();
+        _layout.SuspendLayout();
+        try { PresentCoreLayout(presentation); }
+        finally
+        {
+            _flowViewport.ResumeLayout(true);
+            _layout.ResumeLayout(true);
+        }
+        FitOperationHistory();
+        PresentationChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void PresentCoreLayout(V269PanelPresentation? presentation)
+    {
         // A confirmação restaura a fotografia anterior. Se um resultado
         // foi dispensado durante a espera, não ressuscitar essa fotografia.
         if(_appHistoryPage&&presentation?.Application is {} app&&_appHistoryProvider is not null)
@@ -451,8 +468,7 @@ internal sealed class V269RightPane : UserControl
         _progress.Value = Math.Clamp(presentation?.ProgressPercent ?? 0, 0, 100);
         _progress.AccessibleDescription = inProgress ? _progress.Value + "%" : string.Empty;
         AccessibleDescription = presentation?.Title ?? "";
-        RefreshAppOperationHistory();FitOperationHistory();
-        PresentationChanged?.Invoke(this, EventArgs.Empty);
+        RefreshAppOperationHistory();
     }
 
     private void UpdateOperationContentLayout()
