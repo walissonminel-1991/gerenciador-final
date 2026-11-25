@@ -142,7 +142,9 @@ internal sealed partial class MainForm
         root.Controls.Add(BuildMemoryRamDashboard(),0,2);
         _memoryTimer.Tick += async (_,_) =>
         {
-            if (_memorySampling || IsDisposed) return;
+            if(IsDisposed)return;
+            LocalDiagnosticReport.Session.ObserveUiCadence(_memoryTimer.Interval);
+            if (_memorySampling) return;
             UpdateProcessSamplingCadence();
             LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
                 _busy || _v269Confirming || _batchUpdatesActive || _windowsUpdateInstalling ||
