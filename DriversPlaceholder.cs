@@ -779,6 +779,8 @@ internal sealed partial class MainForm
         {
             if (root.IsDisposed) return;
             string query = search.Text.Trim();
+            using var measurement = LocalDiagnosticReport.Session.MeasureUi(
+                query.Length == 0 ? DiagnosticUiStage.DriverListRender : DiagnosticUiStage.DriverSearch);
             var visible = DriverListFilters.Apply(
                 snapshot ?? Array.Empty<DriverInventoryEntry>(), activeFilter, query,
                 eligibleUpdateIds);
