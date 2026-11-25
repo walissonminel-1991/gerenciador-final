@@ -18,6 +18,7 @@ internal static class V269IntegrationTests
             "oito instâncias nativas com Início ativo");
         VerifyAppOrdering();
         VerifyInventoryOrderingCost();
+        VerifyAppSearchCost();
         VerifyAppTableGeometry();
         VerifyAppIconSources();
         Require(form.Controls.Find("V269WindowsUpdateHistory", true).OfType<Button>().Single().Text == "Histórico" &&
@@ -1496,6 +1497,58 @@ internal static class V269IntegrationTests
                 cells[5].Contains(u)&&cells[5].Contains(d)&&!u.IntersectsWith(d),
                 "seis colunas e alvos binários disjuntos em escalas/DPI");
         }
+    }
+
+    private static void VerifyAppSearchCost()
+    {
+        static bool OldSearch(ProgramEntry entry,string query) => query.Length==0 ||
+            string.Join(" ",entry.Name,entry.Version,entry.Publisher,entry.PackageId,entry.AvailableVersion,
+                entry.CatalogIdentity,entry.CatalogDisplayName,entry.InventorySource,entry.MsiProductCode)
+                .Contains(query,StringComparison.CurrentCultureIgnoreCase);
+        var sample=new ProgramEntry{Name="Aplicação Café",Version="2.0",Publisher="Editor",
+            PackageId="ID",AvailableVersion="3.0",CatalogIdentity="CAT",
+            CatalogDisplayName="Catálogo",InventorySource="MSIX",MsiProductCode="MSI"};
+        var boundary=new ProgramEntry{Name=new string('x',504)};
+        var oversized=new ProgramEntry{Name=new string('x',512),Publisher="Final"};
+        var missing=new ProgramEntry{Name=null!,Version="1.0",Publisher=null!};
+        var culture=System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            foreach(string locale in new[]{"pt-BR","tr-TR"})
+            {
+                System.Globalization.CultureInfo.CurrentCulture=System.Globalization.CultureInfo.GetCultureInfo(locale);
+                foreach(var entry in new[]{sample,boundary,oversized,missing})
+                foreach(string query in new[]{"","CAFÉ","cafe","2.0 Editor","ID","ıd","MSIX MSI","Final",
+                    "x  ","1.0","não existe","CAT Catálogo"})
+                    Require(V269AppOrdering.MatchesSearch(entry,query)==OldSearch(entry,query),
+                        "pesquisa preserva cultura, separadores, campos vazios e limite do buffer");
+            }
+        }
+        finally{System.Globalization.CultureInfo.CurrentCulture=culture;}
+        sample.AvailableVersion="4.0";
+        Require(V269AppOrdering.MatchesSearch(sample,"4.0")&&!V269AppOrdering.MatchesSearch(sample,"3.0"),
+            "pesquisa reflete alterações sem cache de dados");
+        var entries=Enumerable.Range(0,512).Select(i=>new ProgramEntry{
+            Name="Aplicativo de teste "+i,Version="1.2.3",Publisher="Editor de teste",
+            InventorySource="Win32",InventoryId="APP|"+i,CatalogDisplayName="Aplicativo catálogo"}).ToArray();
+        (long Bytes,int Count) Measure(Func<ProgramEntry,string,bool> match)
+        {
+            _=match(entries[0],"teste 1");
+            int count=0;
+            long start=GC.GetAllocatedBytesForCurrentThread();
+            for(int repeat=0;repeat<5;repeat++)
+                foreach(var entry in entries) if(match(entry,"teste 1"))count++;
+            return (GC.GetAllocatedBytesForCurrentThread()-start,count);
+        }
+        var before=Measure(OldSearch);
+        (long Bytes,int Count) after;
+        var metrics=new List<PerformanceSample>();
+        using(LocalPerformanceMetrics.Measure(PerformanceStage.AppSearch,metrics.Add))
+            after=Measure(V269AppOrdering.MatchesSearch);
+        Require(after.Count==before.Count&&after.Bytes<before.Bytes&&metrics.Count==1,
+            "pesquisa otimizada preserva resultados e reduz alocações em fixture");
+        Console.WriteLine($"V269-PERF pesquisa itens=512 repeticoes=5 bytes_antes={before.Bytes} bytes_depois={after.Bytes}");
+        Console.WriteLine(metrics[0].Format());
     }
 
     private static void VerifyInventoryOrderingCost()
