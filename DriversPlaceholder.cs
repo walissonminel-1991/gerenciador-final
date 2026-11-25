@@ -928,7 +928,7 @@ internal sealed partial class MainForm
                 SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 return;
             }
-            var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
+            var token = driverQuery.Begin(timeoutForTest ?? DriverStoreAudit.InteractiveTimeout);
             // Uma captura antiga conserva sua precedencia temporal mesmo
             // se o gravador for agendado muito depois, inclusive entre janelas.
             var queryStartedAt = DateTimeOffset.UtcNow;
@@ -960,12 +960,11 @@ internal sealed partial class MainForm
             verifying = v269 && showProgress && _nav.SelectedPage == V269Page.Drivers;
             verificationComplete = false;
             SetDriverStatus("Consultando drivers em segundo plano…");
-            _driverReadTask = readForTest is null
-                ? Task.Run(() => DriverDeviceMetadata.Enrich(
-                    DriverStoreAudit.CaptureWithPackages(token,LocalDiagnosticReport.Session.RecordDriverAuditPhase), token))
-                : readForTest(token);
             try
             {
+                _driverReadTask = readForTest is null
+                    ? Task.Run(() => DriverStoreAudit.CaptureForDisplay(token, LocalDiagnosticReport.Session.RecordDriverAuditPhase))
+                    : readForTest(token);
                 var captured = await _driverReadTask.WaitAsync(token);
                 if (root.IsDisposed || !driverQuery.CanPublish(token)) return;
                 // G1.22: nenhuma lista ou evidencia e publicada antes de
@@ -1065,7 +1064,7 @@ internal sealed partial class MainForm
                 // SOMENTE LEITURA. Não consulta o mesmo catálogo em cada cartão.
                 // Fixtures seguem sem COM, sem rede e sem alteração de drivers.
                 if (readForTest is null && !result.Partial && result.Items.Count > 0 &&
-                    !root.IsDisposed && publishedGeneration == inventoryGeneration)
+                    !root.IsDisposed && publishedGeneration == inventoryGeneration && driverQuery.CanPublish(token))
                 {
                     using var officialTimeout = new CancellationTokenSource(
                         TimeSpan.FromSeconds(90));
@@ -1133,9 +1132,18 @@ internal sealed partial class MainForm
             }
             catch (OperationCanceledException)
             {
-                if (!root.IsDisposed) SetDriverStatus(refresh.Text == "Cancelando..."
-                    ? "Consulta cancelada. Lista anterior preservada; sem alterações."
-                    : "Tempo esgotado. Lista anterior preservada; sem alterações.");
+                // WaitAsync encerra a espera, não a chamada nativa. Observar
+                // eventual falha tardia sem tocar na lista nem liberar a trava.
+                if (_driverReadTask is { } pending)
+                    _ = pending.ContinueWith(faulted =>
+                        DiagnosticTrace.Failure("DRIVERS.INVENTARIO_FALHA", faulted.Exception!.GetBaseException()),
+                        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+                if (!root.IsDisposed) SetDriverStatus(resultPublished
+                    ? "Inventário concluído e preservado. Finalização do histórico interrompida; nenhuma alteração de drivers."
+                    : refresh.Text == "Cancelando..."
+                        ? "Consulta cancelada. Lista anterior preservada; sem alterações."
+                        : "Tempo esgotado. Lista anterior preservada; sem alterações.");
                 DiagnosticTrace.Write("DRIVERS.CONSULTA_CANCELADA");
             }
             catch (Exception ex)

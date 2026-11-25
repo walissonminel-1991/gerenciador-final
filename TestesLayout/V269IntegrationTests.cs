@@ -143,8 +143,8 @@ internal static class V269IntegrationTests
         Require(editor is not null && editor.BackColor.GetBrightness() > editor.ForeColor.GetBrightness() &&
             shell.RightPane.Current?.Description == "Resultado preservado",
             "tema Claro preserva contraste do registro e o resultado publicado");
-        VerifySettings(form,shell);
-        VerifyApps(form,shell,confirmationContext);
+        Timed("Configurações", () => VerifySettings(form,shell));
+        Timed("Aplicativos", () => VerifyApps(form,shell,confirmationContext));
         void Timed(string name, Action test)
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -234,6 +234,7 @@ internal static class V269IntegrationTests
             foreach(var size in new[]{new Size(1200,659),new Size(1844,1116)})
             foreach(V269Theme palette in Enum.GetValues<V269Theme>())
             {
+                var caseClock=System.Diagnostics.Stopwatch.StartNew();
                 theme.SelectedIndex=(int)palette;surface.Size=size;surface.PerformLayout();relayout();Application.DoEvents();
                 var cards=form.Controls.Find("V269CleanupActions",true).OfType<DarkScrollableFlow>().Single();
                 Require(cards.Content.Controls.Count==6&&cards.Content.Controls.OfType<V269CleanupCard>().Count()==6,
@@ -312,9 +313,9 @@ internal static class V269IntegrationTests
                     }
                     finally{toolbar.ControlRemoved-=CountRemoved;}
                 }
-                using var capture=new Bitmap(surface.Width,surface.Height);
-                surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
-                capture.Save($"LayoutCaptures/v269-limpeza-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
+                long validationMs=caseClock.ElapsedMilliseconds;
+                TimedMaintenanceCapture(surface,$"LayoutCaptures/v269-limpeza-SINTETICO-{palette}-{size.Width}x{size.Height}.png",
+                    "Limpeza_detalhes",palette,size,validationMs);
                 Console.WriteLine($"V269-CLEANUP-CAPTURE {palette} {size.Width}x{size.Height}");
             }
             Console.WriteLine($"TEMPO Limpeza: detalhes e geometria={cleanupClock.ElapsedMilliseconds} ms");
@@ -325,6 +326,7 @@ internal static class V269IntegrationTests
                 foreach(var size in new[]{new Size(1200,659),new Size(1844,1116)})
                 foreach(V269Theme palette in Enum.GetValues<V269Theme>())
                 {
+                    var caseClock=System.Diagnostics.Stopwatch.StartNew();
                     theme.SelectedIndex=(int)palette;surface.Size=size;
                     shell.PresentPanel(null);
                     var recycle=form.Controls.Find("V269CleanupCard3",true).Single();
@@ -376,9 +378,8 @@ internal static class V269IntegrationTests
                         Application.DoEvents();
                         Require(viewport.Controls.OfType<TableLayoutPanel>().Single().Top==0,
                             "captura comparativa no início da rolagem de Limpeza");
-                        using var capture=new Bitmap(surface.Width,surface.Height);
-                        surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
-                        capture.Save($"LayoutCaptures/v269-limpeza-REFERENCIA-CONFIRMACAO-{palette}-{size.Width}x{size.Height}.png");
+                        TimedMaintenanceCapture(surface,$"LayoutCaptures/v269-limpeza-REFERENCIA-CONFIRMACAO-{palette}-{size.Width}x{size.Height}.png",
+                            "Limpeza_confirmacao",palette,size,caseClock.ElapsedMilliseconds);
                     }
                     finally{shell.RightPane.ResolveConfirmation(false);Pump(confirmation);}
                     Require(!confirmation.Result,"fixture de referência nunca autoriza manutenção");
@@ -401,6 +402,18 @@ internal static class V269IntegrationTests
             surface.PerformLayout();Application.DoEvents();
         }
         Console.WriteLine("PASS Limpeza V2.6.9: seis cartões, discos verticais, painel operacional e seis capturas sintéticas.");
+    }
+
+    // Separar pintura e compressão PNG das validações geométricas/ações.
+    // Não muda seleção, quantidade de capturas, resolução ou conteúdo.
+    private static void TimedMaintenanceCapture(Control surface,string path,string stage,V269Theme theme,Size size,long validationMs)
+    {
+        var clock=System.Diagnostics.Stopwatch.StartNew();
+        using var capture=new Bitmap(surface.Width,surface.Height);
+        surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
+        long paintMs=clock.ElapsedMilliseconds;
+        capture.Save(path);
+        Console.WriteLine($"LAYOUT-VISUAL fase={stage} tema={theme} dimensoes={size.Width}x{size.Height} dpi={surface.DeviceDpi} validacao_ms={validationMs} pintura_ms={paintMs} png_ms={clock.ElapsedMilliseconds-paintMs}");
     }
 
     private static void VerifyDrivers(MainForm form, V269Shell shell)
@@ -1028,6 +1041,7 @@ internal static class V269IntegrationTests
             foreach (var size in new[] { new Size(1200, 659), new Size(1844, 1116) })
             foreach (V269Theme palette in Enum.GetValues<V269Theme>())
             {
+                var caseClock=System.Diagnostics.Stopwatch.StartNew();
                 theme.SelectedIndex = (int)palette; surface.Size = size; surface.PerformLayout(); Application.DoEvents();
                 Select(0); Application.DoEvents();
                 Require(shell.RightPane.Visible && shell.RightPane.Current?.Repair is { Name: "Verificar Windows" } model &&
@@ -1064,9 +1078,8 @@ internal static class V269IntegrationTests
                 Require(rows.All(row => row.Count() <= 3) && (size.Width < 1844 || rows.Length == 4) &&
                     cards.All(card => card.Command.Right <= card.ClientSize.Width && card.Command.Bottom <= card.ClientSize.Height),
                     "grade responsiva preserva todos os comandos dentro dos cartões");
-                using var image = new Bitmap(surface.Width, surface.Height);
-                surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
-                image.Save($"LayoutCaptures/v269-reparo-DETALHES-{palette}-{surface.Width}x{surface.Height}.png");
+                TimedMaintenanceCapture(surface,$"LayoutCaptures/v269-reparo-DETALHES-{palette}-{surface.Width}x{surface.Height}.png",
+                    "Reparo_detalhes",palette,size,caseClock.ElapsedMilliseconds);
             }
 
             // As consultas exercitam os manipuladores reais com tarefas sintéticas já pendentes.

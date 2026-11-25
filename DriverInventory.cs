@@ -191,7 +191,10 @@ internal static class DriverInventory
         return true;
     }
 
-    internal static DriverInventoryResult Capture(CancellationToken token)
+    internal static DriverInventoryResult Capture(CancellationToken token) => Capture(token, null);
+
+    internal static DriverInventoryResult Capture(CancellationToken token,
+        Action<DriverStoreAudit.AuditPhase,bool,long>? observe)
     {
         var rows = new List<DriverInventoryEntry>();
         var driverClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -216,48 +219,67 @@ internal static class DriverInventory
         }
         try
         {
-            var type = Type.GetTypeFromProgID("WbemScripting.SWbemLocator");
-            if (type is null) return new([], true, "WMI indisponível");
-            locator = Activator.CreateInstance(type);
-            services = ((dynamic)locator!).ConnectServer(".", @"root\cimv2");
-            void Query(string sql, Action<Func<string, object?>> consume)
+            bool connected = DriverStoreAudit.RunPhase(DriverStoreAudit.AuditPhase.WmiConnect, token, observe, () =>
             {
-                object? result = null;
-                int count = 0;
-                try
+                var type = Type.GetTypeFromProgID("WbemScripting.SWbemLocator");
+                if (type is null) return false;
+                locator = Activator.CreateInstance(type);
+                services = ((dynamic)locator!).ConnectServer(".", @"root\cimv2");
+                return true;
+            });
+            if (!connected) return new([], true, "WMI indisponível");
+            void Query(DriverStoreAudit.AuditPhase phase, string sql, Action<Func<string, object?>> consume)
+            {
+                DriverStoreAudit.RunPhase(phase, token, observe, () =>
                 {
-                    stage = "executar consulta";
-                    token.ThrowIfCancellationRequested();
-                    // O adaptador COM IEnumerable do .NET requer enumeracao rebobinavel.
-                    // Manter retorno semissincrono (16), sem ForwardOnly (32).
-                    result = ((dynamic)services!).ExecQuery(sql, "WQL", 16);
-                    stage = "enumerar consulta";
-                    foreach (object row in (System.Collections.IEnumerable)result)
+                    object? result = null;
+                    int count = 0;
+                    try
                     {
-                        try
+                        stage = "executar consulta";
+                        token.ThrowIfCancellationRequested();
+                        if (clock.Elapsed >= TimeSpan.FromSeconds(18)) { partial = true; return count; }
+                        // O adaptador COM IEnumerable do .NET requer enumeracao rebobinavel.
+                        // Manter retorno semissincrono (16), sem ForwardOnly (32).
+                        result = ((dynamic)services!).ExecQuery(sql, "WQL", 16);
+                        stage = "enumerar consulta";
+                        foreach (object row in (System.Collections.IEnumerable)result)
                         {
-                            if (++count > 4000 || clock.Elapsed > TimeSpan.FromSeconds(18)) { partial = true; break; }
-                            token.ThrowIfCancellationRequested();
-                            object? Get(string name)
+                            object? properties = null;
+                            try
                             {
-                                object? properties = null, property = null;
-                                try
+                                if (++count > 4000 || clock.Elapsed > TimeSpan.FromSeconds(18)) { partial = true; break; }
+                                token.ThrowIfCancellationRequested();
+                                object? Get(string name)
                                 {
-                                    properties = ((dynamic)row).Properties_;
-                                    property = ((dynamic)properties).Item(name);
-                                    return ((dynamic)property).Value;
+                                    token.ThrowIfCancellationRequested();
+                                    object? property = null;
+                                    try
+                                    {
+                                        // A coleção pertence à mesma linha WMI; reutilizá-la
+                                        // apenas nesta linha evita 6–8 aquisições COM repetidas.
+                                        properties ??= ((dynamic)row).Properties_;
+                                        property = ((dynamic)properties).Item(name);
+                                        return ((dynamic)property).Value;
+                                    }
+                                    catch (Exception ex) when (ex is not OperationCanceledException)
+                                    { partial = true; return null; }
+                                    finally { Release(property); }
                                 }
-                                catch { partial = true; return null; }
-                                finally { Release(property); Release(properties); }
+                                consume(Get);
                             }
-                            consume(Get);
+                            finally { try { Release(properties); } finally { Release(row); } }
+                            // Não pedir a próxima linha COM se o prazo expirou
+                            // enquanto a linha atual era consumida/liberada.
+                            token.ThrowIfCancellationRequested();
+                            if (clock.Elapsed >= TimeSpan.FromSeconds(18)) { partial = true; break; }
                         }
-                        finally { Release(row); }
                     }
-                }
-                finally { Release(result); }
+                    finally { Release(result); }
+                    return count;
+                });
             }
-            Query("SELECT PNPDeviceID, PNPClass, Name, Description, Present, HardwareID, CompatibleID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
+            Query(DriverStoreAudit.AuditPhase.WmiPnp, "SELECT PNPDeviceID, PNPClass, Name, Description, Present, HardwareID, CompatibleID, ConfigManagerErrorCode FROM Win32_PnPEntity", get =>
             {
                 string id = (Convert.ToString(get("PNPDeviceID")) ?? "").Trim();
                 if (id.Length > 0)
@@ -317,7 +339,7 @@ internal static class DriverInventory
                     }
                 }
             });
-            Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned, DeviceClass FROM Win32_PnPSignedDriver", get =>
+            Query(DriverStoreAudit.AuditPhase.WmiSigned, "SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned, DeviceClass FROM Win32_PnPSignedDriver", get =>
             {
                 string Text(string key) => Convert.ToString(get(key)) ?? "";
                 string id = Text("DeviceID").Trim();

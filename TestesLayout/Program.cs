@@ -4,28 +4,56 @@ using GerenciadorAplicativos;
 
 internal static class LayoutTests
 {
+    // Apenas instrumentação de testes, sem modificar o watchdog de 240 s.
+    private static string activeBlock = "inicialização";
+    private static void Measure(string name, Action work)
+    {
+        string previous = Interlocked.Exchange(ref activeBlock, name);
+        using var process=System.Diagnostics.Process.GetCurrentProcess();
+        uint gdiBefore=GetGuiResources(process.Handle,0), userBefore=GetGuiResources(process.Handle,1);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Console.WriteLine($"LAYOUT-BLOCK inicio bloco={name}");
+        try { work(); }
+        finally
+        {
+            long elapsed=clock.ElapsedMilliseconds;
+            uint gdiAfter=GetGuiResources(process.Handle,0), userAfter=GetGuiResources(process.Handle,1);
+            Console.WriteLine($"LAYOUT-BLOCK retorno bloco={name} duracao_ms={elapsed} gdi_antes={gdiBefore} gdi_depois={gdiAfter} user_antes={userBefore} user_depois={userAfter}");
+            Volatile.Write(ref activeBlock, previous);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+    private static extern uint GetGuiResources(IntPtr process,uint flags);
+
     [STAThread]
     static void Main(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         var suiteClock=System.Diagnostics.Stopwatch.StartNew();
-        Console.WriteLine("LAYOUT-SUITE inicio; limite_ms=240000");
+        string configuration = typeof(LayoutTests).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
+            .OfType<System.Reflection.AssemblyConfigurationAttribute>().FirstOrDefault()?.Configuration ?? "indefinida";
+        Console.WriteLine($"LAYOUT-SUITE inicio; limite_ms=240000; configuracao={configuration}; percurso={(args.Contains("--work18") ? "WORK18" : args.Length == 0 ? "integral" : "dirigido")}");
         using var deadline = new System.Threading.Timer(
             _ =>
             {
-                Console.Error.WriteLine($"LAYOUT-SUITE timeout global; decorrido_ms={suiteClock.ElapsedMilliseconds}");
+                Console.Error.WriteLine($"LAYOUT-SUITE timeout global; decorrido_ms={suiteClock.ElapsedMilliseconds}; bloco={Volatile.Read(ref activeBlock)}");
                 Environment.FailFast("Timeout no teste de layout");
             },
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
-        GfThermalEvidenceTests.Run();
-        GfThermalPresentationTests.Run();
-        GfMonitorSnapshotRelayTests.Run();
-        GfMonitorWindowBindingTests.Run();
-        GfMonitorPreferencesAndProgressTests.Run();
-        GfMonitorHostTests.Run();
-        GfMonitorSettingsTests.Run();
+        Measure("Monitor_GF", () =>
+        {
+            GfThermalEvidenceTests.Run();
+            GfThermalPresentationTests.Run();
+            GfMonitorSnapshotRelayTests.Run();
+            GfMonitorWindowBindingTests.Run();
+            GfMonitorPreferencesAndProgressTests.Run();
+            GfMonitorHostTests.Run();
+            GfMonitorSettingsTests.Run();
+        });
         if (args.Contains("--monitor-settings-visual")) { GfMonitorSettingsTests.RunMainFormVisual(); return; }
         if (args.Contains("--monitor-gf"))
         {
@@ -136,17 +164,22 @@ internal static class LayoutTests
         {
             // Este percurso encerra antes da suíte nativa completa.
             D3dKmtGpuSensorProviderTests.Run();
-            Work18UpdateUiTests.Run();
-            Stage3UpdateQueryTests.Run();
-            UninstallCleanupTests.VerifyTrayConfirmation();
+            Measure("WORK18_UI", Work18UpdateUiTests.Run);
+            Measure("WORK18_consulta", Stage3UpdateQueryTests.Run);
+            Measure("WORK18_confirmacao", UninstallCleanupTests.VerifyTrayConfirmation);
             // Release: matriz e partição visual independente de Limpeza/Reparo.
             // BetaInternal usa o mesmo SHA e execução e verifica o recibo antes
             // de deixar de repetir essas mesmas capturas. Fora da CI a suíte
             // padrão continua integral.
-            TestMainWorkspace(runIntegratedVisualSuite: false);
-            V269IntegrationTests.RunMaintenanceVisual();
+            Measure("contrato_recibo", TestMaintenanceVisualReceipt);
+            Measure("WORK18_workspace", () => TestMainWorkspace(runIntegratedVisualSuite: false));
+            Measure("WORK18_manutencao_visual", V269IntegrationTests.RunMaintenanceVisual);
             if(MaintenanceVisualReceipt() is { } receipt)
+            {
                 File.WriteAllText(receipt.Path,receipt.Identity);
+                Console.WriteLine("LAYOUT-SUITE recibo_manutencao_gravado=true");
+            }
+            Console.WriteLine($"LAYOUT-SUITE fim; decorrido_ms={suiteClock.ElapsedMilliseconds}");
             return;
         }
         if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
@@ -182,33 +215,36 @@ internal static class LayoutTests
             if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
             return;
         }
-        LiveHardwareMonitoringTests.Run();
-        NativeHardwareDiscoveryTests.Run();
-        HardwareSensorProviderTests.Run();
-        WindowsWddmGpuProviderTests.Run();
+        Measure("Monitor_fontes_e_hardware", () =>
+        {
+            LiveHardwareMonitoringTests.Run();
+            NativeHardwareDiscoveryTests.Run();
+            HardwareSensorProviderTests.Run();
+            WindowsWddmGpuProviderTests.Run();
+        });
         // Exercitar a ABI DXGI em runners Windows sem forçar consultas WMI
         // ou exigir GPU física no host de CI. Ausência é estado inconclusivo.
-        DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        Measure("DXGI", () => DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows()));
         // Homologação consultiva nativa no runner Windows já autorizado pelo
         // workflow existente. Apenas lê o driver e publica contagens, sem IDs.
-        D3dKmtGpuSensorProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        Measure("D3DKMT", () => D3dKmtGpuSensorProviderTests.Run(probeNative: OperatingSystem.IsWindows()));
         HardwareMonitoringDiagnosticReportTests.Run();
         StorageAssociationLinkerTests.Run();
         StorageReliabilityCounterMapperTests.Run();
         // Contadores e inventário WMI reais só no runner Windows. O teste
         // registra contagens agregadas; chipset/VRM sem fonte física ficam sem leitura.
-        WindowsPlatformHardwareProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        Measure("Plataforma_Windows", () => WindowsPlatformHardwareProviderTests.Run(probeNative: OperatingSystem.IsWindows()));
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
-        WheelScrollTests.Run();
-        V53VirtualCardTests.Run();
-        Work11ProgressLayoutTests.Run();
-        Work16EcosystemUiTests.Run();
-        Work12UninstallLayoutTests.Run();
+        Measure("WheelScrollTests", WheelScrollTests.Run);
+        Measure("V53VirtualCardTests", V53VirtualCardTests.Run);
+        Measure("Work11ProgressLayoutTests", Work11ProgressLayoutTests.Run);
+        Measure("Work16EcosystemUiTests", Work16EcosystemUiTests.Run);
+        Measure("Work12UninstallLayoutTests", Work12UninstallLayoutTests.Run);
         Work14ReliabilityTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
-        ConfirmReviewTests.Run();
-        Work7SafetyTests.Run();
-        UninstallCleanupTests.Run();
+        Measure("ConfirmReviewTests", ConfirmReviewTests.Run);
+        Measure("Work7SafetyTests", Work7SafetyTests.Run);
+        Measure("UninstallCleanupTests", UninstallCleanupTests.Run);
         // PC fraco v5.13.11.21: 19 MSIX estão no inventário, mas não
         // aparecem na lista de ações. O filtro explícito revela sem permitir
         // atualização nem desinstalação somente pelo nome ou origem.
@@ -314,9 +350,10 @@ internal static class LayoutTests
         foreach (var area in new[] { new Size(1280,720),new Size(1440,900),new Size(2560,1440) })
         foreach (int dpi in new[] {96,144,192})
         {
+            using var testFont = new Font("Segoe UI",9.5f*dpi/96f);
             using var dialog = new TelemetryPrivacyDialog(dryRunRecorder);
             dialog.Show();
-            dialog.Font = new Font("Segoe UI",9.5f*dpi/96f);
+            dialog.Font = testFont;
             dialog.FitPrivacyArea(area,dpi);
             dialog.PerformLayout();
             Application.DoEvents();
@@ -374,7 +411,7 @@ internal static class LayoutTests
             }
         }
         Console.WriteLine("OK: Inicializacao em todas as resolucoes >=720p, DPI 100/125/150/200%.");
-        V52DpiActionLayoutTests.Run();
+        Measure("V52DpiActionLayoutTests", V52DpiActionLayoutTests.Run);
         TestStartupBounds();
         TestWorkspaceProportions();
         var p5Samples = new List<PerformanceSample>();
@@ -391,7 +428,9 @@ internal static class LayoutTests
         TestSafeMemoryPolicyAndLogCache();
         TestSamplingCadence();
 
-        TestMainWorkspace();
+        Measure("contrato_recibo", TestMaintenanceVisualReceipt);
+        Measure("workspace_integrado", () => TestMainWorkspace());
+        Console.WriteLine($"LAYOUT-SUITE fim; decorrido_ms={suiteClock.ElapsedMilliseconds}");
     }
 
     private static void TestMainWorkspace(bool runIntegratedVisualSuite = true)
@@ -939,30 +978,77 @@ internal static class LayoutTests
         Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
         // O teste do novo shell cria um Form próprio; executá-lo após a suíte
         // legada evita modificar a ordem das janelas e o estado de foco dela.
-        V269ShellTests.Run();
+        Measure("shell_V269", V269ShellTests.Run);
         if (runIntegratedVisualSuite)
         {
-            var receipt=MaintenanceVisualReceipt();
-            bool alreadyTested=receipt is {} proof&&File.Exists(proof.Path)&&
-                string.Equals(File.ReadAllText(proof.Path),proof.Identity,StringComparison.Ordinal);
-            Console.WriteLine($"LAYOUT-SUITE recibo_manutencao_valido={alreadyTested}; executar_particao_manutencao={!alreadyTested}");
-            V269IntegrationTests.Run(includeMaintenanceVisual: !alreadyTested);
+            string evidence = CheckMaintenanceVisualReceipt(MaintenanceVisualReceipt());
+            bool alreadyTested = evidence == "valido";
+            Console.WriteLine($"LAYOUT-SUITE recibo_manutencao_estado={evidence}; recibo_manutencao_valido={alreadyTested}; executar_particao_manutencao={!alreadyTested}");
+            Measure("integracao_V269", () => V269IntegrationTests.Run(includeMaintenanceVisual: !alreadyTested));
         }
     }
 
     private static (string Path,string Identity)? MaintenanceVisualReceipt()
     {
-        if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true")return null;
-        var sha=Environment.GetEnvironmentVariable("GITHUB_SHA");
-        var run=Environment.GetEnvironmentVariable("GITHUB_RUN_ID");
-        var attempt=Environment.GetEnvironmentVariable("GITHUB_RUN_ATTEMPT");
+        return BuildMaintenanceVisualReceipt(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
+            Environment.GetEnvironmentVariable("GITHUB_SHA"), Environment.GetEnvironmentVariable("GITHUB_RUN_ID"),
+            Environment.GetEnvironmentVariable("GITHUB_RUN_ATTEMPT"), "LayoutCaptures");
+    }
+
+    private static (string Path,string Identity)? BuildMaintenanceVisualReceipt(string? actions, string? sha,
+        string? run, string? attempt, string folder)
+    {
+        if(actions!="true")return null;
         if(sha is null||sha.Length!=40||!sha.All(Uri.IsHexDigit)||
             !long.TryParse(run,out long runId)||runId<=0||
             !int.TryParse(attempt,out int attemptId)||attemptId<=0)return null;
         string identity=$"V269-TOOLS-COMPLETE:{sha}:{runId}:{attemptId}";
         // Só escrito após o retorno integral da partição de testes.
         // Não aceitar recibos de outro checkout, execução ou tentativa.
-        return (Path.Combine("LayoutCaptures",$"V269-tools-{sha}-{runId}-{attemptId}.ok"),identity);
+        return (Path.Combine(folder,$"V269-tools-{sha}-{runId}-{attemptId}.ok"),identity);
+    }
+
+    private static string CheckMaintenanceVisualReceipt((string Path,string Identity)? receipt)
+    {
+        if (receipt is not { } proof) return "sem_identidade_ci";
+        try
+        {
+            // Um recibo truncado, estranho ou inacessível nunca dispensa testes.
+            if (!File.Exists(proof.Path)) return "ausente";
+            return string.Equals(File.ReadAllText(proof.Path), proof.Identity, StringComparison.Ordinal) ? "valido" : "incompativel";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        { return "indisponivel"; }
+    }
+
+    private static void TestMaintenanceVisualReceipt()
+    {
+        string folder=Path.Combine(Path.GetTempPath(), "GF-receipt-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string sha=new('a',40), otherSha=new('b',40);
+            var receipt=BuildMaintenanceVisualReceipt("true", sha, "10", "1", folder)!.Value;
+            void Require(bool condition) { if(!condition) throw new Exception("Recibo visual aceitou identidade inválida ou perdeu prova válida."); }
+            Require(CheckMaintenanceVisualReceipt(null)=="sem_identidade_ci" && CheckMaintenanceVisualReceipt(receipt)=="ausente");
+            File.WriteAllText(receipt.Path, receipt.Identity);
+            Require(CheckMaintenanceVisualReceipt(receipt)=="valido");
+            foreach(var wrong in new[]{BuildMaintenanceVisualReceipt("true",otherSha,"10","1",folder),
+                BuildMaintenanceVisualReceipt("true",sha,"11","1",folder),BuildMaintenanceVisualReceipt("true",sha,"10","2",folder)})
+            {
+                Require(CheckMaintenanceVisualReceipt(wrong)=="ausente");
+                File.WriteAllText(wrong!.Value.Path,receipt.Identity);
+                Require(CheckMaintenanceVisualReceipt(wrong)=="incompativel");
+            }
+            Require(BuildMaintenanceVisualReceipt("false",sha,"10","1",folder) is null &&
+                BuildMaintenanceVisualReceipt("true","inválido","10","1",folder) is null &&
+                BuildMaintenanceVisualReceipt("true",sha,"0","1",folder) is null &&
+                BuildMaintenanceVisualReceipt("true",sha,"10","0",folder) is null);
+            File.WriteAllText(receipt.Path,receipt.Identity[..^1]);
+            Require(CheckMaintenanceVisualReceipt(receipt)=="incompativel");
+            Console.WriteLine("PASS recibo visual: SHA, run, tentativa, ausência e conteúdo incompatível; fallback integral.");
+        }
+        finally { Directory.Delete(folder,true); }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
