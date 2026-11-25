@@ -20,6 +20,7 @@ internal static class V269IntegrationTests
         Timed("Navegação sequencial nativa", () => VerifySequentialNavigation(form, shell));
         Timed("Feedback independente", VerifyIndependentFeedback);
         Timed("Barras universais", VerifyUniversalMeterPainting);
+        Timed("Rolagem temática de texto", VerifyThemedTextScroll);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
@@ -310,6 +311,37 @@ internal static class V269IntegrationTests
             SynchronizationContext.SetSynchronizationContext(savedContext);
             Application.DoEvents();
         }
+    }
+
+    private static void VerifyThemedTextScroll()
+    {
+        using var window = new Form { ClientSize = new Size(300,140), ShowInTaskbar = false };
+        var editor = new TextBox { Multiline = true, ReadOnly = true, WordWrap = true, Text = "Curto" };
+        using var host = new V269TextScrollHost(editor);
+        window.Controls.Add(host);
+        window.Show();
+        Application.DoEvents();
+        var scroll = host.Controls.OfType<DarkVScrollBar>().Single();
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            host.Configure(theme);
+            editor.Text = "Curto";
+            Application.DoEvents();
+            Require(!scroll.Visible && editor.ScrollBars == ScrollBars.None,
+                "texto curto sem barra ou espaço reservado");
+            editor.Text = string.Join(Environment.NewLine, Enumerable.Range(0, 80).Select(i => "Linha " + i));
+            Application.DoEvents();
+            Require(scroll.Visible && scroll.MaximumValue > 0 && editor.Right <= scroll.Left,
+                "overflow real com barra temática sem sobreposição");
+            scroll.Value = scroll.MaximumValue;
+            Require(editor.GetLineFromCharIndex(editor.GetCharIndexFromPosition(new Point(2,2))) > 0,
+                "barra temática alcança linhas inferiores do editor");
+            host.Configure(theme, false);
+            Require(!scroll.Visible && editor.ScrollBars == ScrollBars.None,
+                "fluxo externo não instala segunda barra");
+            host.Configure(theme, true);
+        }
+        window.Close();
     }
 
     private static void VerifyUniversalMeterPainting()

@@ -94,6 +94,7 @@ internal sealed class V269RightPane : UserControl
     private readonly Panel _operationContent;
     private readonly V269AppDetailPanel _applicationDetails=new();
     private readonly Panel _descriptionHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
+    private readonly V269TextScrollHost _descriptionScroll;
     private bool _hasOperationContent;
     private bool _structuredApp;
     private bool _appHistoryPage;
@@ -183,7 +184,8 @@ internal sealed class V269RightPane : UserControl
         _appFlowHeading.SendToBack();
         _layout.Controls.Add(_titleHost, 0, 0);
         _layout.Controls.Add(_progress, 0, 1);
-        _descriptionHost.Controls.Add(_description);
+        _descriptionScroll = new V269TextScrollHost(_description);
+        _descriptionHost.Controls.Add(_descriptionScroll);
         _descriptionHost.Controls.Add(_flowMeter);
         _descriptionHost.Controls.Add(_flowNote);
         _descriptionHost.Controls.Add(_applicationDetails);
@@ -369,7 +371,7 @@ internal sealed class V269RightPane : UserControl
         bool driverReview = _driversPage && Current is { Kind: V269PanelKind.DriverReview };
         _driverReviewHost.Visible = driverReview;
         if (driverReview) _driverReviewHost.BringToFront();
-        _description.Visible = !_structuredApp && !result && !driverReview;
+        _descriptionScroll.Visible = !_structuredApp && !result && !driverReview;
         bool legacyProgress = !active && Current is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
         _progress.Visible = legacyProgress;
         UpdateLegacyMeter();
@@ -431,21 +433,12 @@ internal sealed class V269RightPane : UserControl
                     _flowViewport.AutoScroll=false;
                 }
                 _layout.Dock=DockStyle.Fill;
-                // Não exibir uma barra nativa vazia em descrições curtas
-                // nem em estados que apresentam outros controles.
-                // Manter a rolagem de texto longo até a migração do viewport.
-                int availableWidth = Math.Max(1, _description.ClientSize.Width - 8);
-                int availableHeight = Math.Max(1, _description.ClientSize.Height - 4);
-                bool overflow = _description.Visible && _description.TextLength != 0 &&
-                    TextRenderer.MeasureText(_description.Text, _description.Font,
-                        new Size(availableWidth, 32767),
-                        TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.TextBoxControl).Height > availableHeight;
-                var scrollbars = overflow ? ScrollBars.Vertical : ScrollBars.None;
-                if (_description.ScrollBars != scrollbars) _description.ScrollBars = scrollbars;
+                _descriptionScroll.Configure(_appPaneTheme, true);
+                _descriptionScroll.Reflow();
                 return;
             }
             int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
-            _description.ScrollBars=ScrollBars.None;
+            _descriptionScroll.Configure(_appPaneTheme, false);
             int height=Math.Max(1,_flowViewport.ClientSize.Height);
             bool executing=AppProgressChromeActive&&_hasOperationContent;
             int operation=executing?Math.Max(S(52),_description.Font.Height+S(32)):0;
@@ -680,6 +673,8 @@ internal sealed class V269RightPane : UserControl
         _flowViewport.BackColor=palette.RightPanel;
         ForeColor = palette.Text;
         _title.ForeColor = palette.Text;
+        _descriptionScroll.BackColor = palette.RightPanel;
+        _descriptionScroll.Configure(_appPaneTheme, !_appFlow);
         _description.BackColor = palette.RightPanel;
         _descriptionHost.BackColor=palette.RightPanel;
         _description.ForeColor = palette.SecondaryText;

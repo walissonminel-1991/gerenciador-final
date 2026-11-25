@@ -88,7 +88,7 @@ internal static class DriverUpdatePilotDialog
         var detail = new TextBox
         {
             Name = "DriverPilotDetails", Dock = DockStyle.Fill, Multiline = true,
-            ScrollBars = ScrollBars.Vertical, ReadOnly = true,
+            ScrollBars = ScrollBars.None, ReadOnly = true,
             AccessibleName = "Identidade e limites da atualização",
             BackColor = Color.FromArgb(33, 39, 49), ForeColor = Color.Gainsboro,
             BorderStyle = BorderStyle.FixedSingle
@@ -155,7 +155,8 @@ internal static class DriverUpdatePilotDialog
         root.Controls.Add(headline, 0, 0);
         root.Controls.Add(search, 0, 1);
         root.Controls.Add(choices, 0, 2);
-        root.Controls.Add(detail, 0, 3);
+        var detailScroll = new V269TextScrollHost(detail);
+        root.Controls.Add(detailScroll, 0, 3);
         root.Controls.Add(confirm, 0, 4);
         root.Controls.Add(isolated, 0, 5);
         root.Controls.Add(status, 0, 6);

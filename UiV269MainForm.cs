@@ -117,7 +117,7 @@ internal sealed partial class MainForm
         {
             Name = "V269HardwareDetailsText", AccessibleName = "Leituras locais de hardware",
             Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical, WordWrap = true,
+            ScrollBars = ScrollBars.None, WordWrap = true,
             BackColor = palette.Card, ForeColor = palette.Text, Text = description
         };
         var close = CreateSecondaryButton("Fechar");
@@ -128,7 +128,9 @@ internal sealed partial class MainForm
         close.ForeColor = palette.Text;
         close.DialogResult = DialogResult.Cancel;
         close.Click += (_, _) => dialog.Close();
-        layout.Controls.Add(text, 0, 0);
+        var textHost = new V269TextScrollHost(text);
+        textHost.Configure(_v269Appearance.Theme);
+        layout.Controls.Add(textHost, 0, 0);
         layout.Controls.Add(close, 0, 1);
         dialog.Controls.Add(layout);
         dialog.CancelButton = close;
@@ -1087,10 +1089,12 @@ internal sealed partial class MainForm
                 BackColor=V269Palette.Content,ForeColor=V269Palette.Text
             };
             var text=new TextBox{Name="V269SettingsInformationText",AccessibleName=title,
-                Dock=DockStyle.Fill,ReadOnly=true,Multiline=true,WordWrap=true,ScrollBars=ScrollBars.Vertical,
+                Dock=DockStyle.Fill,ReadOnly=true,Multiline=true,WordWrap=true,ScrollBars=ScrollBars.None,
                 BackColor=V269Palette.Card,ForeColor=V269Palette.Text,Text=description};
             var close=new Button{Text="Fechar",Dock=DockStyle.Bottom,Height=34,DialogResult=DialogResult.Cancel};
-            dialog.Controls.Add(text);dialog.Controls.Add(close);dialog.CancelButton=close;
+            var textHost = new V269TextScrollHost(text);
+            textHost.Configure(_v269Appearance.Theme);
+            dialog.Controls.Add(textHost);dialog.Controls.Add(close);dialog.CancelButton=close;
             dialog.ShowDialog(this);return;
         }
         PresentV269Details(title,description);

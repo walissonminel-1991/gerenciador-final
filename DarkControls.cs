@@ -1018,6 +1018,106 @@ internal sealed class DarkLogView : UserControl
 
 // FlowLayoutPanel sem AutoScroll: as barras nativas nunca ficam visiveis.
 // Usado nos cartoes das ferramentas e no painel de unidades.
+// Reutiliza a barra temática e a rolagem de linhas do editor nativo,
+// sem substituir o TextBox acessível, seleção, cópia ou teclado.
+internal sealed class V269TextScrollHost : Panel
+{
+    private readonly TextBox _editor;
+    private readonly DarkVScrollBar _scroll = new() { Name = "V269TextScroll", Visible = false, AccessibleName = "Rolagem do texto" };
+    private bool _ownScroll = true, _arranging, _scheduled;
+    private V269Theme _theme = V269Theme.AzulGf;
+
+    internal V269TextScrollHost(TextBox editor)
+    {
+        _editor = editor;
+        Dock = DockStyle.Fill;
+        Margin = Padding.Empty;
+        _editor.Dock = DockStyle.None;
+        _editor.ScrollBars = ScrollBars.None;
+        Controls.Add(_editor);
+        Controls.Add(_scroll);
+        _scroll.ApplyAppScrollTheme(_theme);
+        _scroll.ValueChanged += (_, _) => { if (!_arranging) ScrollTo(_scroll.Value); };
+        _editor.TextChanged += (_, _) => Reflow();
+        _editor.FontChanged += (_, _) => Reflow();
+        _editor.HandleCreated += (_, _) => Reflow();
+        _editor.MouseWheel += (_, _) => SchedulePosition();
+        _editor.KeyUp += (_, _) => SchedulePosition();
+        _editor.MouseUp += (_, _) => SchedulePosition();
+        SizeChanged += (_, _) => Reflow();
+        VisibleChanged += (_, _) => Reflow();
+    }
+
+    internal void Configure(V269Theme theme, bool ownScroll = true)
+    {
+        if (_theme != theme)
+        {
+            _theme = theme;
+            _scroll.ApplyAppScrollTheme(theme);
+        }
+        if (_ownScroll != ownScroll)
+        {
+            _ownScroll = ownScroll;
+            Reflow();
+        }
+    }
+
+    private const int EM_GETLINECOUNT = 0x00BA, EM_GETFIRSTVISIBLELINE = 0x00CE, EM_LINESCROLL = 0x00B6;
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp);
+    private int Query(int msg) => SendMessage(_editor.Handle, msg, IntPtr.Zero, IntPtr.Zero).ToInt32();
+    private void ScrollTo(int line)
+    {
+        if (!_editor.IsHandleCreated) return;
+        int delta = line - Query(EM_GETFIRSTVISIBLELINE);
+        if (delta != 0) SendMessage(_editor.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)delta);
+    }
+    internal void Reflow()
+    {
+        if (_arranging || IsDisposed || Disposing || !_editor.IsHandleCreated || !Visible) return;
+        _arranging = true;
+        try
+        {
+            int width = Math.Max(1, ClientSize.Width), height = Math.Max(1, ClientSize.Height);
+            int first = Query(EM_GETFIRSTVISIBLELINE);
+            // Medir primeiro sem reservar barra: nunca sustentar overflow
+            // artificial causado pela própria largura da barra.
+            _editor.Bounds = new Rectangle(0,0,width,height);
+            int page = Math.Max(1, (_editor.ClientSize.Height - 2) / Math.Max(1,_editor.Font.Height));
+            int lines = Query(EM_GETLINECOUNT);
+            bool overflow = _ownScroll && lines > page;
+            if (overflow)
+            {
+                int scrollbarWidth = _scroll.Width;
+                _editor.Width = Math.Max(1,width-scrollbarWidth);
+                _scroll.Bounds = new Rectangle(width-scrollbarWidth,0,scrollbarWidth,height);
+                lines = Query(EM_GETLINECOUNT);
+            }
+            _scroll.SetMetrics(overflow ? lines : 0,page);
+            ScrollTo(_ownScroll ? Math.Clamp(first,0,_scroll.MaximumValue) : 0);
+            _scroll.Value = Query(EM_GETFIRSTVISIBLELINE);
+        }
+        finally { _arranging = false; }
+    }
+    private void SchedulePosition()
+    {
+        if (_scheduled || !IsHandleCreated || IsDisposed || !_ownScroll) return;
+        _scheduled = true;
+        try
+        {
+            BeginInvoke((Action)(() =>
+            {
+                _scheduled = false;
+                if (IsDisposed || !_editor.IsHandleCreated) return;
+                _arranging = true;
+                try { _scroll.Value = Query(EM_GETFIRSTVISIBLELINE); }
+                finally { _arranging = false; }
+            }));
+        }
+        catch (InvalidOperationException) { _scheduled = false; }
+    }
+}
+
 internal sealed class DarkScrollableFlow : UserControl
 {
     private readonly Panel _viewport;
