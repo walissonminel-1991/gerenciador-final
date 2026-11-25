@@ -16,6 +16,8 @@ internal sealed record StorageDeviceSensors(
 {
     // Somente preenchido quando o vínculo REF WMI foi comprovado.
     internal StorageReliabilityCounters? Diagnostics { get; init; }
+    internal string? ReportedManufacturer { get; init; }
+    internal string? ReportedModel { get; init; }
 }
 
 internal sealed record StorageSensorsSnapshot(
@@ -24,7 +26,8 @@ internal sealed record StorageSensorsSnapshot(
     IReadOnlyList<StorageDeviceSensors> Disks,
     string? Limitation);
 
-internal sealed record StorageIdentity(string DeviceId, string FriendlyName);
+internal sealed record StorageIdentity(string DeviceId, string FriendlyName,
+    string? Manufacturer = null, string? Model = null);
 internal sealed record StorageReliabilityRaw(string DeviceId, object? Temperature,
     object? Wear, object? PowerOnHours)
 {
@@ -114,14 +117,17 @@ internal static class WindowsStorageSensorProvider
                 devices.Add(new(disk.DeviceId, name, Temperature(r.Temperature),
                     Wear(r.Wear), Hours(r.PowerOnHours))
                 {
-                    Diagnostics = diagnostics
+                    Diagnostics = diagnostics,
+                    ReportedManufacturer = disk.Manufacturer,
+                    ReportedModel = disk.Model
                 });
             }
             else
             {
                 if (rows is { Length: > 1 }) partial = true;
                 devices.Add(new(disk.DeviceId, name,
-                    Temperature(null), Wear(null), Hours(null)));
+                    Temperature(null), Wear(null), Hours(null))
+                { ReportedManufacturer = disk.Manufacturer, ReportedModel = disk.Model });
             }
         }
         if (groups.Keys.Any(id => !ids.Contains(id))) partial = true;
@@ -201,12 +207,14 @@ internal static class WindowsStorageSensorProvider
                 finally { Release(result); }
             }
 
-            Query("SELECT DeviceId, FriendlyName FROM MSFT_PhysicalDisk", (get, path) =>
+            Query("SELECT DeviceId, FriendlyName, Manufacturer, Model FROM MSFT_PhysicalDisk", (get, path) =>
             {
                 string id = Convert.ToString(get("DeviceId"), CultureInfo.InvariantCulture)?.Trim() ?? "";
                 if (id.Length == 0) { partial = true; return; }
                 physical.Add(new(new StorageIdentity(id,
-                    Convert.ToString(get("FriendlyName"), CultureInfo.InvariantCulture) ?? ""), path));
+                    Convert.ToString(get("FriendlyName"), CultureInfo.InvariantCulture) ?? "",
+                    Convert.ToString(get("Manufacturer"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("Model"), CultureInfo.InvariantCulture)), path));
             });
             Query("SELECT DeviceId, Temperature, Wear, PowerOnHours, " +
                 "ReadErrorsTotal, ReadErrorsUncorrected, WriteErrorsTotal, " +
