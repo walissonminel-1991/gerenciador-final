@@ -1908,9 +1908,58 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS Início V2.6.9: cache de geometria com invalidação por modelo e escala.");
     }
 
+    // Comparação controlada: mesmo cartão, modelo, DPI, fontes e processo.
+    // O caminho A mede Render diretamente, sem consultar o cache de altura.
+    // O caminho B usa o cache aquecido. Não equivale ao benchmark do EXE inteiro.
+    private static void MeasureHomeHeightCacheAB()
+    {
+        using var card = new V269HomeCard("cpu");
+        card.SetModel(new V269HomeModel("cpu","Processador","Fixture Ryzen",
+            [new V269HomeRow("Núcleos","8"),new V269HomeRow("Threads","16")],
+            [new V269HomeRow("Temperatura","41 °C"),new V269HomeRow("Uso","20%")]));
+        var render = typeof(V269HomeCard).GetMethod("Render",BindingFlags.Instance|BindingFlags.NonPublic)!
+            .CreateDelegate<Func<Graphics?,int,int,bool,int>>(card);
+        Func<int> before=()=>render(null,420,1200,true);
+        Func<int> after=()=>card.PreferredCardHeight(420,1200,true);
+        int expected=before();
+        Require(after()==expected,"geometria direta e cache coincidem");
+        const int rounds=9, repetitions=32;
+        for(int i=0;i<repetitions;i++){_=before();_=after();}
+        (double Ms,long Bytes) Measure(Func<int> operation)
+        {
+            int checksum=0;
+            long allocated=GC.GetAllocatedBytesForCurrentThread();
+            long start=System.Diagnostics.Stopwatch.GetTimestamp();
+            for(int i=0;i<repetitions;i++)checksum+=operation();
+            double elapsed=System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            long bytes=GC.GetAllocatedBytesForCurrentThread()-allocated;
+            Require(checksum==expected*repetitions,"mesma geometria em todas as medições");
+            return(elapsed,bytes);
+        }
+        var baseline=new (double Ms,long Bytes)[rounds];
+        var optimized=new (double Ms,long Bytes)[rounds];
+        var samples=new List<PerformanceSample>();
+        using(LocalPerformanceMetrics.Measure(PerformanceStage.HardwareInventory,samples.Add))
+        {
+            for(int i=0;i<rounds;i++)
+            {
+                if(i%2==0){baseline[i]=Measure(before);optimized[i]=Measure(after);}
+                else{optimized[i]=Measure(after);baseline[i]=Measure(before);}
+            }
+        }
+        double Median(IEnumerable<double> values)=>values.OrderBy(x=>x).ElementAt(rounds/2);
+        double P95(IEnumerable<double> values)=>values.OrderBy(x=>x).ElementAt((int)Math.Ceiling(.95*rounds)-1);
+        long bytesBefore=baseline.Sum(x=>x.Bytes),bytesAfter=optimized.Sum(x=>x.Bytes);
+        Require(bytesAfter<bytesBefore && samples.Count==1,"cache de geometria reduz alocações no caminho estável");
+        Console.WriteLine(FormattableString.Invariant(
+            $"V269-PERF geometria_ab rodadas={rounds} operacoes_por_rodada={repetitions} mediana_antes_ms={Median(baseline.Select(x=>x.Ms)):F4} mediana_depois_ms={Median(optimized.Select(x=>x.Ms)):F4} p95_antes_ms={P95(baseline.Select(x=>x.Ms)):F4} p95_depois_ms={P95(optimized.Select(x=>x.Ms)):F4} bytes_antes={bytesBefore} bytes_depois={bytesAfter}"));
+        Console.WriteLine(samples[0].Format());
+    }
+
     private static HardwareSensorPortfolio VerifyHome(MainForm form, Control view)
     {
         VerifyHomeHeightCache();
+        MeasureHomeHeightCacheAB();
         Require(V269HomeMetrics.HeaderHeight(992, 768) == 69 &&
             V269HomeMetrics.HeaderHeight(760, 810) == 69 &&
             V269HomeMetrics.HeaderHeight(760, 811) == 70 &&
