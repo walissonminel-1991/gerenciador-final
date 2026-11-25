@@ -1563,6 +1563,11 @@ internal static class V269IntegrationTests
                 "motor legado de lote deve existir apenas nos testes: " + type);
         Require(typeof(AppBatchUpdatePolicy).Assembly == typeof(V269IntegrationTests).Assembly,
             "fixtures de lote conservadas no projeto de testes");
+        Require(typeof(MainForm).GetFields(fields).All(field => field.FieldType != typeof(ToolTip)) &&
+            typeof(DarkProgramList).GetFields(fields).All(field => field.FieldType != typeof(ToolTip)) &&
+            typeof(DarkTabHost).GetNestedTypes(BindingFlags.NonPublic).All(type =>
+                type.GetFields(fields).All(field => field.FieldType != typeof(ToolTip))),
+            "sem componentes tooltip na janela, lista e navegação anterior");
         Console.WriteLine("PASS V2.6.9: controles e entradas legadas ausentes; ações individuais preservadas pelas regressões.");
     }
 

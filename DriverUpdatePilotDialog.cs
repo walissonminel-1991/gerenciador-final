@@ -118,8 +118,6 @@ internal static class DriverUpdatePilotDialog
             AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
             AccessibleName = "Estado da atualização piloto WUA"
         };
-        var nonOwningHint = new ToolTip { Active = pane is null };
-        form.Disposed += (_, _) => nonOwningHint.Dispose();
         var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
@@ -167,14 +165,12 @@ internal static class DriverUpdatePilotDialog
         bool physicalPaneRunning = false;
         bool physicalVerified = false;
         string lastStatus = "";
-        // ToolTip não participa da identidade do snapshot.
         void SetStatus(string message)
         {
             if (form.IsDisposed) return;
             lastStatus = message;
             status.Text = message;
             status.AccessibleDescription = message;
-            nonOwningHint.SetToolTip(status, message);
             if (physicalPaneRunning) pane?.Publish(message);
         }
         bool CanReview()

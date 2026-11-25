@@ -57,17 +57,15 @@ internal static class DriverG120HistoryLifetimeTests
             // Painel, fonte acessivel, tooltip, filtro e viewports.
             var status = Find<Label>(newPage, "DriverInventoryStatus");
             var list = Find<DarkDriverList>(newPage, "DriverInventoryList");
-            var tips = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!
-                .GetValue(secondOwner)!;
+            Ensure(typeof(MainForm).GetFields(Private).All(field => field.FieldType != typeof(ToolTip)),
+                "nenhum componente tooltip na janela de Drivers");
             foreach (var size in new[] { new Size(500, 340), new Size(790, 510),
                 new Size(1200, 720), new Size(1450, 820) })
             {
                 newPage.ClientSize = size;
                 Pump(25);
                 Ensure(status.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true &&
-                    newHistory.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true &&
-                    string.IsNullOrEmpty(tips.GetToolTip(status)) &&
-                    string.IsNullOrEmpty(tips.GetToolTip(newHistory)),
+                    newHistory.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true,
                     "histórico inacessível ou tooltip invasivo no viewport: " + size);
             }
             list.Focus();

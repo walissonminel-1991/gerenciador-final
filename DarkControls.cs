@@ -1238,6 +1238,7 @@ internal sealed class DarkTabHost : UserControl
     {
         if (index < 0 || index >= _pages.Count || _selectedIndex == index) return;
         _selectedIndex = index;
+        _strip.AccessibleDescription = "Aba atual: " + _pages[index].Title;
         for (int i = 0; i < _pages.Count; i++) _pages[i].Page.Visible = i == index;
         _pages[index].Page.BringToFront();
         LayoutHost();
@@ -1249,7 +1250,6 @@ internal sealed class DarkTabHost : UserControl
     {
         private readonly DarkTabHost _host;
         private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
-        private readonly ToolTip _tabTips = new() { InitialDelay = 250, AutoPopDelay = 7000 };
         private int _hotTab = -1;
         private int _pressedTab = -1;
         private int _pulseTab = -1;
@@ -1382,7 +1382,6 @@ internal sealed class DarkTabHost : UserControl
             if (_hotTab == tab) return;
             _hotTab = tab;
             Cursor = tab >= 0 ? Cursors.Hand : Cursors.Default;
-            _tabTips.SetToolTip(this, tab >= 0 ? _host._pages[tab].Title : string.Empty);
             Invalidate();
         }
 
@@ -1391,7 +1390,6 @@ internal sealed class DarkTabHost : UserControl
             base.OnMouseLeave(e);
             _hotTab = -1;
             _pressedTab = -1;
-            _tabTips.SetToolTip(this, string.Empty);
             Cursor = Cursors.Default;
             Invalidate();
         }
@@ -1439,7 +1437,6 @@ internal sealed class DarkTabHost : UserControl
             {
                 _feedbackTimer.Stop();
                 _feedbackTimer.Dispose();
-                _tabTips.Dispose();
             }
             base.Dispose(disposing);
         }

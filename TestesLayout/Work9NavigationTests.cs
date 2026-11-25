@@ -14,8 +14,8 @@ internal static class Work9NavigationTests
         var setView = typeof(MainForm).GetMethod("SetSystemView", Private)!;
         var refresh = typeof(MainForm).GetMethod("RefreshStartupEntriesAsync", Private)!;
         nav.SelectPage(V269Page.Sistema);
-        var tooltip = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!.GetValue(form)!;
-        check(!tooltip.Active, "WU-UI1 nenhum tooltip flutuante na janela principal");
+        check(typeof(MainForm).GetFields(Private).All(field => field.FieldType != typeof(ToolTip)),
+            "WU-UI1 nenhum componente tooltip na janela principal");
         setView.Invoke(form, ["update"]);
         typeof(MainForm).GetMethod("DrawWindowsUpdates", Private)!.Invoke(form, null);
         var search = (Button)typeof(MainForm).GetField("_searchWindowsUpdatesButton", Private)!.GetValue(form)!;

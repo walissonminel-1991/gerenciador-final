@@ -214,15 +214,17 @@ internal sealed partial class MainForm
             string cache = (info.CacheBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
             string committed = (info.CommittedBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
             _memoryCandidatesLabel.Text = $"Cache: {cache} GB";
-            _memoryCandidatesLabel.AccessibleDescription=$"Memória comprometida: {committed} GB";
-            _toolTips.SetToolTip(_memoryCandidatesLabel, "Cache inclui dados em espera, reutilizáveis pelo Windows. Memória comprometida não é igual à memória física ocupada.");
+            _memoryCandidatesLabel.AccessibleDescription=$"Memória comprometida: {committed} GB. Cache inclui dados em espera, reutilizáveis pelo Windows. Memória comprometida não é igual à memória física ocupada.";
         }
         else
+        {
             _memoryCandidatesLabel.Text = "Detalhes do cache do Windows não disponíveis.";
+            _memoryCandidatesLabel.AccessibleDescription = _memoryCandidatesLabel.Text;
+        }
         if (_autoMemoryButton is not null)
-            _toolTips.SetToolTip(_autoMemoryButton, _memoryAuthorizedTarget is null
+            _autoMemoryButton.AccessibleDescription = _memoryAuthorizedTarget is null
                 ? "Escolha um aplicativo em Aliviar RAM para autorizar ajustes automáticos nesta sessão."
-                : "Automático autorizado somente para: " + _memoryAuthorizedTarget.Name);
+                : "Automático autorizado somente para: " + _memoryAuthorizedTarget.Name;
     }
 
     private void RunSafeMemoryCleanup(bool automatic)

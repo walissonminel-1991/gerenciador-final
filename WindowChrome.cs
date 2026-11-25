@@ -169,7 +169,6 @@ internal sealed partial class MainForm
         button.FlatAppearance.MouseDownBackColor = isClose
             ? Color.FromArgb(142, 25, 33) : Color.FromArgb(73, 87, 104);
         button.Click += action;
-        _toolTips.SetToolTip(button, hint);
         return button;
     }
 

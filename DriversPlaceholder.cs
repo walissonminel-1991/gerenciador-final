@@ -27,10 +27,6 @@ internal sealed partial class MainForm
         bool v269 = readForTest is null;
         const string instruction = "Clique em Verificar para consultar os dispositivos e as ofertas de drivers.";
 
-        // Descrições extensas ficam disponíveis na acessibilidade, não no mouse.
-        void SuppressHoverHint(Control target, string explanation) =>
-            _toolTips.SetToolTip(target, string.Empty);
-
         // Ações gerais para todo o inventário. A política de segurança decide
         // individualmente quais pacotes OEM podem ser removidos sem /force.
         // A atualização WUA permanece sujeita aos gates de G3.1/G3.2.
@@ -93,8 +89,7 @@ internal sealed partial class MainForm
         refresh.Dock = DockStyle.Fill;
         refresh.Margin = new Padding(0, 2, 6, 2);
         actionPanel.Controls.Add(refresh, 0, 0);
-        SuppressHoverHint(refresh,
-            "Consulta dispositivos e ofertas WUA, sem instalar ou remover.");
+        refresh.AccessibleDescription = "Consulta dispositivos e ofertas WUA, sem instalar ou remover.";
         var actionInfo = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         var actionHint = new Label
         {
@@ -114,8 +109,7 @@ internal sealed partial class MainForm
         compactFilter.Items.AddRange(new object[]
             { "Todos", "Presentes", "Problemas", "Sem driver", "Não confirmados" });
         compactFilter.SelectedIndex = 0;
-        SuppressHoverHint(compactFilter,
-            "Filtro somente visual: todos, presentes, problemas PnP, sem driver ou não confirmados.");
+        compactFilter.AccessibleDescription = "Filtro somente visual: todos, presentes, problemas PnP, sem driver ou não confirmados.";
         actionInfo.Controls.Add(actionHint);
         // Filtros legados existem apenas no laboratório sintético, nunca na página do produto.
         if (readForTest is not null) actionInfo.Controls.Add(compactFilter);
@@ -126,8 +120,7 @@ internal sealed partial class MainForm
         investigate.Margin = new Padding(0, 2, 6, 2);
         investigate.Enabled = false;
         actionPanel.Controls.Add(investigate, 2, 0);
-        SuppressHoverHint(investigate,
-            "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
+        investigate.AccessibleDescription = "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.";
         actionPanel.Controls.Add(actionInfo, 3, 0);
         // O laboratório de 17 casos permanece disponível às fixtures; não
         // ocupa espaço nem aparece no produto real.
@@ -153,8 +146,6 @@ internal sealed partial class MainForm
         copySummary.Dock = DockStyle.Fill;
         copySummary.Margin = new Padding(2, 2, 2, 2);
         copySummary.Enabled = false;
-        SuppressHoverHint(copySummary,
-            "Diagnóstico local: copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
@@ -196,19 +187,17 @@ internal sealed partial class MainForm
         // resolucoes intermediarias. O significado permanece explicito.
         var problems = Filter("Falhas PnP", 3);
         problems.AccessibleName = "Problemas PnP relatados pelo Windows";
-        SuppressHoverHint(problems, "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.");
+        problems.AccessibleDescription = "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.";
         var unbound = Filter("Sem driver", 4);
         unbound.AccessibleName = "Dispositivos sem associação WMI de driver assinado";
         const string unboundExplanation =
             "Sem linha de driver assinado associada no WMI. Não prova ausência de driver nem atualização disponível.";
         unbound.AccessibleDescription = unboundExplanation;
-        SuppressHoverHint(unbound, unboundExplanation);
         var other = Filter("Outros", 5);
         other.AccessibleName = "Não confirmados";
         const string uncertainFilterExplanation =
             "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
         other.AccessibleDescription = uncertainFilterExplanation;
-        SuppressHoverHint(other, uncertainFilterExplanation);
         if (readForTest is not null) root.Controls.Add(heading, 0, 2);
         else root.RowStyles[2].Height = 0;
 
@@ -362,7 +351,6 @@ internal sealed partial class MainForm
             if (refresh.IsDisposed || revision != refreshRevision) return;
             refresh.AccessibleDescription = description;
             if (refresh.IsDisposed || revision != refreshRevision) return;
-            SuppressHoverHint(refresh, description);
         }
         SetRefreshCaption(v269 ? "Verificar" : "Consultar drivers", "Consulta dispositivos e ofertas WUA. Não modifica drivers.");
 
@@ -512,7 +500,6 @@ internal sealed partial class MainForm
                 actionHint.Text = "Área de transferência indisponível; nenhum dado enviado.";
             }
             actionHint.AccessibleDescription = actionHint.Text;
-            SuppressHoverHint(actionHint, actionHint.Text);
             if (v269) SetDriverStatus(actionHint.Text);
         }
         copySummary.Click += (_, _) => CopySummary();
@@ -811,8 +798,6 @@ internal sealed partial class MainForm
             title.Text = snapshot is null ? "Drivers · consulta não iniciada"
                 : $"Drivers: {count} · Exibidos: {visible.Length}";
             title.AccessibleDescription = title.Text;
-            SuppressHoverHint(title,
-                "Associações de drivers a dispositivos, não pacotes exclusivos do Driver Store.");
             empty.Text = snapshot is null ? (v269 ? instruction : "Clique em Consultar drivers para iniciar a leitura.")
                 : query.Length > 0 ? (v269 ? "Nenhum item corresponde à pesquisa." : "Nenhum driver corresponde à pesquisa.")
                 : count == 0 ? "Nenhuma associação retornada pela consulta."
@@ -845,7 +830,6 @@ internal sealed partial class MainForm
                 button.AccessibleDescription = (selected
                     ? "Filtro ativo: " + name : "Ativar filtro: " + name) +
                     $". {inCategory} associações nesta categoria. " + caution;
-                SuppressHoverHint(button, button.AccessibleDescription);
             }
             compactFilter.AccessibleDescription = "Filtro atual: " + activeFilter;
         }
@@ -991,7 +975,6 @@ internal sealed partial class MainForm
                 actionHint.AccessibleDescription = gpuSummary.Length > 0
                     ? gpuSummary + ". " + pnpSummary + ". Modelo/canal em Detalhes; sem instalação de Display."
                     : pnpSummary;
-                SuppressHoverHint(actionHint, actionHint.Text);
                 // A lista agora representa OUTRA fotografia. O rodapé não deve
                 // anunciar a comparação da fotografia anterior enquanto a
                 // gravação desta ainda ocorre. Fixtures não gravam histórico.
@@ -999,7 +982,6 @@ internal sealed partial class MainForm
                     ? "Histórico local: comparação desta consulta em andamento; resultado ainda não confirmado."
                     : "Histórico sintético desta consulta: não gravado nem comparado com o histórico local.";
                 history.AccessibleDescription = history.Text;
-                SuppressHoverHint(history, history.Text);
                 // Depois da publicação, só resta concluir o histórico; não existe
                 // mais consulta WMI aguardando cancelamento por este botão.
                 refresh.Enabled = false;
@@ -1010,11 +992,6 @@ internal sealed partial class MainForm
                     $"{result.Items.Count(x => x.HasPnpProblem)} com código PnP, " +
                     $"{result.Items.Count(x => x.WithoutSignedDriverAssociation)} sem driver associado, " +
                     $"{links.Packages.Count} INFs. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem alterações.");
-                // A dica deve incluir o MESMO historico anunciado ao leitor de
-                // tela, e nao apenas o inventario recem-publicado.
-                SuppressHoverHint(state,
-                    state.AccessibleDescription + Environment.NewLine +
-                    result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
                 if (result.Store is { } store)
                     TestDiagnosticDetail.Record("PACOTES", ("pacotes", store.Packages.Count),
@@ -1056,7 +1033,6 @@ internal sealed partial class MainForm
                     {
                         history.Text = recorded.Message;
                         history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
-                        SuppressHoverHint(history, history.AccessibleDescription);
                         SetDriverStatus(state.Text);
                         FitVerticalSpace();
                     }
@@ -1147,7 +1123,6 @@ internal sealed partial class MainForm
                     {
                         history.Text = "Histórico local: finalização interrompida; resultado da gravação não confirmado nesta consulta.";
                         history.AccessibleDescription = history.Text;
-                        SuppressHoverHint(history, history.Text);
                         SetDriverStatus("Inventário concluído e preservado. Finalização do histórico interrompida; nenhuma alteração de drivers.");
                     }
                     else SetDriverStatus(refresh.Text == "Cancelando..."
@@ -1309,7 +1284,6 @@ internal sealed partial class MainForm
             if (compactFilter.SelectedItem is string current && current != activeFilter)
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
-            SuppressHoverHint(history, history.AccessibleDescription ?? history.Text);
             SetDriverStatus(state.Text);
         }
         static void RoundV269TableFrame(Control control, int cssRadius)

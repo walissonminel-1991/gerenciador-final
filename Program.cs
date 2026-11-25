@@ -702,7 +702,6 @@ internal sealed partial class MainForm : Form
     private static readonly Color LightBorder = Color.FromArgb(61, 77, 93);
     private static readonly Color SelectionBackground = Color.FromArgb(42, 66, 92);
     private static readonly Color Accent = Color.FromArgb(111, 184, 255);
-    private readonly ToolTip _toolTips = new() { Active = false };
     private readonly DarkProgramList _programList = new();
     private readonly LocalReliabilityHistory _reliability = new();
     private readonly UpdateOperationStore _updateOperations;
@@ -1224,7 +1223,7 @@ internal sealed partial class MainForm : Form
         var searchFrame=new V269AppSearchBox(_search);
         searchBar.Controls.Add(searchFrame,1,0);
         _v269AppSortChoice.AccessibleName="Ordenar aplicativos";
-        _toolTips.SetToolTip(_v269AppSortChoice,"Instalados recentemente usa a data declarada pela fonte: instalação, atualização ou manutenção. Datas desconhecidas ficam no fim.");
+        _v269AppSortChoice.AccessibleDescription = "Instalados recentemente usa a data declarada pela fonte: instalação, atualização ou manutenção. Datas desconhecidas ficam no fim.";
         _v269AppSortChoice.Items.AddRange(["Nome (A–Z)","Nome (Z–A)","Instalados recentemente","Atualizações primeiro","Ordem manual"]);
         _v269AppSortChoice.SelectedIndex=(int)_v269AppSort;_v269AppSortChoice.Dock=DockStyle.Fill;
         _v269AppSortChoice.SelectedIndexChanged+=(_,_)=>{
@@ -1251,7 +1250,7 @@ internal sealed partial class MainForm : Form
         _checkUpdatesButton.Name="V269AppsVerify";_checkUpdatesButton.AccessibleName="Verificar inventário e atualizações";
         _checkUpdatesButton.Dock=DockStyle.Fill;_checkUpdatesButton.Margin=new Padding(0,3,9,3);
         _checkUpdatesButton.Click+=(_,_)=>_ = CheckUpdatesFromButtonAsync();
-        _toolTips.SetToolTip(_checkUpdatesButton,"Renova inventário e consulta versões por HTTPS; não instala nada. Durante consulta, clique novamente para cancelar.");
+        _checkUpdatesButton.AccessibleDescription = "Renova inventário e consulta versões por HTTPS; não instala nada. Durante consulta, clique novamente para cancelar.";
         searchBar.Controls.Add(_checkUpdatesButton,0,0);
         root.Controls.Add(searchBar,0,0);
 
@@ -1296,9 +1295,6 @@ internal sealed partial class MainForm : Form
         _programList.UninstallOperationFor = _uninstallOperations.Find;
         _programList.DrawItem += DrawProgramCard;
         _programList.ReorderRequested+=MoveV269App;
-        _toolTips.SetToolTip(_programList,
-            "Atualizar usa um instalador oficial verificado quando há integração validada. " +
-            "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
             if (_busy || _v269Confirming || _betaClose.IsClosing || !_installed.Contains(item)) return;
@@ -2191,8 +2187,7 @@ internal sealed partial class MainForm : Form
             _nav.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento",text,CancelFlow:RequestCleanupCancellation,FlowPage:V269Page.Limpeza,CancelLabel:"Cancelar limpeza"));
         else if (_busy && _nav.RightPane.Current is not ({ Kind: V269PanelKind.Result } or { CancelFlow: not null }))
             _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text, FlowPage:_nav.RightPane.Current?.FlowPage));
-        _toolTips.SetToolTip(_status, _v269CleanupExecutionActive || _v269RepairExecutionActive ||
-            _nav.SelectedPage is V269Page.Limpeza or V269Page.Reparo ? null : text);
+        _status.AccessibleDescription = text;
     }
 
     // Ações individuais preservam o contrato de três argumentos, inclusive
@@ -2749,17 +2744,17 @@ internal sealed partial class MainForm : Form
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus;
         // Cabeçalho permanece de uma linha sem sobrepor os quatro filtros.
-        // Todas as informacoes podem ser lidas pelo tooltip da legenda.
+        // O resumo integral permanece disponível para o leitor de tela.
         int width = _listTitle.ClientSize.Width;
         // Preferir informacao essencial completa. Os detalhes adicionais,
-        // inclusive o Windows Update, ficam acessiveis na dica integral.
+        // inclusive o Windows Update, ficam acessíveis na descrição integral.
         string count = _catalogoVerificado ? updates.ToString() : "—";
         _listTitle.Text = _inventoryIncomplete
             ? (width < 220 ? $"Apps: {summary.Total} · PARCIAL" : $"Apps: {summary.Total} · inventário PARCIAL")
             : width < 220 ? $"Apps: {summary.Total}"
             : $"Apps: {summary.Total} · Possíveis atualizações: {count}";
         _listTitle.AccessibleDescription = full;
-        _programList.AccessibleDescription = full;
+        _programList.AccessibleDescription = full + " · Atualizar usa instalador oficial verificado quando há integração validada. Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.";
     }
 
     private string _windowsUpdateCheckingMessage()
