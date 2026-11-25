@@ -1,0 +1,48 @@
+# GF — Autoridade do produto e recuperação V2.6.9
+
+**Escopo:** PR Draft #113, produto único, recuperação iniciada em 25/11/2026. Este registro consolida decisões; não aprova funcionalidades nem substitui os artefatos originais. Novidades e refatorações opcionais suspensas até recuperar a integração. Nenhuma operação real, merge, release, main, G5, GF_BETA, Secrets, workflows, serviços, cron ou infraestrutura nova autorizada.
+
+## 1. Ordem de autoridade (decisão de processo da recuperação)
+1. Decisão explícita mais recente do proprietário para o mesmo requisito. Registrar a decisão, a anterior substituída e a evidência; não resolver conflito por data de commit ou cor encontrada em um teste.
+2. HTML interativo congelado PR #109 `825f24a53808204642ed11971d66f2c9e30c3259` (SHA-256 documentado: `9942b8ed29335cb526825b7658d0f8ab11f2c7241b46a6a99b959941b31dca44`). Interpretar cascata final, estados e interação, não dados fictícios, não só capturas. Blob Git conferido idêntico na #113: `75d648bf38f577ea4a21cf74cc747771ae37c6e7`.
+3. Contrato e matriz PR #109: [contrato](UI-V269-CONTRATO-IMPLEMENTACAO.md), [matriz original](UI-V269-MATRIZ-ACEITE.md). [Issue #110](https://github.com/walissonminel-1991/gerenciador-final/issues/110) é plano histórico, não prova de execução.
+4. PR #114 `0f10023975cb966fb5d7761828fa6b320eccfd30`: contrato Monitor GF e barras universais. Decisões posteriores de cores marcadas em 25/11 prevalecem somente sobre os preenchimentos, sem mudar escala, autorização ou limites térmicos. PR #106 `75eb27f431706133a714baeadcd4f823ad332511`: motor e fontes reais.
+5. Contratos funcionais das PRs #101/#103/#105/#107/#108 e seus testes de segurança. Interface não autoriza manutenção. Não reduzir segurança em nome de fidelidade.
+6. Código e testes são consumidores da especificação; CI verde, número de commits, screenshots e testes isolados não são fonte de verdade. Se um teste exigir comportamento substituído, corrigir o oráculo com evidência e fortalecer a cobertura; não apagar falhas.
+
+Conflitos sem decisão explícita ficam BLOQUEADOS; preservar ambos os contratos até revisão, sem inventar valores aprovados. Não misturar implementação de uma PR de origem com sua descrição histórica. A matriz vigente é [GF-MATRIZ-RASTREABILIDADE-RECUPERACAO.md](GF-MATRIZ-RASTREABILIDADE-RECUPERACAO.md).
+
+## 2. Decisões vigentes e substituições
+
+| ID | Vigente | Substituído/proibido | Fonte |
+|---|---|---|---|
+| AUT-SHELL-01 | Uma MainForm, shell WinForms real, oito views estáveis, sidebar esquerda, um painel direito persistente; Início/Configurações sem painel ordinário | Mockups estáticos, WebView, duas abas simultâneas, reiniciar view ao navegar | #109, #111, #113 e decisão 25/11 |
+| AUT-SHELL-02 | Detalhes, revisão, confirmação, progresso, resultado e histórico no painel; preservar resultado/foco | Diálogos flutuantes da aplicação para esses estados; tooltips. Exceções nativas Windows (UAC, seletor) e janela Monitor autorizada | #109 contrato, decisões do proprietário |
+| AUT-APP-01 | Barra superior Verificar, Pesquisar, ordenação; ação por item binária; detalhes compacto apenas quando necessário | Atualizar todos, comandos/filtros/rodapés extras, rótulos redundantes; não reintroduzir botão Ocultos só por existir na PR #103 | #109 cascata final, #110, código BuildProgramsPanel (validação de conflito) |
+| AUT-DRV-01 | Mesma família de tabela, versão atual preservada, consulta distinta da oferta elegível, exclusões e proteção OEM | Ícone i redundante, oferta inferida, Display/G2 sem autorização | #109, #105, #101 |
+| AUT-HOME-01 | Informativo, sensores por fonte física inequívoca, zero diferente de indisponível, CPU/GPU/RAM/placa-mãe/Windows, sem scroll ordinário | Hardware fictício, RPM a partir de %, watts/temperatura inventados, armazenamento duplicado | #109, #106, #110 |
+| AUT-CLEAN-01 | Categorias de prévia/execução coerentes, barras universais, consentimento | Pesquisa/ordenação extras, limpeza implícita, resultado presumido | #109, #110 |
+| AUT-REPAIR-01 | DNS com dois nomes, flush conservador, Winsock condicionado, verificação posterior DISM/SFC | Reparos genéricos sem diagnóstico/autorização | #107 e decisão de integração |
+| AUT-SYS-01 | Sistema reúne Windows Update de software, RAM e planos de energia; verificar updates manualmente; Inicialização separada | Aba Windows Update extra, busca automática não autorizada, restauração de plano redundante | #109, #110, decisão de interface |
+| AUT-CONF-01 | Geral/Monitor como abas internas do cartão superior, Aparência abaixo; dois sliders independentes; elevação opcional, consentimento opt-in, diagnóstico/histórico | Terceiro cartão Monitor, entrada na sidebar, duplicação Geral, tooltip, consentimento presumido | #109, #114 |
+| AUT-MON-01 | Sete controles: Ativar, Fixar, Sobreposição, Redimensionar, Transparência, Iniciar com Windows, Tema próprio; compacto 552x38 sem barras; expandido 552x186 seis barras sem legenda a 100% | Restaurar expandido/Encaixar bordas como opções visuais; segundo coletor; tema global imposto ao Monitor | #114 contrato |
+| AUT-MON-02 | Fixar e Sobreposição independentes; desktop padrão; modo autônomo mesmo EXE, uma janela/produtor por sessão | Injeção, hooks invasivos, instalação de serviço, promessa universal de fullscreen exclusivo | #114 contrato |
+| AUT-COLOR-01 | Azul GF padrão, Claro azul suave, Dark neutro final da cascata; texto suave e ícones distinguíveis, cores opacas por finalidade | Dark grafite azulado antigo; alpha global sobre texto/glifo; uma paleta de leitura usada para todos os preenchimentos | #109 CSS final e decisão 25/11 |
+| AUT-OP-01 | Operações: vermelho→amarelo (35%)→azul (100% ainda Running)→verde só Success confirmado; sem percentual real = indeterminado | Azul fixo em operações conhecidas, verde por download concluído, progresso sintético por tempo | #114 GfMeterScale e decisão explícita 25/11 |
+| AUT-METER-01 | Uso: azul até 40%, verde 60%, amarelo 75%, vermelho 100%; temperatura por limites comprovados/ref. honesta; âncoras de preenchimento marcadas #00A2E8/#22B14C/#ED1C24; amarelo #FFDF00 proposto, não amostrado | Paleta desbotada por contraste de texto, alterar limiares/identidade, simular sensor | #114 + imagem/decisão 25/11, auditoria cromática em HOLD |
+| AUT-SCROLL-01 | Sem barra quando cabe; tema/discreto, uma região externa de scroll por fluxo; teclado/foco/cópia; horizontal quando necessária | Scroll nativo/duplicado/desnecessário no GF, recorte de autorização | #109, decisão 25/11 |
+| AUT-UX-01 | Clique despacha ação imediatamente, animação só gráfica e opcional, seleção única, amostras incrementais, troca tema/cancelamento/rolagem fluídos | Timer como condição para executar ação, repintura/recriação generalizada, prova por imagem estática | #109, decisão 25/11 |
+| AUT-SAFE-01 | Identidade, elegibilidade, revisão, autorização e revalidação pelo motor; diário/resultado confirmado; sem telemetria opt-in presumida | Permitir ação pela cor, pular autorização, esconder falhas, aumentar prazo/reduzir testes artificialmente | #105/#107/#108, #110, restrições do proprietário |
+
+Os nomes internos antigos não constituem automaticamente código obsoleto. Uma classe usada apenas em teste de regressão pode ser mantida até comprovar ausência de consumidores em produção. Um controle visual antigo ainda conectado a um motor não deve ser apagado sem substituto com o mesmo contrato. Não remover leitura de ocultos necessária à segurança por não haver botão público.
+
+## 3. Processo obrigatório
+- Um HEAD de integração #113, CAS com expected SHA, fast-forward, Draft; candidatas preservadas por SHA; não importar arquivo inteiro por conveniência nem alterar PRs fonte. Base falha: só recuperação isolada e causal; novas mudanças em HOLD.
+- Para cada requisito: fonte e revisão, caminho ativo a partir de Program.Main, teste positivo e negativo, evidência no SHA efetivo, pendência física. Em conflito de teste/autoridade, registrar razão da correção e manter as demais asserções.
+- Separar estados: PRESENTE (código), CONECTADO (chamada/handler de produção), VALIDADO-SINTÉTICO (cenário de controle real com dados sintéticos), VALIDADO-FÍSICO (EXE no PC autorizado), BLOQUEADO/NO-GO. CI por domínio é evidência complementar, não transição automática para concluído.
+- Concluir somente quando a implementação substituída não tiver rota de produção indevida, fluxos de ponta a ponta preservarem autorizações, contrato visual for validado em pixels e durante interação, e o pacote único for homologado pelo WORK nos dois PCs.
+- Para desempenho: medir p50/p95/máximo por ação, estado, tema, viewport e máquina; diferenciar medição de despacho, renderização e tarefa de domínio. Não declarar fluidez por mediana isolada. Limites quantitativos finais ainda não aprovados; não inventar SLA.
+- Sem automações agendadas. Nenhuma release ou manutenção real neste processo. Homologação física exclusivamente pelo WORK.
+
+## 4. Gate imediato de recuperação
+CI 45698586891 no HEAD 2407d42d: falhou no oráculo antigo de progresso da etapa 19; Lote 4 (inclusive ambos negativos) e Drivers 2022/2025 passaram; integridade 45698586706 passou. Fix AUT-OP-01 verifica cor interpolada com oráculo independente da rotina Operation, percentual, estado Running e exclusividade de barras ao trocar de tema/aba, inclusive 100% sem verde. Não reduzir checks antigos. A candidata cromática e4352db1 continua preservada e em HOLD até recuperação aprovada e reconciliação segura. Contraste de navegação Dark/Claro da referência HTML é conflito documentado, não autorização de redesenho.
