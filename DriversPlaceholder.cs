@@ -790,11 +790,7 @@ internal sealed partial class MainForm
                     1 => visible.OrderByDescending(DriverHardwareCatalog.DisplayName, byName).ToArray(),
                     2 => visible.OrderByDescending(item => eligibleUpdateIds.Contains(item.DeviceId))
                         .ThenBy(DriverHardwareCatalog.DisplayName, byName).ToArray(),
-                    3 => visible.OrderBy(item =>
-                    {
-                        int index = Array.FindIndex(manualOrder, ordered => ReferenceEquals(item, ordered));
-                        return index < 0 ? int.MaxValue : index;
-                    }).ToArray(),
+                    3 => DriverListFilters.SortManual(visible, manualOrder),
                     _ => visible.OrderBy(DriverHardwareCatalog.DisplayName, byName).ToArray()
                 };
             }
