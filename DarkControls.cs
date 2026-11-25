@@ -1082,7 +1082,14 @@ internal sealed class DarkScrollableFlow : UserControl
     // Contador local monotônico para provar custo de medição, sem I/O,
     // cronômetros por controle, amostragem ou telemetria.
     internal long PageMeasurementCount { get; private set; }
-    internal void RecordPageMeasurement() => PageMeasurementCount++;
+    // Observador opcional, utilizado exclusivamente pela regressão de
+    // navegação; não registra texto, tempo, hardware nem dados de usuário.
+    internal Action<string, string, int, int, int, int>? PageMeasurementProbe;
+    internal void RecordPageMeasurement(string origin, string pass, int targetWidth, int previousWidth)
+    {
+        PageMeasurementCount++;
+        PageMeasurementProbe?.Invoke(origin, pass, ClientSize.Width, CleanupViewportWidth, targetWidth, previousWidth);
+    }
     internal int CleanupScrollbarWidth => _scroll.Width;
     internal int CleanupViewportWidth => _viewport.ClientSize.Width;
     internal int CleanupViewportHeight => _viewport.ClientSize.Height;

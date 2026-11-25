@@ -569,6 +569,12 @@ internal static class V269IntegrationTests
         var measuredViewports=new[]{"V269CleanupViewport","V269RepairViewport","V269SystemViewport"}
             .Select(name=>form.Controls.Find(name,true).OfType<DarkScrollableFlow>().Single()).ToArray();
         var measurementDeltas=new List<(V269Page From,V269Page To,long Cleanup,long Repair,long System)>();
+        var trace = new List<(string View, string Origin, string Pass, int Outer, int Effective, int Target, int Previous)>(64);
+        var traceReport = new List<(V269Page From, V269Page To, V269Theme Theme, bool Pump,
+            string View, string Origin, string Pass, int Outer, int Effective, int Target, int Previous)>();
+        foreach (var viewport in measuredViewports)
+            viewport.PageMeasurementProbe = (origin, pass, outer, effective, target, previous) =>
+                trace.Add((viewport.Name, origin, pass, outer, effective, target, previous));
         void Changed(object? sender, V269NavigationEventArgs e)
         {
             notifications++;
@@ -582,6 +588,7 @@ internal static class V269IntegrationTests
             var palette = shell.Theme;
             bool changed = from != page;
             int count = notifications;
+            trace.Clear();
             var beforeMeasurements=measuredViewports.Select(v=>v.PageMeasurementCount).ToArray();
             var clock = System.Diagnostics.Stopwatch.StartNew();
             var button = buttons[page];
@@ -607,9 +614,12 @@ internal static class V269IntegrationTests
                     "fila STA restaurou uma aba antiga: " + page);
             }
             transitions.Add((from, page, palette, pump, dispatchMs, drainMs));
-            measurementDeltas.Add((from,page,measuredViewports[0].PageMeasurementCount-beforeMeasurements[0],
-                measuredViewports[1].PageMeasurementCount-beforeMeasurements[1],
-                measuredViewports[2].PageMeasurementCount-beforeMeasurements[2]));
+            var delta = measuredViewports.Select((v,i)=>v.PageMeasurementCount-beforeMeasurements[i]).ToArray();
+            measurementDeltas.Add((from,page,delta[0],delta[1],delta[2]));
+            Require(trace.Count == delta.Sum(), "REC-UX-03: rastreio de cada medição");
+            foreach (var sample in trace)
+                traceReport.Add((from,page,palette,pump,sample.View,sample.Origin,sample.Pass,
+                    sample.Outer,sample.Effective,sample.Target,sample.Previous));
         }
         shell.NavigationChanged += Changed;
         try
@@ -646,6 +656,8 @@ internal static class V269IntegrationTests
             }
             foreach(var sample in measurementDeltas)
                 Console.WriteLine($"V269-UX-MEASURE from={sample.From} to={sample.To} limpeza={sample.Cleanup} reparo={sample.Repair} sistema={sample.System}");
+            foreach (var sample in traceReport)
+                Console.WriteLine($"V269-UX-MEASURE-ORIGIN from={sample.From} to={sample.To} theme={sample.Theme} pump={sample.Pump} view={sample.View} origin={sample.Origin} pass={sample.Pass} outer={sample.Outer} effective={sample.Effective} target={sample.Target} previous={sample.Previous}");
             foreach (var group in transitions.GroupBy(s => s.To))
             {
                 var sorted = group.Select(s => s.Dispatch).OrderBy(x => x).ToArray();
@@ -656,6 +668,7 @@ internal static class V269IntegrationTests
         }
         finally
         {
+            foreach (var viewport in measuredViewports) viewport.PageMeasurementProbe = null;
             shell.NavigationChanged -= Changed;
             themeChoice.SelectedIndex = originalTheme;
             shell.SelectPage(originalPage);

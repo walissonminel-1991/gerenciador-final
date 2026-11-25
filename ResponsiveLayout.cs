@@ -50,7 +50,7 @@ internal sealed partial class MainForm
         content.Margin = Padding.Empty;
         host.Content.Controls.Add(content);
         bool arranging = false;
-        void Arrange()
+        void Arrange(string origin)
         {
             if (arranging || host.IsDisposed || (trackSystem && !host.Visible)) return;
             arranging = true;
@@ -61,19 +61,19 @@ internal sealed partial class MainForm
                 // mas nao desativa a rolagem quando o conteudo ultrapassa.
                 int scrollbar = (int)Math.Ceiling(14d * host.DeviceDpi / 96d);
                 int width = Math.Max(1, host.ClientSize.Width - (themedTools ? 0 : scrollbar));
-                int MeasureAt(int available)
+                int MeasureAt(int available, string pass)
                 {
-                    host.RecordPageMeasurement();
+                    host.RecordPageMeasurement(origin, pass, available, content.Width);
                     if(content.Width!=available)content.Width=available;
                     content.PerformLayout();
                     return minimumHeight(available);
                 }
-                int required=MeasureAt(width);
+                int required=MeasureAt(width,"candidate");
                 if(themedTools && required>host.ClientSize.Height)
                 {
                     // Só reservar a largura real da barra quando existe overflow.
                     width=Math.Max(1,host.ClientSize.Width-host.CleanupScrollbarWidth);
-                    required=MeasureAt(width);
+                    required=MeasureAt(width,"overflow");
                 }
                 void SetHeight(int minimum, int viewportHeight)
                 {
@@ -92,7 +92,7 @@ internal sealed partial class MainForm
                         host.PerformLayout();
                         int actual = host.CleanupViewportWidth;
                         if (actual <= 0 || content.Width == actual) break;
-                        SetHeight(MeasureAt(actual), host.CleanupViewportHeight);
+                        SetHeight(MeasureAt(actual,"reconcile"), host.CleanupViewportHeight);
                         host.Reflow();
                     }
                     if (host.Content.Width != host.CleanupViewportWidth) host.Reflow();
@@ -100,22 +100,22 @@ internal sealed partial class MainForm
             }
             finally { arranging = false; }
         }
-        host.SizeChanged += (_, _) => Arrange();
+        host.SizeChanged += (_, _) => Arrange("SizeChanged");
         if (themedTools)
             host.ToolViewportResized += (_, _) =>
             {
-                if (host.Visible && content.Width != host.CleanupViewportWidth) Arrange();
+                if (host.Visible && content.Width != host.CleanupViewportWidth) Arrange("ToolViewportResized");
             };
         host.VisibleChanged += (_, _) =>
         {
             if (IsTrayTransitioning || !host.Visible) return;
-            Arrange();
+            Arrange("VisibleChanged");
         };
-        host.DpiChangedAfterParent += (_, _) => Arrange();
-        if (trackCleaning) _relayoutCleaning = Arrange;
-        if (trackRepair) _relayoutRepair = Arrange;
-        if (trackSystem) _relayoutSystem = Arrange;
-        Arrange();
+        host.DpiChangedAfterParent += (_, _) => Arrange("DpiChanged");
+        if (trackCleaning) _relayoutCleaning = () => Arrange("Content");
+        if (trackRepair) _relayoutRepair = () => Arrange("Content");
+        if (trackSystem) _relayoutSystem = () => Arrange("Content");
+        Arrange("Initialize");
         return host;
     }
 
