@@ -1510,11 +1510,14 @@ internal static class V269IntegrationTests
         using(report.MeasureUi(DiagnosticUiStage.Navigation,V269Page.Inicio)) { }
         report.RecordFailure(@"C:\USUARIO_TESTE\arquivo.txt",new IOException("CONTEUDO_PRIVADO_TESTE"));
         report.RecordFailure("FIXTURE.FALHA",new IOException("CONTEUDO_PRIVADO_TESTE"));
+        report.RecordEvent("REGISTRO_PROGRAMAS.LIDO quantidade=12 erros=2 nome=CONTEUDO_PRIVADO_TESTE");
+        report.RecordEvent("EVENTO.NAO_PERMITIDO quantidade=99");
         report.SampleProcess(false,false);
         string text=report.Format();
         Require(text.Contains("etapa=Navigation aba=Inicio")&&text.Contains("alocacoes_thread_ui_bytes=")&&
             text.Contains("etapa=FIXTURE.FALHA")&&text.Contains("ETAPA_NAO_IDENTIFICADA")&&
-            !text.Contains("USUARIO_TESTE")&&!text.Contains("CONTEUDO_PRIVADO_TESTE"),
+            text.Contains("REGISTRO_PROGRAMAS.LIDO quantidade=12 erros=2")&&
+            !text.Contains("EVENTO.NAO_PERMITIDO")&&!text.Contains("USUARIO_TESTE")&&!text.Contains("CONTEUDO_PRIVADO_TESTE"),
             "exportação registra códigos e métricas, sem caminhos ou mensagens de exceção");
         Require(text.Contains("Amostras do processo: 1 retidas de 1"),"amostra do processo principal registrada");
         string folder=Path.Combine(Path.GetTempPath(),"GF-diagnostic-export-"+Guid.NewGuid().ToString("N"));
@@ -1532,6 +1535,10 @@ internal static class V269IntegrationTests
             try { LocalDiagnosticReport.SaveToFolder("",text); }
             catch(IOException) { refused=true; }
             Require(refused,"destino indisponível não usa fallback oculto");
+            refused=false;
+            try { LocalDiagnosticReport.SaveToFolder(@"\\servidor-invalido\documentos",text); }
+            catch(InvalidDataException) { refused=true; }
+            Require(refused,"caminho UNC recusado antes de consultar o destino");
         }
         finally{Directory.Delete(folder,true);}
         Console.WriteLine("PASS Diagnóstico GF: métricas limitadas, privacidade e exportação TXT única em diretório descartável.");
@@ -1844,6 +1851,29 @@ internal static class V269IntegrationTests
                 diagnostic.Description.Contains(DiagnosticTrace.VersionLabel) &&
                 diagnostic.Description.Contains("RELATÓRIO LOCAL DE CONFIABILIDADE"),
                 "diagnóstico apresenta versão e relatório local reais");
+            string exportFolder=Path.Combine(Path.GetTempPath(),"GF-diagnostic-button-"+Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(exportFolder);
+            try
+            {
+                form.V269DiagnosticExportForTest=report=>LocalDiagnosticReport.SaveToFolder(exportFolder,report);
+                shell.PresentPanel(null);Application.DoEvents();
+                general.Diagnostic.PerformClick();
+                var wait=System.Diagnostics.Stopwatch.StartNew();
+                while(!general.Diagnostic.Enabled&&wait.ElapsedMilliseconds<5000)
+                { Application.DoEvents(); System.Threading.Thread.Sleep(10); }
+                Application.DoEvents();
+                var exported=Directory.GetFiles(exportFolder,"GF-Diagnostico-*.txt");
+                Require(general.Diagnostic.Enabled&&exported.Length==1&&
+                    File.ReadAllText(exported[0]).Contains("GF-DIAG-1")&&
+                    File.ReadAllText(exported[0]).Contains("DESEMPENHO DO PROCESSO PRINCIPAL")&&
+                    page.Controls.Find("V269SettingsHint",true).OfType<Label>().Single().Text.Contains("Relatório criado em Documentos")&&
+                    shell.RightPane.Current is null,"botão real exporta TXT e apresenta confirmação sem substituir painel");
+            }
+            finally
+            {
+                form.V269DiagnosticExportForTest=null;page.SetNotice(null);
+                Directory.Delete(exportFolder,true);
+            }
             shell.PresentPanel(null);Application.DoEvents();
             Require(general.History.Focus(),"histórico alcançável");
             general.History.PerformClick();Application.DoEvents();
