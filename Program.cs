@@ -2677,7 +2677,8 @@ internal sealed partial class MainForm : Form
         List<ProgramEntry> items;
         try
         {
-            var scan = await Task.Run(() =>
+            var comparer = StringComparer.CurrentCultureIgnoreCase;
+            var (scan, orderedItems) = await Task.Run(() =>
             {
                 var result = AppServices.ScanAllInstalledApps();
                 // Verificar caminhos pode envolver disco lento ou indisponivel.
@@ -2685,9 +2686,10 @@ internal sealed partial class MainForm : Form
                 foreach (var item in result.Items)
                     item.CanUninstall = !result.Incomplete && BundlewareReview.CanLaunchIndividual(item) &&
                         ActionableInventory.CanUninstall(item);
-                return result;
+                // A mesma ordem estável do inventário, fora da thread de UI.
+                return (result, result.Items.OrderBy(x => x.Name, comparer).ToList());
             });
-            items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            items = orderedItems;
             _inventoryIncomplete = scan.Incomplete;
             // Comparação entre fotografias completas e identidades inequívocas.
             // Leitura parcial nunca substitui a base e não autoriza inferir remoção.
@@ -2744,10 +2746,11 @@ internal sealed partial class MainForm : Form
         RenderPrograms();
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
         await RefreshCapabilitiesAsync(updateChecked: false);
-        Log($"Inventário local: {_installed.Count} registros; {ActionableInventory.VisibleCount(_installed)} com desinstalação disponível. A lista exibida mostra somente ações.");
+        int visibleCount = ActionableInventory.VisibleCount(_installed);
+        Log($"Inventário local: {_installed.Count} registros; {visibleCount} com desinstalação disponível. A lista exibida mostra somente ações.");
         Status(_inventoryIncomplete
             ? "Inventário PARCIAL: fonte de aplicativos indisponível. Use Atualizar e verificar para tentar novamente."
-            : $"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
+            : $"{visibleCount} aplicativos com ação disponíveis antes da consulta online");
     }
 
     private readonly UpdateResultHistory _updateHistory = new();
