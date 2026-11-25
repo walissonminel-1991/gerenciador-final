@@ -36,22 +36,8 @@ internal sealed partial class MainForm
             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         var track = new Rectangle(area.X + 1, area.Bottom - 5, area.Width - 2, 4);
         if (track.Width < 4) return;
-        using var background = new SolidBrush(Color.FromArgb(20, 30, 42));
-        using var fill = new SolidBrush(color);
-        graphics.FillRectangle(background, track);
-        var clip = graphics.Save();
-        try
-        {
-            graphics.SetClip(track);
-            if (state.Active)
-            {
-                int segment = Math.Max(12, track.Width / 4);
-                int offset = _programList.OperationFrame * (track.Width + segment) / 18 - segment;
-                graphics.FillRectangle(fill, track.X + offset, track.Y, segment, track.Height);
-            }
-            else graphics.FillRectangle(fill, track);
-        }
-        finally { graphics.Restore(clip); }
+        DrawOperationMeter(graphics, track, GfUniversalMeter.Uninstall(state.Stage, _v269Appearance.Theme),
+            V269Palette.Border);
     }
 
     internal void ShowUninstallResult(string summary)
