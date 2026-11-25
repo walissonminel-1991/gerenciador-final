@@ -52,7 +52,7 @@ internal sealed partial class MainForm
         bool arranging = false;
         void Arrange()
         {
-            if (arranging || host.IsDisposed) return;
+            if (arranging || host.IsDisposed || (trackSystem && !host.Visible)) return;
             arranging = true;
             try
             {

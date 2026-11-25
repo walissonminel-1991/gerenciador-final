@@ -208,7 +208,7 @@ internal sealed partial class MainForm
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,37));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,108));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,42));
-        var heading=new Label{Text="Planos de Energia",Dock=DockStyle.Fill,Font=new Font("Segoe UI",11.5f,FontStyle.Bold),ForeColor=Ink,TextAlign=ContentAlignment.MiddleLeft};
+        var heading=new V269ModuleHeading("Planos de Energia","bolt"){Dock=DockStyle.Fill};
         heading.Click+=(_,_)=>SetSystemView("energy");
         _currentPowerLabel.Text="Aguardando consulta ao Windows";
         root.Controls.Add(heading,0,0);
@@ -274,11 +274,11 @@ internal sealed partial class MainForm
     private Control PowerCard(string key,string title,string description,Color accent)
     {
         var card=new V269CleanupSection{Dock=DockStyle.Fill,RowCount=4,ColumnCount=1,BackColor=Color.Transparent,
-            Padding=new Padding(8,6,8,5),Margin=new Padding(0,1,6,3),AccessibleName=title,TabStop=true};
+            Padding=new Padding(8,6,8,5),Margin=new Padding(0,1,6,3),AccessibleName=title,TabStop=true,IsPlanCard=true};
         card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         card.RowStyles.Add(new RowStyle(SizeType.Absolute,24));card.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         card.RowStyles.Add(new RowStyle(SizeType.Absolute,17));card.RowStyles.Add(new RowStyle(SizeType.Absolute,28));
-        var name=new Label{Text=title,Dock=DockStyle.Fill,ForeColor=Ink,Font=new Font("Segoe UI",9.75f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
+        var name=new V269ModuleHeading(title,key=="balanced"?"monitor":key=="saver"?"cloud":"bolt",9.75f){Dock=DockStyle.Fill};
         var hint=new Label{Text=description,Dock=DockStyle.Fill,ForeColor=Muted,Font=new Font("Segoe UI",8.5f)};
         card.Controls.Add(name,0,0);card.Controls.Add(hint,0,1);
         name.Click+=(_,_)=>SetSystemView("energy");hint.Click+=(_,_)=>SetSystemView("energy");card.Click+=(_,_)=>SetSystemView("energy");
@@ -300,8 +300,20 @@ internal sealed partial class MainForm
         {
             var snapshot = await PowerPlanService.ReadAsync();
             if (IsDisposed) return;
+            ApplyV269PowerSnapshot(snapshot,PowerPlanService.HibernateEnabled());
+        }
+        catch (Exception ex)
+        {
+            _currentPowerLabel.Text = "Erro na consulta de energia: " + ex.Message;
+            Log("Energia: " + ex.Message);
+        }
+        finally { _refreshingEnergy = false; if(_nav.SelectedPage==V269Page.Sistema) PresentV269SystemDetails(); }
+    }
+
+    private void ApplyV269PowerSnapshot(PowerPlanSnapshot snapshot,bool? hibernate)
+    {
             _activePowerGuid = snapshot.ActiveGuid;
-            _hibernateEnabled = PowerPlanService.HibernateEnabled();
+            _hibernateEnabled = hibernate;
             string? activeKey = snapshot.Available.FirstOrDefault(p => p.Value == _activePowerGuid).Key;
             _currentPowerLabel.Text = snapshot.Error ?? (activeKey switch
             {
@@ -314,8 +326,9 @@ internal sealed partial class MainForm
             foreach (string key in _powerButtons.Keys)
             {
                 bool selected = snapshot.ActiveGuid is not null && snapshot.For(key) == snapshot.ActiveGuid;
-                _powerBadges[key].Text = selected ? "Ativo" : snapshot.For(key) is not null ? "Disponível" : "A confirmar";
-                _powerBadges[key].ForeColor = selected ? Color.FromArgb(117, 221, 167) : Muted;
+                _powerBadges[key].Text = snapshot.Error is not null ? "Indisponível" : selected ? "" : snapshot.For(key) is not null ? "" : "Pode exigir criação";
+                if(_powerButtons[key].Parent is V269CleanupSection card)card.SetPlanActive(selected);
+                _powerBadges[key].ForeColor = selected ? V269AppDetailStyle.Palette(_v269Appearance.Theme).Text : Muted;
                 _powerButtons[key].Text = selected ? "Ativo" : "Ativar";
                 _powerButtons[key].Enabled = !_busy && !selected && snapshot.Error is null;
             }
@@ -339,13 +352,6 @@ internal sealed partial class MainForm
                     _ => "Estado não disponível neste computador. Nenhuma alteração será feita."
                 };
             }
-        }
-        catch (Exception ex)
-        {
-            _currentPowerLabel.Text = "Erro na consulta de energia: " + ex.Message;
-            Log("Energia: " + ex.Message);
-        }
-        finally { _refreshingEnergy = false; if(_nav.SelectedPage==V269Page.Sistema) PresentV269SystemDetails(); }
     }
 
     private async Task ChoosePowerPlanAsync(string key, string title)

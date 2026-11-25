@@ -175,3 +175,33 @@ internal sealed class V269SystemSwitch : Button
         if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,ClientRectangle);
     }
 }
+
+internal sealed class V269ModuleHeading : Label
+{
+    private readonly string _glyph;
+    private readonly float _baseSize;
+    private V269AppearanceOptions _options=V269AppearanceOptions.Default;
+    private Font? _ownedFont;
+    internal V269ModuleHeading(string text,string glyph,float size=11.5f)
+    {
+        Text=text;_glyph=glyph;_baseSize=size;UseMnemonic=false;Margin=Padding.Empty;
+        BackColor=Color.Transparent;SetStyle(ControlStyles.SupportsTransparentBackColor|ControlStyles.OptimizedDoubleBuffer,true);
+        ApplyOptions(_options);
+    }
+    internal void ApplyOptions(V269AppearanceOptions options)
+    {
+        _options=options.Normalize();
+        float size=_baseSize*_options.TextPercent/100f;
+        if(_ownedFont is null||Math.Abs(_ownedFont.Size-size)>.01f)
+        {var old=_ownedFont;_ownedFont=new Font("Segoe UI",size,FontStyle.Bold);Font=_ownedFont;old?.Dispose();}
+        ForeColor=V269AppDetailStyle.Palette(_options.Theme).Text;Invalidate();
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        int n=V269AppTable.Scale(20,_options.InterfacePercent,DeviceDpi),x=V269AppTable.Scale(27,_options.InterfacePercent,DeviceDpi);
+        V269CleanupGlyph.Draw(e.Graphics,_glyph,new Rectangle(1,Math.Max(0,(Height-n)/2),n,n),_options.Theme);
+        TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(x,0,Math.Max(1,Width-x),Height),ForeColor,
+            TextFormatFlags.NoPrefix|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak);
+    }
+    protected override void Dispose(bool disposing){if(disposing)_ownedFont?.Dispose();base.Dispose(disposing);}
+}

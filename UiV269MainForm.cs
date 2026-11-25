@@ -750,6 +750,7 @@ internal sealed partial class MainForm
         page.Controls.Add(_v269StartupTitle);
         _v269StartupTitle.BringToFront();
         _v269StartupCards.Content.SizeChanged+=(_,_)=>ResizeV269StartupCards();
+        _v269StartupCards.VisibleChanged+=(_,_)=>ResizeV269StartupCards();
         _v269StartupCards.ToolViewportResized+=(_,_)=>ResizeV269StartupCards();
         _v269StartupCards.DpiChangedAfterParent+=(_,_)=>ResizeV269StartupCards();
         return page;
@@ -757,7 +758,7 @@ internal sealed partial class MainForm
 
     private void ResizeV269StartupCards()
     {
-        if(_fittingV269Startup||_v269StartupCards.IsDisposed)return;
+        if(_fittingV269Startup||_v269StartupCards.IsDisposed||!_v269StartupCards.Visible)return;
         _fittingV269Startup=true;
         try
         {
@@ -1070,8 +1071,8 @@ internal sealed partial class MainForm
             _fitV269CleanupDiskSection?.Invoke();
             _relayoutCleaning?.Invoke();
             _relayoutRepair?.Invoke();
-            _relayoutSystem?.Invoke();
-            ResizeV269StartupCards();
+            if(_nav.SelectedPage==V269Page.Sistema)_relayoutSystem?.Invoke();
+            if(_nav.SelectedPage==V269Page.Inicializacao)ResizeV269StartupCards();
             if (_log.Parent is { } logHost) ApplyV269ContentAppearance(logHost);
             return;
         }
@@ -1116,6 +1117,7 @@ internal sealed partial class MainForm
         }
         if(root is V269AppSearchBox appSearch){appSearch.ApplyOptions(_v269Appearance);return;}
         if(root is V269AppToolbarButton appButton){appButton.ApplyOptions(_v269Appearance);return;}
+        if(root is V269ModuleHeading moduleHeading){moduleHeading.ApplyOptions(_v269Appearance);return;}
         if(root is V269StartupCard startupCard){startupCard.ApplyOptions(_v269Appearance);return;}
         if(root is V269SystemUpdateRow updateRow){updateRow.ApplyOptions(_v269Appearance);return;}
         if(root is V269SystemSwitch systemSwitch){systemSwitch.ApplyOptions(_v269Appearance);return;}

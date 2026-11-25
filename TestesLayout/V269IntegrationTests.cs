@@ -1104,6 +1104,12 @@ internal static class V269IntegrationTests
                 new("00000000-0000-0000-0000-000000000101:1","Atualização cumulativa de teste","KB-FIXTURE",false,true),
                 new("00000000-0000-0000-0000-000000000102:1","Atualização com licença pendente","KB-FIXTURE",true,false)});
             checkedField.SetValue(form,true);draw.Invoke(form,null);
+            var balanced=Guid.NewGuid();var saver=Guid.NewGuid();var ultimate=Guid.NewGuid();
+            typeof(MainForm).GetMethod("ApplyV269PowerSnapshot",flags)!.Invoke(form,[
+                new PowerPlanSnapshot(balanced,new Dictionary<string,Guid>{{"balanced",balanced},{"saver",saver},{"ultimate",ultimate}},null),false]);
+            Require(form.Controls.Find("V269Hibernation",true).OfType<V269SystemSwitch>().Single().State==false,
+                "estado de hibernação vem da consulta e não de simulação");
+
             var installs=form.Controls.Find("V269InstallWindowsUpdate",true).OfType<Button>().ToArray();
             Require(installs.Length==2&&installs[0].Enabled&&!installs[1].Enabled,"ofertas e licença real governam cada botão");
             form.PreviewMemoryRamForTests(new MemoryRamSample(DateTime.UtcNow,32UL<<30,18UL<<30));
@@ -1118,6 +1124,10 @@ internal static class V269IntegrationTests
                     .Select(n=>modules.Controls.Find(n,false).Single()).ToArray();
                 Require(sections.All(c=>c.Visible&&c.Right<=modules.ClientSize.Width)&&sections[0].Bottom<=sections[1].Top&&sections[1].Bottom<=sections[2].Top,
                     "Sistema: três seções sequenciais sem sobreposição");
+                var updateRows=form.Controls.Find("V269SystemUpdateRow",true).OfType<V269SystemUpdateRow>().ToArray();
+                Require(updateRows.Length==2&&updateRows[1].Top>=updateRows[0].Bottom&&
+                    updateRows.All(row=>row.Right<=row.Parent!.ClientSize.Width&&row.Bottom<=row.Parent.ClientSize.Height),
+                    "ofertas em duas linhas verticais, inclusive após alternar tema e tamanho");
                 using var image=new Bitmap(surface.Width,surface.Height);surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));
                 image.Save($"LayoutCaptures/v269-sistema-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
             }
@@ -1138,7 +1148,7 @@ internal static class V269IntegrationTests
             Require(cards.Length==entries.Count&&cards.All(c=>c.Command.Enabled==c.Item!.Editable)&&
                 cards.Where(c=>!c.Item!.Editable).All(c=>c.Command.Text=="Somente leitura"),"Inicialização respeita motor de elegibilidade");
             typeof(Control).GetMethod("OnClick",flags)!.Invoke(cards[0],[EventArgs.Empty]);
-            Require(shell.RightPane.Current?.Module?.Name==cards[0].AccessibleName,"seleção de inicialização apresenta exatamente a entrada");
+            Require(shell.RightPane.Current?.Module?.Name==cards[0].AccessibleName,$"seleção de inicialização apresenta exatamente a entrada: estado={shell.RightPane.Current?.Kind}, nome={shell.RightPane.Current?.Module?.Name}, esperado={cards[0].AccessibleName}");
             foreach(var size in new[]{new Size(1844,1116),new Size(1200,659)})
             foreach(var palette in Enum.GetValues<V269Theme>())
             {

@@ -52,6 +52,8 @@ internal static class V269CleanupGlyph
                 foreach(int x in new[]{5,9,13,17,21})g.DrawLine(pen,x,17,x,20);break;
             case "clock":
                 g.DrawEllipse(pen,3,3,18,18);g.DrawLines(pen,new Point[]{new(12,6),new(12,12),new(16,14)});break;
+            case "cloud":
+                g.DrawArc(pen,2,10,9,9,90,180);g.DrawArc(pen,7,5,10,13,190,200);g.DrawArc(pen,15,10,7,9,270,180);g.DrawLine(pen,6,19,18,19);break;
             case "document":
                 g.DrawPolygon(pen,new Point[]{new(5,3),new(14,3),new(20,9),new(20,21),new(5,21)});
                 g.DrawLines(pen,new Point[]{new(14,3),new(14,9),new(20,9)});g.DrawLine(pen,8,13,17,13);g.DrawLine(pen,8,17,17,17);break;
@@ -157,6 +159,9 @@ internal sealed class V269CleanupButton : Button
 
 internal sealed class V269CleanupSection : TableLayoutPanel
 {
+    internal bool IsPlanCard {get;set;}
+    private bool _planActive;
+    internal void SetPlanActive(bool active){if(_planActive==active)return;_planActive=active;Invalidate(true);}
     private V269AppearanceOptions _options = V269AppearanceOptions.Default;
     internal void ApplyOptions(V269AppearanceOptions options){_options=options.Normalize();Invalidate(true);}
     protected override void OnPaintBackground(PaintEventArgs e)
@@ -169,6 +174,13 @@ internal sealed class V269CleanupSection : TableLayoutPanel
             V269Theme.Dark=>("#303438","#282c30","#565c62"),
             _=>("#0d3047","#0b2237","#25445f")
         };
+        if(IsPlanCard)
+            (top,bottom,border)=_options.Theme switch
+            {
+                V269Theme.Claro=>_planActive?("#c2e0f5","#c2e0f5","#4a9cc9"):("#e2f2fd","#e2f2fd","#8ebad6"),
+                V269Theme.Dark=>_planActive?("#50565d","#41464c","#b4bdc6"):("#33373b","#2b2f33","#555c63"),
+                _=>_planActive?("#113048","#113048","#5e95bb"):("#0d2437","#0b2031","#30516b")
+            };
         var bounds=new Rectangle(0,0,Width-1,Height-1);
         e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
         using var path=ModernButton.RoundRect(bounds,V269AppTable.Scale(11,_options.InterfacePercent,DeviceDpi));

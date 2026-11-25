@@ -9,7 +9,7 @@ namespace GerenciadorAplicativos;
 
 internal sealed partial class MainForm
 {
-    private readonly Label _systemPanelTitle = new();
+    private readonly Label _systemPanelTitle = new V269ModuleHeading("Windows Update","refresh");
     private readonly Label _systemPanelSummary = new();
     private DarkScrollableFlow? _systemPanelCards;
     private Control? _v269EnergyView;
@@ -132,6 +132,7 @@ internal sealed partial class MainForm
         _systemPanelCards.ApplyCleanupSurface(_v269Appearance.Theme);
         _systemPanelCards.Content.Padding = Padding.Empty;
         _systemPanelCards.Content.WrapContents = false;
+        _systemPanelCards.Content.FlowDirection=FlowDirection.TopDown;
         _systemPanelCards.Content.SizeChanged += (_,_) => ResizeIntegratedCards();
         updates.Controls.Add(_systemPanelCards,0,2);
         root.Controls.Add(updates,0,0);
@@ -598,7 +599,9 @@ internal sealed partial class MainForm
 
             ReplaceSystemCards(new[] { BuildStartupTrayCard() }
                 .Concat(entries.Select(BuildStartupCard)).ToArray(), startup: true);
-            Status($"{entries.Count} entradas de inicialização consultadas");
+            // Consulta silenciosa não pode ocupar o painel operacional.
+            _operationResult=$"{entries.Count} entradas de inicialização consultadas";
+            _status.Text=_operationResult;
             Log($"Inicialização: {entries.Count} entradas consultadas.");
         }, quietStartup:true);
         PresentV269StartupDetails();
@@ -652,10 +655,10 @@ internal sealed partial class MainForm
         string[] parts=item?.Details.Split(" · ",StringSplitOptions.None)??[];
         string type=item is null?"Registro do GF":parts.Length>1?parts[1]:item.Kind;
         string path=item is null?"Início na bandeja da sessão do usuário":item.Kind=="file"?item.Locator:
-            parts.Length>2&&!parts[^1].Equals("somente leitura",StringComparison.OrdinalIgnoreCase)?parts[^1]:"Não informado";
+            parts.Length>2&&!parts[^1].Equals("somente leitura",StringComparison.OrdinalIgnoreCase)?parts[^1]:item?.Locator??"Não informado";
         bool? enabled=item?.Enabled??selected.GfEnabled;
-        var model=new V269AppDetailModel(selected.AccessibleName??"",item is null?"Gerenciador Final":type,
-            [("Escopo",item is null?"Meu usuário":StartupScope(item)),("Tipo",type),("Situação",enabled is true?"Habilitado":enabled is false?"Desabilitado":"Indisponível")],
+        var model=new V269AppDetailModel(selected.AccessibleName??"",item is null?"Gerenciador Final":"Origem local",
+            [("Origem",item is null?"Gerenciador Final":type),("Escopo",item is null?"Meu usuário":StartupScope(item)),("Tipo",type),("Situação",enabled is true?"Habilitado":enabled is false?"Desabilitado":"Indisponível")],
             "Apenas entradas do usuário que o motor permite podem ser alteradas. O efeito ocorre no próximo login.",
             Description:path,CleanupGlyph:"power",CleanupDescriptionHeading:"Caminho",
             PreviousResults:V269ModuleHistory(V269Page.Inicializacao),DismissResult:DismissV269ModuleResult);
@@ -897,6 +900,7 @@ internal sealed partial class MainForm
         _systemPanelTitle.Text = "Windows Update";
         _systemPanelSummary.Text = summary;
         FitSystemSummaryHeight();
+        if(WindowsUpdateViewActive&&_activeSystemView=="update")PresentV269SystemDetails();
     }
 
     private void DrawWindowsUpdates()

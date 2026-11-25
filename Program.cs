@@ -1736,7 +1736,7 @@ internal sealed partial class MainForm : Form
     {
         var cleaning = new Panel { Name = "V269CleanupSurface", BackColor = Color.Transparent, Dock = DockStyle.Fill };
         var repair = new Panel { Name = "V269RepairSurface", BackColor = Color.Transparent, Dock = DockStyle.Fill };
-        var system = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
+        var system = new Panel { Name="V269SystemSurface", BackColor = Color.Transparent, Dock = DockStyle.Fill };
 
         // Cores de impacto: azul = rotina, cinza = baixo impacto/inspeção,
         // âmbar = atenção, vermelho = interrupção sensível ou remoção definitiva.

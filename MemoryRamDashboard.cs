@@ -96,7 +96,7 @@ internal sealed partial class MainForm
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         foreach(int height in new[]{30,27,10,49,29,38})root.RowStyles.Add(new RowStyle(SizeType.Absolute,height));
-        var header=new Label{Text="Memória RAM",Dock=DockStyle.Fill,ForeColor=Ink,Font=new Font("Segoe UI",11.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
+        var header=new V269ModuleHeading("Memória RAM","memory"){Dock=DockStyle.Fill};
         header.Click+=(_,_)=>SetSystemView("memory");root.Controls.Add(header,0,0);
         var top=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty,BackColor=Color.Transparent};
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,53));top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,47));

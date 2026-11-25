@@ -788,8 +788,8 @@ internal sealed class V269Shell : UserControl
         (V269Page.Drivers, "Drivers", "Consulte dispositivos, verifique atualizações e gerencie drivers elegíveis."),
         (V269Page.Limpeza, "Limpeza e Desempenho", "Ferramentas de limpeza e visão do espaço em disco."),
         (V269Page.Reparo, "Reparo e Rede", "Verificações e reparos orientados do Windows e da rede."),
-        (V269Page.Sistema, "Sistema", "Windows Update, energia e memória"),
-        (V269Page.Inicializacao, "Inicialização", "Itens de inicialização"),
+        (V269Page.Sistema, "Sistema", "Windows Update, planos de energia e gerenciamento de memória RAM."),
+        (V269Page.Inicializacao, "Inicialização", "Gerencie entradas do seu usuário e consulte itens protegidos."),
         (V269Page.Configuracoes, "Configurações", "Ajuste o GERENCIADOR FINAL com temas variados e preferências de uso.")
     ];
 
