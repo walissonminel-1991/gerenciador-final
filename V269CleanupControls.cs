@@ -160,7 +160,8 @@ internal sealed class V269CleanupDiskCard : Panel
 {
     private readonly Label _name,_usage,_free;
     private readonly V269CleanupButton _command;
-    private readonly double _fraction;
+    private readonly double? _fraction;
+    private readonly ulong? _usedBytes,_capacityBytes;
     private bool _selected;
     internal void SetSelected(bool selected){if(_selected==selected)return;_selected=selected;Invalidate(true);}
     private Font? _nameFont,_dataFont;
@@ -168,10 +169,14 @@ internal sealed class V269CleanupDiskCard : Panel
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal Button Command=>_command;
     internal V269CleanupDiskCard(string name,string usage,string free,double fraction)
+        : this(name,usage,free,double.IsFinite(fraction)&&fraction>=0&&fraction<=1?fraction:null,null,null) { }
+    internal V269CleanupDiskCard(string name,string usage,string free,ulong? usedBytes,ulong? capacityBytes)
+        : this(name,usage,free,null,usedBytes,capacityBytes) { }
+    private V269CleanupDiskCard(string name,string usage,string free,double? fraction,ulong? usedBytes,ulong? capacityBytes)
     {
         Name="V269CleanupDiskCard";AccessibleName=name;AccessibleDescription=usage+" · "+free;
         AccessibleRole=AccessibleRole.Grouping;TabStop=true;SetStyle(ControlStyles.Selectable,true);
-        _fraction=fraction;
+        _fraction=fraction;_usedBytes=usedBytes;_capacityBytes=capacityBytes;
         SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw|
             ControlStyles.SupportsTransparentBackColor,true);
         BackColor=Color.Transparent;
@@ -215,11 +220,11 @@ internal sealed class V269CleanupDiskCard : Panel
     {
         base.OnPaint(e);if(Width<3||Height<3)return;
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;Color H(string s)=>V269AppTable.H(s);
-        var (top,bottom,border,track,bar1,bar2)=_options.Theme switch
+        var (top,bottom,border,track)=_options.Theme switch
         {
-            V269Theme.Claro=>("#edf5fb","#edf5fb","#8db1ca","#c6ddef","#145b94","#2782ba"),
-            V269Theme.Dark=>("#33373b","#2b2f33","#555c63","#393e43","#929ba4","#d6dde3"),
-            _=>("#0b2134","#0b2134","#25445f","#1d394e","#1777b9","#42b3df")
+            V269Theme.Claro=>("#edf5fb","#edf5fb","#8db1ca","#c6ddef"),
+            V269Theme.Dark=>("#33373b","#2b2f33","#555c63","#393e43"),
+            _=>("#0b2134","#0b2134","#25445f","#1d394e")
         };
         if(_selected)(top,bottom,border)=_options.Theme switch
         {V269Theme.Dark=>("#50565d","#41464c","#b4bdc6"),V269Theme.Claro=>("#c2e0f5","#c2e0f5","#4a9cc9"),_=>("#0f2c45","#0f2c45","#478ab4")};
@@ -234,11 +239,13 @@ internal sealed class V269CleanupDiskCard : Panel
         var meter=new Rectangle(_name.Left,y,Math.Max(1,_free.Width),S(8));
         using var meterPath=ModernButton.RoundRect(meter,S(4));using var meterFill=new SolidBrush(H(track));
         g.FillPath(meterFill,meterPath);g.DrawPath(line,meterPath);
-        int w=Math.Clamp((int)Math.Round(meter.Width*_fraction),0,meter.Width);
+        var frame=_fraction is double fraction ? GfMeterScale.Frame(GfMeterKind.Usage,fraction*100,_options.Theme) :
+            GfUniversalMeter.Disk(_usedBytes,_capacityBytes,_options.Theme);
+        int w=frame.Fraction is double amount ? Math.Clamp((int)Math.Round(meter.Width*amount),0,meter.Width) : 0;
         if(w>1)
         {
             var part=new Rectangle(meter.X,meter.Y,w,meter.Height);
-            using var bar=ModernButton.RoundRect(part,Math.Min(S(4),w/2));using var fill=new LinearGradientBrush(part,H(bar1),H(bar2),LinearGradientMode.Horizontal);
+            using var bar=ModernButton.RoundRect(part,Math.Min(S(4),w/2));using var fill=new SolidBrush(frame.Color);
             g.FillPath(fill,bar);
         }
         if(Focused&&ShowFocusCues&&Width>8&&Height>8)ControlPaint.DrawFocusRectangle(g,new Rectangle(4,4,Width-8,Height-8));

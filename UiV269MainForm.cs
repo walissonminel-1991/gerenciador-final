@@ -827,10 +827,7 @@ internal sealed partial class MainForm
             if(previousInterface!=_v269Appearance.InterfacePercent)_v269ResizeFromSettings?.Invoke();
             _programList.V269Options().AnimateButtonFeedback=CanAnimateV269;
             ApplyV269ContentAppearance(this);
-            if(_progress.Style==ProgressBarStyle.Marquee&&!CanAnimateV269)
-            {
-                _progress.MarqueeAnimationSpeed=0;_progress.Style=ProgressBarStyle.Blocks;
-            }
+            RefreshLegacyOperationMeter();
             if(saveAppearance is not null){dirtyAppearance=true;saveAppearance.Stop();saveAppearance.Start();}
         };
         view.General.Notifications.Click+=(_,_)=>ChangeV269General(_v269General with{Notifications=!_v269General.Notifications});

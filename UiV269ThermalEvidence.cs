@@ -31,6 +31,26 @@ internal sealed record GfThermalEvidence
         return new(sampleKey, sampleGeneration, warningTenthsC / 10d, maximumTenthsC / 10d, observedAtUtc);
     }
 
+    // As capacidades e a temperatura são provenientes da mesma consulta
+    // D3DKMT; o snapshot conserva o instante da fonte, não o de entrega.
+    internal static GfThermalEvidence? FromPortfolio(HardwareSensorPortfolio portfolio,
+        WddmGpuKey selected, long generation, DateTimeOffset now)
+    {
+        if (portfolio.DxgiAdapters is not { State: HardwareDiscoveryState.Complete } dxgi ||
+            !GfResourceMonitorAdapter.IsFresh(dxgi.CapturedAtUtc, now) ||
+            dxgi.Adapters.Count(x => x.LuidHigh == selected.LuidHigh && x.LuidLow == selected.LuidLow) != 1 ||
+            !dxgi.Adapters.Any(x => x.LuidHigh == selected.LuidHigh && x.LuidLow == selected.LuidLow && !x.IsSoftware) ||
+            portfolio.D3dKmtGpuSensors is not { } thermal ||
+            !GfResourceMonitorAdapter.IsFresh(thermal.CapturedAtUtc, now)) return null;
+        var candidates = thermal.Adapters.Where(x => x.Key == selected).ToArray();
+        if (candidates.Length != 1 || candidates[0].TemperatureC.Availability != MonitorAvailability.Available ||
+            !GfMeterScale.Valid(candidates[0].TemperatureC.Value, GfMeterKind.Temperature) ||
+            candidates[0].TemperatureWarningTenthsC is not uint warning ||
+            candidates[0].TemperatureMaxTenthsC is not uint maximum) return null;
+        return FromD3dKmt(selected, generation, candidates[0].Key, generation, true,
+            warning, maximum, thermal.CapturedAtUtc);
+    }
+
     internal bool SameProfile(GfThermalEvidence other) => Key == other.Key &&
         Generation == other.Generation && WarningC == other.WarningC && MaximumC == other.MaximumC;
 

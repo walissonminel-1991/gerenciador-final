@@ -154,6 +154,7 @@ internal sealed class GfDynamicProgressBar : Control
     }
 
     internal bool IsAnimationRunning() => _animation.Enabled;
+    internal GfMeterFrame CurrentFrame => _target;
 
     internal void Present(GfMeterFrame frame, string description)
     {
