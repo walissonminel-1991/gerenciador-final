@@ -137,14 +137,37 @@ internal static class V269ShellTests
             .OfType<GfDynamicProgressBar>().Single();
         var percent = shell.RightPane.Controls.Find("V269FlowPercentMeter", true).Single();
         var chromatic = percent.Controls.OfType<GfDynamicProgressBar>().Single();
+        // AUT-OP-01: contrato PR #114 + decisão posterior do proprietário.
+        // Não acoplar a expectativa à rotina Operation que estamos testando:
+        // o oráculo usa as âncoras e os intervalos publicados da escala inversa.
+        static Color ExpectedOperationalInk(V269Theme theme,int value)
+        {
+            var colors = GfMeterScale.Colors(theme);
+            var first = value <= 35 ? colors.Red : colors.Yellow;
+            var last = value <= 35 ? colors.Yellow : colors.Blue;
+            double t = value <= 35 ? value/35d : (value-35)/65d;
+            int Channel(int a,int b) => (int)Math.Round(a+(b-a)*t);
+            return Color.FromArgb(Channel(first.R,last.R),Channel(first.G,last.G),Channel(first.B,last.B));
+        }
+        static void AssertOperationalFrame(GfDynamicProgressBar control,V269Theme theme,int value)
+        {
+            var frame=control.CurrentFrame;
+            Check(frame.State==GfMeterState.Running && frame.ScaleKind==GfMeterKind.InvertedProgress &&
+                frame.ScalePosition==value && frame.Fraction==value/100d &&
+                frame.Color.ToArgb()==ExpectedOperationalInk(theme,value).ToArgb() &&
+                frame.Color.ToArgb()!=GfMeterScale.Colors(theme).Green.ToArgb(),
+                "AUT-OP-01: progresso medido, escala inversa, tema correto, sem sucesso antecipado");
+        }
         Check(percent.Visible && percent.AccessibleDescription == "37%" && !bar.Visible &&
             chromatic.CurrentFrame.State==GfMeterState.Running && chromatic.CurrentFrame.Fraction==.37,
             "Aplicativos usa a barra temática com a porcentagem medida.");
+        AssertOperationalFrame(chromatic,shell.Theme,37);
         shell.SelectPage(V269Page.Configuracoes);
         Check(ReferenceEquals(shell.RightPane.Current, progress) && shell.RightPane.Visible &&
             dashboardColumns.ColumnStyles[2].Width > 0 && bar.Visible && bar.CurrentFrame.State==GfMeterState.Running &&
             bar.CurrentFrame.Fraction==.37 && !percent.Visible,
             "O painel não pode perder nem ocultar o progresso ao trocar de aba.");
+        AssertOperationalFrame(bar,shell.Theme,37);
 
         shell.ApplyAppearance(V269Theme.Claro, 90, 90);
         Check(shell.Theme == V269Theme.Claro &&
@@ -160,12 +183,34 @@ internal static class V269ShellTests
             selectedNav.AccessibleDescription == "Aba atual" &&
             otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Claro).Text,
             "Aba ativa do Claro precisa manter texto branco sobre azul e sinal acessível.");
+        AssertOperationalFrame(bar,V269Theme.Claro,37);
         shell.ApplyAppearance(V269Theme.Dark, 90, 90);
         Check(selectedNav.ForeColor == Color.FromArgb(242, 247, 251) &&
             otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Dark).Text,
             "Aba ativa do Dark deve conservar contraste sem brancura excessiva.");
-        Check(bar.CurrentFrame.Color==GfMeterScale.Colors(V269Theme.Dark).Blue,
-            "tema da barra compartilhada acompanha o shell");
+        AssertOperationalFrame(bar,V269Theme.Dark,37);
+        foreach(var palette in Enum.GetValues<V269Theme>())
+        {
+            shell.ApplyAppearance(palette,90,90);
+            shell.SelectPage(V269Page.Aplicativos);
+            foreach(int value in new[]{10,35,75,100})
+            {
+                var sample=progress with { ProgressPercent=value };
+                shell.PresentPanel(sample);
+                Check(percent.Visible && !bar.Visible,"AUT-OP-01: somente uma barra de progresso visível");
+                AssertOperationalFrame(chromatic,palette,value);
+                shell.SelectPage(V269Page.Configuracoes);
+                Check(bar.Visible && !percent.Visible && ReferenceEquals(shell.RightPane.Current,sample),
+                    "AUT-OP-01: operação retida, sem duplicação de barra");
+                AssertOperationalFrame(bar,palette,value);
+                shell.SelectPage(V269Page.Aplicativos);
+            }
+        }
+        shell.ApplyAppearance(V269Theme.Dark,90,90);
+        shell.SelectPage(V269Page.Configuracoes);
+        shell.PresentPanel(progress);
+        AssertOperationalFrame(bar,V269Theme.Dark,37);
+        Console.WriteLine("PASS AUT-OP-01: escala inversa, 3 temas, troca de abas, 100% sem sucesso fictício.");
         shell.PresentPanel(null);
         Check(shell.RightPane.Current is null && !bar.Visible && bar.CurrentFrame.State==GfMeterState.Unavailable &&
             !percent.Visible && chromatic.CurrentFrame.State==GfMeterState.Unavailable &&
