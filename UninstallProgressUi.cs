@@ -1,4 +1,3 @@
-using System.Drawing;
 using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
@@ -24,20 +23,6 @@ internal sealed partial class MainForm
             catch (InvalidOperationException) { }
         }
         else _programList.RefreshOperations();
-    }
-
-    private void DrawUninstallOperation(Graphics graphics, Rectangle area, UninstallOperationSnapshot state)
-    {
-        Color color = state.Stage == UninstallStage.Failed ? AppServices.Red :
-            state.Stage is UninstallStage.Pending or UninstallStage.Partial ? Color.FromArgb(245, 204, 103) :
-            state.Stage == UninstallStage.Finished ? Color.FromArgb(120, 222, 165) : Accent;
-        TextRenderer.DrawText(graphics, state.Text, _rowInfo,
-            new Rectangle(area.X, area.Y - 2, area.Width, area.Height - 4), color,
-            TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        var track = new Rectangle(area.X + 1, area.Bottom - 5, area.Width - 2, 4);
-        if (track.Width < 4) return;
-        DrawOperationMeter(graphics, track, GfUniversalMeter.Uninstall(state.Stage, _v269Appearance.Theme),
-            V269Palette.Border);
     }
 
     internal void ShowUninstallResult(string summary)

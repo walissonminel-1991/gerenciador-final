@@ -211,7 +211,7 @@ internal sealed partial class MainForm
 
     private void RefreshV269RepairCommands()
     {
-        bool idle = !_busy && !_v269Confirming && !_batchUpdatesActive && !_betaClose.IsClosing;
+        bool idle = !_busy && !_v269Confirming && !_betaClose.IsClosing;
         foreach (var item in _v269RepairItems)
         {
             bool eligible = item.Tool.Glyph switch
@@ -279,7 +279,7 @@ internal sealed partial class MainForm
 
     private async Task RunV269RepairToolAsync(V269RepairItem item)
     {
-        if (_busy || _v269Confirming || _batchUpdatesActive || _betaClose.IsClosing ||
+        if (_busy || _v269Confirming || _betaClose.IsClosing ||
             _v269RepairCommand is not null || !item.Card.Command.Enabled) return;
         SelectV269RepairItem(item, true);
         _v269RepairCommand = item.Tool;
