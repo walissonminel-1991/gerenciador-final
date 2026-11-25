@@ -961,7 +961,8 @@ internal sealed partial class MainForm
             verificationComplete = false;
             SetDriverStatus("Consultando drivers em segundo plano…");
             _driverReadTask = readForTest is null
-                ? Task.Run(() => DriverDeviceMetadata.Enrich(DriverStoreAudit.CaptureWithPackages(token), token))
+                ? Task.Run(() => DriverDeviceMetadata.Enrich(
+                    DriverStoreAudit.CaptureWithPackages(token,LocalDiagnosticReport.Session.RecordDriverAuditPhase), token))
                 : readForTest(token);
             try
             {
