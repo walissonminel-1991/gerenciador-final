@@ -1044,11 +1044,13 @@ internal sealed partial class MainForm
                 {
                     if (beforeHistoryWrite is not null)
                         await beforeHistoryWrite(token);
-                    if (root.IsDisposed || publishedGeneration != inventoryGeneration ||
-                        !driverQuery.CanPublish(token)) return;
+                    if (root.IsDisposed || publishedGeneration != inventoryGeneration) return;
+                    token.ThrowIfCancellationRequested();
+                    if (!driverQuery.CanPublish(token)) return;
                     var recorded = await Task.Run(() => DriverHistory.Record(
                         readForTest is null ? DriverHistory.DefaultPath : historyTestPath!,
                         historyInventory, queryStartedAt, token, beforeHistoryReplace));
+                    token.ThrowIfCancellationRequested();
                     if (!root.IsDisposed && publishedGeneration == inventoryGeneration &&
                         driverQuery.CanPublish(token))
                     {
@@ -1139,11 +1141,19 @@ internal sealed partial class MainForm
                         DiagnosticTrace.Failure("DRIVERS.INVENTARIO_FALHA", faulted.Exception!.GetBaseException()),
                         CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                         TaskScheduler.Default);
-                if (!root.IsDisposed) SetDriverStatus(resultPublished
-                    ? "Inventário concluído e preservado. Finalização do histórico interrompida; nenhuma alteração de drivers."
-                    : refresh.Text == "Cancelando..."
+                if (!root.IsDisposed)
+                {
+                    if (resultPublished)
+                    {
+                        history.Text = "Histórico local: finalização interrompida; resultado da gravação não confirmado nesta consulta.";
+                        history.AccessibleDescription = history.Text;
+                        SuppressHoverHint(history, history.Text);
+                        SetDriverStatus("Inventário concluído e preservado. Finalização do histórico interrompida; nenhuma alteração de drivers.");
+                    }
+                    else SetDriverStatus(refresh.Text == "Cancelando..."
                         ? "Consulta cancelada. Lista anterior preservada; sem alterações."
                         : "Tempo esgotado. Lista anterior preservada; sem alterações.");
+                }
                 DiagnosticTrace.Write("DRIVERS.CONSULTA_CANCELADA");
             }
             catch (Exception ex)

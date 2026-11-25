@@ -142,6 +142,23 @@ internal static class DriverG120HistoryLifetimeTests
             Ensure(File.ReadAllBytes(path).SequenceEqual(current),
                 "timeout e retorno tardio substituiriam v1");
 
+            // F5: a consulta foi publicada, mas o prazo se esgotou antes
+            // de gravar o histórico. Não deixar estado de andamento eterno
+            // nem afirmar que a lista anterior é a lista exibida.
+            Fixture(owner, path, token => Task.Delay(Timeout.InfiniteTimeSpan, token));
+            using var finishingPage = Open(owner, _ => Task.FromResult(Snap("7.0")),
+                out var finishing, out _, TimeSpan.FromSeconds(2));
+            finishing();
+            var finishingHistory = Find<Label>(finishingPage, "DriverHistoryStatus");
+            var finishingStatus = Find<Label>(finishingPage, "DriverInventoryStatus");
+            var finishingList = Find<DarkDriverList>(finishingPage, "DriverInventoryList");
+            PumpUntil(() => finishingHistory.Text.Contains("finalização interrompida", StringComparison.Ordinal));
+            Ensure(finishingList.Items.Count == 1 && finishingList.Items[0].Version == "7.0" &&
+                finishingStatus.Text.Contains("Inventário concluído e preservado", StringComparison.Ordinal) &&
+                !finishingHistory.Text.Contains("em andamento", StringComparison.Ordinal) &&
+                File.ReadAllBytes(path).SequenceEqual(current),
+                "prazo do histórico após publicação não encerrou o estado ou alterou a base");
+
             // Regressoes existentes continuam cobrindo arquivo malformado,
             // schema desconhecido, parcial/vazio, lock, 20 entradas e hashes.
             Console.WriteLine("OK G1.20: inicio temporal, duas janelas, descarte pre/gravação, cancelamento, timeout, retorno tardio e UI acessível");

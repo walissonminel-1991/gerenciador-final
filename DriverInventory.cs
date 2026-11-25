@@ -377,6 +377,6 @@ internal static class DriverInventory
                 presence, deviceNames, pnpClasses, gameInputs), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
         }
-        finally { Release(services); Release(locator); }
+        finally { try { Release(services); } finally { Release(locator); } }
     }
 }
