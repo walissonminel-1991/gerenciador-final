@@ -138,6 +138,7 @@ internal sealed partial class MainForm
     private async Task RefreshV269HardwareAsync()
     {
         if (_v269HardwareQuery is not null || IsDisposed || Disposing || !V269OwnsMonitorSession()) return;
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.HardwareInventory);
         _v269InitialAttempted = true;
         using var request = new CancellationTokenSource();
         _v269HardwareQuery = request;
@@ -1649,6 +1650,9 @@ internal sealed class V269HomeCard : Control
     private bool _artRequested, _compactHeight;
     private int _windowWidth = 1440;
     private V269AppearanceOptions _appearance = V269AppearanceOptions.Default;
+    private (int Width, int WindowWidth, bool CompactHeight, int Dpi, int InterfaceScale, int TextScale, V269Theme Theme)? _heightKey;
+    private int _preferredHeight;
+    internal int PreferredHeightMeasurements { get; private set; }
 
     internal V269HomeCard(string key)
     {
@@ -1667,6 +1671,7 @@ internal sealed class V269HomeCard : Control
             current.Specs.SequenceEqual(model.Specs) && current.Sensors.SequenceEqual(model.Sensors))
             return false;
         Model = model;
+        _heightKey = null;
         AccessibleName = model.Title;
         AccessibleDescription = string.Join("; ", new[] { model.Name }.Concat(
             model.Specs.Concat(model.Sensors).Select(x => x.Label + ": " + x.Value)));
@@ -1709,8 +1714,19 @@ internal sealed class V269HomeCard : Control
         new("Segoe UI", px * _appearance.TextPercent / 100f * DeviceDpi / 96f, style, GraphicsUnit.Pixel);
     private static Color Hex(string s) => ColorTranslator.FromHtml(s);
 
-    internal int PreferredCardHeight(int width, int windowWidth, bool compactHeight) =>
-        Render(null, width, windowWidth, compactHeight);
+    internal int PreferredCardHeight(int width, int windowWidth, bool compactHeight)
+    {
+        // Uma leitura nova de CPU/RAM não invalida as alturas dos cartões
+        // cujos dados não mudaram. Nunca reaproveitar outra geometria ou DPI.
+        var key = (width, windowWidth, compactHeight, DeviceDpi, _appearance.InterfacePercent,
+            _appearance.TextPercent, _appearance.Theme);
+        if (_heightKey == key) return _preferredHeight;
+        int height = Render(null, width, windowWidth, compactHeight);
+        _preferredHeight = height;
+        _heightKey = key;
+        PreferredHeightMeasurements++;
+        return height;
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
