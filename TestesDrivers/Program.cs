@@ -358,11 +358,18 @@ using (raceToken.Register(() =>
         buttonEnabled, "Drivers: cancelamento reentrante nao deixa botao travado");
 }
 race.End(raceToken);
+// Eventos de fase começam antes da chamada nativa. Um timeout externo
+// conserva a última fase iniciada, mesmo se ela ainda não tiver retornado.
+static void TraceDriverAudit(DriverStoreAudit.AuditPhase phase,bool returned,long elapsedMs)
+{
+    Console.WriteLine($"DRIVER_AUDIT fase={phase} estado={(returned?"retorno":"inicio")} duracao_ms={elapsedMs}");
+}
 // CI Windows sempre exercita a ABI nativa somente leitura; fixtures continuam portáveis.
 if (args.Contains("--live") || OperatingSystem.IsWindows())
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-    var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token)).WaitAsync(timeout.Token);
+    Console.WriteLine("DRIVER_AUDIT rodada=primeira limite_ms=25000");
+    var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token,TraceDriverAudit)).WaitAsync(timeout.Token);
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
     Check(live.Items.Any(d => d.HardwareIds.Count > 0), "D2/G1: IDs de hardware reais recebidos do WMI no runner descartável");
@@ -385,7 +392,8 @@ if (args.Contains("--live") || OperatingSystem.IsWindows())
 if (OperatingSystem.IsWindows())
 {
     using var nativeLimit = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-    var inventory = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(nativeLimit.Token)).WaitAsync(nativeLimit.Token);
+    Console.WriteLine("DRIVER_AUDIT rodada=segunda limite_ms=60000");
+    var inventory = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(nativeLimit.Token,TraceDriverAudit)).WaitAsync(nativeLimit.Token);
     Check(inventory.PublishedPackages is { Packages.Count: > 0 }, "D2: enumeração SetupAPI real no Windows descartável retorna INFs publicados");
     Check(inventory.PublishedPackages!.Packages.All(p => !p.CanMaintain), "R6: pacotes nativos nunca autorizam manutenção");
     Console.WriteLine($"D2_CI publicados={inventory.PublishedPackages.Packages.Count} enumeracao_completa={inventory.PublishedPackages.EnumerationComplete} parcial={inventory.PublishedPackages.Partial} eventos={inventory.WindowsHistory?.Events.Count} historico_parcial={inventory.WindowsHistory?.Partial} historico_indisponivel={inventory.WindowsHistory?.Unavailable}");
