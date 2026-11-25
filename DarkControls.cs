@@ -329,16 +329,8 @@ internal sealed class DarkProgramList : Control
     public event EventHandler? SelectedIndexChanged;
     public event DrawItemEventHandler? DrawItem;
     public event Action<ProgramEntry, string>? ItemActionClicked;
-    public event Action<ProgramEntry>? ItemCheckboxClicked;
     internal event Action<ProgramEntry,ProgramEntry>? ReorderRequested;
-    private bool _multiSelectMode;
     private bool _actionsEnabled = true;
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool MultiSelectMode
-    {
-        get => _multiSelectMode;
-        set { _multiSelectMode = value; ResetActionVisuals(); Invalidate(); }
-    }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool ActionsEnabled
     {
@@ -429,11 +421,11 @@ internal sealed class DarkProgramList : Control
             });
         }
         public override void DoDefaultAction()=>owner.OnAccessibleUi(()=>{
-            int index=Index;if(index<0||!owner._actionsEnabled||owner._multiSelectMode)return;
+            int index=Index;if(index<0||!owner._actionsEnabled)return;
             owner.SelectIndex(index);owner.Focus();
             owner.OpenAppActions(new Point(20,Math.Max(owner.TableHeaderHeight,owner.RowBounds(index).Top)));
         });
-        public override int GetChildCount()=>Index>=0&&!owner._multiSelectMode?2:0;
+        public override int GetChildCount()=>Index>=0?2:0;
         public override AccessibleObject? GetChild(int index)=>(index is 0 or 1)&&GetChildCount()==2
             ? new AppActionAccessibility(owner,item,index==1,this):null;
     }
@@ -507,7 +499,7 @@ internal sealed class DarkProgramList : Control
 
     private (ProgramEntry? Item, string Action) HitAction(Point point)
     {
-        if (!_actionsEnabled || _multiSelectMode || _itemHeight <= 0) return (null, "");
+        if (!_actionsEnabled || _itemHeight <= 0) return (null, "");
         int index = RowAt(point);
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
@@ -531,7 +523,7 @@ internal sealed class DarkProgramList : Control
 
     private void OpenAppActions(Point position)
     {
-        if (SelectedItem is not { } item || !_actionsEnabled || _multiSelectMode) return;
+        if (SelectedItem is not { } item || !_actionsEnabled) return;
         foreach (ToolStripItem previous in _appActionsMenu.Items.Cast<ToolStripItem>().ToArray())
             previous.Dispose();
         var update = VerifiedUpdaters.GetPrimaryAction(item);
@@ -551,7 +543,7 @@ internal sealed class DarkProgramList : Control
             var command = new ToolStripMenuItem(title) { Enabled = action is not null && allowed() };
             command.Click += (_, _) =>
             {
-                if (_actionsEnabled && !_multiSelectMode && ReferenceEquals(SelectedItem, item) &&
+                if (_actionsEnabled && ReferenceEquals(SelectedItem, item) &&
                     action is not null && allowed()) ItemActionClicked?.Invoke(item, action);
             };
             _appActionsMenu.Items.Add(command);
@@ -572,7 +564,7 @@ internal sealed class DarkProgramList : Control
         _pulseAction = "";
         _pulseProgress = 0;
         Invalidate();
-        if (!IsDisposed && _actionsEnabled && !_multiSelectMode && _items.Contains(item))
+        if (!IsDisposed && _actionsEnabled && _items.Contains(item))
         {
             // A autorização visual pode ter mudado durante o feedback.
             if(_tableMode && ((action is "update" or "terminal") && !this.AllowsUpdate(item) ||
@@ -753,12 +745,6 @@ internal sealed class DarkProgramList : Control
             OpenAppActions(e.Location);
             return;
         }
-        if (_multiSelectMode)
-        {
-            SelectIndex(index);
-            if (item.CanUninstall) ItemCheckboxClicked?.Invoke(item);
-            return;
-        }
         if(_tableMode&&V269AppTable.Grip(RowBounds(index),_tableOptions.InterfacePercent,DeviceDpi).Contains(e.Location))
         {
             ResetActionVisuals();SelectIndex(index);_dragApp=item;Capture=true;Cursor=Cursors.SizeNS;return;
@@ -784,7 +770,7 @@ internal sealed class DarkProgramList : Control
         {
             _dragApp=null;Capture=false;Cursor=Cursors.Default;
             int destination=RowAt(e.Location);
-            if(_actionsEnabled&&!_multiSelectMode&&destination>=0&&destination<_items.Count&&_items.Contains(moving))
+            if(_actionsEnabled&&destination>=0&&destination<_items.Count&&_items.Contains(moving))
                 ReorderRequested?.Invoke(moving,_items[destination]);
             return;
         }
@@ -827,7 +813,7 @@ internal sealed class DarkProgramList : Control
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if(e.Alt&&(e.KeyCode is Keys.Up or Keys.Down)&&_actionsEnabled&&!_multiSelectMode&&SelectedItem is {} moving)
+        if(e.Alt&&(e.KeyCode is Keys.Up or Keys.Down)&&_actionsEnabled&&SelectedItem is {} moving)
         {
             int destination=_selectedIndex+(e.KeyCode==Keys.Up?-1:1);
             if(destination>=0&&destination<_items.Count)ReorderRequested?.Invoke(moving,_items[destination]);
@@ -837,12 +823,6 @@ internal sealed class DarkProgramList : Control
         {
             OpenAppActions(new Point(30, Math.Clamp(_selectedIndex * _itemHeight - _scrollOffset + 18,
                 0, Math.Max(0, ClientSize.Height - 1))));
-            e.Handled = true;
-            return;
-        }
-        if (_multiSelectMode && _actionsEnabled && e.KeyCode == Keys.Space && SelectedItem is ProgramEntry current)
-        {
-            if (current.CanUninstall) ItemCheckboxClicked?.Invoke(current);
             e.Handled = true;
             return;
         }

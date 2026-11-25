@@ -16,6 +16,7 @@ internal static class V269IntegrationTests
             throw new InvalidOperationException($"View ausente: {page}")).ToArray();
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
+        VerifyNoLegacyControls();
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
         VerifyDiagnosticCaptureCost();
@@ -1511,6 +1512,26 @@ internal static class V269IntegrationTests
                 cells[5].Contains(u)&&cells[5].Contains(d)&&!u.IntersectsWith(d),
                 "seis colunas e alvos binários disjuntos em escalas/DPI");
         }
+    }
+
+    private static void VerifyNoLegacyControls()
+    {
+        const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+        string[] removedFields = ["_updateAllButton","_bulkUninstallButton","_selectManyButton",
+            "_clearSelectionButton","_allFilterButton","_selectedFilterButton","_hardwareGrid",
+            "_exportHardwareButton","_hardwareGroups","_multiSelectMode","_checkedApps",
+            "_batchUpdatesActive","_batchStopRequested","_batchLastAttempt"];
+        foreach (string name in removedFields)
+            Require(typeof(MainForm).GetField(name, fields) is null, "campo legado não deve retornar: " + name);
+        string[] removedMethods = ["UpdateAllApprovedAsync","ToggleMultiSelection","ClearMultiSelection",
+            "UninstallCheckedAsync","UpdateBulkButtons","ApplyFilterAppearance","ExportHardwareImage","ShowHardwareCompact"];
+        foreach (string name in removedMethods)
+            Require(typeof(MainForm).GetMethod(name, fields) is null, "entrada legada não deve retornar: " + name);
+        Require(typeof(DarkProgramList).GetProperty("MultiSelectMode", fields) is null &&
+            typeof(DarkProgramList).GetEvent("ItemCheckboxClicked", fields) is null,
+            "controle de lista conserva ações individuais sem seleção múltipla legada");
+        Console.WriteLine("PASS V2.6.9: controles e entradas legadas ausentes; ações individuais preservadas pelas regressões.");
     }
 
     private static void VerifyLocalDiagnosticExport()

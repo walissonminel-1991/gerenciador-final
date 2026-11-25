@@ -592,11 +592,10 @@ internal sealed partial class MainForm
                 },
                 cancel =>
                 {
-                    if (_busy || _batchUpdatesActive || _v269Confirming || !CurrentOffer()) return false;
+                    if (_busy || _v269Confirming || !CurrentOffer()) return false;
                     ownsOperation = true;
                     _busy = true;
                     _programList.ActionsEnabled = false;
-                    UpdateBulkButtons();
                     progress = new(V269PanelKind.Progress, title, "Preparando atualização WUA.", CancelFlow: cancel);
                     _nav.PresentPanel(progress);
                     return true;
@@ -608,8 +607,7 @@ internal sealed partial class MainForm
                     _busy = false;
                     if (!IsDisposed && !Disposing)
                     {
-                        _programList.ActionsEnabled = !_batchUpdatesActive;
-                        UpdateBulkButtons();
+                        _programList.ActionsEnabled = true;
                         if (!root.IsDisposed && ReferenceEquals(_nav.RightPane.Current, progress))
                             PublishDriverResult(title, message, verified);
                         driverPilot?.Close();

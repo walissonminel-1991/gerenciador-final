@@ -1,8 +1,5 @@
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.Drawing.Drawing2D;
 using System.IO;
-using System.Globalization;
 using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
@@ -14,10 +11,6 @@ internal sealed partial class MainForm
     private DarkScrollableFlow? _systemPanelCards;
     private Control? _v269EnergyView;
     private TableLayoutPanel? _systemDetails;
-    private TableLayoutPanel? _hardwareGrid;
-    private Button? _exportHardwareButton;
-    private IReadOnlyList<HardwareGroup> _hardwareGroups = Array.Empty<HardwareGroup>();
-    private sealed record HardwareGroup(string Title, string Content);
     private readonly HashSet<string> _updateSelection = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<WinUpdateChoice> _updateCatalog = Array.Empty<WinUpdateChoice>();
     private readonly System.Windows.Forms.Timer _memoryTimer = new() { Interval = ProcessSamplingPolicy.BackgroundIntervalMs };
@@ -147,7 +140,7 @@ internal sealed partial class MainForm
             if (_memorySampling) return;
             UpdateProcessSamplingCadence();
             LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
-                _busy || _v269Confirming || _batchUpdatesActive || _windowsUpdateInstalling ||
+                _busy || _v269Confirming || _windowsUpdateInstalling ||
                 _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
             await RefreshMemoryRamAsync();
         };
@@ -355,176 +348,6 @@ internal sealed partial class MainForm
             ResizeV269StartupCards(); PresentV269StartupDetails();
         }
         else { ResizeIntegratedCards(); _relayoutSystem?.Invoke(); }
-    }
-
-    private static IReadOnlyList<HardwareGroup> GroupHardware(SystemInfoSnapshot snapshot)
-    {
-        var items = snapshot.Entries;
-        string Get(string key) => items.FirstOrDefault(e => e.Title.Equals(key, StringComparison.OrdinalIgnoreCase))?.Description ?? "Não informado";
-        IEnumerable<SystemInfoEntry> Starting(string prefix) => items.Where(e => e.Title.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-        string Join(IEnumerable<string> values) => string.Join("\n", values.Where(x => !string.IsNullOrWhiteSpace(x)));
-        var cpu = Starting("CPU ·").ToArray();
-        var gpu = Starting("GPU ·").ToArray();
-        var memory = Starting("RAM ·").ToArray();
-        var disks = Starting("Disco ·").ToArray();
-        return new[]
-        {
-            new HardwareGroup("SISTEMA", Join(new[]
-            {
-                Get("Windows"), "Modo: " + Get("Modo de inicialização atual"),
-                "Ligado há: " + Get("Tempo ligado desde a última inicialização"),
-                "Computador: " + Get("Nome do computador")
-            })),
-            new HardwareGroup("PROCESSADOR", cpu.Length > 0
-                ? Join(cpu.Select(e => e.Title[6..] + "\n" + e.Description))
-                : Join(new[] { Get("Processador"), Get("Arquitetura") })),
-            new HardwareGroup("PLACA-MÃE E BIOS", Join(new[]
-            {
-                Get("Placa-mãe"), "BIOS: " + Get("BIOS / UEFI")
-            })),
-            new HardwareGroup("PLACA DE VÍDEO", gpu.Length > 0
-                ? Join(gpu.Select(e => e.Title[6..] + "\n" + e.Description))
-                : "GPU não informada pelo Windows"),
-            new HardwareGroup("MEMÓRIA RAM", Join(new[]
-            {
-                "Total: " + Get("Memória física instalada (aprox.)")
-            }.Concat(memory.Select(e => e.Title[6..] + ": " + e.Description)))),
-            new HardwareGroup("ARMAZENAMENTO", disks.Length > 0
-                ? Join(disks.Select(e => e.Title[8..] + "\n" + e.Description))
-                : "Unidades físicas não informadas pelo Windows")
-        };
-    }
-
-    private static string CompactDetails(HardwareGroup group)
-    {
-        // A tela prioriza legibilidade; o PNG contém o texto integral.
-        string value = group.Content.Replace("\r", "").Replace(" | ", "  ·  ");
-        if (group.Title == "MEMÓRIA RAM" || group.Title == "ARMAZENAMENTO")
-        {
-            var lines = value.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            if (lines.Length > 3) value = string.Join("\n", lines.Take(3)) + $"\n+{lines.Length - 3} informações na ficha PNG";
-        }
-        return value;
-    }
-
-    private Control HardwareTile(HardwareGroup group)
-    {
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
-            Margin = new Padding(3, 3, 8, 7), Padding = new Padding(11, 6, 11, 6),
-            BackColor = Color.FromArgb(38, 50, 63)
-        };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var name = new Label
-        {
-            Text = group.Title, Dock = DockStyle.Fill, ForeColor = Accent,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-        var value = new Label
-        {
-            Text = CompactDetails(group), Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 8.2F), AutoEllipsis = true,
-            TextAlign = ContentAlignment.TopLeft
-        };
-        _toolTips.SetToolTip(name, group.Title);
-        _toolTips.SetToolTip(value, group.Content);
-        root.Controls.Add(name, 0, 0);
-        root.Controls.Add(value, 0, 1);
-        return root;
-    }
-
-    private void ShowHardwareCompact(SystemInfoSnapshot snapshot)
-    {
-        _hardwareGroups = GroupHardware(snapshot);
-        _systemPanelTitle.Text = "Este computador · resumo da configuração";
-        _systemPanelSummary.Text = "Seis grupos sem dados duplicados. Salve a ficha PNG para consultar os detalhes completos.";
-        if (_hardwareGrid is null) return;
-        _hardwareGrid.SuspendLayout();
-        try
-        {
-            foreach (Control card in _hardwareGrid.Controls.Cast<Control>().ToArray()) card.Dispose();
-            _hardwareGrid.Controls.Clear();
-            for (int i = 0; i < _hardwareGroups.Count; i++)
-                _hardwareGrid.Controls.Add(HardwareTile(_hardwareGroups[i]), i % 2, i / 2);
-        }
-        finally { _hardwareGrid.ResumeLayout(true); }
-        if (_exportHardwareButton is not null) _exportHardwareButton.Visible = true;
-        _hardwareGrid.Visible = true;
-        _hardwareGrid.BringToFront();
-        if (_systemPanelCards is not null) _systemPanelCards.Visible = false;
-    }
-
-    private void ExportHardwareImage()
-    {
-        if (_hardwareGroups.Count == 0) return;
-        using var picker = new SaveFileDialog
-        {
-            Title = "Salvar ficha do computador como imagem",
-            Filter = "Imagem PNG (*.png)|*.png",
-            DefaultExt = "png", AddExtension = true,
-            FileName = "Configuracao-PC-" + DateTime.Now.ToString("yyyyMMdd-HHmm", CultureInfo.InvariantCulture) + ".png"
-        };
-        if (picker.ShowDialog(this) != DialogResult.OK) return;
-        try
-        {
-            const int width = 1500;
-            const int outer = 44;
-            const int gap = 18;
-            const int cardWidth = (width - outer * 2 - gap) / 2;
-            using var titleFont = new Font("Segoe UI", 26F, FontStyle.Bold);
-            using var headingFont = new Font("Segoe UI", 14F, FontStyle.Bold);
-            using var bodyFont = new Font("Segoe UI", 11F);
-            using var smallFont = new Font("Segoe UI", 10F);
-            using var measuring = new Bitmap(1, 1);
-            using var measureGraphics = Graphics.FromImage(measuring);
-            var groupHeights = new int[_hardwareGroups.Count];
-            for (int i = 0; i < _hardwareGroups.Count; i++)
-            {
-                float h = measureGraphics.MeasureString(_hardwareGroups[i].Content, bodyFont, cardWidth - 42).Height;
-                groupHeights[i] = Math.Max(132, (int)Math.Ceiling(h) + 82);
-            }
-            int[] rows = new int[3];
-            for (int row = 0; row < 3; row++) rows[row] = Math.Max(groupHeights[row * 2], groupHeights[row * 2 + 1]);
-            int height = outer + 104 + rows.Sum() + 2 * gap + 94;
-            using var image = new Bitmap(width, height);
-            using var g = Graphics.FromImage(image);
-            g.Clear(Color.FromArgb(21, 27, 35));
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-            using var white = new SolidBrush(Color.FromArgb(237, 243, 250));
-            using var accent = new SolidBrush(Color.FromArgb(111, 184, 255));
-            using var muted = new SolidBrush(Color.FromArgb(167, 181, 196));
-            using var cardBrush = new SolidBrush(Color.FromArgb(38, 50, 63));
-            g.DrawString("CONFIGURAÇÃO DO COMPUTADOR", titleFont, white, outer, outer - 8);
-            g.DrawString("Relatório local · " + DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.CurrentCulture),
-                smallFont, muted, outer, outer + 43);
-            int y = outer + 104;
-            for (int row = 0; row < 3; row++)
-            {
-                for (int col = 0; col < 2; col++)
-                {
-                    int index = row * 2 + col;
-                    HardwareGroup group = _hardwareGroups[index];
-                    int x = outer + col * (cardWidth + gap);
-                    var card = new Rectangle(x, y, cardWidth, rows[row]);
-                    using var path = ModernButton.RoundRect(card, 13);
-                    g.FillPath(cardBrush, path);
-                    g.DrawString(group.Title, headingFont, accent, x + 20, y + 14);
-                    g.DrawString(group.Content, bodyFont, white,
-                        new RectangleF(x + 20, y + 52, cardWidth - 40, rows[row] - 60));
-                }
-                y += rows[row] + gap;
-            }
-            g.DrawString("Fonte: Windows/WMI. Valores estimados podem variar; sensores e VRAM podem estar indisponíveis.",
-                smallFont, muted, outer, height - 60);
-            image.Save(picker.FileName, ImageFormat.Png);
-            Status("Ficha de hardware salva em PNG");
-            Log("Ficha de hardware exportada para: " + Path.GetFileName(picker.FileName));
-        }
-        catch (Exception ex) { ReportError(ex); }
     }
 
     private void ShowIntegratedSnapshot(SystemInfoSnapshot snapshot)
@@ -857,7 +680,7 @@ internal sealed partial class MainForm
     private async Task ShowWindowsUpdateHistoryAsync()
     {
         if (!WindowsUpdateViewActive || _nav.SelectedPage != V269Page.Sistema ||
-            _busy || _batchUpdatesActive || _v269Confirming || _betaClose.IsClosing ||
+            _busy || _v269Confirming || _betaClose.IsClosing ||
             _windowsUpdateScanning || _windowsUpdateInstalling || _windowsUpdateHistoryReading) return;
         long generation = _systemViewGeneration;
         var loading = new V269PanelPresentation(V269PanelKind.Details,
@@ -879,7 +702,7 @@ internal sealed partial class MainForm
             _nav.PresentPanel(new(V269PanelKind.History, "Histórico do Windows Update", history));
     }
 
-    private bool CanSelectWindowsUpdates => !_busy && !_batchUpdatesActive && !_v269Confirming &&
+    private bool CanSelectWindowsUpdates => !_busy && !_v269Confirming &&
         !_betaClose.IsClosing && !_windowsUpdateInstalling &&
         !_windowsUpdateScanning && _windowsUpdateChecked && _windowsUpdateRebootRequired is not true;
 
@@ -888,11 +711,11 @@ internal sealed partial class MainForm
         if (_searchWindowsUpdatesButton is { IsDisposed: false } search)
         {
             search.Text = _windowsUpdateScanning ? "Verificando..." : "Verificar atualizações";
-            search.Enabled = WindowsUpdateViewActive && !_busy && !_batchUpdatesActive &&
+            search.Enabled = WindowsUpdateViewActive && !_busy &&
                 !_betaClose.IsClosing && !_windowsUpdateInstalling && !_windowsUpdateScanning;
         }
         if (_windowsUpdateHistoryButton is { IsDisposed: false } history)
-            history.Enabled = WindowsUpdateViewActive && !_busy && !_batchUpdatesActive && !_v269Confirming &&
+            history.Enabled = WindowsUpdateViewActive && !_busy && !_v269Confirming &&
                 !_betaClose.IsClosing && !_windowsUpdateScanning && !_windowsUpdateInstalling && !_windowsUpdateHistoryReading;
         if (_systemPanelCards is null) return;
         foreach (var card in _systemPanelCards.Content.Controls.OfType<V269SystemUpdateRow>())

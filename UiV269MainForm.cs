@@ -906,7 +906,7 @@ internal sealed partial class MainForm
                     return;
                 }
                 LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
-                    _busy || _v269Confirming || _batchUpdatesActive || _windowsUpdateInstalling ||
+                    _busy || _v269Confirming || _windowsUpdateInstalling ||
                     _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
                 using var exportSnapshot=LocalDiagnosticReport.Session.CaptureForExport();
                 view.SetNotice("Gerando relatório local em Documentos…");
@@ -1001,7 +1001,7 @@ internal sealed partial class MainForm
 
     private async Task ToggleV269AdminSessionAsync()
     {
-        if(!_v269SettingsLive||_v269SettingsBusy||_busy||_batchUpdatesActive||_v269Confirming||
+        if(!_v269SettingsLive||_v269SettingsBusy||_busy||_v269Confirming||
             _betaClose.IsClosing||_windowsUpdateInstalling||V269SessionIsAdministrator() is not bool elevated)return;
         _v269SettingsBusy=true;RefreshV269General();
         try
@@ -1011,7 +1011,7 @@ internal sealed partial class MainForm
                 :"Encerrar esta sessão e solicitar UAC para abrir uma única sessão elevada? "+
                  "Nenhuma elevação automática será configurada. Todos os comandos de manutenção continuam sujeitos às confirmações existentes.";
             if(!await ConfirmV269Async("Modo Administrador",description))return;
-            if(_busy||_batchUpdatesActive||_windowsUpdateInstalling||_betaClose.IsClosing||
+            if(_busy||_windowsUpdateInstalling||_betaClose.IsClosing||
                 V269SessionIsAdministrator()!=elevated)return;
             if(!elevated)
             {
@@ -1437,13 +1437,13 @@ internal static class V269ProgramListActions
         Options.GetValue(list, static _ => new());
 
     internal static bool AllowsUpdate(this DarkProgramList list, ProgramEntry item) =>
-        list.ActionsEnabled && !list.MultiSelectMode &&
+        list.ActionsEnabled &&
         list.UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
         list.OperationFor?.Invoke(item)?.PreventRetry != true &&
         VerifiedUpdaters.GetPrimaryAction(item) is "update" or "terminal";
 
     internal static bool AllowsRemoval(this DarkProgramList list, ProgramEntry item) =>
-        list.ActionsEnabled && !list.MultiSelectMode &&
+        list.ActionsEnabled &&
         list.UninstallOperationFor?.Invoke(item)?.PreventRetry != true &&
         list.OperationFor?.Invoke(item)?.Active != true &&
         (item.UninstallAction == "msix-uninstall" ||

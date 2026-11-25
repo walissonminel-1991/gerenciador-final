@@ -732,28 +732,15 @@ internal sealed partial class MainForm : Form
     private Button? _repairWindowsButton;
     private bool _windowsRepairable;
     private DateTimeOffset _windowsScannedAt;
-    private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
     private bool _inventoryIncomplete;
     private CancellationTokenSource? _consultaCatalogoCts;
     private CancellationTokenSource? _installerDownloadCts;
     private int _catalogoGeneration; // Descarta resultados de consultas anteriores ao recarregamento local.
     private string _appFilter = "Todos";
-    private readonly HashSet<ProgramEntry> _checkedApps = new();
     private Button? _checkUpdatesButton;
-    private Button? _updateAllButton;
-    private bool _batchUpdatesActive;
-    private bool _batchStopRequested;
-    private UpdateOperationSnapshot? _batchLastAttempt;
-    private Button? _bulkUninstallButton;
-    private Button? _selectManyButton;
-    private Button? _clearSelectionButton;
-    private Button? _allFilterButton;
-    private Button? _selectedFilterButton;
     private string _operationResult = "Pronto";
-    private readonly Font _rowTitle = new("Segoe UI", 10F, FontStyle.Bold);
     private readonly Font _rowInfo = new("Segoe UI", 8.8F);
-    private readonly Font _rowMark = new("Segoe UI", 10.5F, FontStyle.Bold);
 
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -1303,7 +1290,7 @@ internal sealed partial class MainForm : Form
             "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
-            if (_busy || _batchUpdatesActive || _v269Confirming || _betaClose.IsClosing || !_installed.Contains(item)) return;
+            if (_busy || _v269Confirming || _betaClose.IsClosing || !_installed.Contains(item)) return;
             if (action == "uninstall" && item.CanUninstall)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "uninstall-manual" && !item.CanUninstall)
@@ -1325,14 +1312,6 @@ internal sealed partial class MainForm : Form
             else if (action == "windows-manage")
                 OpenWindowsInstalledApps(item);
         };
-        _programList.ItemCheckboxClicked += item =>
-        {
-            if (_busy || _betaClose.IsClosing || !_multiSelectMode || !item.CanUninstall) return;
-            if (!_checkedApps.Add(item)) _checkedApps.Remove(item);
-            _programList.Invalidate();
-            RenderTitle();
-            UpdateBulkButtons();
-        };
         _programList.SelectedIndexChanged += (_, _) =>
         {
             _itemHint.Text = _programList.SelectedItem is ProgramEntry entry
@@ -1353,7 +1332,6 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(host, 0, 1);
         root.SizeChanged+=(_,_)=>host.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
         FitAppLayout();
-        UpdateBulkButtons();
         RenderTitle();
         return root;
     }
@@ -1483,21 +1461,6 @@ internal sealed partial class MainForm : Form
         if (!IsDisposed) RenderPrograms();
     }
 
-    private Button AddFilter(TableLayoutPanel heading, string title, int column, string? visibleTitle = null)
-    {
-        var button = new V269AppToolbarButton(visibleTitle ?? title);
-        button.Margin = new Padding(3,3,0,3);
-        button.ApplyOptions(_v269Appearance);
-        button.Click += (_, _) =>
-        {
-            if (_busy || _betaClose.IsClosing) return;
-            _appFilter = title == "Marcados" ? "Selecionados" : title;
-            RenderPrograms();
-        };
-        heading.Controls.Add(button, column, 0);
-        return button;
-    }
-
     // Sessão visual de Aplicativos; jamais modifica o histórico persistente
     // ou atribui o resultado de uma operação à linha atualmente selecionada.
     private readonly List<V269AppPreviousResult> _v269AppPreviousResults = new();
@@ -1611,7 +1574,7 @@ internal sealed partial class MainForm : Form
         Rectangle Inset(int i)
         {var cell=cells[i];cell.Inflate(-padding,0);return cell;}
         var grip=V269AppTable.Grip(bounds,options.InterfacePercent,dpi);
-        Text(_multiSelectMode?(item.CanUninstall?(_checkedApps.Contains(item)?"☑":"☐"):""):"⋮⋮",grip,bold);
+        Text("⋮⋮",grip,bold);
         int iconSize=Math.Max(1,Math.Min(Math.Min(S(30),bounds.Height-6),cells[0].Width/4));
         var mark=new Rectangle(grip.Right+S(3),bounds.Y+(bounds.Height-iconSize)/2,iconSize,iconSize);
         using(var shape=ModernButton.RoundRect(mark,V269AppTable.Scale(8,100,dpi)))
@@ -1642,13 +1605,10 @@ internal sealed partial class MainForm : Form
             DrawOperationMeter(g, new Rectangle(status.X,status.Bottom-S(5),status.Width,S(3)), frame, colors.Border);
         }
         else Text(state,status,color:V269AppTable.StateInk(options.Theme,selected,item.IsUpdate&&_programList.AllowsUpdate(item)));
-        if(!_multiSelectMode)
-        {
-            var u=_programList.ActionVisual(item,VerifiedUpdaters.GetPrimaryAction(item)??"");
-            var d=_programList.ActionVisual(item,item.UninstallAction);
-            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,false,compact),options.Theme,false,_programList.AllowsUpdate(item),u.Hovered,u.Pressed);
-            V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,true,compact),options.Theme,true,_programList.AllowsRemoval(item),d.Hovered,d.Pressed);
-        }
+        var u=_programList.ActionVisual(item,VerifiedUpdaters.GetPrimaryAction(item)??"");
+        var d=_programList.ActionVisual(item,item.UninstallAction);
+        V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,false,compact),options.Theme,false,_programList.AllowsUpdate(item),u.Hovered,u.Pressed);
+        V269AppTable.DrawAction(g,V269AppTable.Action(bounds,options.InterfacePercent,dpi,true,compact),options.Theme,true,_programList.AllowsRemoval(item),d.Hovered,d.Pressed);
         if(selected&&_programList.Focused)
             ControlPaint.DrawFocusRectangle(g,new Rectangle(bounds.X+S(4),bounds.Y+1,Math.Max(1,bounds.Width-S(5)),Math.Max(1,bounds.Height-2)));
     }
@@ -2563,18 +2523,12 @@ internal sealed partial class MainForm : Form
             _nav.SelectedPage is V269Page.Limpeza or V269Page.Reparo ? null : text);
     }
 
-    // Preservar o contrato original de três argumentos utilizado pela janela
-    // BETA e pelos chamadores existentes. Apenas a operação autorizada pelo
-    // coordenador do lote pode chamar a variante interna.
-    private Task ExecuteAsync(string description, Func<Task> work,
-        bool quietStartup = false) =>
-        ExecuteBatchAwareAsync(description, work, quietStartup, allowDuringBatch: false);
-
-    private async Task ExecuteBatchAwareAsync(string description, Func<Task> work,
-        bool quietStartup, bool allowDuringBatch)
+    // Ações individuais preservam o contrato de três argumentos, inclusive
+    // para os testes de encerramento e de exclusão mútua.
+    private async Task ExecuteAsync(string description, Func<Task> work,
+        bool quietStartup = false)
     {
-        if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
-            allowDuringBatch) || _v269Confirming || _betaClose.IsClosing) return;
+        if (_busy || _v269Confirming || _betaClose.IsClosing) return;
         var diagnosticPage = _nav.SelectedPage;
         LocalDiagnosticReport.Session.RecordOperation(diagnosticPage,"inicio");
         var repairTool = quietStartup ? null : _v269RepairCommand;
@@ -2594,7 +2548,6 @@ internal sealed partial class MainForm : Form
         if (!quietStartup)
         {
             _programList.ActionsEnabled = false;
-            UpdateBulkButtons();
             // Somente operações explícitas exibem o progresso animado.
             // Pesquisa local continua acessivel durante manutencao longa.
             _progress.Visible = true;
@@ -2623,7 +2576,7 @@ internal sealed partial class MainForm : Form
                 {
                     _progress.Visible = false;
                     PresentLegacyOperationMeter(null, GfMeterState.Unavailable);
-                    _programList.ActionsEnabled = !_batchUpdatesActive;
+                    _programList.ActionsEnabled = true;
                 }
                 _status.Text = _operationResult;
                 if (!quietStartup && _nav.RightPane.Current?.Kind == V269PanelKind.Progress)
@@ -2658,9 +2611,8 @@ internal sealed partial class MainForm : Form
                         outcome?.Complete == true);
                 }
                 RefreshV269RepairCommands();
-                UpdateBulkButtons();
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
-                    _checkUpdatesButton.Enabled = !_batchUpdatesActive;
+                    _checkUpdatesButton.Enabled = true;
                 RefreshWindowsRepairButton();
                 RefreshWindowsUpdateInstallButton();
                 if (_nav.SelectedPage == V269Page.Limpeza)
@@ -2668,7 +2620,7 @@ internal sealed partial class MainForm : Form
                 if (_nav.SelectedPage == V269Page.Sistema)
                     _ = RefreshEnergyInfoAsync();
                 if (!quietStartup) NotifyV269OperationResult();
-                if (!_batchUpdatesActive) ExitAfterCurrentOperation();
+                ExitAfterCurrentOperation();
             }
         }
     }
@@ -2769,9 +2721,6 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write($"APLICATIVOS.ACOES inventario={items.Count} desinstalaveis={items.Count(x => x.CanUninstall)} ocultos_sem_acao={items.Count(x => !x.CanUninstall)}");
         _available.Clear();
         _catalogoVerificado = false;
-        _checkedApps.Clear();
-        _multiSelectMode = false;
-        _programList.MultiSelectMode = false;
         _appFilter = "Todos";
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_INICIO");
         RenderPrograms();
@@ -3063,7 +3012,6 @@ internal sealed partial class MainForm : Form
             item.Source = item.IsUpdate ? match.Provider : "";
             // A correspondencia remota jamais autoriza instalar pacotes.
         }
-        _checkedApps.RemoveWhere(entry => !_installed.Contains(entry));
     }
 
     private void InvalidarAtualizacoes()
@@ -3098,27 +3046,23 @@ internal sealed partial class MainForm : Form
         filtered = _appFilter switch
         {
             "Com atualização" => filtered.Where(x => x.IsUpdate),
-            "Selecionados" => filtered.Where(x => _checkedApps.Contains(x)),
             _ => filtered
         };
         var match = V269AppOrdering.Sort(filtered,_v269AppSort,_v269ManualOrder);
         _programList.SetItems(match);
         _emptyState.Text = query.Length > 0
             ? "Nenhum aplicativo corresponde à pesquisa."
-            : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
             : _consultaCatalogoCts is not null
                 ? "Consulta online ativa; inventário local vazio."
                 : "Nenhum aplicativo identificado. Se o inventário estiver parcial, tente novamente.";
         _emptyState.Visible = false; // a tabela conserva o cabeçalho, inclusive sem linhas
         _programList.EmptyMessage=_emptyState.Text;
         RenderTitle();
-        UpdateBulkButtons();
-        ApplyFilterAppearance();
     }
 
     private void MoveV269App(ProgramEntry item,ProgramEntry target)
     {
-        if(_busy||_batchUpdatesActive||_v269Confirming||_betaClose.IsClosing||_multiSelectMode||
+        if(_busy||_v269Confirming||_betaClose.IsClosing||
             _inventoryIncomplete||_consultaCatalogoCts is not null)return;
         var order=_v269AppSort==V269AppSort.Manual?_v269ManualOrder:
             V269AppOrdering.Sort(_installed,_v269AppSort,_v269ManualOrder).Select(V269AppOrdering.Key)
@@ -3149,7 +3093,7 @@ internal sealed partial class MainForm : Form
         string full = $"{InventoryCoverageTitle(_inventoryIncomplete)}: {summary.Total} · Com ação: {displayed} · Sem ação disponível: {summary.WithoutAction} · Desinstaláveis: {summary.Uninstallable} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
             (_inventoryIncomplete ? " · Fonte do Windows indisponível: ausência na lista não comprova desinstalação. Atualizar e verificar para tentar novamente." : "") +
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
-            windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
+            windowsStatus;
         // Cabeçalho permanece de uma linha sem sobrepor os quatro filtros.
         // Todas as informacoes podem ser lidas pelo tooltip da legenda.
         int width = _listTitle.ClientSize.Width;
@@ -3170,172 +3114,6 @@ internal sealed partial class MainForm : Form
         if (_windowsUpdateChecked) return $" · Windows Update: {_updateCatalog.Count}";
         if (_windowsUpdateScanFailure is not null) return " · Windows Update: indisponível";
         return "";
-    }
-
-    private void ApplyFilterAppearance()
-    {
-        foreach (var (button, name) in new[]
-        {
-            (_allFilterButton, "Todos"), (_selectedFilterButton, "Selecionados")
-        })
-        {
-            if (button is null) continue;
-            if(button is V269AppToolbarButton filter)filter.FilterSelected=_appFilter==name;
-            else
-            {
-                button.BackColor = _appFilter == name ? Color.FromArgb(43, 66, 89) : Color.FromArgb(43, 56, 70);
-                button.ForeColor = _appFilter == name ? Accent : Ink;
-            }
-            button.Invalidate();
-        }
-    }
-
-    private void ToggleMultiSelection()
-    {
-        if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
-        _multiSelectMode = !_multiSelectMode;
-        _programList.MultiSelectMode = _multiSelectMode;
-        if (!_multiSelectMode)
-        {
-            _checkedApps.Clear();
-            if (_appFilter == "Selecionados") _appFilter = "Todos";
-        }
-        RenderPrograms();
-    }
-
-    private void ClearMultiSelection()
-    {
-        if (_busy || _batchUpdatesActive || _betaClose.IsClosing) return;
-        _checkedApps.Clear();
-        if (_appFilter == "Selecionados") _appFilter = "Todos";
-        RenderPrograms();
-    }
-
-    private void UpdateBulkButtons()
-    {
-        if (_selectManyButton is not null)
-        {
-            _selectManyButton.Text = _multiSelectMode ? "Sair da seleção" : "Selecionar vários";
-            _selectManyButton.Enabled = !_busy && !_batchUpdatesActive;
-        }
-        if (_updateAllButton is not null)
-        {
-            _updateAllButton.Text = _batchUpdatesActive
-                ? (_batchStopRequested ? "Parando lote" : "Parar lote") : "Atualizar todos";
-            var eligible = _batchUpdatesActive || _busy || !_catalogoVerificado || _inventoryIncomplete
-                ? 0 : AppBatchUpdatePolicy.Select(_installed, true, true).Length;
-            _updateAllButton.Enabled = _batchUpdatesActive ? !_batchStopRequested :
-                !_busy && !_betaClose.IsClosing && _consultaCatalogoCts is null &&
-                eligible > 0;
-            _updateAllButton.AccessibleDescription = _batchUpdatesActive
-                ? "Interromper próximas atualizações depois da operação atual."
-                : $"Atualizar todos os elegíveis: {eligible} aplicativo(s) com receita direta verificada.";
-        }
-        if (_bulkUninstallButton is not null)
-            _bulkUninstallButton.Enabled = !_busy && !_batchUpdatesActive &&
-                _multiSelectMode && _checkedApps.Count > 0;
-        if (_clearSelectionButton is not null)
-            _clearSelectionButton.Enabled = !_busy && !_batchUpdatesActive && _checkedApps.Count > 0;
-    }
-
-    // A fila reutiliza o instalador individual; não autoriza Store, Terminal,
-    // catálogos consultivos, novos alvos ou tentativas automáticas de recuperação.
-    private async Task UpdateAllApprovedAsync()
-    {
-        if (_batchUpdatesActive)
-        {
-            _batchStopRequested = true;
-            UpdateBulkButtons();
-            Status("A fila será interrompida após a atualização atual; nenhum novo instalador será iniciado.");
-            return;
-        }
-        if (_busy || _betaClose.IsClosing || _consultaCatalogoCts is not null ||
-            _inventoryIncomplete || !_catalogoVerificado)
-        {
-            Status("Atualizar todos exige inventário completo e catálogo já consultado. Use Atualizar e verificar.");
-            return;
-        }
-        var candidates = AppBatchUpdatePolicy.Select(_installed, true, true);
-        if (candidates.Length == 0)
-        {
-            Status("Nenhuma atualização direta elegível; outras ofertas exigem revisão individual.");
-            return;
-        }
-        if (candidates.Length > AppBatchUpdateRun.MaxCandidates)
-        {
-            Status("Muitos candidatos diretos para a confirmação individualizada do lote; revise as atualizações.");
-            return;
-        }
-        int suggested = _installed.Count(item => item.IsUpdate);
-        string preview = AppBatchUpdateRun.Preview(candidates, suggested);
-        if (!await ConfirmV269Async("Confirmar Atualizar todos", preview))
-        {
-            Log("Atualização em lote cancelada antes de qualquer download.");
-            return;
-        }
-
-        if (_busy || _batchUpdatesActive || _betaClose.IsClosing || _consultaCatalogoCts is not null ||
-            _inventoryIncomplete || !_catalogoVerificado) return;
-        _batchUpdatesActive = true;
-        _batchStopRequested = false;
-        _programList.ActionsEnabled = false;
-        if (_checkUpdatesButton is not null) _checkUpdatesButton.Enabled = false;
-        UpdateBulkButtons();
-        AppBatchUpdateSummary? summary = null;
-        try
-        {
-            summary = await AppBatchUpdateRun.RunAsync(candidates,
-                async candidate =>
-                {
-                    ProgramEntry? current = AppBatchUpdatePolicy.Revalidate(
-                        candidate, _installed, !_inventoryIncomplete, _catalogoVerificado);
-                    if (current is null)
-                    {
-                        Log("Lote interrompido: identidade, versão ou elegibilidade alterada antes da tentativa.");
-                        return AppBatchUpdateStepResult.BlockedBeforeStart;
-                    }
-                    Status("Atualizar todos: " + candidate.Name + " → " + candidate.TargetVersion);
-                    _batchLastAttempt = null;
-                    await UpdateThirdPartyAsync(current, fromApprovedBatch: true);
-                    UpdateOperationSnapshot? receipt = _batchLastAttempt;
-                    if (receipt?.Progress.Stage == UpdateStage.Confirmed)
-                    {
-                        Log("Lote: versão confirmada para " + candidate.Name + ".");
-                        return AppBatchUpdateStepResult.Confirmed;
-                    }
-                    Log("Lote interrompido após resultado não confirmado: " +
-                        (receipt?.Details ?? "nenhum recibo confirmável") +
-                        ". Nenhuma nova tentativa automática.");
-                    return AppBatchUpdateStepResult.Inconclusive;
-                },
-                () => _batchStopRequested || IsDisposed || Disposing ||
-                    _betaClose.IsClosing || _busy || _consultaCatalogoCts is not null,
-                ex =>
-                {
-                    DiagnosticTrace.Failure("ATUALIZACAO_LOTE.FALHA", ex);
-                    Log("Lote interrompido após exceção: " + ex.GetType().Name);
-                });
-        }
-        finally
-        {
-            bool requestedStop = _batchStopRequested;
-            _batchUpdatesActive = false;
-            _batchStopRequested = false;
-            _batchLastAttempt = null;
-            if (!IsDisposed && !Disposing)
-            {
-                _programList.ActionsEnabled = !_busy;
-                if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
-                    _checkUpdatesButton.Enabled = !_busy;
-                UpdateBulkButtons();
-                string result = summary is null
-                    ? "Atualizar todos: interrupção sem resumo conclusivo; nenhuma repetição automática."
-                    : summary.Describe(requestedStop);
-                Status(result);
-                Log(result);
-                ExitAfterCurrentOperation();
-            }
-        }
     }
 
     private void ShowUpdateGuidance(ProgramEntry entry)
@@ -3784,25 +3562,24 @@ internal sealed partial class MainForm : Form
         });
     }
 
-    private async Task UpdateThirdPartyAsync(ProgramEntry entry, bool fromApprovedBatch = false)
+    private async Task UpdateThirdPartyAsync(ProgramEntry entry)
     {
-        if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive, fromApprovedBatch) ||
-            _betaClose.IsClosing || !_installed.Contains(entry)) return;
+        if (_busy || _betaClose.IsClosing || !_installed.Contains(entry)) return;
         VerifiedUpdateRecipe? recipe = VerifiedUpdaters.Resolve(entry);
         if (recipe is null)
         {
             Status("Atualização automática indisponível para este programa.");
             return;
         }
-        if (!fromApprovedBatch && (!await ConfirmV269Async("Confirmar atualização",
+        if (!await ConfirmV269Async("Confirmar atualização",
             $"Atualizar {recipe.ProductName} para {recipe.Version}? O GF verificará a origem, o hash e a assinatura aplicável.") ||
-            !_installed.Contains(entry) || VerifiedUpdaters.Resolve(entry)?.Version != recipe.Version))
+            !_installed.Contains(entry) || VerifiedUpdaters.Resolve(entry)?.Version != recipe.Version)
             return;
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
         Log("Atualização solicitada diretamente na lista: " + recipe.ProductName +
             " (" + recipe.Identifier + "). Origem e SHA-256 serão conferidos; assinatura digital exigida quando aplicável.");
         string previousFilter = _appFilter;
-        await ExecuteBatchAwareAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
+        await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
         {
             var operation = BeginUpdateOperation(entry, recipe.Version);
             if (operation is null) return;
@@ -3959,7 +3736,6 @@ internal sealed partial class MainForm : Form
                 if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
                 RecordV269UpdateOutcome(entry, operation.Snapshot);
-                if (_batchUpdatesActive) _batchLastAttempt = operation.Snapshot;
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 if (VerifiedUpdaters.IsFolderProtected(folder))
                     Log("Pacote temporario protegido nesta sessao. Mantenha o GF aberto ate todos os instaladores terminarem.");
@@ -3969,10 +3745,8 @@ internal sealed partial class MainForm : Form
                     catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
                 }
             }
-        }, quietStartup: false, allowDuringBatch: fromApprovedBatch);
+        }, quietStartup: false);
     }
-
-    private async Task UninstallCheckedAsync() => await UninstallEntriesAsync(_checkedApps.ToArray());
 
     private async Task UninstallSelectedAsync()
     {
@@ -4306,7 +4080,7 @@ internal sealed partial class MainForm : Form
     private void RefreshWindowsRepairButton()
     {
         if (_repairWindowsButton is { IsDisposed: false } button)
-            button.Enabled = !_busy && !_v269Confirming && !_batchUpdatesActive && !_betaClose.IsClosing && _windowsRepairable &&
+            button.Enabled = !_busy && !_v269Confirming && !_betaClose.IsClosing && _windowsRepairable &&
                 DateTimeOffset.UtcNow - _windowsScannedAt < TimeSpan.FromMinutes(30);
     }
 
