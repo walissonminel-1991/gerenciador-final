@@ -307,6 +307,7 @@ internal sealed partial class MainForm
     private void RecordV269RepairResult(V269RepairTool tool, string description, bool complete)
     {
         if (IsDisposed || Disposing) return;
+        LocalDiagnosticReport.Session.RecordOperation(V269Page.Reparo,"resultado",complete);
         _v269RepairEvidence[tool] = new(description, complete);
         var entry = new V269AppPreviousResult(Guid.NewGuid(), tool.Title, description, complete);
         _v269RepairPreviousResults.Insert(0, entry);
