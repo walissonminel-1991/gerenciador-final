@@ -34,9 +34,9 @@ try {
         if ($result -eq 0 -or -not ($output -match 'System.Exception: L4 relatório local usa rolagem nativa')) {
             throw 'Controle negativo não detectou o defeito visual esperado'
         }
-        Write-Output 'PASS L4 controle negativo: relatório anterior recusado após compilação e abertura do diálogo real'
+        Write-Output 'PASS L4 controle negativo: modal anterior com rolagem nativa recusado após compilação e clique real'
         git restore --source=HEAD -- Program.cs
-        if ($LASTEXITCODE -ne 0) { throw 'Falha ao restaurar diálogo atual na cópia descartável' }
+        if ($LASTEXITCODE -ne 0) { throw 'Falha ao restaurar caminho atual do relatório na cópia descartável' }
         $legacyDock = git show '8f8d1c8fb109ba4956876b398f02dee6ce70f2e3:DarkControls.cs'
         if ($LASTEXITCODE -ne 0) { throw 'Fonte de layout anterior indisponível' }
         # Isolar a implementação regressiva do editor, preservando a lista

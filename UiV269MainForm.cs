@@ -901,13 +901,7 @@ internal sealed partial class MainForm
         view.General.History.Click+=(_,_)=>
         {
             if(_busy||_v269Confirming||_betaClose.IsClosing)return;
-            if(_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
-            {
-                ShowLocalReliabilityReport();return;
-            }
-            PresentV269History();
-            if(!_nav.RightPane.Visible)
-                _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
+            ShowLocalReliabilityReport();
         };
         view.VisibleChanged+=(_,_)=>{if(view.Visible)RefreshV269General();};
         if (loadPreferences) BindV269Monitor(view);
@@ -1224,13 +1218,6 @@ internal sealed partial class MainForm
             cancel.Invalidate();_log.Invalidate();
         }
         finally{top.ResumeLayout(true);root.ResumeLayout(true);}
-    }
-
-    private void PresentV269History()
-    {
-        if (_busy || _v269Confirming) return;
-        _nav.PresentPanel(new(V269PanelKind.History, "Histórico local",
-            _reliability.Report(_installed, _inventoryIncomplete)));
     }
 
     private void PresentV269Details(string title, string description)

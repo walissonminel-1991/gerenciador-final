@@ -2083,71 +2083,48 @@ internal sealed partial class MainForm : Form
             frame.State == GfMeterState.Indeterminate ? "Progresso não informado" : "");
     }
 
+    // Injeção exclusiva da view descartável: produção mantém SaveFileDialog.
+    internal Func<string?>? V269ReliabilityExportPathForTest;
+
     private void ShowLocalReliabilityReport()
     {
+        if (_busy || _v269Confirming || _betaClose.IsClosing ||
+            _nav.RightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress) return;
         string report = _reliability.Report(_installed, _inventoryIncomplete);
-        using var dialog = new Form
+        if (_nav.RightPane.Current?.Kind is not (V269PanelKind.Result or V269PanelKind.History))
+            _nav.PresentPanel(new(V269PanelKind.History, "Histórico local", report));
+        Control origin = _nav.Controls.Find("V269History",true).OfType<Button>().Single();
+        void Save()
         {
-            Text = "Histórico local — somente leitura", Width = 770, Height = 530,
-            MinimumSize = new Size(520, 360), StartPosition = FormStartPosition.CenterParent,
-            BackColor = PanelBackground, ForeColor = Ink, Font = Font,
-            AutoScaleMode = AutoScaleMode.Dpi, ShowInTaskbar = false,
-            MinimizeBox = false, MaximizeBox = false
-        };
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
-            Padding = new Padding(10), BackColor = PanelBackground };
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
-        var body = new DarkLogView
-        {
-            Name = "LocalReliabilityReportText", Dock = DockStyle.Fill,
-            AccessibleName = "Histórico e relatório local somente leitura"
-        };
-        body.UseReadableFont(new Font("Segoe UI", 9F));
-        body.SetText(report);
-        root.Controls.Add(body, 0, 0);
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-        var save = CreateSecondaryButton("Salvar TXT");
-        save.Name = "SaveLocalReliabilityReport";
-        save.Size = new Size(135, 35);
-        save.Click += (_, _) =>
-        {
-            using var picker = new SaveFileDialog
+            string? path;
+            if (!_v269SettingsLive)
+                path = V269ReliabilityExportPathForTest?.Invoke();
+            else
             {
-                Title = "Salvar relatório local sem nomes e caminhos",
-                Filter = "Texto (*.txt)|*.txt", FileName = "GF-Relatorio-Local.txt",
-                AddExtension = true, OverwritePrompt = true
-            };
-            if (picker.ShowDialog(dialog) != DialogResult.OK) return;
-            try { File.WriteAllText(picker.FileName, report, new System.Text.UTF8Encoding(false)); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
-            {
-                MessageBox.Show(dialog, "Não foi possível salvar: " + ex.GetType().Name,
-                    "Relatório não salvo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                using var picker = new SaveFileDialog
+                {
+                    Title = "Salvar relatório local sem nomes e caminhos",
+                    Filter = "Texto (*.txt)|*.txt", FileName = "GF-Relatorio-Local.txt",
+                    AddExtension = true, OverwritePrompt = true
+                };
+                path = picker.ShowDialog(this) == DialogResult.OK ? picker.FileName : null;
             }
-        };
-        var close = CreateSecondaryButton("Fechar");
-        close.Name = "CloseLocalReliabilityReport";
-        close.Size = new Size(110, 35);
-        close.DialogResult = DialogResult.Cancel;
-        bar.Controls.Add(close);
-        bar.Controls.Add(save);
-        dialog.AcceptButton = close;
-        dialog.CancelButton = close;
-        root.Controls.Add(bar, 0, 1);
-        dialog.Controls.Add(root);
-        dialog.HandleCreated += (_, _) =>
-        {
-            try { int dark = 1; if (NativeMethods.DwmSetWindowAttribute(dialog.Handle, 20, ref dark, 4) != 0)
-                    _ = NativeMethods.DwmSetWindowAttribute(dialog.Handle, 19, ref dark, 4); }
-            catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
-        };
-        dialog.Shown += (_, _) =>
-        {
-            dialog.Bounds = UninstallCleanupDialog.FitBounds(dialog.Bounds, Screen.FromControl(this).WorkingArea);
-            close.Focus();
-        };
-        dialog.ShowDialog(this);
+            if (string.IsNullOrEmpty(path)) return;
+            try
+            {
+                File.WriteAllText(path, report, new System.Text.UTF8Encoding(false));
+                _v269Settings?.SetNotice("Relatório local salvo. Nenhum envio realizado.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+                NotSupportedException or System.Security.SecurityException)
+            {
+                _v269Settings?.SetNotice("Relatório não salvo: " + ex.GetType().Name + ". Nenhum envio realizado.");
+            }
+        }
+        if (!_nav.RightPane.TryShowReliabilityReport(report, origin, Save)) return;
+        if (!_nav.RightPane.Visible)
+            _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
+        _nav.RightPane.FocusReadOnly();
     }
 
     private static Button CreateSecondaryButton(string text) => new ModernButton

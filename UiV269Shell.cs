@@ -248,10 +248,31 @@ internal sealed class V269RightPane : UserControl
 
     // Consulta transitória no próprio painel. Current nunca é substituído:
     // não guardar/restaurar callbacks, resultados ou confirmações antigas.
+    private bool CanShowReadOnly => !IsDisposed && !Disposing && _confirmation is null &&
+        Current?.Kind is (V269PanelKind.Result or V269PanelKind.History);
+
     internal bool TryShowReadOnly(string title, string description, string editorName, Control origin)
     {
-        if (IsDisposed || Disposing || _confirmation is not null ||
-            Current?.Kind is not (V269PanelKind.Result or V269PanelKind.History)) return false;
+        if (!CanShowReadOnly) return false;
+        var editor = new TextBox { Name = editorName, AccessibleName = title, Text = description,
+            Multiline = true, ReadOnly = true, WordWrap = true, ScrollBars = ScrollBars.None,
+            BorderStyle = BorderStyle.None, Dock = DockStyle.Fill };
+        ShowReadOnlyContent(title, new V269TextScrollHost(editor), origin, null);
+        return true;
+    }
+
+    internal bool TryShowReliabilityReport(string report, Control origin, Action save)
+    {
+        if (!CanShowReadOnly) return false;
+        var body = new DarkLogView { Name = "LocalReliabilityReportText", Dock = DockStyle.Fill,
+            AccessibleName = "Histórico e relatório local somente leitura" };
+        body.SetText(report);
+        ShowReadOnlyContent("Histórico local", body, origin, save);
+        return true;
+    }
+
+    private void ShowReadOnlyContent(string title, Control body, Control origin, Action? save)
+    {
         CloseReadOnly(false);
         var view = new TableLayoutPanel
         {
@@ -264,16 +285,26 @@ internal sealed class V269RightPane : UserControl
         view.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         var heading = new Label { Name = "V269ReadOnlyTitle", Text = title, Dock = DockStyle.Fill,
             AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
-        var editor = new TextBox { Name = editorName, AccessibleName = title, Text = description,
-            Multiline = true, ReadOnly = true, WordWrap = true, ScrollBars = ScrollBars.None,
-            BorderStyle = BorderStyle.None, Dock = DockStyle.Fill };
-        var host = new V269TextScrollHost(editor);
         var close = new Button { Name = "V269ReadOnlyClose", Text = "Voltar", Dock = DockStyle.Fill,
             FlatStyle = FlatStyle.Flat, AccessibleName = "Voltar ao resultado ou histórico anterior" };
         close.Click += (_, _) => CloseReadOnly(true);
         view.Controls.Add(heading, 0, 0);
-        view.Controls.Add(host, 0, 1);
-        view.Controls.Add(close, 0, 2);
+        view.Controls.Add(body, 0, 1);
+        if (save is null) view.Controls.Add(close, 0, 2);
+        else
+        {
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+                Margin = Padding.Empty, TabStop = false };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var export = new Button { Name = "SaveLocalReliabilityReport", Text = "Salvar TXT",
+                AccessibleName = "Salvar relatório local em arquivo TXT", FlatStyle = FlatStyle.Flat, Dock = DockStyle.Fill };
+            export.Click += (_, _) => save();
+            footer.Controls.Add(export, 0, 0);
+            footer.Controls.Add(close, 1, 0);
+            view.Controls.Add(footer, 0, 2);
+        }
         _readOnlyOrigin = origin;
         _readOnlyPreviousScrollVisible = _cleanupFlowScroll.Visible;
         _readOnlyView = view;
@@ -287,13 +318,21 @@ internal sealed class V269RightPane : UserControl
             ApplyReadOnlyAppearance();
         }
         finally { ResumeLayout(true); }
-        return true;
+    }
+
+    private static IEnumerable<Control> ReadOnlyDescendants(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            yield return child;
+            foreach (var descendant in ReadOnlyDescendants(child)) yield return descendant;
+        }
     }
 
     internal void FocusReadOnly()
     {
-        if (_readOnlyView?.GetControlFromPosition(0, 1) is V269TextScrollHost host)
-            host.Controls.OfType<TextBox>().Single().Focus();
+        if (_readOnlyView?.GetControlFromPosition(0, 1) is Control body)
+            ReadOnlyDescendants(body).OfType<TextBox>().Single().Focus();
     }
 
     internal bool CloseReadOnly(bool restoreFocus)
@@ -323,22 +362,36 @@ internal sealed class V269RightPane : UserControl
         var palette = _basePanePalette;
         view.BackColor = palette.RightPanel;
         var heading = (Label)view.GetControlFromPosition(0, 0)!;
-        var host = (V269TextScrollHost)view.GetControlFromPosition(0, 1)!;
-        var editor = host.Controls.OfType<TextBox>().Single();
-        var close = (Button)view.GetControlFromPosition(0, 2)!;
+        var body = view.GetControlFromPosition(0, 1)!;
+        var editor = ReadOnlyDescendants(body).OfType<TextBox>().Single();
+        var buttons = ReadOnlyDescendants(view).OfType<Button>().ToArray();
         heading.Font = _normalTitleFont ?? _title.Font;
         heading.ForeColor = palette.Text;
-        host.BackColor = editor.BackColor = palette.RightPanel;
+        body.BackColor = editor.BackColor = palette.RightPanel;
         editor.ForeColor = palette.Text;
-        editor.Font = close.Font = _description.Font;
-        close.BackColor = palette.Card; close.ForeColor = palette.Text;
-        close.FlatAppearance.BorderColor = palette.Border;
+        editor.Font = _description.Font;
+        foreach (var button in buttons)
+        {
+            button.Font = _description.Font;
+            button.BackColor = palette.Card; button.ForeColor = palette.Text;
+            button.FlatAppearance.BorderColor = palette.Border;
+        }
         view.RowStyles[0].Height = Math.Max(heading.Font.Height * 2 + 8,
             V269AppTable.Scale(50, _appInterfacePercent, DeviceDpi));
-        view.RowStyles[2].Height = Math.Max(close.Font.Height + 12,
+        view.RowStyles[2].Height = Math.Max(_description.Font.Height + 12,
             V269AppTable.Scale(38, _appInterfacePercent, DeviceDpi));
-        host.Configure(_appPaneTheme);
-        host.Reflow();
+        if (body is V269TextScrollHost host)
+        {
+            host.Configure(_appPaneTheme);
+            host.Reflow();
+        }
+        else if (body is DarkLogView log)
+        {
+            foreach (var panel in ReadOnlyDescendants(log).OfType<Panel>())
+                panel.BackColor = palette.RightPanel;
+            log.ApplyScrollTheme(_appPaneTheme);
+            log.UseReadableFont(_description.Font);
+        }
     }
 
     internal void SetOperationContent(Control content)
