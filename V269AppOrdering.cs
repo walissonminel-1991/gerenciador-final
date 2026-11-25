@@ -19,19 +19,25 @@ internal static class V269AppOrdering
     internal static ProgramEntry[] Sort(IEnumerable<ProgramEntry> source, V269AppSort sort,
         IReadOnlyList<string> manual)
     {
-        var items=source.ToArray();
         var comparer=StringComparer.CurrentCultureIgnoreCase;
-        var order=manual.Select((key,index)=>(key,index)).GroupBy(x=>x.key,StringComparer.Ordinal)
-            .ToDictionary(g=>g.Key,g=>g.First().index,StringComparer.Ordinal);
+        // A ordem persistida só é necessária no modo manual. Nos demais,
+        // OrderBy já materializa a origem uma vez: não duplicar o buffer.
+        Dictionary<string,int>? order=null;
+        if(sort==V269AppSort.Manual)
+        {
+            order=new(StringComparer.Ordinal);
+            int index=0;
+            foreach(string key in manual)order.TryAdd(key,index++);
+        }
         IOrderedEnumerable<ProgramEntry> ordered=sort switch
         {
-            V269AppSort.NameDescending=>items.OrderByDescending(x=>x.Name,comparer),
-            V269AppSort.RecentlyInstalled=>items.OrderByDescending(x=>x.InstallDate.HasValue)
+            V269AppSort.NameDescending=>source.OrderByDescending(x=>x.Name,comparer),
+            V269AppSort.RecentlyInstalled=>source.OrderByDescending(x=>x.InstallDate.HasValue)
                 .ThenByDescending(x=>x.InstallDate).ThenBy(x=>x.Name,comparer),
-            V269AppSort.UpdatesFirst=>items.OrderByDescending(x=>x.IsUpdate).ThenBy(x=>x.Name,comparer),
-            V269AppSort.Manual=>items.OrderBy(x=>order.TryGetValue(Key(x),out int rank)?rank:int.MaxValue)
+            V269AppSort.UpdatesFirst=>source.OrderByDescending(x=>x.IsUpdate).ThenBy(x=>x.Name,comparer),
+            V269AppSort.Manual=>source.OrderBy(x=>order!.TryGetValue(Key(x),out int rank)?rank:int.MaxValue)
                 .ThenBy(x=>x.Name,comparer),
-            _=>items.OrderBy(x=>x.Name,comparer)
+            _=>source.OrderBy(x=>x.Name,comparer)
         };
         return ordered.ThenBy(x=>x.Version,comparer).ThenBy(x=>x.InventoryId,StringComparer.OrdinalIgnoreCase).ToArray();
     }
