@@ -175,14 +175,48 @@ internal static class V269IntegrationTests
         using var window = new Form { Size = new Size(620, 320), ShowInTaskbar = false };
         using var button = new ModernButton { Text = "Fixture sem manutenção", Dock = DockStyle.Top, Height = 42 };
         using var tabs = new DarkTabHost { Dock = DockStyle.Fill };
-        tabs.AddTab("A", new Panel());
+        using var list = new DarkProgramList { Dock = DockStyle.Fill, ItemHeight = 67 };
+        var target = new ProgramEntry { Name = "GF fixture ação", CanUninstall = true };
+        list.SetItems(new[] { target }.Concat(Enumerable.Range(0, 79)
+            .Select(i => new ProgramEntry { Name = "Fixture " + i })));
+        tabs.AddTab("A", list);
         tabs.AddTab("B", new Panel());
         tabs.AddTab("C", new Panel());
         window.Controls.Add(tabs);
         window.Controls.Add(button);
         window.Show();
         Application.DoEvents();
-        int clicks = 0, changes = 0;
+        int clicks = 0, changes = 0, actions = 0;
+        list.ItemActionClicked += (item, action) =>
+        {
+            Require(ReferenceEquals(item, target) && action == "uninstall",
+                "ação sintética não pode trocar identidade ou comando");
+            actions++; // sem motor, sem registro do Windows, sem processo
+        };
+        var row = (Rectangle)typeof(DarkProgramList).GetMethod("RowBounds",
+            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(list, [0])!;
+        var area = AppRowGeometry.UninstallButton(row);
+        var mouse = new MouseEventArgs(MouseButtons.Left, 1,
+            area.Left + area.Width / 2, area.Top + area.Height / 2, 0);
+        var down = typeof(DarkProgramList).GetMethod("OnMouseDown", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var up = typeof(DarkProgramList).GetMethod("OnMouseUp", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Require(list.AllowsRemoval(target) && list.ClientRectangle.Contains(mouse.Location),
+            "fixture de ação visível e elegível");
+        foreach (bool animate in new[] { true, false })
+        {
+            list.V269Options().AnimateButtonFeedback = animate;
+            int previous = actions;
+            down.Invoke(list, [mouse]); up.Invoke(list, [mouse]);
+            Require(actions == previous + 1, "clique de linha despacha imediatamente em ambos os modos");
+        }
+        down.Invoke(list, [mouse]);
+        list.ActionsEnabled = false;
+        up.Invoke(list, [mouse]);
+        Require(actions == 2, "revogação de capacidade entre pressionar e soltar bloqueia ação");
+        list.ActionsEnabled = true;
+        var bar = list.Controls.Find("V269AppsVerticalScroll", false).OfType<DarkVScrollBar>().Single();
+        Require(bar.MaximumValue > 200, "fixture de rolagem");
+        bar.Value = 200;
         button.Click += (_, _) => clicks++;
         tabs.SelectedIndexChanged += (_, _) => changes++;
         button.PerformClick();
@@ -204,8 +238,16 @@ internal static class V269IntegrationTests
             Application.DoEvents();
             Thread.Sleep(5);
         }
-        Require(clicks == 2 && changes == 2 && tabs.SelectedIndex == 2,
+        Require(clicks == 2 && actions == 2 && changes == 2 && tabs.SelectedIndex == 2,
             "timer de pintura não despacha comandos nem restaura seleção");
+        tabs.SelectTab(0);
+        Application.DoEvents();
+        Require(bar.Value == 200 && list.Items.Count == 80 && ReferenceEquals(list.Items[0], target),
+            "voltar à aba mantém rolagem e identidade do inventário");
+        window.ClientSize = new Size(520, 240);
+        Application.DoEvents();
+        Require(bar.Value == 200 && bar.MaximumValue >= bar.Value,
+            "redimensionamento mantém a posição válida da lista");
         window.Close();
         Console.WriteLine("PASS V269-UX feedback gráfico independente do clique e do teclado.");
     }
