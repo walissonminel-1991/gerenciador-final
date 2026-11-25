@@ -144,6 +144,9 @@ internal sealed partial class MainForm
         {
             if (_memorySampling || IsDisposed) return;
             UpdateProcessSamplingCadence();
+            LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
+                _busy || _v269Confirming || _batchUpdatesActive || _windowsUpdateInstalling ||
+                _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
             await RefreshMemoryRamAsync();
         };
         FormClosed += (_,_) => _memoryTimer.Dispose();
