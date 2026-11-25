@@ -166,7 +166,7 @@ internal sealed class V269RightPane : UserControl
         {
             Name = "V269PanelDescription", Dock = DockStyle.Fill,
             Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None,
-            ScrollBars = ScrollBars.Vertical,
+            ScrollBars = ScrollBars.None,
             Margin = Padding.Empty,
             AccessibleName = "Descrição e estado da operação"
         };
@@ -431,7 +431,17 @@ internal sealed class V269RightPane : UserControl
                     _flowViewport.AutoScroll=false;
                 }
                 _layout.Dock=DockStyle.Fill;
-                _description.ScrollBars=ScrollBars.Vertical;
+                // Não exibir uma barra nativa vazia em descrições curtas
+                // nem em estados que apresentam outros controles.
+                // Manter a rolagem de texto longo até a migração do viewport.
+                int availableWidth = Math.Max(1, _description.ClientSize.Width - 8);
+                int availableHeight = Math.Max(1, _description.ClientSize.Height - 4);
+                bool overflow = _description.Visible && _description.TextLength != 0 &&
+                    TextRenderer.MeasureText(_description.Text, _description.Font,
+                        new Size(availableWidth, 32767),
+                        TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.TextBoxControl).Height > availableHeight;
+                var scrollbars = overflow ? ScrollBars.Vertical : ScrollBars.None;
+                if (_description.ScrollBars != scrollbars) _description.ScrollBars = scrollbars;
                 return;
             }
             int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
@@ -572,7 +582,7 @@ internal sealed class V269RightPane : UserControl
         var frame=GfUniversalMeter.Operation(value,Current?.Kind==V269PanelKind.Progress ?
             GfMeterState.Running : GfMeterState.Unavailable,false,_appPaneTheme);
         _progress.BackColor=BackColor;
-        _progress.Configure(_appPaneTheme,false);
+        _progress.Configure(_appPaneTheme, FindForm() is MainForm main && main.V269CanAnimateButtons);
         _progress.Present(frame,frame.Fraction is double fraction ? $"{fraction*100:0}%" : "Progresso não informado");
     }
 

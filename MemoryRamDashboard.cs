@@ -85,8 +85,20 @@ internal sealed partial class MainForm
     private int _memoryTrimOperations;
     private WindowsMemoryDetails? _windowsMemoryDetails;
 
-    private int? _v269RamUsagePercent;
-    private Panel? _v269RamMeter;
+    private double? _v269RamUsagePercent;
+    private GfDynamicProgressBar? _v269RamMeter;
+
+    private void RefreshV269RamMeter(bool appearanceChanged = false)
+    {
+        if (_v269RamMeter is not { IsDisposed: false } meter) return;
+        if (appearanceChanged)
+        {
+            meter.BackColor = V269VisualTokens.ForTheme(_v269Appearance.Theme).Card;
+            meter.Configure(_v269Appearance.Theme, CanAnimateV269);
+        }
+        meter.Present(GfMeterScale.Frame(GfMeterKind.Usage, _v269RamUsagePercent, _v269Appearance.Theme),
+            _v269RamUsagePercent is double usage ? $"{usage:0.#}% de memória física em uso" : "Uso da memória indisponível");
+    }
     private Control BuildMemoryRamDashboard()
     {
         var root=new V269CleanupSection
@@ -104,21 +116,12 @@ internal sealed partial class MainForm
         top.Controls.Add(text,0,0);
         _memoryUsageLabel.Name="MemoryUsed";_memoryUsageLabel.Text="Aguardando leitura";_memoryUsageLabel.ForeColor=Ink;_memoryUsageLabel.Dock=DockStyle.Fill;_memoryUsageLabel.TextAlign=ContentAlignment.MiddleRight;
         top.Controls.Add(_memoryUsageLabel,1,0);root.Controls.Add(top,0,1);
-        _v269RamMeter=new Panel{Name="V269RamUsageMeter",Dock=DockStyle.Fill,Margin=new Padding(0,1,0,1),BackColor=Color.Transparent};
-        _v269RamMeter.Paint+=(_,e)=>
+        _v269RamMeter = new GfDynamicProgressBar
         {
-            var r=new Rectangle(0,0,Math.Max(1,_v269RamMeter.Width-1),Math.Max(1,_v269RamMeter.Height-1));
-            if(r.Width<3||r.Height<3)return;
-            var p=V269VisualTokens.ForTheme(_v269Appearance.Theme);
-            using var path=V269Shell.Rounded(r,Math.Max(1,r.Height/2));
-            using var fill=new SolidBrush(p.Border);e.Graphics.FillPath(fill,path);
-            if(_v269RamUsagePercent is int percent)
-            {
-                var save=e.Graphics.Save();e.Graphics.SetClip(path);
-                using var value=new SolidBrush(p.Accent);e.Graphics.FillRectangle(value,0,0,(int)(r.Width*percent/100d),r.Height);
-                e.Graphics.Restore(save);
-            }
+            Name = "V269RamUsageMeter", AccessibleName = "Uso da memória física",
+            Dock = DockStyle.Fill, Margin = new Padding(0,1,0,1)
         };
+        RefreshV269RamMeter(appearanceChanged: true);
         root.Controls.Add(_v269RamMeter,0,2);
         _memoryChart=new MemoryRamChart{Dock=DockStyle.Fill,Margin=new Padding(0,3,0,3)};
         root.Controls.Add(_memoryChart,0,3);
@@ -196,8 +199,9 @@ internal sealed partial class MainForm
         _memoryHistory.Add(sample);
         _windowsMemoryDetails = WindowsMemoryDetailsReader.Capture();
         _memoryChart?.SetSamples(_memoryHistory.Samples);
-        _v269RamUsagePercent=(int)Math.Round(sample.UsedPercent);
-        _v269RamMeter?.Invalidate();
+        _v269RamUsagePercent = sample.TotalBytes > 0 && GfMeterScale.Valid(sample.UsedPercent, GfMeterKind.Usage)
+            ? sample.UsedPercent : null;
+        RefreshV269RamMeter();
         static string GiB(ulong bytes) =>
             (bytes / 1073741824d).ToString("N2", CultureInfo.CurrentCulture) + " GB";
         _memoryUsageLabel.Text = $"{GiB(sample.UsedBytes)} / {GiB(sample.TotalBytes)} ({sample.UsedPercent:N0}%)";

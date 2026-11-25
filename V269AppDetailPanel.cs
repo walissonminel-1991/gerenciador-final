@@ -264,13 +264,9 @@ internal sealed class V269AppFlowMeter : Control
         Height = _value.HasValue ? Font.Height + S(21) : 0;
         Visible = _value.HasValue;
         _meter.BackColor=V269AppDetailStyle.Palette(theme).RightPanel;
-        _meter.Configure(theme,false); // manter geometria estática já aprovada
+        _meter.Configure(theme, FindForm() is MainForm main && main.V269CanAnimateButtons);
         var frame = GfUniversalMeter.Operation(_value,
             _value.HasValue ? GfMeterState.Running : GfMeterState.Unavailable, false, theme);
-        // O fluxo HTML em Dark tem preenchimento grafite claro. A escala
-        // cromática de sensores e os estados medidos continuam intactos.
-        if (theme == V269Theme.Dark && frame.State == GfMeterState.Running)
-            frame = frame with { Color = V269AppTable.H("#b6bec6") };
         _meter.Present(frame, AccessibleDescription);
         ArrangeMeter();
         Invalidate();

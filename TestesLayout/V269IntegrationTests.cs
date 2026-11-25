@@ -1582,6 +1582,11 @@ internal static class V269IntegrationTests
             foreach(var palette in Enum.GetValues<V269Theme>())
             {
                 surface.Size=size;theme.SelectedIndex=(int)palette;surface.PerformLayout();Application.DoEvents();
+                var ramMeter = form.Controls.Find("V269RamUsageMeter",true).OfType<GfDynamicProgressBar>().Single();
+                var expectedRam = GfMeterScale.Frame(GfMeterKind.Usage,50,palette);
+                Require(ramMeter.CurrentFrame == expectedRam &&
+                    ramMeter.AccessibleDescription?.Contains("50") == true,
+                    "RAM utiliza componente e escala cromática do Monitor nos três temas");
                 var modules=form.Controls.Find("V269SystemModules",true).Single();
                 var sections=new[]{"V269WindowsUpdateSection","V269EnergySection","MemoryRamDashboard"}
                     .Select(n=>modules.Controls.Find(n,false).Single()).ToArray();
@@ -1711,6 +1716,9 @@ internal static class V269IntegrationTests
                     Require(meter.Visible && meter.AccessibleDescription == "28%" && note.Visible &&
                         meter.PointToScreen(Point.Empty).Y < note.PointToScreen(Point.Empty).Y,
                         "progresso comprovado aparece antes do aviso");
+                    var chromatic = meter.Controls.Find("V269FlowChromaticBar",true).OfType<GfDynamicProgressBar>().Single();
+                    Require(chromatic.CurrentFrame == GfUniversalMeter.Operation(28,GfMeterState.Running,false,palette),
+                        "progresso usa a escala universal também no Dark, sem cor substituta");
                     Capture("ANDAMENTO", palette);
                     if (cancel is not null)
                     {
