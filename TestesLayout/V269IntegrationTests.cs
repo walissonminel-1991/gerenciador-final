@@ -17,6 +17,7 @@ internal static class V269IntegrationTests
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
         VerifyAppOrdering();
+        VerifyInventoryOrderingCost();
         VerifyAppTableGeometry();
         VerifyAppIconSources();
         Require(form.Controls.Find("V269WindowsUpdateHistory", true).OfType<Button>().Single().Text == "Histórico" &&
@@ -1495,6 +1496,50 @@ internal static class V269IntegrationTests
                 cells[5].Contains(u)&&cells[5].Contains(d)&&!u.IntersectsWith(d),
                 "seis colunas e alvos binários disjuntos em escalas/DPI");
         }
+    }
+
+    private static void VerifyInventoryOrderingCost()
+    {
+        var apps = Enumerable.Range(0, 512).Select(i => new ProgramEntry
+            { Name = "Fixture " + (511-i), InventoryId = "APP|" + i }).ToArray();
+        var keys = apps.Select(V269AppOrdering.Key).ToArray();
+        ProgramEntry[] OldAppSort()
+        {
+            var items = apps.ToArray();
+            var comparer = StringComparer.CurrentCultureIgnoreCase;
+            var order = keys.Select((key,index)=>(key,index)).GroupBy(x=>x.key,StringComparer.Ordinal)
+                .ToDictionary(g=>g.Key,g=>g.First().index,StringComparer.Ordinal);
+            return items.OrderBy(x=>x.Name,comparer).ThenBy(x=>x.Version,comparer)
+                .ThenBy(x=>x.InventoryId,StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+        ProgramEntry[] NewAppSort() => V269AppOrdering.Sort(apps,V269AppSort.NameAscending,keys);
+        Require(OldAppSort().SequenceEqual(NewAppSort()),"ordenação normal preservada");
+        Require(V269AppOrdering.Sort(apps,V269AppSort.Manual,[keys[1],keys[1],keys[0]])
+            .Take(2).SequenceEqual(new[]{apps[1],apps[0]}),"primeiro índice manual preservado");
+        long MeasureAllocations(Func<ProgramEntry[]> sort)
+        {
+            _=sort();
+            long start=GC.GetAllocatedBytesForCurrentThread();
+            for(int i=0;i<5;i++) _=sort();
+            return GC.GetAllocatedBytesForCurrentThread()-start;
+        }
+        long before=MeasureAllocations(OldAppSort),after=MeasureAllocations(NewAppSort);
+        Require(after<before,"ordenação comum evita alocações do índice manual");
+        Console.WriteLine($"V269-PERF ordenacao_aplicativos itens=512 repeticoes=5 bytes_antes={before} bytes_depois={after}");
+        var drivers=Enumerable.Range(0,512).Select(i=>new DriverInventoryEntry(
+            @"ROOT\GF-PERF\"+i,"Fixture "+i,"Microsoft","1.0","test.inf",true,true)).ToArray();
+        var manual=drivers.Take(256).Reverse().Append(drivers[255]).ToArray();
+        var old=drivers.OrderBy(item=>
+        {
+            int index=Array.FindIndex(manual,ordered=>ReferenceEquals(item,ordered));
+            return index<0?int.MaxValue:index;
+        }).ToArray();
+        Require(old.SequenceEqual(DriverListFilters.SortManual(drivers,manual),ReferenceEqualityComparer.Instance),
+            "drivers preservam referência, primeira ocorrência e ordem estável");
+        var equalButDistinct=new DriverInventoryEntry(@"ROOT\GF-PERF\0","Fixture 0","Microsoft","1.0","test.inf",true,true);
+        Require(ReferenceEquals(DriverListFilters.SortManual([equalButDistinct,drivers[0]],[drivers[0]])[0],drivers[0]),
+            "identidade de referência não confunde instâncias equivalentes");
+        Console.WriteLine("PASS V2.6.9: ordenações preservadas, alocações comparadas e índice manual de drivers.");
     }
 
     private static void VerifyAppOrdering()
