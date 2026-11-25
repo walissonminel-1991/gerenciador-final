@@ -299,6 +299,22 @@ internal static class V269IntegrationTests
                         surface.PerformLayout();relayout();Application.DoEvents();
                         Require(shell.RightPane.Controls.Find("V269AppPreviousResult",true).Length==4,
                             "quatro resultados anteriores no estado de confirmação da limpeza");
+                        // A captura anterior deixou cartões da resolução grande cortados
+                        // após retornar à janela compacta. Verificar geometria neste estado,
+                        // não somente no painel de detalhes.
+                        var tools=form.Controls.Find("V269CleanupActions",true).OfType<DarkScrollableFlow>().Single();
+                        var page=form.Controls.Find("V269CleanupPage",true).Single();
+                        var pageViewport=form.Controls.Find("V269CleanupViewport",true).OfType<DarkScrollableFlow>().Single();
+                        var diskSection=form.Controls.Find("V269DiskSection",true).Single();
+                        var visibleCards=tools.Content.Controls.OfType<V269CleanupCard>().ToArray();
+                        Require(page.Width==pageViewport.CleanupViewportWidth && tools.Width==page.Width &&
+                            visibleCards.Length==6 && visibleCards.All(card=>card.Left>=0 && card.Right<=tools.Width && card.Bottom<=tools.Height) &&
+                            visibleCards[0].Top==visibleCards[2].Top && visibleCards[3].Top==visibleCards[5].Top &&
+                            visibleCards[3].Top>visibleCards[0].Top && diskSection.Top>=tools.Bottom,
+                            $"confirmação de Limpeza preserva seis cartões em três colunas e discos abaixo: página={page.Width}, viewport={pageViewport.CleanupViewportWidth}, ferramentas={tools.Size}, discos={diskSection.Bounds}");
+                        Require(diskSection.RectangleToScreen(diskSection.ClientRectangle).Top <
+                            pageViewport.RectangleToScreen(pageViewport.ClientRectangle).Bottom,
+                            "Espaço em disco permanece visível na captura de confirmação");
                         var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
                         var scroll=shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).OfType<DarkVScrollBar>().Single();
                         Require(!viewport.AutoScroll,"Limpeza não usa a barra branca nativa no painel de operação");

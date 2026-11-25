@@ -1769,6 +1769,8 @@ internal sealed partial class MainForm : Form
             Name = "V269CleanupPage", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = Padding.Empty,
             BackColor = Color.Transparent
         };
+        // A coluna deve seguir o viewport também ao alternar painel e resolução.
+        cleaningLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 275));
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -1776,6 +1778,10 @@ internal sealed partial class MainForm : Form
         cleaningLayout.Controls.Add(BuildDiskPanel(), 0, 1);
         cleaning.Controls.Add(ScrollablePage(cleaningLayout, width =>
         {
+            // Medir somente depois de ajustar os cartões à largura negociada pelo
+            // viewport; o SizeChanged de um filho dockado pode chegar depois.
+            if (cleaningActions.Width != width) cleaningActions.Width = width;
+            if (cleaningActions.Tag is Action fitCleanup) fitCleanup();
             int cardsHeight = ((DarkScrollableFlow)cleaningActions).MeasureContentHeight(Math.Max(1,width));
             int diskHeight = DiskPanelHeight(width);
             cleaningLayout.RowStyles[0].Height = cardsHeight;
