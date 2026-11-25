@@ -29,13 +29,17 @@ internal static class Program
 
         DiagnosticTrace.LocalEventSink = LocalDiagnosticReport.Session.RecordEvent;
         DiagnosticTrace.LocalFailureSink = LocalDiagnosticReport.Session.RecordFailure;
-        if (!DiagnosticTrace.Start() || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
+        bool traceStarted = DiagnosticTrace.Start();
+        if (traceStarted) LocalDiagnosticReport.Session.StartJournal(DiagnosticTrace.LogFilePath);
+        if (!traceStarted || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
         {
             MessageBox.Show(
                 "Não foi possível criar e confirmar o registro de diagnóstico. " +
                 "O teste foi interrompido antes de iniciar a consulta de pacotes.\n\n" +
                 "Motivo técnico: " + DiagnosticTrace.LastFailure,
                 "Diagnóstico indisponível", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            LocalDiagnosticReport.Session.CloseJournal();
+            DiagnosticTrace.Stop();
             return 2;
         }
         V269AdminLaunchTicket? reopenAdministrator = null;
@@ -91,6 +95,9 @@ internal static class Program
         }
         finally
         {
+            DiagnosticTrace.LocalEventSink = null;
+            DiagnosticTrace.LocalFailureSink = null;
+            LocalDiagnosticReport.Session.CloseJournal();
             DiagnosticTrace.Stop();
             if (reopenAdministrator is { } ticket) V269AdminSessionLauncher.RequestOnce(ticket);
         }
@@ -2652,6 +2659,7 @@ internal sealed partial class MainForm : Form
 
     private void ReportError(Exception ex)
     {
+        LocalDiagnosticReport.Session.RecordFailure("OPERACAO.FALHA",ex);
         Log("ERRO: " + ex.Message);
         Status("Não foi possível concluir a operação");
         if (_v269RepairCommand is not null)
