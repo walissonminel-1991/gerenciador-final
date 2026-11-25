@@ -159,6 +159,7 @@ internal sealed class V269CleanupButton : Button
 
 internal sealed class V269CleanupSection : TableLayoutPanel
 {
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal bool IsPlanCard {get;set;}
     private bool _planActive;
     internal void SetPlanActive(bool active){if(_planActive==active)return;_planActive=active;Invalidate(true);}
