@@ -2279,6 +2279,9 @@ internal sealed partial class MainForm : Form
         return root;
     }
 
+    private static string DisplayGigabytes(long bytes)
+        => (bytes / 1_000_000_000d).ToString("N1", CultureInfo.CurrentCulture) + " GB";
+
     private Control CreateDiskCard(DiskUsageInfo disk)
     {
         long used = disk.TotalBytes - disk.FreeBytes;
