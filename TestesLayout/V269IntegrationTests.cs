@@ -17,6 +17,7 @@ internal static class V269IntegrationTests
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
         VerifyAppOrdering();
+        VerifyLocalDiagnosticExport();
         VerifyInventoryOrderingCost();
         VerifyAppTableGeometry();
         VerifyAppIconSources();
@@ -1496,6 +1497,44 @@ internal static class V269IntegrationTests
                 cells[5].Contains(u)&&cells[5].Contains(d)&&!u.IntersectsWith(d),
                 "seis colunas e alvos binários disjuntos em escalas/DPI");
         }
+    }
+
+    private static void VerifyLocalDiagnosticExport()
+    {
+        var report=new LocalDiagnosticReport();
+        for(int i=0;i<130;i++)
+            report.RecordPerformance(new PerformanceSample(PerformanceStage.Startup,i,10,null,null,null,0,0,null));
+        string bounded=report.Format();
+        Require(bounded.Contains("128 retidas de 130")&&!bounded.Contains("duracao_ms=0.00 ")&&
+            bounded.Contains("duracao_ms=129.00 "),"diagnóstico mantém histórico limitado e últimas etapas");
+        using(report.MeasureUi(DiagnosticUiStage.Navigation,V269Page.Inicio)) { }
+        report.RecordFailure(@"C:\USUARIO_TESTE\arquivo.txt",new IOException("CONTEUDO_PRIVADO_TESTE"));
+        report.RecordFailure("FIXTURE.FALHA",new IOException("CONTEUDO_PRIVADO_TESTE"));
+        report.SampleProcess(false,false);
+        string text=report.Format();
+        Require(text.Contains("etapa=Navigation aba=Inicio")&&text.Contains("alocacoes_thread_ui_bytes=")&&
+            text.Contains("etapa=FIXTURE.FALHA")&&text.Contains("ETAPA_NAO_IDENTIFICADA")&&
+            !text.Contains("USUARIO_TESTE")&&!text.Contains("CONTEUDO_PRIVADO_TESTE"),
+            "exportação registra códigos e métricas, sem caminhos ou mensagens de exceção");
+        Require(text.Contains("Amostras do processo: 1 retidas de 1"),"amostra do processo principal registrada");
+        string folder=Path.Combine(Path.GetTempPath(),"GF-diagnostic-export-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string first=LocalDiagnosticReport.SaveToFolder(folder,text);
+            string second=LocalDiagnosticReport.SaveToFolder(folder,text+"\nSegunda exportação.");
+            Require(first!=second&&Path.GetDirectoryName(first)==folder&&Path.GetDirectoryName(second)==folder&&
+                Path.GetFileName(first).StartsWith("GF-Diagnostico-",StringComparison.Ordinal)&&
+                Path.GetExtension(first)==".txt"&&File.ReadAllText(first)==text&&
+                File.ReadAllText(second)==text+"\nSegunda exportação."&&Directory.GetFiles(folder).Length==2,
+                "exportações TXT únicas, legíveis, sem sobrescrever a anterior");
+            bool refused=false;
+            try { LocalDiagnosticReport.SaveToFolder("",text); }
+            catch(IOException) { refused=true; }
+            Require(refused,"destino indisponível não usa fallback oculto");
+        }
+        finally{Directory.Delete(folder,true);}
+        Console.WriteLine("PASS Diagnóstico GF: métricas limitadas, privacidade e exportação TXT única em diretório descartável.");
     }
 
     private static void VerifyInventoryOrderingCost()
