@@ -13,6 +13,95 @@ internal sealed class LocalDiagnosticReport
 {
     internal static LocalDiagnosticReport Session { get; } = new();
     private const int Limit = 128;
+    private const long JournalLimit = 16 * 1024 * 1024;
+    private FileStream? _journalStream;
+    private StreamWriter? _journal;
+    private IDisposable? _journalDirectory;
+    private long _journalBytes, _journalWritten, _journalOmitted;
+    private bool _journalFailed;
+    private readonly DateTimeOffset _sessionStart = DateTimeOffset.UtcNow;
+
+    // Arquivo temporário privado da sessão, sem upload, com buffer e limite
+    // explícito. O histórico recente em RAM é fallback, não substitui a
+    // cronologia completa. Não deixar um arquivo temporário após fechar.
+    internal void StartJournal(string diagnosticPath)
+    {
+        lock (_gate)
+        {
+            if (_journal is not null || _journalFailed) return;
+            try
+            {
+                string directory = InstallerFileGuard.ValidateLocalPath(Path.GetDirectoryName(diagnosticPath)!);
+                _journalDirectory = InstallerFileGuard.PinDirectory(directory, allowLeafWrites: true);
+                _journalStream = new FileStream(Path.Combine(directory,"GF-session-"+Guid.NewGuid().ToString("N")+".tmp"),
+                    FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,16384,FileOptions.DeleteOnClose);
+                _journal = new StreamWriter(_journalStream,new UTF8Encoding(false),8192,leaveOpen:true);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+                ArgumentException or NotSupportedException or System.Security.SecurityException)
+            {
+                _journalFailed = true;
+                CloseJournal();
+            }
+        }
+    }
+
+    internal void CloseJournal()
+    {
+        lock (_gate)
+        {
+            try { _journal?.Dispose(); } catch (IOException) { _journalFailed = true; }
+            finally
+            {
+                _journal = null;
+                try { _journalStream?.Dispose(); } catch (IOException) { _journalFailed = true; }
+                finally { _journalStream = null; _journalDirectory?.Dispose(); _journalDirectory = null; }
+            }
+        }
+    }
+
+    private void WriteJournal(string line)
+    {
+        if (_journal is null || _journalFailed) { _journalOmitted++; return; }
+        int size = Encoding.UTF8.GetByteCount(line) + Encoding.UTF8.GetByteCount(Environment.NewLine);
+        if (_journalBytes + size > JournalLimit) { _journalOmitted++; return; }
+        try
+        {
+            _journal.WriteLine(line);
+            _journalBytes += size;
+            _journalWritten++;
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or UnauthorizedAccessException)
+        { _journalFailed = true; _journalOmitted++; }
+    }
+
+    private void AddJournalTo(StringBuilder text)
+    {
+        text.AppendLine();
+        text.AppendLine("=== CRONOLOGIA DA SESSÃO ATÉ A GERAÇÃO DO RELATÓRIO ===");
+        text.AppendLine($"Início UTC: {_sessionStart:O}; eventos gravados: {_journalWritten}; omitidos: {_journalOmitted}; limite: {JournalLimit} bytes.");
+        if (_journal is null || _journalStream is null || _journalFailed)
+        {
+            text.AppendLine("AVISO: cronologia integral indisponível ou falhou; consultar históricos recentes e totais.");
+            return;
+        }
+        try
+        {
+            _journal.Flush();
+            _journalStream.Position=0;
+            using var reader = new StreamReader(_journalStream,Encoding.UTF8,false,8192,leaveOpen:true);
+            string? line;
+            while ((line=reader.ReadLine()) is not null) text.AppendLine(line);
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or UnauthorizedAccessException)
+        { _journalFailed=true; text.AppendLine("AVISO: leitura da cronologia incompleta."); }
+        finally
+        {
+            try { _journalStream.Seek(0,SeekOrigin.End); }
+            catch (IOException) { _journalFailed=true; }
+        }
+        if (_journalOmitted>0) text.AppendLine("AVISO: nem todos os eventos couberam no limite da cronologia.");
+    }
     private readonly object _gate = new();
     private readonly Queue<string> _performance = new();
     private readonly Queue<string> _ui = new();
@@ -71,8 +160,9 @@ internal sealed class LocalDiagnosticReport
     private long _lastTick;
     private double? _lastCpu;
 
-    private static void Append(Queue<string> queue, string line, ref long total)
+    private void Append(Queue<string> queue, string line, ref long total)
     {
+        WriteJournal(line);
         total++;
         if (queue.Count == Limit) queue.Dequeue();
         queue.Enqueue(line);
@@ -84,8 +174,8 @@ internal sealed class LocalDiagnosticReport
         lock (_gate)
         {
             // As duas referências de abertura sobrevivem a uma sessão longa.
-            if (sample.Stage == PerformanceStage.Startup) _startup ??= line;
-            else if (sample.Stage == PerformanceStage.InitialInventoryLoad) _initialInventory ??= line;
+            if (sample.Stage == PerformanceStage.Startup) { _startup ??= line; WriteJournal(line); }
+            else if (sample.Stage == PerformanceStage.InitialInventoryLoad) { _initialInventory ??= line; WriteJournal(line); }
             else Append(_performance, line, ref _performanceTotal);
         }
     }
@@ -108,7 +198,7 @@ internal sealed class LocalDiagnosticReport
             long? bytes = _thread == Environment.CurrentManagedThreadId
                 ? GC.GetAllocatedBytesForCurrentThread() - _allocated : null;
             lock (owner._gate)
-                Append(owner._ui, FormattableString.Invariant(
+                owner.Append(owner._ui, FormattableString.Invariant(
                     $"{DateTimeOffset.UtcNow:O} etapa={stage} aba={page} duracao_ms={elapsed:F3} alocacoes_thread_ui_bytes={bytes}"),
                     ref owner._uiTotal);
         }
@@ -177,6 +267,7 @@ internal sealed class LocalDiagnosticReport
             Section("Amostras do processo", _process, _processTotal);
             Section("Eventos técnicos selecionados (somente códigos e contagens)", _events, _eventTotal);
             Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
+            AddJournalTo(text);
             return text.ToString();
 
             void Section(string title, Queue<string> entries, long total)
