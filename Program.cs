@@ -2611,6 +2611,8 @@ internal sealed partial class MainForm : Form
         finally
         {
             LocalDiagnosticReport.Session.RecordOperation(diagnosticPage,"fim");
+            if(_operationResult==description)
+                LocalDiagnosticReport.Session.RecordOperation(diagnosticPage,"sem_desfecho");
             _busy = false;
             if(appExecution)_v269AppExecutionActive=false;
             if(cleanupExecution)_v269CleanupExecutionActive=false;
