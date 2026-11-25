@@ -142,7 +142,7 @@ internal static class DriverG120HistoryLifetimeTests
             Ensure(File.ReadAllBytes(path).SequenceEqual(current),
                 "timeout e retorno tardio substituiriam v1");
 
-            // F5: a consulta foi publicada, mas o prazo se esgotou antes
+            // F6: a consulta foi publicada, mas o prazo se esgotou antes
             // de gravar o histórico. Não deixar estado de andamento eterno
             // nem afirmar que a lista anterior é a lista exibida.
             Fixture(owner, path, token => Task.Delay(Timeout.InfiniteTimeSpan, token));
@@ -152,12 +152,19 @@ internal static class DriverG120HistoryLifetimeTests
             var finishingHistory = Find<Label>(finishingPage, "DriverHistoryStatus");
             var finishingStatus = Find<Label>(finishingPage, "DriverInventoryStatus");
             var finishingList = Find<DarkDriverList>(finishingPage, "DriverInventoryList");
-            PumpUntil(() => finishingHistory.Text.Contains("finalização interrompida", StringComparison.Ordinal));
-            Ensure(finishingList.Items.Count == 1 && finishingList.Items[0].Version == "7.0" &&
-                finishingStatus.Text.Contains("Inventário concluído e preservado", StringComparison.Ordinal) &&
-                !finishingHistory.Text.Contains("em andamento", StringComparison.Ordinal) &&
-                File.ReadAllBytes(path).SequenceEqual(current),
-                "prazo do histórico após publicação não encerrou o estado ou alterou a base");
+            var finishingRefresh = Find<Button>(finishingPage, "DriverInventoryRefresh");
+            // TextChanged pode reentrar antes de o catch/finally atualizar o
+            // estado completo, como na prova G1.20 anterior de acessibilidade.
+            // Esperar a restauração do comando, não apenas o primeiro rótulo.
+            PumpUntil(() => finishingHistory.Text.Contains("finalização interrompida", StringComparison.Ordinal) &&
+                finishingRefresh.Enabled && finishingRefresh.Text == "Consultar drivers");
+            Ensure(finishingList.Items.Count == 1 && finishingList.Items[0].Version == "7.0",
+                $"prazo após publicação perdeu lista nova: quantidade={finishingList.Items.Count}, versao={finishingList.Items.FirstOrDefault()?.Version}");
+            Ensure(finishingStatus.Text.Contains("Inventário concluído e preservado", StringComparison.Ordinal),
+                $"prazo após publicação deixou estado divergente: {finishingStatus.Text}");
+            Ensure(!finishingHistory.Text.Contains("em andamento", StringComparison.Ordinal),
+                "prazo após publicação deixou histórico em andamento");
+            Ensure(File.ReadAllBytes(path).SequenceEqual(current), "prazo do histórico após publicação alterou a base");
 
             // Regressoes existentes continuam cobrindo arquivo malformado,
             // schema desconhecido, parcial/vazio, lock, 20 entradas e hashes.
