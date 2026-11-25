@@ -19,6 +19,7 @@ internal static class V269IntegrationTests
             "oito instâncias nativas com Início ativo");
         Timed("Navegação sequencial nativa", () => VerifySequentialNavigation(form, shell));
         Timed("Feedback independente", VerifyIndependentFeedback);
+        Timed("Barras universais", VerifyUniversalMeterPainting);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
@@ -308,6 +309,29 @@ internal static class V269IntegrationTests
             shell.SelectPage(savedPage); shell.PresentPanel(savedPanel);
             SynchronizationContext.SetSynchronizationContext(savedContext);
             Application.DoEvents();
+        }
+    }
+
+    private static void VerifyUniversalMeterPainting()
+    {
+        // Renderizador virtual usa a mesma rotina da barra WinForms,
+        // com origem não zero e clip do desenho preservado.
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            var frame = GfUniversalMeter.Operation(65,GfMeterState.Running,true,theme);
+            var track = V269VisualTokens.ForTheme(theme).Border;
+            using var image = new Bitmap(120,30);
+            using (var g = Graphics.FromImage(image))
+            {
+                g.Clear(Color.Magenta);
+                g.SetClip(new Rectangle(8,4,104,20));
+                GfDynamicProgressBar.PaintFrame(g,new Rectangle(10,8,100,10),frame,track);
+                Require(g.ClipBounds == new RectangleF(8,4,104,20), "barra virtual preserva clip da lista");
+            }
+            Require(image.GetPixel(30,13).ToArgb() == frame.Color.ToArgb() &&
+                image.GetPixel(100,13).ToArgb() == track.ToArgb() &&
+                image.GetPixel(5,13).ToArgb() == Color.Magenta.ToArgb(),
+                "barra virtual preserva preenchimento, trilha e limites nos três temas");
         }
     }
 

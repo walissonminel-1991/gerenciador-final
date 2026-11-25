@@ -273,17 +273,9 @@ internal sealed class V269CleanupDiskCard : Panel
         V269CleanupGlyph.Draw(g,"disk",new Rectangle(iconBounds.X+S(5),iconBounds.Y+S(5),S(20),S(20)),_options.Theme);
         int y=Math.Max(_usage.Bottom+S(4),_free.Top-S(11));
         var meter=new Rectangle(_name.Left,y,Math.Max(1,_free.Width),S(8));
-        using var meterPath=ModernButton.RoundRect(meter,S(4));using var meterFill=new SolidBrush(H(track));
-        g.FillPath(meterFill,meterPath);g.DrawPath(line,meterPath);
         var frame=_fraction is double fraction ? GfMeterScale.Frame(GfMeterKind.Usage,fraction*100,_options.Theme) :
             GfUniversalMeter.Disk(_usedBytes,_capacityBytes,_options.Theme);
-        int w=frame.Fraction is double amount ? Math.Clamp((int)Math.Round(meter.Width*amount),0,meter.Width) : 0;
-        if(w>1)
-        {
-            var part=new Rectangle(meter.X,meter.Y,w,meter.Height);
-            using var bar=ModernButton.RoundRect(part,Math.Min(S(4),w/2));using var fill=new SolidBrush(frame.Color);
-            g.FillPath(fill,bar);
-        }
+        GfDynamicProgressBar.PaintFrame(g,meter,frame,V269VisualTokens.ForTheme(_options.Theme).Border);
         if(Focused&&ShowFocusCues&&Width>8&&Height>8)ControlPaint.DrawFocusRectangle(g,new Rectangle(4,4,Width-8,Height-8));
     }
     protected override void Dispose(bool disposing){if(disposing){_nameFont?.Dispose();_dataFont?.Dispose();}base.Dispose(disposing);}

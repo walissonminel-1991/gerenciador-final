@@ -1570,19 +1570,8 @@ internal sealed partial class MainForm : Form
 
     private void DrawOperationMeter(Graphics graphics, Rectangle track, GfMeterFrame frame, Color trackColor)
     {
-        if (track.Width <= 0 || track.Height <= 0) return;
-        using var background = new SolidBrush(trackColor);
-        using var fill = new SolidBrush(frame.Color);
-        graphics.FillRectangle(background, track);
-        if (frame.Fraction is double fraction && fraction > 0)
-            graphics.FillRectangle(fill, track.X, track.Y, (float)(track.Width * fraction), track.Height);
-        else if (frame.State == GfMeterState.Indeterminate)
-        {
-            int segment = Math.Max(1, track.Width / 3);
-            int travel = track.Width - segment;
-            int x = CanAnimateV269 ? travel * Math.Clamp(_programList.OperationFrame, 0, 17) / 17 : travel / 2;
-            graphics.FillRectangle(fill, track.X + x, track.Y, segment, track.Height);
-        }
+        double phase = CanAnimateV269 ? Math.Clamp(_programList.OperationFrame, 0, 17) / 17d : .5;
+        GfDynamicProgressBar.PaintFrame(graphics, track, frame, trackColor, phase);
         // Falha, cancelamento e resultado pendente mantêm texto real, sem preencher 100%.
     }
 

@@ -209,29 +209,46 @@ internal sealed class GfDynamicProgressBar : Control
     {
         base.OnPaint(e);
         if (Width < 2 || Height < 2) return;
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var p = V269VisualTokens.ForTheme(_theme);
-        using var track = new SolidBrush(p.Border);
-        using var fill = new SolidBrush(_shownColor);
-        using var outline = Capsule(new RectangleF(0, 0, Width, Height));
-        e.Graphics.FillPath(track, outline);
-        var saved = e.Graphics.Save();
-        e.Graphics.SetClip(outline);
-        if (_target.State == GfMeterState.Indeterminate)
-        {
-            int w = Math.Max(1, Width / 4);
-            int x = _animate ? (int)((Environment.TickCount64 % 1200) * (Width - w) / 1200) : (Width - w) / 2;
-            using var segment = Capsule(new RectangleF(x, 0, w, Height));
-            e.Graphics.FillPath(fill, segment);
-        }
-        else if (_target.Fraction.HasValue && _shown > 0)
-        {
-            float w = (float)(Width * Math.Clamp(_shown, 0, 1));
-            using var segment = Capsule(new RectangleF(0, 0, w, Height));
-            e.Graphics.FillPath(fill, segment);
-        }
-        e.Graphics.Restore(saved);
+        double phase = _animate ? (Environment.TickCount64 % 1200) / 1200d : .5;
+        PaintFrame(e.Graphics, ClientRectangle, _target, p.Border, _shownColor, _shown, phase);
     }
+
+    // A mesma pintura da janela Monitor é usada também por superfícies
+    // virtualizadas: sem criar HWND ou timer por linha de inventário.
+    internal static void PaintFrame(Graphics graphics, Rectangle bounds, GfMeterFrame frame,
+        Color trackColor, Color shownColor, double shownFraction, double phase)
+    {
+        if (bounds.Width < 2 || bounds.Height < 2) return;
+        var saved = graphics.Save();
+        try
+        {
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var track = new SolidBrush(trackColor);
+            using var fill = new SolidBrush(shownColor);
+            using var outline = Capsule(bounds);
+            graphics.FillPath(track, outline);
+            graphics.SetClip(outline, CombineMode.Intersect);
+            if (frame.State == GfMeterState.Indeterminate)
+            {
+                int w = Math.Max(1, bounds.Width / 4);
+                int x = (int)(Math.Clamp(phase, 0, 1) * (bounds.Width - w));
+                using var segment = Capsule(new RectangleF(bounds.X + x, bounds.Y, w, bounds.Height));
+                graphics.FillPath(fill, segment);
+            }
+            else if (frame.Fraction.HasValue && shownFraction > 0)
+            {
+                float w = (float)(bounds.Width * Math.Clamp(shownFraction, 0, 1));
+                using var segment = Capsule(new RectangleF(bounds.X, bounds.Y, w, bounds.Height));
+                graphics.FillPath(fill, segment);
+            }
+        }
+        finally { graphics.Restore(saved); }
+    }
+
+    internal static void PaintFrame(Graphics graphics, Rectangle bounds, GfMeterFrame frame,
+        Color trackColor, double phase = .5) =>
+        PaintFrame(graphics, bounds, frame, trackColor, frame.Color, frame.Fraction ?? 0, phase);
 
     private static GraphicsPath Capsule(RectangleF bounds)
     {
