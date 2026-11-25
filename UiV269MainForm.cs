@@ -795,7 +795,7 @@ internal sealed partial class MainForm
     private bool _v269SettingsBusy;
     private bool _v269SettingsLive;
     // Injeção restrita às views sintéticas; nunca substitui Documentos na sessão real.
-    internal Func<string,string>? V269DiagnosticExportForTest { get; set; }
+    internal Func<string,string>? V269DiagnosticExportForTest;
     private V269AdminLaunchTicket? _v269AdminRestartTicket;
     private bool _v269AdminClosedNormally;
     internal bool V269CanAnimateButtons => CanAnimateV269;
