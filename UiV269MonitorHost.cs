@@ -180,9 +180,15 @@ internal sealed class GfMonitorHost : IDisposable
         if (Future(c) || Future(w) || Future(d) || Future(t) ||
             Older(c, _cpuAt) || Older(w, _wddmAt) || Older(d, _dxgiAt) || Older(t, _thermalAt)) return false;
         var s = GfResourceMonitorAdapter.FromPortfolio(portfolio, _selected, now);
-        if (evidence is not null && _selected is WddmGpuKey key && s.GpuTemperature is not null &&
-            s.MetricTimes?.GpuTemperature is DateTimeOffset measured && evidence.Matches(key, generation, measured, now))
-            s = s with { GpuThermalEvidence = evidence };
+        // Ambos os produtores (shell e standalone) passam por esta mesma
+        // fronteira, sem nova coleta nem renovação de capacidades vencidas.
+        if (_selected is WddmGpuKey key && s.GpuTemperature is not null &&
+            s.MetricTimes?.GpuTemperature is DateTimeOffset measured)
+        {
+            evidence ??= GfThermalEvidence.FromPortfolio(portfolio, key, generation, now);
+            if (evidence is not null && evidence.Matches(key, generation, measured, now))
+                s = s with { GpuThermalEvidence = evidence };
+        }
         // A hora de entrega, sozinha, não constitui nova medição. Comparar
         // valores, instantes de origem, identidade e evidência; invalidar uma
         // fonte que venceu ainda produz uma entrega distinta.

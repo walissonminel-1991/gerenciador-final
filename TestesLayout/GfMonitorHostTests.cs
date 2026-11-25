@@ -101,6 +101,24 @@ internal static class GfMonitorHostTests
             "zona térmica ACPI genérica não preenche a temperatura da CPU");
     }
 
+    private static void VerifyNativeThermalEvidence(DateTimeOffset now,WddmGpuKey key)
+    {
+        var other=key with { LuidLow=key.LuidLow+1 };
+        var snapshot=Fixture(now,key);
+        var sensor=snapshot.D3dKmtGpuSensors!.Adapters.Single() with
+        { TemperatureWarningTenthsC=700,TemperatureMaxTenthsC=800 };
+        snapshot=snapshot with { D3dKmtGpuSensors=snapshot.D3dKmtGpuSensors with { Adapters=[sensor] } };
+        var caps=GfThermalEvidence.FromPortfolio(snapshot,key,1,now);
+        Require(caps is not null && caps.WarningC==70 && caps.MaximumC==80 &&
+            caps.ObservedAtUtc==now && caps.Matches(key,1,now,now), "par nativo, identidade, geração e tempo");
+        Require(GfThermalEvidence.FromPortfolio(snapshot,other,2,now) is null &&
+            GfThermalEvidence.FromPortfolio(snapshot,key,1,now.AddSeconds(11)) is null &&
+            GfThermalEvidence.FromPortfolio(snapshot with { D3dKmtGpuSensors=null },key,1,now) is null,
+            "sem cruzar GPU ou renovar evidência vencida");
+        Require(GfThermalEvidence.FromPortfolio(snapshot with { D3dKmtGpuSensors=snapshot.D3dKmtGpuSensors with
+            { Adapters=[sensor,sensor] } },key,1,now) is null,"duplicidade física rejeitada");
+    }
+
     // Percurso completo do host: produtor existente -> portfólio -> relay ->
     // janela nativa -> preferências. Somente fixtures; sem leitura de hardware.
     private static void VerifyWindowLifecycle(string path, WddmGpuKey key)
@@ -112,8 +130,14 @@ internal static class GfMonitorHostTests
         using (var host = new GfMonitorHost(path, () => true))
         {
             var generation = host.BeginGeneration(key);
-            var caps = GfThermalEvidence.FromD3dKmt(key, generation, key, generation, true, 700, 800, now);
-            Require(host.Publish(generation, Fixture(now, key), now, caps), "publicar antes da janela");
+            HardwareSensorPortfolio ThermalFixture(DateTimeOffset at, uint temperature)
+            {
+                var fixture=Fixture(at,key);
+                var native=D3dKmtGpuSensorProvider.Join([new D3dKmtAdapterRaw(key,1_000_000_000,1000,500,
+                    temperature,2000,800,true,true,TemperatureWarningTenthsC:700)]);
+                return fixture with { D3dKmtGpuSensors=native with { CapturedAtUtc=at } };
+            }
+            Require(host.Publish(generation, ThermalFixture(now,700), now), "publicar evidência nativa antes da janela");
             Require(host.Apply(enabled, now), "abrir monitor pelo host");
             Application.DoEvents();
             Require(Metric(0).Text == "CPU 14%" && Metric(1).Text == "GPU 80%" &&
@@ -122,12 +146,13 @@ internal static class GfMonitorHostTests
             Require(Metric(5).ForeColor == GfMeterScale.Colors(V269Theme.AzulGf).Yellow,
                 "evidência do produtor chega ao aviso térmico da janela");
             var newer = now.AddSeconds(1);
-            var p = Fixture(newer, key);
+            var p = ThermalFixture(newer,850);
             p = p with { WindowsCounters = p.WindowsCounters with
                 { CpuUsagePercent = MonitorReading<double>.Available(25, "fixture") } };
-            Require(host.Publish(generation, p, newer,
-                GfThermalEvidence.FromD3dKmt(key, generation, key, generation, true, 700, 800, newer)) &&
-                Metric(0).Text == "CPU 25%", "publicação chega à janela aberta");
+            Require(host.Publish(generation,p,newer) &&
+                Metric(0).Text == "CPU 25%" && Metric(5).Text=="GPU 85°C" &&
+                Metric(5).ForeColor==GfMeterScale.Colors(V269Theme.AzulGf).Red,
+                "temperatura acima do máximo chega à janela em vermelho sem atraso");
             Window().Close();
             Require(!host.WantsCollection(false, true) && !host.Preferences().Enabled &&
                 !GfResourceMonitorPreferencesStore.Load(path).Enabled, "fechar manualmente desabilita e persiste");
@@ -317,6 +342,7 @@ internal static class GfMonitorHostTests
         }
         VerifyPortfolio(now, key);
         VerifyGpuSelection(now, key);
+        VerifyNativeThermalEvidence(now,key);
         var folder = Path.Combine(Path.GetTempPath(), "gf-monitor-host-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, "monitor.json");
