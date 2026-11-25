@@ -18,6 +18,7 @@ internal static class V269IntegrationTests
             "oito instâncias nativas com Início ativo");
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
+        VerifyDiagnosticCaptureCost();
         VerifyInventoryOrderingCost();
         VerifyAppTableGeometry();
         VerifyAppIconSources();
@@ -1621,6 +1622,67 @@ internal static class V269IntegrationTests
         }
         finally{Directory.Delete(folder,true);}
         Console.WriteLine("PASS Diagnóstico GF: métricas limitadas, privacidade e exportação TXT única em diretório descartável.");
+    }
+
+    private static void VerifyDiagnosticCaptureCost()
+    {
+        const int entries=8000, rounds=5;
+        string folder=Path.Combine(Path.GetTempPath(),"GF-diagnostic-cost-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var session=new LocalDiagnosticReport();
+        session.StartJournal(Path.Combine(folder,"fixture.log"));
+        try
+        {
+            for(int i=1;i<=entries;i++)
+                session.RecordEvent("REGISTRO_PROGRAMAS.LIDO quantidade="+i);
+            string full=session.Format();
+            Require(full.Contains("eventos gravados: 8000; omitidos: 0"),
+                "benchmark exige journal real, sem aceitar fallback vazio");
+            using(var sample=session.CaptureForExport())
+            {
+                string captured=sample.FormatForTest("GF-DIAG fixture");
+                Require(captured.Contains("eventos gravados: 8000; omitidos: 0")&&
+                    captured.Contains("REGISTRO_PROGRAMAS.LIDO quantidade=1"+Environment.NewLine)&&
+                    !captured.Contains("AVISO: cronologia integral indisponível"),
+                    "benchmark compara capturas com a mesma cronologia completa");
+            }
+            // Aquecer os dois caminhos; comparar somente trabalho síncrono de
+            // captura. A leitura/gravação assíncrona não entra nestes números.
+            _=session.Format();
+            using(session.CaptureForExport()) { }
+            long before=0,after=0;
+            var beforeMs=new double[rounds];var afterMs=new double[rounds];
+            for(int i=0;i<rounds;i++)
+            {
+                void Old()
+                {
+                    long bytes=GC.GetAllocatedBytesForCurrentThread();
+                    long start=System.Diagnostics.Stopwatch.GetTimestamp();
+                    string result=session.Format();
+                    beforeMs[i]=System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                    before+=GC.GetAllocatedBytesForCurrentThread()-bytes;
+                    GC.KeepAlive(result);
+                }
+                void New()
+                {
+                    long bytes=GC.GetAllocatedBytesForCurrentThread();
+                    long start=System.Diagnostics.Stopwatch.GetTimestamp();
+                    using(var snapshot=session.CaptureForExport()) { }
+                    afterMs[i]=System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                    after+=GC.GetAllocatedBytesForCurrentThread()-bytes;
+                }
+                if(i%2==0){Old();New();}else{New();Old();}
+            }
+            Array.Sort(beforeMs);Array.Sort(afterMs);
+            Console.WriteLine(FormattableString.Invariant(
+                $"V269-PERF diagnostico_captura_ui registros={entries} repeticoes={rounds} bytes_antes={before} bytes_depois={after} mediana_antes_ms={beforeMs[rounds/2]:F3} mediana_depois_ms={afterMs[rounds/2]:F3}"));
+            Require(after<before,"captura por prefixo deve reduzir alocações síncronas, sem perder cronologia");
+        }
+        finally
+        {
+            session.CloseJournal();
+            Directory.Delete(folder,true);
+        }
     }
 
     private static void VerifyInventoryOrderingCost()
