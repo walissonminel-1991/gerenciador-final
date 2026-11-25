@@ -12,9 +12,11 @@ internal sealed partial class MainForm
     private DriverOfficialResult? _driverReusableOfficial;
     // Exclusivo das fixtures com readForTest: jamais acessar DefaultPath
     // do usuario nos testes temporais ou iniciar captura nativa.
-    private string? _driverHistoryPathForTest;
-    private Func<CancellationToken, Task>? _driverHistoryBeforeWriteForTest;
-    private Action? _driverHistoryBeforeReplaceForTest;
+    // Fixtures atribuem estes campos por reflexão; null é o estado intencional
+    // em produção. Preservar os nomes e não ativar nenhum hook automaticamente.
+    private string? _driverHistoryPathForTest = null;
+    private Func<CancellationToken, Task>? _driverHistoryBeforeWriteForTest = null;
+    private Action? _driverHistoryBeforeReplaceForTest = null;
 
     private Control BuildDriversPlaceholder(
         Func<CancellationToken, Task<DriverInventoryResult>>? readForTest = null,

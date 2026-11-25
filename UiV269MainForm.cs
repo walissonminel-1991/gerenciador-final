@@ -589,7 +589,6 @@ internal sealed partial class MainForm
     // Fontes diferentes permanecem rotuladas; dados extras nos detalhes.
     internal static V269HomeModel V269GpuModel(HardwareSensorPortfolio? snapshot)
     {
-        const string nd = "N/D";
         static V269HomeRow R(string label, string? value) => new(label,
             string.IsNullOrWhiteSpace(value) || value == "indisponível" ? "N/D" : value);
         static string Join(IEnumerable<string?> values) => string.Join(" / ", values
