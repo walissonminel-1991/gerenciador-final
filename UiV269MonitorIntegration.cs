@@ -34,10 +34,18 @@ internal sealed partial class MainForm
         host.Publish(_v269MonitorGeneration, snapshot, now);
     }
 
+    // A montagem visual não cria host, timers, arquivos ou registros.
+    // O teste usa exatamente a mesma montagem da janela de produção.
+    internal static V269MonitorOptions MountV269MonitorOptions(V269SettingsPage view)
+    {
+        var options = new V269MonitorOptions();
+        view.AddMonitor(options);
+        return options;
+    }
+
     private void BindV269Monitor(V269SettingsPage view)
     {
-        var options = _v269MonitorOptions = new V269MonitorOptions();
-        view.AddMonitor(options);
+        var options = _v269MonitorOptions = MountV269MonitorOptions(view);
         _v269MonitorSaveTimer = new System.Windows.Forms.Timer { Interval = 250 };
         _v269MonitorSaveTimer.Tick += (_, _) => FlushV269MonitorPreferences();
         Disposed += (_, _) => StopV269Monitor();
