@@ -2170,7 +2170,10 @@ internal sealed partial class MainForm : Form
                     Math.Max(desired[0],desired[1])*2+gap<=available?2:1;
                 int rows=(3+columns-1)/columns;
                 int height=Math.Max(D(30),buttons.Max(button=>button.Font.Height)+D(8));
-                string geometry=$"{available}:{columns}:{height}:{string.Join(",",desired)}:{D(9)}:{heading.Font.Height}:{_cleanupPreview.Font.Height}:{_diskSummary.Font.Height}";
+                // A largura decide apenas o número de colunas. Com a mesma grade,
+                // o TableLayoutPanel redimensiona as células sem remover os comandos.
+                // Preservar DPI/escala e métricas reais como chaves da reconstrução.
+                string geometry=$"{columns}:{height}:{string.Join(",",desired)}:{root.DeviceDpi}:{_v269Appearance.InterfacePercent}:{heading.Font.Height}:{_cleanupPreview.Font.Height}:{_diskSummary.Font.Height}";
                 if(previousToolbarGeometry==geometry)return;
                 previousToolbarGeometry=geometry;
                 previewRow.SuspendLayout();

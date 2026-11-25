@@ -256,6 +256,23 @@ internal static class V269IntegrationTests
                 Require(toolbar.Controls.OfType<Button>().Count()==3&&toolbar.Controls.OfType<Button>()
                     .All(button=>toolbar.ClientRectangle.Contains(button.Bounds)&&button.Width>0&&button.Height>0),
                     "três comandos da barra permanecem dentro da área útil");
+                if(size.Width==1844 && palette==V269Theme.AzulGf && toolbar.ColumnCount==4)
+                {
+                    // A mudança de largura em uma grade de três colunas não
+                    // altera os comandos nem suas métricas de reconstrução.
+                    int initialWidth=section.Width, removed=0;
+                    void CountRemoved(object? sender,ControlEventArgs args)=>removed++;
+                    toolbar.ControlRemoved+=CountRemoved;
+                    try
+                    {
+                        section.Width=initialWidth-1;
+                        section.Width=initialWidth;
+                        relayout();
+                        Require(toolbar.ColumnCount==4 && removed==0,
+                            "variação de largura com três colunas não recria comandos de Limpeza");
+                    }
+                    finally{toolbar.ControlRemoved-=CountRemoved;}
+                }
                 using var capture=new Bitmap(surface.Width,surface.Height);
                 surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
                 capture.Save($"LayoutCaptures/v269-limpeza-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
