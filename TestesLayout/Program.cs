@@ -451,10 +451,11 @@ internal static class LayoutTests
         AppBatchUpdateP1Tests.Run();
 
 
-        var repairCards = Descendants(form).OfType<Button>().ToArray();
-        if (!repairCards.Any(b => b.Text == "Verificar Windows") ||
-            !repairCards.Any(b => b.Text == "Escolher ponto de restauração") ||
-            repairCards.SingleOrDefault(b => b.Text == "Reparar Windows") is not { Enabled: false })
+        var repairCards = Descendants(form).OfType<V269RepairCard>().ToArray();
+        if (repairCards.Length != 12 || !repairCards.Any(card => card.AccessibleName == "Verificar Windows") ||
+            !repairCards.Any(card => card.AccessibleName == "Escolher ponto de restauração") ||
+            repairCards.SingleOrDefault(card => card.AccessibleName == "Reparar Windows")?.Command is not { Enabled: false } ||
+            repairCards.SingleOrDefault(card => card.AccessibleName == "Reparar rede")?.Command is not { Enabled: false })
             throw new Exception("Reparo do Windows deve iniciar bloqueado; assistente de restauracao deve existir.");
         var nav = Descendants(form).OfType<V269Shell>().Single();
         var pages = Enum.GetValues<V269Page>();
@@ -863,39 +864,22 @@ internal static class LayoutTests
             throw new Exception("Botoes Ativar ainda demasiadamente largos.");
         nav.SelectPage(V269Page.Reparo);
         Application.DoEvents();
-        var repairTools = Descendants(form).OfType<ModernButton>()
-            .Where(b => b.Text is "Analisar rede" or "Reparar rede" or "Diagnosticar áudio" or
-                "Diagnosticar impressora" or "Diagnosticar USB" or "Diagnosticar chipset" or
-                "Diagnosticar tela azul" or
-                "Criar ponto de restauração" or "Restaurar configurações da rede" or
-                "Escolher ponto de restauração").ToArray();
-        if (repairTools.Length != 10 || repairTools.Any(b =>
-            b.Width >= b.Parent!.ClientSize.Width))
-            throw new Exception("Botoes de reparo nao devem ultrapassar a largura util do cartao.");
-        // Regressao PC FORTE .49: titulo longo no cartao de 3 colunas
-        // encolhia a fonte porque a largura tinha teto fixo de 215 px.
-        var longRepair = repairTools.Single(b =>
-            b.Text == "Restaurar configurações da rede");
-        int naturalWidth = TextRenderer.MeasureText(longRepair.Text, longRepair.Font,
-            new Size(int.MaxValue, 33), TextFormatFlags.NoPadding |
-            TextFormatFlags.NoPrefix).Width;
-        if (longRepair.Parent!.ClientSize.Width >= naturalWidth + 40 && longRepair.Width - 27 < naturalWidth)
-            throw new Exception("Rotulo de restauracao ainda reduz a fonte apesar do espaco do cartao.");
-        if (repairTools.Select(b => b.Font.SizeInPoints).Distinct().Count() != 1)
-            throw new Exception("Botoes de reparo devem compartilhar a mesma fonte.");
-        // PC FORTE .40: tres colunas ja existiam, mas cada card era limitado
-        // a 316 px; sobravam faixas laterais mesmo com largura suficiente.
         var repairFlow = Descendants(form).OfType<DarkScrollableFlow>()
             .Single(flow => flow.Name == "RepairActions");
-        var repairCardPanels = repairFlow.Content.Controls.OfType<Panel>().ToArray();
-        if (repairCardPanels.Length != 12 || !repairTools.Any(button => button.Text == "Diagnosticar USB") ||
-            !repairTools.Any(button => button.Text == "Diagnosticar chipset") ||
-            !repairTools.Any(button => button.Text == "Diagnosticar tela azul"))
-            throw new Exception("Grade de Reparo e Rede deve conter os doze cartões, incluindo USB, chipset e tela azul.");
-        var diagnosticReport = Descendants(form).OfType<Label>().Single(label => label.Name == "RepairDiagnosticResult");
-        if (diagnosticReport.Visible || diagnosticReport.Parent is not TableLayoutPanel repairLayout ||
-            repairLayout.RowStyles[repairLayout.GetRow(diagnosticReport)].Height != 0)
-            throw new Exception("VF03: painel de diagnóstico não deve ocupar espaço antes da consulta.");
+        var repairCardPanels = repairFlow.Content.Controls.OfType<V269RepairCard>().ToArray();
+        var repairTools = repairCardPanels.Select(card => card.Command).ToArray();
+        if (repairCardPanels.Length != 12 || repairTools.Any(button => button.Width >= button.Parent!.ClientSize.Width) ||
+            repairTools.Select(button => button.Font.SizeInPoints).Distinct().Count() != 1)
+            throw new Exception("Os doze cartões de Reparo devem ter comandos compactos e tipografia uniforme.");
+        var longRepair = repairCardPanels.Single(card => card.AccessibleName == "Restaurar configurações da rede");
+        if (longRepair.Command.Text != "Restaurar" ||
+            !Descendants(longRepair).OfType<Label>().Any(label => label.Text == longRepair.AccessibleName))
+            throw new Exception("O título integral deve ficar no cartão e o comando deve ser compacto.");
+        if (!repairCardPanels.Any(card => card.AccessibleName == "Diagnosticar USB") ||
+            !repairCardPanels.Any(card => card.AccessibleName == "Diagnosticar chipset") ||
+            !repairCardPanels.Any(card => card.AccessibleName == "Diagnosticar tela azul") ||
+            Descendants(nav.PageContent(V269Page.Reparo)!).OfType<Label>().Any(label => label.Name == "RepairDiagnosticResult" || label.Text == "DIAGNÓSTICO DE REDE"))
+            throw new Exception("Diagnósticos e resultados devem ocupar o painel lateral, sem duplicar cartões.");
         var firstRow = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(x => x.Top))
             .OrderBy(card => card.Left).ToArray();
         if (repairFlow.ClientSize.Width >= 1100)

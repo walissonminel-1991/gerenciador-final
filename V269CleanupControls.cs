@@ -108,7 +108,16 @@ internal sealed class V269CleanupButton : Button
         int icon = S(15);
         int measured = TextRenderer.MeasureText(Text,Font,Size.Empty,TextFormatFlags.NoPadding|TextFormatFlags.NoPrefix).Width;
         int left = Math.Max(S(5),(Width-icon-S(6)-measured)/2);
-        if(Enabled) V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme);
+        if (_glyph == "play")
+        {
+            Color ink = !Enabled ? V269VisualTokens.ForTheme(_options.Theme).SecondaryText :
+                _options.Theme == V269Theme.Dark ? H("#b998f2") : H(text);
+            int y = (Height - icon) / 2;
+            using var play = new Pen(ink, Math.Max(1f, S(1))) { LineJoin = LineJoin.Round };
+            g.DrawPolygon(play, new Point[] { new(left + S(4), y + S(3)),
+                new(left + icon - S(3), y + icon / 2), new(left + S(4), y + icon - S(3)) });
+        }
+        else if(Enabled) V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme);
         else
         {
             using var muted = new Pen(V269VisualTokens.ForTheme(_options.Theme).SecondaryText);

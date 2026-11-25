@@ -82,162 +82,143 @@ internal sealed partial class MainForm
     private RowStyle? _cleanupReportRow;
     private Button? _cleanupPreviewButton;
     private CancellationTokenSource? _cleanupCancellation;
-    private readonly Label _networkSummary = new();
-    private readonly Label _networkDetails = new();
     private Button? _repairNetworkButton;
     private NetworkScan? _lastNetworkScan;
-    private readonly Label _repairReport = new()
-    {
-        Name = "RepairDiagnosticResult", Dock = DockStyle.Fill, Visible = false,
-        Margin = new Padding(15, 2, 15, 4), Padding = new Padding(16, 8, 16, 8),
-        BackColor = PanelBackground, ForeColor = Ink, UseMnemonic = false,
-        AccessibleName = "Resultado do diagnóstico"
-    };
+    private Task<NetworkScan>? _networkQuery;
+    private Task<AudioOutputDiagnosis>? _audioQuery;
     private Task<PrinterQueueDiagnosis>? _printerQuery;
     private Task<UsbPnpDiagnosis>? _usbQuery;
     private Task<ChipsetPnpDiagnosis>? _chipsetQuery;
     private Task<BlueScreenDiagnosis>? _blueScreenQuery;
 
-    private Control BuildNetworkResultPanel()
+    private void InvalidateNetworkDiagnosis()
     {
-        var panel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            RowCount = 3, ColumnCount = 1,
-            BackColor = PanelBackground,
-            Margin = new Padding(15, 2, 15, 4),
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.Controls.Add(new Label
-        {
-            Text = "DIAGNÓSTICO DE REDE", Dock = DockStyle.Fill,
-            ForeColor = Ink, Font = new Font("Segoe UI", 10.2F, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 0);
-        _networkSummary.Text = "Clique em Analisar rede para executar os testes. Nenhuma alteração será feita.";
-        _networkSummary.ForeColor = Muted;
-        _networkSummary.Dock = DockStyle.Fill;
-        _networkSummary.TextAlign = ContentAlignment.MiddleLeft;
-        _networkDetails.Dock = DockStyle.Fill;
-        _networkDetails.ForeColor = Muted;
-        _networkDetails.Font = new Font("Segoe UI", 8.8F);
-        _networkDetails.TextAlign = ContentAlignment.TopLeft;
-        _networkDetails.Padding = new Padding(0, 4, 0, 0);
-        _networkDetails.AutoEllipsis = false;
-        panel.Controls.Add(_networkSummary, 0, 1);
-        panel.Controls.Add(_networkDetails, 0, 2);
-        return panel;
+        _lastNetworkScan = null;
+        _networkQuery = null;
+        if (_repairNetworkButton is not null) _repairNetworkButton.Enabled = false;
     }
 
-    private async Task RunNetworkDiagnosticAsync()
+    private async Task<NetworkScan> AnalyzeNetworkCoreAsync(CancellationToken token)
     {
-        if (_busy) return;
-        await ExecuteAsync("Verificando adaptador, gateway, DNS e conexão TCP/443...", async () =>
+        _lastNetworkScan = null;
+        if (_networkQuery is not { IsCompleted: false }) _networkQuery = NetworkDiagnostics.AnalyzeAsync();
+        var result = await _networkQuery.WaitAsync(token);
+        token.ThrowIfCancellationRequested();
+        _lastNetworkScan = result;
+        foreach (var check in result.Checks)
+            Log($"Rede [{check.State}]: {check.Name} — {check.Detail}");
+        Log("Diagnóstico de rede somente consultivo. Os testes TCP/443 e ICMP se limitam aos destinos consultados.");
+        Log(GetSuggestedNetworkRepair(result) switch
         {
-            var result = await NetworkDiagnostics.AnalyzeAsync();
-            _lastNetworkScan = result;
-            bool actionable = GetSuggestedNetworkRepair(result) is not null;
-            _networkSummary.ForeColor = result.HasWarnings ? Color.FromArgb(244, 183, 102) : Color.FromArgb(127, 217, 166);
-            _networkSummary.Text = !result.HasWarnings
-                ? "Rede sem falhas nos testes disponíveis. Não há reparo indicado."
-                : actionable
-                    ? "A resolução DNS falhou. Reparar rede oferece a limpeza do cache DNS."
-                    : "Há alertas, mas nenhuma correção automática segura foi identificada. Confira os detalhes.";
-            var lines = result.Checks.Select(check => $"{check.Name}: {check.Detail}").ToArray();
-            _networkDetails.Text = string.Join(Environment.NewLine, lines.Take(5)) +
-                (lines.Length > 5 ? $"{Environment.NewLine}Mais {lines.Length - 5} resultado(s) no registro." : "");
-            _relayoutRepair?.Invoke();
-            foreach (var check in result.Checks)
-            {
-                Log($"Rede [{check.State}]: {check.Name} — {check.Detail}");
-            }
-            Log("Diagnóstico de rede somente consultivo. Os testes TCP/443 e ICMP se limitam aos destinos consultados.");
-            Log(actionable ? "A limpeza do cache DNS está disponível mediante confirmação." : "Nenhum reparo guiado indicado nesta análise.");
-            Status(result.HasWarnings ? "Rede: consulte os alertas do diagnóstico" : "Diagnóstico de rede concluído");
+            "flush-dns" => "Limpeza do cache DNS disponível mediante confirmação.",
+            "network-repair-winsock" => "Redefinição orientada do catálogo Winsock disponível mediante confirmação.",
+            _ => "Nenhum reparo guiado indicado nesta análise."
         });
+        return result;
     }
+
+    private static string NetworkDiagnosisReport(NetworkScan result) => string.Join(Environment.NewLine,
+        result.Checks.Select(check => $"{check.Name} [{check.State}]: {check.Detail}"));
+
+    private Task RunNetworkDiagnosticAsync() => ExecuteV269RepairQueryAsync(
+        "Verificando adaptador, gateway, DNS e conexão TCP/443...", async token =>
+        {
+            var result = await AnalyzeNetworkCoreAsync(token);
+            string summary = GetSuggestedNetworkRepair(result) switch
+            {
+                "flush-dns" => "Os dois nomes de teste não resolveram. Reparar rede oferece a limpeza do cache DNS.",
+                "network-repair-winsock" => "DNS respondeu e os dois testes TCP falharam. Reparar rede oferece uma redefinição orientada do catálogo Winsock.",
+                _ when result.HasWarnings => "Há alertas, mas nenhuma correção automática segura foi identificada.",
+                _ => "Rede sem falhas nos testes disponíveis. Nenhum reparo indicado."
+            };
+            bool complete = result.Checks.Count > 0 && result.Checks.All(check => check.State != "Info");
+            ShowRepairDiagnostic(summary, summary + Environment.NewLine + Environment.NewLine + NetworkDiagnosisReport(result), complete);
+        });
 
     // Delegar a recomendação ao contrato testado de rede, mantendo a UI.
-    // Um único destino TCP/443 nunca justifica sugerir Winsock.
     private static string? GetSuggestedNetworkRepair(NetworkScan? scan) =>
         NetworkDiagnostics.SuggestTargetedRepair(scan);
 
-    private Task RunAudioDiagnosticAsync() => ExecuteAsync("Consultando saídas de áudio...", async () =>
-    {
-        var diagnosis = await Task.Run(AudioOutputDiagnostic.Read);
-        ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
-    });
-
-    private Task RunPrinterDiagnosticAsync() => ExecuteAsync("Consultando a impressora padrão...", async () =>
+    private Task RunAudioDiagnosticAsync() => ExecuteV269RepairQueryAsync("Consultando saídas de áudio...", async token =>
     {
         try
         {
-            var diagnosis = await WaitForRepairQueryAsync(ref _printerQuery, ReadDefaultPrinter);
-            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+            var diagnosis = await WaitForRepairQueryAsync(ref _audioQuery, AudioOutputDiagnostic.Read, token);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe(), diagnosis.State != AudioOutputState.Inconclusive);
+        }
+        catch (TimeoutException)
+        {
+            var diagnosis = new AudioOutputDiagnosis(AudioOutputState.Inconclusive);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.", false);
+        }
+    });
+
+    private Task RunPrinterDiagnosticAsync() => ExecuteV269RepairQueryAsync("Consultando a impressora padrão...", async token =>
+    {
+        try
+        {
+            var diagnosis = await WaitForRepairQueryAsync(ref _printerQuery, ReadDefaultPrinter, token);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe(), diagnosis.State != PrinterQueueState.Inconclusive);
         }
         catch (TimeoutException)
         {
             var diagnosis = new PrinterQueueDiagnosis(PrinterQueueState.Inconclusive);
             ShowRepairDiagnostic(diagnosis.Summary,
-                diagnosis.Describe() + "\n\nO Windows ainda está respondendo à consulta.");
+                diagnosis.Describe() + "\n\nO Windows ainda está respondendo à consulta.", false);
         }
     });
 
-    private Task RunUsbDiagnosticAsync() => ExecuteAsync("Consultando dispositivos USB...", async () =>
+    private Task RunUsbDiagnosticAsync() => ExecuteV269RepairQueryAsync("Consultando dispositivos USB...", async token =>
     {
         try
         {
-            var diagnosis = await WaitForRepairQueryAsync(ref _usbQuery, ReadUsbDiagnosis);
-            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+            var diagnosis = await WaitForRepairQueryAsync(ref _usbQuery, ReadUsbDiagnosis, token);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe(), !diagnosis.Partial);
         }
         catch (TimeoutException)
         {
             var diagnosis = UsbPnpDiagnostic.Evaluate([], partial: true);
             ShowRepairDiagnostic(diagnosis.Summary,
-                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.");
+                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.", false);
         }
     });
 
-    private Task RunChipsetDiagnosticAsync() => ExecuteAsync("Consultando controladores do chipset...", async () =>
+    private Task RunChipsetDiagnosticAsync() => ExecuteV269RepairQueryAsync("Consultando controladores do chipset...", async token =>
     {
         try
         {
             var diagnosis = await WaitForRepairQueryAsync(ref _chipsetQuery,
-                () => ChipsetPnpDiagnostic.Evaluate(DriverInventory.Capture(CancellationToken.None)));
-            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+                () => ChipsetPnpDiagnostic.Evaluate(DriverInventory.Capture(CancellationToken.None)), token);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe(), !diagnosis.Partial);
         }
         catch (TimeoutException)
         {
             var diagnosis = new ChipsetPnpDiagnosis([], Partial: true);
             ShowRepairDiagnostic(diagnosis.Summary,
-                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.");
+                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.", false);
         }
     });
 
-    private Task RunBlueScreenDiagnosticAsync() => ExecuteAsync("Consultando registros de tela azul...", async () =>
+    private Task RunBlueScreenDiagnosticAsync() => ExecuteV269RepairQueryAsync("Consultando registros de tela azul...", async token =>
     {
         try
         {
-            var diagnosis = await WaitForRepairQueryAsync(ref _blueScreenQuery, BlueScreenEventLog.Read);
-            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe());
+            var diagnosis = await WaitForRepairQueryAsync(ref _blueScreenQuery, BlueScreenEventLog.Read, token);
+            ShowRepairDiagnostic(diagnosis.Summary, diagnosis.Describe(), !diagnosis.Partial);
         }
         catch (TimeoutException)
         {
             var diagnosis = new BlueScreenDiagnosis([], Partial: true);
             ShowRepairDiagnostic(diagnosis.Summary,
-                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.");
+                diagnosis.Describe() + "\n\nA consulta ao Windows continua em andamento.", false);
         }
     });
 
-    private static Task<T> WaitForRepairQueryAsync<T>(ref Task<T>? query, Func<T> read)
+    private static Task<T> WaitForRepairQueryAsync<T>(ref Task<T>? query, Func<T> read, CancellationToken token)
     {
-        // Depois de encerrar a espera da interface, não iniciar outra leitura
-        // do mesmo tipo enquanto o Windows ainda processa a primeira.
+        // Não iniciar outra leitura do mesmo tipo enquanto o Windows processa a primeira.
         if (query is not { IsCompleted: false }) query = Task.Run(read);
-        return query.WaitAsync(TimeSpan.FromSeconds(10));
+        return query.WaitAsync(TimeSpan.FromSeconds(10), token);
     }
 
     private static UsbPnpDiagnosis ReadUsbDiagnosis()
@@ -265,38 +246,26 @@ internal sealed partial class MainForm
         }
     }
 
-    private void ShowRepairDiagnostic(string summary, string report)
+    private void ShowRepairDiagnostic(string summary, string report, bool complete)
     {
         if (IsDisposed || Disposing || _betaClose.IsClosing) return;
-        _repairReport.Text = report;
-        _repairReport.Visible = true;
-        _relayoutRepair?.Invoke();
         Log(report);
         Status(summary);
-        _nav.PresentPanel(new(V269PanelKind.Result, summary, report));
-    }
-
-    private int RepairDiagnosticHeight(int pageWidth)
-    {
-        if (_repairReport.Text.Length == 0) return 0;
-        var padding = _repairReport.Padding;
-        var margin = _repairReport.Margin;
-        int width = Math.Max(1, pageWidth - padding.Horizontal - margin.Horizontal);
-        return ReportTextHeight(_repairReport, width) + padding.Vertical + margin.Vertical;
+        SetV269RepairOutcome(report, complete);
     }
 
     private async Task RepairNetworkAfterDiagnosisAsync()
     {
         if (_busy) return;
-        string? task = GetSuggestedNetworkRepair(_lastNetworkScan);
+        var before = _lastNetworkScan;
+        string? task = GetSuggestedNetworkRepair(before);
         if (task is null)
         {
-            MessageBox.Show(this,
-                "Confira o diagnóstico. O reparo guiado exige uma rota IPv4 inequívoca e evidências concordantes nos dois testes.",
-                "Reparar rede", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            const string blocked = "Confira o diagnóstico. O reparo guiado exige uma rota IPv4 inequívoca e evidências concordantes nos dois testes.";
+            Status(blocked);
+            SetV269RepairOutcome(blocked, false);
             return;
         }
-
         bool dnsRepair = task == "flush-dns";
         string confirmation = dnsRepair
             ? "Dois nomes de teste independentes não resolveram. Isso pode ocorrer por rede indisponível, " +
@@ -307,74 +276,51 @@ internal sealed partial class MainForm
               "ou bloqueio externo e não comprova defeito no catálogo Winsock.\n\n" +
               "Deseja tentar redefinir APENAS o catálogo Winsock? A rede pode ser interrompida e será necessário " +
               "reiniciar o Windows para completar a alteração. Nenhum reinício automático será feito.";
-        if (!await ConfirmV269Async("Confirmar reparo orientado de rede", confirmation))
+        if (!await ConfirmV269Async("Reparar rede", confirmation))
         {
             Log("Reparo de rede orientado cancelado pelo usuário.");
             return;
         }
-
-        Log("Reparo orientado selecionado pelo diagnóstico: " + (dnsRepair ? "cache DNS" : "Winsock") + ".");
-        var workerResult = NetworkRepairWorkerState.NotConfirmed;
-        await ExecuteAsync(dnsRepair ? "Limpando cache DNS..." : "Redefinindo catálogo Winsock...",
-            () => RunElevatedAsync(task,
-                networkRepairCompletion: outcome => workerResult = outcome));
-
-        if (IsDisposed || Disposing || _betaClose.IsClosing) return;
-        if (workerResult != NetworkRepairWorkerState.CommandReturnedZero)
+        if (_busy || !ReferenceEquals(before, _lastNetworkScan) || GetSuggestedNetworkRepair(_lastNetworkScan) != task)
         {
-            // UAC recusado, conexão interrompida e exit code não zero não
-            // autorizam mostrar "reset solicitado" nem repetir às cegas.
-            _lastNetworkScan = null;
-            _networkSummary.ForeColor = Muted;
-            _networkSummary.Text = workerResult == NetworkRepairWorkerState.CommandReturnedError
-                ? "O Windows informou erro na operação. Nenhum reparo foi confirmado."
-                : "Operação sem retorno conclusivo. Confira o registro antes de repetir.";
-            _networkDetails.Text = "O GF não comprova qualquer mudança na rede. Refaça a análise antes de decidir outra operação.";
-            if (_repairNetworkButton is not null) _repairNetworkButton.Enabled = false;
-            Log("Resultado de manutenção de rede não confirmado (" + workerResult +
-                "); nenhuma repetição automática.");
+            SetV269RepairOutcome("A fotografia de rede mudou. Execute uma nova análise antes de reparar.", false);
             return;
         }
-
-        if (dnsRepair)
+        Log("Reparo orientado selecionado pelo diagnóstico: " + (dnsRepair ? "cache DNS" : "Winsock") + ".");
+        InvalidateNetworkDiagnosis();
+        await ExecuteAsync(dnsRepair ? "Limpando cache DNS..." : "Redefinindo catálogo Winsock...", async () =>
         {
-            // Código zero comprova somente o flush, não recuperação.
-            // Reconsultar os mesmos dois nomes após a operação e preservar
-            // estados mistos como parciais, jamais sucesso pleno.
-            var before = _lastNetworkScan;
-            _lastNetworkScan = null; // impedir reutilização de consulta anterior
-            await RunNetworkDiagnosticAsync();
-            var checkedDns = NetworkRepairOutcome.ReviewDnsAfterFlush(
-                before, _lastNetworkScan, workerResult);
-            switch (checkedDns)
+            var workerResult = NetworkRepairWorkerState.NotConfirmed;
+            await RunElevatedAsync(task, networkRepairCompletion: outcome => workerResult = outcome);
+            if (IsDisposed || Disposing || _betaClose.IsClosing) return;
+            if (workerResult != NetworkRepairWorkerState.CommandReturnedZero)
             {
-                case NetworkDnsVerification.TestRecovered:
-                    Log("Pós-flush DNS: os dois nomes resolveram na nova consulta; não prova que o flush foi a causa.");
-                    Status("Pós-reparo: resolução dos dois nomes de teste observada.");
-                    break;
-                case NetworkDnsVerification.PartiallyRecovered:
-                    Log("Pós-flush DNS: somente um dos dois nomes resolveu. Resultado parcial; não repetir automaticamente.");
-                    Status("Pós-reparo DNS parcial; confira os alertas sem inferir correção geral.");
-                    break;
-                case NetworkDnsVerification.TestStillFailing:
-                    Log("Pós-flush DNS: nenhum dos dois nomes resolveu. Não repetir automaticamente.");
-                    Status("Pós-reparo: alerta DNS permanece; confira rede, proxy ou servidor.");
-                    break;
-                default:
-                    Log("Pós-flush DNS: observação incompleta. Não declarar correção.");
-                    Status("Pós-reparo DNS inconclusivo; consulte o registro.");
-                    break;
+                string result = workerResult == NetworkRepairWorkerState.CommandReturnedError
+                    ? "O Windows informou erro na operação. Nenhum reparo foi confirmado."
+                    : "Operação sem retorno conclusivo. Confira o registro antes de repetir.";
+                ShowRepairDiagnostic(result, result + " Refaça a análise antes de decidir outra operação.", false);
+                return;
             }
-        }
-        else
-        {
-            _lastNetworkScan = null;
-            _networkSummary.ForeColor = Muted;
-            _networkSummary.Text = "Redefinição Winsock solicitada. Reinicie o Windows e execute Analisar rede novamente.";
-            _networkDetails.Text = "O resultado depende da reinicialização. Nenhuma mudança no TCP/IP completo foi aplicada.";
-            if (_repairNetworkButton is not null) _repairNetworkButton.Enabled = false;
-            Log("A redefinição Winsock pode requerer reinicialização. Refaça a análise depois de reiniciar.");
-        }
+            if (!dnsRepair)
+            {
+                const string result = "Redefinição Winsock solicitada. Reinicie o Windows e execute Analisar rede novamente.";
+                ShowRepairDiagnostic(result, result + " O resultado depende da reinicialização.", false);
+                return;
+            }
+            // Código zero comprova o flush; a recuperação exige nova consulta dos dois nomes.
+            Status("Consultando novamente a rede após a limpeza do cache DNS...");
+            var after = await AnalyzeNetworkCoreAsync(CancellationToken.None);
+            var checkedDns = NetworkRepairOutcome.ReviewDnsAfterFlush(before, after, workerResult);
+            string verification = checkedDns switch
+            {
+                NetworkDnsVerification.TestRecovered => "Pós-flush DNS: os dois nomes resolveram na nova consulta; isso não prova que o flush foi a causa.",
+                NetworkDnsVerification.PartiallyRecovered => "Pós-reparo DNS parcial: somente um dos dois nomes resolveu.",
+                NetworkDnsVerification.TestStillFailing => "Pós-reparo: nenhum dos dois nomes resolveu. Confira rede, proxy ou servidor.",
+                _ => "Pós-reparo DNS inconclusivo; consulte o registro."
+            };
+            ShowRepairDiagnostic(verification, verification + Environment.NewLine + Environment.NewLine + NetworkDiagnosisReport(after),
+                checkedDns == NetworkDnsVerification.TestRecovered);
+        });
     }
 
     private Control BuildCleanupReport(RowStyle rowStyle)

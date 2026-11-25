@@ -11,16 +11,6 @@ internal sealed partial class MainForm
     private Action? _relayoutRepair;
     private Action? _relayoutSystem;
 
-    // O painel de rede reserva espaco para as linhas efetivamente exibidas.
-    // Antes do primeiro diagnostico nao precisa ocupar 205 px vazios.
-    private int NetworkResultHeight()
-    {
-        int lines = string.IsNullOrWhiteSpace(_networkDetails.Text) ? 0 :
-            Math.Min(7, _networkDetails.Text.Split('\n').Length);
-        int logical = Math.Max(96, 83 + lines * 16);
-        return (int)Math.Ceiling(logical * Math.Max(1d, DeviceDpi / 96d));
-    }
-
     private Action? _fitV269CleanupDiskSection;
     private TableLayoutPanel? _v269CleanupDiskSection;
     private int DiskPanelHeight(int width)

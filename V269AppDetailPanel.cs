@@ -6,7 +6,8 @@ namespace GerenciadorAplicativos;
 internal sealed record V269AppPreviousResult(Guid Id,string Title,string Description,bool? Complete = null);
 internal sealed record V269AppDetailModel(string Name,string Publisher,
     IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null,string Description="",
-    IReadOnlyList<V269AppPreviousResult>? PreviousResults=null,Action<Guid>? DismissResult=null, V269DriverGlyph? DriverGlyph=null, string? CleanupGlyph=null, string? CleanupDescriptionHeading=null);
+    IReadOnlyList<V269AppPreviousResult>? PreviousResults=null,Action<Guid>? DismissResult=null, V269DriverGlyph? DriverGlyph=null, string? CleanupGlyph=null, string? CleanupDescriptionHeading=null,
+    V269RepairGlyph? RepairGlyph = null, string? RepairReport = null);
 
 // Superfícies exclusivas do painel estruturado, derivadas da cascata final
 // do HTML. Os motores e painéis de confirmação/progresso não usam estas cores.
@@ -517,7 +518,8 @@ internal sealed class V269AppDetailPanel : Panel
         _table.RowCount=1;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _table.Controls.Add(_identity,0,0);_table.SetColumnSpan(_identity,2);_identity.Visible=false;
         _table.CellPaint+=(_,e)=>{
-            if(_model is null||e.Row>_visibleFieldCount||e.CellBounds.Width<1||e.CellBounds.Height<1)return;
+            if(_model is null||(_model.RepairGlyph.HasValue ? !HasAppFieldDivider(e.Row) : e.Row>_visibleFieldCount)||
+                e.CellBounds.Width<1||e.CellBounds.Height<1)return;
             int bottom=e.CellBounds.Bottom-1;
             if(e.Row==0&&HasAppFieldDivider(e.Row))
                 bottom-=Math.Min(e.CellBounds.Height-1,V269AppTable.Scale(5,100,DeviceDpi));
@@ -541,13 +543,14 @@ internal sealed class V269AppDetailPanel : Panel
         _model=model;
         bool driver = model?.DriverGlyph is not null;
         bool cleanup = model?.CleanupGlyph is not null;
-        AccessibleName = cleanup ? "Detalhes da limpeza e armazenamento" : driver ? "Informações e elegibilidade do driver" :
+        bool repair = model?.RepairGlyph is not null;
+        AccessibleName = repair ? "Detalhes da ferramenta de reparo" : cleanup ? "Detalhes da limpeza e armazenamento" : driver ? "Informações e elegibilidade do driver" :
             "Informações verificáveis e elegibilidade do aplicativo";
-        _scroll.AccessibleName = cleanup ? "Rolagem dos detalhes da limpeza" : driver ? "Rolagem dos detalhes do driver" : "Rolagem dos detalhes do aplicativo";
+        _scroll.AccessibleName = repair ? "Detalhes da ferramenta de reparo" : cleanup ? "Rolagem dos detalhes da limpeza" : driver ? "Rolagem dos detalhes do driver" : "Rolagem dos detalhes do aplicativo";
         _visibleFieldCount=0;
         AccessibleDescription=model is null?"":string.Join(Environment.NewLine,
             new[]{model.Name,model.Publisher}.Concat(model.Fields.Select(field=>$"{field.Label}: {field.Value}"))
-                .Concat(new[]{model.Description,model.Reasons,cleanup?"Use os botões da ferramenta para iniciar ações.":"Enter ou botão direito: ações disponíveis."}));
+                .Concat(new[]{model.Description,model.Reasons,model.RepairReport ?? "",cleanup||repair?"Use os botões da ferramenta para iniciar ações.":"Enter ou botão direito: ações disponíveis."}));
         _scroll.Value=0;
         _table.SuspendLayout();
         try
@@ -556,7 +559,7 @@ internal sealed class V269AppDetailPanel : Panel
             _table.RowStyles.Clear();_table.RowCount=1;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _identity.Visible=model is not null;
             _name.Text=model?.Name??"";_publisher.Text=model?.Publisher??"";
-            _icon.SetIdentity(model?.Name??"",model?.IconSource??"",model?.MsixIcon,model?.DriverGlyph,model?.CleanupGlyph);
+            _icon.SetIdentity(model?.Name??"",model?.IconSource??"",model?.MsixIcon,model?.DriverGlyph,model?.CleanupGlyph,model?.RepairGlyph);
             if(model is null)return;
             Label Make(string value,bool strong)
             {
@@ -599,7 +602,12 @@ internal sealed class V269AppDetailPanel : Panel
             }
             // A especificação HTML apresenta quatro campos. Versão e data
             // já estão na tabela; a oferta real permanece na nota quando existe.
-            foreach(var field in model.Fields.Where(field=>cleanup || driver || field.Label is "Tipo" or "Origem" or "Arquitetura" or "Local"))
+            if (repair)
+            {
+                AddFull("Função", true, "V269AppDescriptionHeading");
+                AddFull(model.Description, false);
+            }
+            foreach(var field in model.Fields.Where(field=>cleanup || driver || repair || field.Label is "Tipo" or "Origem" or "Arquitetura" or "Local"))
             {
                 _visibleFieldCount++;
                 int row=_table.RowCount++;_table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -613,13 +621,18 @@ internal sealed class V269AppDetailPanel : Panel
                 _table.Controls.Add(value,1,row);
             }
             string note=model.Reasons;
-            if (!driver)
+            if (!driver && !repair)
             {
                 AddFull(model.CleanupDescriptionHeading??"Descrição",true,"V269AppDescriptionHeading");
                 AddFull(string.IsNullOrWhiteSpace(model.Description)?"Não informada pela fonte local.":model.Description,false);
                 var offer=model.Fields.FirstOrDefault(field=>field.Label=="Oferta").Value;
                 if(!string.IsNullOrWhiteSpace(offer)&&!offer.Equals("não informada",StringComparison.OrdinalIgnoreCase))
                     note=$"Oferta: {offer}. {note}";
+            }
+            if (repair && !string.IsNullOrWhiteSpace(model.RepairReport))
+            {
+                AddFull("Resultado", true);
+                AddFull(model.RepairReport, false);
             }
             AddFull(note,false,"V269AppDetailNote");
             if(model.PreviousResults is {Count:>0} previous)
@@ -639,8 +652,9 @@ internal sealed class V269AppDetailPanel : Panel
         }
         finally{_table.ResumeLayout(true);FitLabels();}
     }
-    internal bool HasAppFieldDivider(int row) =>
-        _model is { DriverGlyph: null } && row >= 0 && row <= _visibleFieldCount;
+    internal bool HasAppFieldDivider(int row) => _model?.RepairGlyph is not null
+        ? row == 0 || row is >= 3 && row < 3 + _visibleFieldCount
+        : _model is { DriverGlyph: null } && row >= 0 && row <= _visibleFieldCount;
 
     private void ApplyFieldMetrics(Label label)
     {
@@ -795,6 +809,7 @@ internal sealed class V269AppDetailIcon:Control
     private V269MsixIconSource? _msix;
     private V269DriverGlyph? _driverGlyph;
     private string? _cleanupGlyph;
+    private V269RepairGlyph? _repairGlyph;
     internal V269AppDetailIcon()
     {
         Name="V269AppDetailIcon";AccessibleRole=AccessibleRole.Graphic;TabStop=false;
@@ -803,11 +818,11 @@ internal sealed class V269AppDetailIcon:Control
             ControlStyles.SupportsTransparentBackColor,true);
         BackColor=Color.Transparent;
     }
-    internal void SetIdentity(string name,string source,V269MsixIconSource? msix,V269DriverGlyph? driverGlyph,string? cleanupGlyph=null)
+    internal void SetIdentity(string name,string source,V269MsixIconSource? msix,V269DriverGlyph? driverGlyph,string? cleanupGlyph=null,V269RepairGlyph? repairGlyph=null)
     {
-        _driverGlyph=driverGlyph;_cleanupGlyph=cleanupGlyph;
+        _driverGlyph=driverGlyph;_cleanupGlyph=cleanupGlyph;_repairGlyph=repairGlyph;
         _source=source;_msix=msix;_initial=string.IsNullOrWhiteSpace(name)?"?":name.Trim()[0].ToString().ToUpperInvariant();
-        AccessibleName=(cleanupGlyph is not null ? "Ícone da ferramenta " : driverGlyph.HasValue ? "Ícone do driver " : "Ícone do aplicativo ")+name;Invalidate();
+        AccessibleName=(cleanupGlyph is not null || repairGlyph.HasValue ? "Ícone da ferramenta " : driverGlyph.HasValue ? "Ícone do driver " : "Ícone do aplicativo ")+name;Invalidate();
     }
     internal void ApplyPalette(V269Palette palette){_palette=palette;Invalidate();}
     protected override void OnPaint(PaintEventArgs e)
@@ -817,6 +832,14 @@ internal sealed class V269AppDetailIcon:Control
         using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),Math.Max(2,Width/6));
         using var fill=new SolidBrush(_palette.Card);using var border=new Pen(_palette.Border);
         g.FillPath(fill,shape);g.DrawPath(border,shape);
+        if (_repairGlyph is { } repairGlyph)
+        {
+            int size = Math.Max(1, (int)Math.Round(Width * 26d / 48d));
+            var theme = _palette == V269AppDetailStyle.Palette(V269Theme.Claro) ? V269Theme.Claro :
+                _palette == V269AppDetailStyle.Palette(V269Theme.Dark) ? V269Theme.Dark : V269Theme.AzulGf;
+            V269RepairVisuals.Draw(g, repairGlyph, new Rectangle((Width-size)/2, (Height-size)/2, size, size), theme);
+            return;
+        }
         if (_cleanupGlyph is { } cleanupGlyph)
         {
             int size=Math.Max(1,(int)Math.Round(Width*26d/48d));

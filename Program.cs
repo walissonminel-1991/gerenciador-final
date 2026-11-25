@@ -791,7 +791,7 @@ internal sealed partial class MainForm : Form
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers ? 0 : _caption?.Height ?? 0;
+            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo ? 0 : _caption?.Height ?? 0;
             var bounds = new Rectangle(
                 0, caption, Math.Max(1, ClientSize.Width),
                 Math.Max(1, ClientSize.Height - caption));
@@ -806,7 +806,7 @@ internal sealed partial class MainForm : Form
         if (_caption is not null) _caption.Visible = false;
         void ApplyHomeChrome()
         {
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo;
             if (homeChrome != home)
             {
                 // Nos testes de viewport a superfície interna tem largura
@@ -834,6 +834,7 @@ internal sealed partial class MainForm : Form
         _nav.RightPane.PresentationChanged+=(_,_)=>ApplyV269AppOperationChrome();
         _nav.RightPane.ConfigureAppHistory(()=>_v269AppPreviousResults.ToArray(),DismissV269AppResult);
         _nav.RightPane.ConfigureCleanupHistory(()=>_v269CleanupPreviousResults.ToArray(),DismissV269CleanupResult);
+        _nav.RightPane.ConfigureRepairHistory(() => _v269RepairPreviousResults.ToArray(), DismissV269RepairResult);
         _nav.NavigationChanged += async (_, e) =>
         {
             ApplyHomeChrome();
@@ -841,6 +842,7 @@ internal sealed partial class MainForm : Form
             if(e.Page==V269Page.Aplicativos&&_programList.SelectedItem is {} app)PresentV269AppDetails(app);
             if(e.Page==V269Page.Drivers) _presentV269DriverDetails?.Invoke(false);
             if(e.Page==V269Page.Limpeza) PresentV269CleanupRetained();
+            if(e.Page==V269Page.Reparo) PresentV269RepairRetained();
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
@@ -861,7 +863,7 @@ internal sealed partial class MainForm : Form
         {
             var rows = StartupWindowSizing.WorkspaceRows(
                 root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
-            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers;
+            bool home = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo;
             int logicalWidth = Math.Max(1, (int)Math.Round(root.ClientSize.Width * 96d / DeviceDpi));
             int headerHeight = home ? Math.Max(1, (int)Math.Round(
                 V269HomeMetrics.HeaderHeight(logicalWidth, V269HomeMetrics.LogicalScreenHeight(this))
@@ -1785,74 +1787,7 @@ internal sealed partial class MainForm : Form
             cleaningLayout.RowStyles[1].Height = diskHeight;
             return cardsHeight + diskHeight;
         }, trackCleaning: true));
-        // Fluxo simples para uso cotidiano: DISM repara a imagem; em seguida SFC
-        // verifica e tenta reparar os arquivos protegidos. Consultas separadas
-        // continuam no diagnóstico do computador, sem alterações automáticas.
-        var repairActions = CreateToolsFlow(new[]
-        {
-            Tool("Verificar Windows",
-                "Verifica arquivos importantes do Windows, sem alterar nada. Pode demorar.",
-                AppServices.Blue,
-                () => ExecuteAsync("Verificando integridade do Windows...", VerifyWindowsIntegrityAsync)),
-            Tool("Reparar Windows",
-                "Fica disponível somente quando uma verificação encontra problemas que podem ser corrigidos. Pede confirmação.",
-                AppServices.Green, RepairWindowsAfterVerificationAsync),
-            Tool("Analisar rede",
-                "Consulta o adaptador e o gateway e testa DNS e uma conexão TCP na porta 443.",
-                AppServices.Blue,
-                RunNetworkDiagnosticAsync),
-            Tool("Reparar rede",
-                "Oferece limpar o cache quando o teste de resolução DNS falha. Pede confirmação.",
-                AppServices.Blue,
-                RepairNetworkAfterDiagnosisAsync),
-            Tool("Diagnosticar áudio",
-                "Consulta as saídas de áudio ativas e a saída padrão para multimídia.",
-                AppServices.Blue, RunAudioDiagnosticAsync),
-            Tool("Diagnosticar impressora",
-                "Consulta o estado da fila da impressora padrão do Windows.",
-                AppServices.Blue, RunPrinterDiagnosticAsync),
-            Tool("Diagnosticar USB",
-                "Consulta a presença e os códigos PnP de dispositivos USB.",
-                AppServices.Blue, RunUsbDiagnosticAsync),
-            Tool("Diagnosticar chipset",
-                "Consulta o estado PnP dos controladores SMBus e da ponte PCI–ISA.",
-                AppServices.Blue, RunChipsetDiagnosticAsync),
-            Tool("Diagnosticar tela azul",
-                "Consulta códigos de parada e desligamentos inesperados registrados pelo Windows.",
-                AppServices.Blue, RunBlueScreenDiagnosticAsync),
-            Tool("Restaurar configurações da rede", "Opção avançada: restaura as configurações da conexão. A internet pode cair e o Windows pode precisar reiniciar.",
-                AppServices.Orange,
-                () => ConfirmThenRun("network-reset", "Restaurar as configurações da conexão? A internet pode cair. Talvez seja necessário reiniciar o Windows.")),
-            Tool("Criar ponto de restauração",
-                "Guarda um ponto para ajudar a desfazer alterações no Windows. Não substitui cópia dos arquivos.",
-                AppServices.Green,
-                () => ConfirmThenRun("create-restore-point",
-                    "Solicitar um ponto de restauração ao Windows? Requer autorização administrativa e Proteção do Sistema habilitada. " +
-                    "Não substitui backup e o Windows pode reutilizar um ponto recente.")),
-            Tool("Escolher ponto de restauração",
-                "Permite escolher um ponto anterior pela ferramenta de recuperação do Windows.",
-                AppServices.Gray, ChooseRestorePointAsync)
-        });
-        repairActions.Name = "RepairActions";
-        var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
-            Margin = Padding.Empty, BackColor = AppServices.Background };
-        // Proporções responsivas: em janelas menores os cartões usam a rolagem escura.
-        repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
-        repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
-        repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 205));
-        repairLayout.Controls.Add(repairActions, 0, 0);
-        repairLayout.Controls.Add(_repairReport, 0, 1);
-        repairLayout.Controls.Add(BuildNetworkResultPanel(), 0, 2);
-        repair.Controls.Add(ScrollablePage(repairLayout, width =>
-        {
-            int cardsHeight = ToolsHeight(repairActions, width);
-            int resultHeight = NetworkResultHeight();
-            int diagnosticHeight = RepairDiagnosticHeight(width);
-            repairLayout.RowStyles[0].Height = cardsHeight;
-            repairLayout.RowStyles[1].Height = diagnosticHeight;
-            repairLayout.RowStyles[2].Height = resultHeight;
-            return cardsHeight + resultHeight + diagnosticHeight;
-        }, trackRepair: true));
+        repair.Controls.Add(CreateV269RepairPage());
         // Painéis nativos do gerenciador: nenhum atalho para Task Manager,
         // MSConfig, Configurações, Windows Update ou MSInfo32.
         var systemContent = BuildIntegratedSystemPanel();
@@ -2538,12 +2473,15 @@ internal sealed partial class MainForm : Form
         }
         _operationResult = text;
         _status.Text = text;
-        if (_v269CleanupExecutionActive && _cleanupCancellation is { } && _nav.SelectedPage==V269Page.Limpeza &&
+        if (_v269RepairExecutionActive)
+            PresentV269RepairProgress(text);
+        else if (_v269CleanupExecutionActive && _cleanupCancellation is { } && _nav.SelectedPage==V269Page.Limpeza &&
             _nav.RightPane.Current is not {Kind:V269PanelKind.Result})
             _nav.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento",text,CancelFlow:RequestCleanupCancellation,FlowPage:V269Page.Limpeza,CancelLabel:"Cancelar limpeza"));
         else if (_busy && _nav.RightPane.Current is not ({ Kind: V269PanelKind.Result } or { CancelFlow: not null }))
             _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text));
-        _toolTips.SetToolTip(_status, _v269CleanupExecutionActive || _nav.SelectedPage==V269Page.Limpeza ? null : text);
+        _toolTips.SetToolTip(_status, _v269CleanupExecutionActive || _v269RepairExecutionActive ||
+            _nav.SelectedPage is V269Page.Limpeza or V269Page.Reparo ? null : text);
     }
 
     // Preservar o contrato original de três argumentos utilizado pela janela
@@ -2558,11 +2496,20 @@ internal sealed partial class MainForm : Form
     {
         if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
             allowDuringBatch) || _v269Confirming || _betaClose.IsClosing) return;
-        bool appExecution=!quietStartup&&_nav.SelectedPage==V269Page.Aplicativos;
-        bool cleanupExecution=!quietStartup&&_nav.SelectedPage==V269Page.Limpeza;
+        var repairTool = quietStartup ? null : _v269RepairCommand;
+        bool repairExecution = repairTool is not null;
+        bool appExecution=!quietStartup&&!repairExecution&&_nav.SelectedPage==V269Page.Aplicativos;
+        bool cleanupExecution=!quietStartup&&!repairExecution&&_nav.SelectedPage==V269Page.Limpeza;
+        if (repairExecution)
+        {
+            _v269RepairExecutionActive = true;
+            _v269RepairOutcome = null;
+            _v269RepairPercent = null;
+        }
         if(cleanupExecution){_v269CleanupExecutionActive=true;_v269CleanupOutcome=null;}
         if(appExecution){_v269AppExecutionActive=true;_v269AppExecutionResult=null;}
         _busy = true;
+        RefreshV269RepairCommands();
         if (!quietStartup)
         {
             _programList.ActionsEnabled = false;
@@ -2575,7 +2522,8 @@ internal sealed partial class MainForm : Form
         }
         _operationResult = description;
         _status.Text = description;
-        if (!quietStartup)
+        if (repairExecution) PresentV269RepairProgress(description);
+        else if (!quietStartup)
             _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", description));
         try { await work(); }
         catch (Exception ex) { if (!IsDisposed && !Disposing && !_betaClose.IsShutdown) ReportError(ex); }
@@ -2584,6 +2532,7 @@ internal sealed partial class MainForm : Form
             _busy = false;
             if(appExecution)_v269AppExecutionActive=false;
             if(cleanupExecution)_v269CleanupExecutionActive=false;
+            if (repairExecution) _v269RepairExecutionActive = false;
             if (!IsDisposed && !Disposing)
             {
                 if (!quietStartup)
@@ -2617,11 +2566,19 @@ internal sealed partial class MainForm : Form
                         (_operationResult==description?"Nenhum desfecho adicional foi reportado. Consulte o registro.":_operationResult),
                         outcome?.Complete==true);
                 }
+                if (repairTool is not null)
+                {
+                    var outcome = _v269RepairOutcome;
+                    _v269RepairOutcome = null;
+                    _v269RepairPercent = null;
+                    RecordV269RepairResult(repairTool, outcome?.Description ??
+                        (_operationResult == description ? "Resultado não confirmado. Consulte o registro." : _operationResult),
+                        outcome?.Complete == true);
+                }
+                RefreshV269RepairCommands();
                 UpdateBulkButtons();
                 if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
                     _checkUpdatesButton.Enabled = !_batchUpdatesActive;
-                if (_repairNetworkButton is not null)
-                    _repairNetworkButton.Enabled = NetworkDiagnostics.SuggestTargetedRepair(_lastNetworkScan) is not null;
                 RefreshWindowsRepairButton();
                 RefreshWindowsUpdateInstallButton();
                 if (_nav.SelectedPage == V269Page.Limpeza)
@@ -2638,6 +2595,11 @@ internal sealed partial class MainForm : Form
     {
         Log("ERRO: " + ex.Message);
         Status("Não foi possível concluir a operação");
+        if (_v269RepairCommand is not null)
+        {
+            SetV269RepairOutcome(ex.Message, false);
+            return;
+        }
         if(_v269CleanupExecutionActive)
         {
             _v269CleanupOutcome=new("Limpeza e Desempenho",ex.Message,false);
@@ -4269,7 +4231,7 @@ internal sealed partial class MainForm : Form
     private void RefreshWindowsRepairButton()
     {
         if (_repairWindowsButton is { IsDisposed: false } button)
-            button.Enabled = !_busy && _windowsRepairable &&
+            button.Enabled = !_busy && !_v269Confirming && !_batchUpdatesActive && !_betaClose.IsClosing && _windowsRepairable &&
                 DateTimeOffset.UtcNow - _windowsScannedAt < TimeSpan.FromMinutes(30);
     }
 
@@ -4281,6 +4243,7 @@ internal sealed partial class MainForm : Form
             _windowsRepairable = false;
             RefreshWindowsRepairButton();
             Status("Nova verificação necessária antes de reparar.");
+            SetV269RepairOutcome("Nova verificação necessária antes de reparar.", false);
             return;
         }
         // Evitar solicitar UAC se o Windows já apresenta reinício pendente.
@@ -4291,9 +4254,11 @@ internal sealed partial class MainForm : Form
             _windowsRepairable = false;
             _windowsScannedAt = default;
             RefreshWindowsRepairButton();
-            Status(rebootBeforeConsent == WindowsRepairRebootState.Pending
+            string blocked = rebootBeforeConsent == WindowsRepairRebootState.Pending
                 ? "Reinicialização pendente. Conclua o reinício e refaça a verificação antes de reparar."
-                : "Não foi possível conferir reinício pendente. Reparo bloqueado; refaça o diagnóstico.");
+                : "Não foi possível conferir reinício pendente. Reparo bloqueado; refaça o diagnóstico.";
+            Status(blocked);
+            SetV269RepairOutcome(blocked, false);
             return;
         }
         _windowsRepairable = false; // Uma autorizacao por diagnostico.
@@ -4310,17 +4275,20 @@ internal sealed partial class MainForm : Form
             "Abrir o assistente oficial de Restauração do Sistema? Você poderá escolher e " +
             "confirmar um ponto no próprio Windows. Aplicativos e atualizações posteriores " +
             "podem ser removidos e pode ser necessário reiniciar. Não substitui backup.")) return;
-        try
+        await ExecuteAsync("Abrindo o assistente oficial do Windows...", () =>
         {
             string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
             if (string.IsNullOrWhiteSpace(system) || !Path.IsPathFullyQualified(system))
                 throw new InvalidOperationException("Diretório do Windows indisponível.");
             string path = Path.Combine(system, "rstrui.exe");
             if (!File.Exists(path)) throw new FileNotFoundException("Assistente indisponível.", path);
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            Log("Assistente oficial aberto; nenhuma restauração foi iniciada pelo Gerenciador.");
-        }
-        catch (Exception ex) { Log("Assistente de restauração indisponível: " + ex.Message); }
+            using var assistant = Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            const string result = "Assistente oficial solicitado ao Windows; nenhuma restauração foi iniciada pelo Gerenciador.";
+            Status(result);
+            Log(result);
+            SetV269RepairOutcome(result, true);
+            return Task.CompletedTask;
+        });
     }
 
     private static string SimpleConfirmation(string task)
@@ -4345,10 +4313,10 @@ internal sealed partial class MainForm : Form
     private async Task ConfirmThenRun(string task, string question)
     {
         if (_busy || _betaClose.IsClosing) return;
-        string confirmation = task == "windows-repair" ? question : SimpleConfirmation(task);
-        string title = _nav.SelectedPage != V269Page.Limpeza ? "Confirmar operação" :
+        string confirmation = _v269RepairCommand is not null || task == "windows-repair" ? question : SimpleConfirmation(task);
+        string title = _v269RepairCommand?.Title ?? (_nav.SelectedPage != V269Page.Limpeza ? "Confirmar operação" :
             CleanupTarget.FromTask(task) is { } cleanupTarget ? "Limpar " + cleanupTarget.Title :
-            task=="cleanmgr-auto" ? "Limpeza avançada" : task.StartsWith("optimize-volume:",StringComparison.Ordinal) ? "Otimizar " + task["optimize-volume:".Length..] + ":" : "Confirmar operação";
+            task=="cleanmgr-auto" ? "Limpeza avançada" : task.StartsWith("optimize-volume:",StringComparison.Ordinal) ? "Otimizar " + task["optimize-volume:".Length..] + ":" : "Confirmar operação");
         if (!await ConfirmV269Async(title, confirmation))
         {
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
@@ -4363,6 +4331,7 @@ internal sealed partial class MainForm : Form
             await CleanTemporaryCategoryAsync(target);
             return;
         }
+        if (task == "network-reset") InvalidateNetworkDiagnosis();
         await ExecuteAsync("Executando manutenção do Windows...", () => RunElevatedAsync(task));
     }
 
@@ -4489,22 +4458,26 @@ internal sealed partial class MainForm : Form
             }
             bool gotResult = false;
             IntegrityState? postRepair = null;
+            IntegrityState? windowsCheck = null;
             while (await reader.ReadLineAsync() is { } line)
             {
                 if (task == "windows-check" &&
                     line == "RESULT|WINCHECK:REPAIRABLE")
                 {
+                    windowsCheck = IntegrityState.Repairable;
                     _windowsRepairable = true;
                     _windowsScannedAt = DateTimeOffset.UtcNow;
                     Log("Corrupção reparável identificada; reparo opcional disponível.");
                 }
                 else if (task == "windows-check" && line == "RESULT|WINCHECK:HEALTHY")
                 {
+                    windowsCheck = IntegrityState.Healthy;
                     _windowsRepairable = false;
                     Log("A verificação não encontrou problemas que exijam reparo.");
                 }
                 else if (task == "windows-check" && line == "RESULT|WINCHECK:INCONCLUSIVE")
                 {
+                    windowsCheck = IntegrityState.Inconclusive;
                     _windowsRepairable = false;
                     Log("Verificação inconclusiva. Reparo não liberado automaticamente.");
                 }
@@ -4537,7 +4510,8 @@ internal sealed partial class MainForm : Form
                         _progress.MarqueeAnimationSpeed = 0;
                         _progress.Style = ProgressBarStyle.Continuous;
                         _progress.Value = percentage;
-                        _nav.PresentPanel(new(V269PanelKind.Progress, "Manutenção do Windows",
+                        if (_v269RepairExecutionActive) _v269RepairPercent = percentage;
+                        else _nav.PresentPanel(new(V269PanelKind.Progress, "Manutenção do Windows",
                             _status.Text, percentage));
                         Status("Manutenção Windows — progresso: " +
                             percentage.ToString() + "%");
@@ -4563,6 +4537,34 @@ internal sealed partial class MainForm : Form
                     else if (task == "cleanmgr-auto" && code == "0")
                         Status("Limpeza de Disco encerrada · consulte o espaço livre e a prévia.");
                     else Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
+                    if (_v269RepairExecutionActive)
+                    {
+                        switch (task)
+                        {
+                            case "windows-check":
+                                string check = code != "0" ? "A verificação terminou com erro." : windowsCheck switch
+                                {
+                                    IntegrityState.Healthy => "DISM e SFC não identificaram problemas que exijam reparo.",
+                                    IntegrityState.Repairable => "Corrupção reparável identificada; Reparar Windows está disponível durante 30 minutos.",
+                                    _ => "Verificação inconclusiva. Reparo não liberado automaticamente."
+                                };
+                                SetV269RepairOutcome(check, code == "0" && windowsCheck is (IntegrityState.Healthy or IntegrityState.Repairable));
+                                break;
+                            case "windows-repair":
+                                SetV269RepairOutcome(_operationResult, code == "0" && postRepair == IntegrityState.Healthy);
+                                break;
+                            case "network-reset":
+                                SetV269RepairOutcome(code == "0"
+                                    ? "Redefinições solicitadas ao Windows. Reinicie manualmente e analise a rede para verificar o resultado."
+                                    : "Uma ou mais redefinições terminaram com erro. Confira a rede e o registro antes de repetir.", false);
+                                break;
+                            case "create-restore-point":
+                                SetV269RepairOutcome(code == "0"
+                                    ? "Solicitação aceita pelo Windows. Pode ter sido reutilizado um ponto recente pela política de frequência."
+                                    : "O Windows não confirmou a solicitação do ponto de restauração. Confira a Proteção do Sistema.", code == "0");
+                                break;
+                        }
+                    }
                     gotResult = true;
                 }
             }

@@ -145,6 +145,7 @@ internal static class V269IntegrationTests
         VerifyApps(form,shell,confirmationContext);
         VerifyDrivers(form,shell);
         VerifyCleanup(form,shell);
+        VerifyRepair(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
@@ -809,6 +810,140 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS Aplicativos V2.6.9: tabela real, pesquisa, ordenação, detalhes, ausência de controles extras e 15 capturas sintéticas.");
     }
 
+    private static void VerifyRepair(MainForm form, V269Shell shell)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        var originalSize = surface.Size;
+        var originalTheme = theme.SelectedIndex;
+        var originalPage = shell.SelectedPage;
+        var originalPanel = shell.RightPane.Current;
+        var oldContext = SynchronizationContext.Current;
+        var paneContext = new PaneTestSynchronizationContext(form);
+        var page = shell.PageContent(V269Page.Reparo)!;
+        var cards = page.Controls.Find("RepairActions", true).OfType<DarkScrollableFlow>().Single()
+            .Content.Controls.OfType<V269RepairCard>().ToArray();
+        var history = (List<V269AppPreviousResult>)typeof(MainForm).GetField("_v269RepairPreviousResults", flags)!.GetValue(form)!;
+        var repairable = typeof(MainForm).GetField("_windowsRepairable", flags)!;
+        var scanned = typeof(MainForm).GetField("_windowsScannedAt", flags)!;
+        var network = typeof(MainForm).GetField("_lastNetworkScan", flags)!;
+        var refresh = typeof(MainForm).GetMethod("RefreshV269RepairCommands", flags)!;
+        var active = typeof(MainForm).GetField("_v269RepairCommand", flags)!;
+        var audioQuery = typeof(MainForm).GetField("_audioQuery", flags)!;
+        var printerQuery = typeof(MainForm).GetField("_printerQuery", flags)!;
+        var beforeRepairable = repairable.GetValue(form);
+        var beforeScanned = scanned.GetValue(form);
+        var beforeNetwork = network.GetValue(form);
+        var beforeAudio = audioQuery.GetValue(form);
+        var beforePrinter = printerQuery.GetValue(form);
+        var printer = new TaskCompletionSource<PrinterQueueDiagnosis>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var audio = new TaskCompletionSource<AudioOutputDiagnosis>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Select(int index) => typeof(Control).GetMethod("OnClick", flags)!.Invoke(cards[index], [EventArgs.Empty]);
+        void WaitUntil(Func<bool> ready, string message)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (!ready() && clock.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                Application.DoEvents(); Thread.Sleep(5);
+            }
+            Require(ready(), message);
+        }
+        try
+        {
+            shell.PresentPanel(null);
+            shell.SelectPage(V269Page.Reparo);
+            surface.Size = new Size(1844, 1116);
+            surface.PerformLayout(); Application.DoEvents();
+            Require(cards.Length == 12 && cards.All(card => card.TabStop && card.Command.TabStop) &&
+                !cards[1].Command.Enabled && !cards[3].Command.Enabled,
+                "Reparo possui doze cartões e os dois reparos começam bloqueados");
+            Require(cards.Select(card => card.Command.Text).SequenceEqual(new[]
+            {
+                "Verificar", "Reparar", "Analisar", "Reparar", "Analisar", "Analisar", "Analisar", "Analisar",
+                "Analisar", "Restaurar", "Criar", "Abrir"
+            }), "comandos seguem os verbos do HTML");
+            repairable.SetValue(form, true); scanned.SetValue(form, DateTimeOffset.UtcNow);
+            refresh.Invoke(form, null);
+            Require(cards[1].Command.Enabled && !cards[3].Command.Enabled, "somente integridade reparável habilita Reparo Windows");
+            scanned.SetValue(form, DateTimeOffset.UtcNow.AddMinutes(-31)); refresh.Invoke(form, null);
+            Require(!cards[1].Command.Enabled, "a verificação expirada revoga a ação");
+            repairable.SetValue(form, false);
+            network.SetValue(form, new NetworkScan([
+                new("Adaptador", "OK", "Fixture"), new("Gateway", "OK", "Fixture"),
+                new("DNS", "Atenção", "Fixture"), new("DNS alternativo", "Atenção", "Fixture")], true));
+            refresh.Invoke(form, null);
+            Require(cards[3].Command.Enabled, "diagnóstico concordante habilita reparo guiado");
+            network.SetValue(form, null); refresh.Invoke(form, null);
+            Require(!cards[3].Command.Enabled, "revogar a leitura volta a bloquear o reparo");
+
+            foreach (var size in new[] { new Size(1200, 659), new Size(1844, 1116) })
+            foreach (V269Theme palette in Enum.GetValues<V269Theme>())
+            {
+                theme.SelectedIndex = (int)palette; surface.Size = size; surface.PerformLayout(); Application.DoEvents();
+                Select(0); Application.DoEvents();
+                Require(shell.RightPane.Visible && shell.RightPane.Current?.Repair is { Name: "Verificar Windows" } model &&
+                    model.Fields.Single() == ("Estado", "Aguardando execução") &&
+                    shell.RightPane.Controls.Find("V269AppDescriptionHeading", true).Single().Text == "Função",
+                    "identidade, função e estado ficam no painel lateral");
+                var rows = cards.GroupBy(card => card.Top).ToArray();
+                Require(rows.All(row => row.Count() <= 3) && (size.Width < 1844 || rows.Length == 4) &&
+                    cards.All(card => card.Command.Right <= card.ClientSize.Width && card.Command.Bottom <= card.ClientSize.Height),
+                    "grade responsiva preserva todos os comandos dentro dos cartões");
+                using var image = new Bitmap(surface.Width, surface.Height);
+                surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
+                image.Save($"LayoutCaptures/v269-reparo-DETALHES-{palette}-{surface.Width}x{surface.Height}.png");
+            }
+
+            // As consultas exercitam os manipuladores reais com tarefas sintéticas já pendentes.
+            // Nenhuma API do Windows, consulta de rede ou manutenção é iniciada pelo fixture.
+            SynchronizationContext.SetSynchronizationContext(paneContext);
+            printerQuery.SetValue(form, printer.Task);
+            cards[5].Command.PerformClick();
+            WaitUntil(() => shell.RightPane.Current is { Kind: V269PanelKind.Progress, FlowPage: V269Page.Reparo }, "diagnóstico começa no painel");
+            printer.SetResult(new(PrinterQueueState.NoOfflineIndication));
+            WaitUntil(() => active.GetValue(form) is null && shell.RightPane.Current?.FlowResult is { Page: V269Page.Reparo, Complete: true },
+                "resultado real do manipulador depende da evidência da consulta");
+            Require(history.Count == 1 && history[0].Title == "Diagnosticar impressora", "resultado associado à ferramenta de origem");
+
+            SynchronizationContext.SetSynchronizationContext(paneContext);
+            audioQuery.SetValue(form, audio.Task);
+            cards[4].Command.PerformClick();
+            WaitUntil(() => shell.RightPane.Current is { Kind: V269PanelKind.Progress, CancelFlow: not null }, "consulta cancelável usa a espera real");
+            shell.SelectPage(V269Page.Aplicativos); Application.DoEvents();
+            Require(shell.RightPane.Current?.FlowPage == V269Page.Reparo, "navegação mantém operação de Reparo ativa");
+            shell.SelectPage(V269Page.Reparo); Application.DoEvents();
+            shell.RightPane.Controls.Find("V269CancelOwnedFlow", true).OfType<Button>().Single().PerformClick();
+            WaitUntil(() => active.GetValue(form) is null && shell.RightPane.Current?.FlowResult is { Page: V269Page.Reparo, Complete: false },
+                "cancelamento encerra somente a espera e não inventa sucesso");
+            Require(!audio.Task.IsCompleted && history.Count == 2 && history[0].Title == "Diagnosticar áudio", "consulta em segundo plano não vira reparo nem é repetida");
+            audio.SetResult(new(AudioOutputState.DefaultAvailable, 1));
+
+            SynchronizationContext.SetSynchronizationContext(paneContext);
+            cards[10].Command.PerformClick();
+            WaitUntil(() => shell.RightPane.Current is { Kind: V269PanelKind.Confirmation, Title: "Criar ponto de restauração" },
+                "o comando sensível abre confirmação com a identidade da ferramenta");
+            Require(shell.RightPane.Controls.Find("V269AppOperationHistory", true).Single().Visible, "resultados anteriores durante a confirmação");
+            shell.RightPane.ResolveConfirmation(false);
+            WaitUntil(() => active.GetValue(form) is null, "recusa encerra a confirmação sem executar manutenção");
+            Require(history.Count == 2 && shell.RightPane.Current?.Repair?.Name == "Criar ponto de restauração", "recusa preserva histórico e detalhes");
+            VerifyInventoryFlowStates(form, shell, V269Page.Reparo);
+            Console.WriteLine("PASS Reparo e Rede V2.6.9: doze cartões, três temas, elegibilidade, painel, cancelamento e histórico.");
+        }
+        finally
+        {
+            shell.RightPane.ResolveConfirmation(false);
+            printer.TrySetResult(new(PrinterQueueState.Inconclusive));
+            audio.TrySetResult(new(AudioOutputState.Inconclusive));
+            repairable.SetValue(form, beforeRepairable); scanned.SetValue(form, beforeScanned);
+            network.SetValue(form, beforeNetwork); audioQuery.SetValue(form, beforeAudio); printerQuery.SetValue(form, beforePrinter);
+            refresh.Invoke(form, null);
+            SynchronizationContext.SetSynchronizationContext(oldContext);
+            history.Clear(); theme.SelectedIndex = originalTheme; surface.Size = originalSize;
+            shell.SelectPage(originalPage); shell.PresentPanel(originalPanel);
+        }
+    }
+
     private static void VerifyInventoryFlowStates(MainForm form, V269Shell shell, V269Page page)
     {
         var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
@@ -816,7 +951,7 @@ internal static class V269IntegrationTests
         var originalSize = surface.Size;
         var originalTheme = theme.SelectedIndex;
         var previous = shell.RightPane.Current;
-        string tab = page == V269Page.Drivers ? "drivers" : page == V269Page.Limpeza ? "limpeza" : "aplicativos";
+        string tab = page == V269Page.Drivers ? "drivers" : page == V269Page.Limpeza ? "limpeza" : page == V269Page.Reparo ? "reparo" : "aplicativos";
         var oldContext = SynchronizationContext.Current;
         using var cancellation = new CancellationTokenSource();
         try
@@ -884,7 +1019,7 @@ internal static class V269IntegrationTests
                 Require(!confirmation.Result, "a captura não confirma uma ação");
 
                 bool cancelled = false;
-                Action? cancel = page is V269Page.Drivers or V269Page.Limpeza ? () => cancelled = true : null;
+                Action? cancel = page is V269Page.Drivers or V269Page.Limpeza or V269Page.Reparo ? () => cancelled = true : null;
                 shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "7 de 25 itens consultados.",
                     28, CancelFlow: cancel, FlowPage:page));
                 surface.PerformLayout();

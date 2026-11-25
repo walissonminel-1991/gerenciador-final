@@ -1054,6 +1054,7 @@ internal sealed partial class MainForm
                 if (_nav.PageContent(page) is { } view) ApplyV269ContentAppearance(view);
             _fitV269CleanupDiskSection?.Invoke();
             _relayoutCleaning?.Invoke();
+            _relayoutRepair?.Invoke();
             if (_log.Parent is { } logHost) ApplyV269ContentAppearance(logHost);
             return;
         }
@@ -1098,11 +1099,11 @@ internal sealed partial class MainForm
         }
         if(root is V269AppSearchBox appSearch){appSearch.ApplyOptions(_v269Appearance);return;}
         if(root is V269AppToolbarButton appButton){appButton.ApplyOptions(_v269Appearance);return;}
-        if(root is V269CleanupCard cleanupCard){cleanupCard.ApplyOptions(_v269Appearance);return;}
+        if(root is V269ToolCard toolCard){toolCard.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupButton cleanupButton){cleanupButton.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupDiskCard cleanupDisk){cleanupDisk.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupSection cleanupSection)cleanupSection.ApplyOptions(_v269Appearance);
-        if(root.Name=="V269CleanupActions"&&root.Tag is Action fitCleanup)fitCleanup();
+        if((root.Name is "V269CleanupActions" or "RepairActions") && root.Tag is Action fitTools)fitTools();
         if(root==_diskCards)ResizeDiskCards();
         if(root.Name is "V269AppsTableFrame" or "V269DriversTableFrame"){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Border;
             root.Margin=new Padding(0,V269AppTable.Scale(10,_v269Appearance.InterfacePercent,root.DeviceDpi),0,0);
@@ -1212,7 +1213,8 @@ internal sealed partial class MainForm
         _nav.SetPageInteraction(false);
         try
         {
-            bool accepted = await _nav.RightPane.ConfirmAsync(title, description, token);
+            bool accepted = await _nav.RightPane.ConfirmAsync(title, description, token,
+                _v269RepairCommand is not null ? V269Page.Reparo : null);
             return accepted && !IsDisposed && !Disposing && !_betaClose.IsClosing && !token.IsCancellationRequested;
         }
         finally

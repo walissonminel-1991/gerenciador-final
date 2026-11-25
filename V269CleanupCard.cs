@@ -6,21 +6,24 @@ using System.Windows.Forms;
 namespace GerenciadorAplicativos;
 
 // Componente exclusivamente visual: nenhuma autorização é inferida pelo desenho.
-internal sealed class V269CleanupCard : Panel
+internal class V269ToolCard : Panel
 {
     private readonly Label _title;
     private readonly V269CleanupButton _command;
     private readonly int _kind;
+    private readonly V269RepairGlyph? _repairGlyph;
     private bool _selected;
     private V269AppearanceOptions _options = V269AppearanceOptions.Default;
     private Font? _titleFont;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal Button Command => _command;
 
-    internal V269CleanupCard(string title, string description, int kind)
+    protected V269ToolCard(string title, string description, int kind, string command,
+        string commandGlyph, string namePrefix, V269RepairGlyph? repairGlyph = null)
     {
         _kind = kind;
-        Name = "V269CleanupCard" + kind;
+        _repairGlyph = repairGlyph;
+        Name = namePrefix + "Card" + kind;
         AccessibleName = title;
         AccessibleDescription = description;
         AccessibleRole = AccessibleRole.Grouping;
@@ -33,9 +36,9 @@ internal sealed class V269CleanupCard : Panel
         _title = new Label { Text = title, AccessibleName = title, BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = false, Margin = Padding.Empty };
         _title.Click += (_, _) => OnClick(EventArgs.Empty);
-        _command = new V269CleanupButton(kind == 4 ? "Abrir" : "Limpar", kind == 4 ? "folder" : "brush")
+        _command = new V269CleanupButton(command, commandGlyph)
         {
-            Name = "V269CleanupCommand" + kind, AccessibleName = (kind == 4 ? "Abrir: " : "Limpar: ") + title,
+            Name = namePrefix + "Command" + kind, AccessibleName = repairGlyph.HasValue ? title : command + ": " + title,
             AccessibleDescription = description, Dock = DockStyle.None, Margin = Padding.Empty
         };
         Controls.Add(_title);
@@ -75,10 +78,19 @@ internal sealed class V269CleanupCard : Panel
         base.OnResize(e);
         if (_title is not null && _command is not null) Arrange();
     }
+    private int TitleHeight(int width)
+    {
+        if (!_repairGlyph.HasValue) return Math.Max(S(30), _title.Font.Height * 2 + S(2));
+        return Math.Max(S(30), TextRenderer.MeasureText(_title.Text, _title.Font,
+            new Size(Math.Max(1, width - S(55)), int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding).Height + S(2));
+    }
+    internal int HeightForWidth(int width) => Math.Max(S(114),
+        S(12) * 2 + TitleHeight(width) + S(8) + Math.Max(S(30), _command.Font.Height + S(8)));
     private void Arrange()
     {
         int pad = S(12), left = pad + S(31);
-        int height = Math.Max(S(30), _title.Font.Height * 2 + S(2));
+        int height = TitleHeight(Width);
         _title.Bounds = new Rectangle(left, pad, Math.Max(1, Width - left - pad), height);
         int required=TextRenderer.MeasureText(_command.Text,_command.Font,Size.Empty,TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding).Width+S(32);
         int buttonWidth = Math.Min(Math.Max(1, Width - 2 * pad), Math.Max(S(80),required));
@@ -110,6 +122,12 @@ internal sealed class V269CleanupCard : Panel
     protected override void OnMouseDown(MouseEventArgs e){if(e.Button==MouseButtons.Left)Focus();base.OnMouseDown(e);}
     private void DrawSymbol(Graphics g)
     {
+        if (_repairGlyph is { } repairGlyph)
+        {
+            V269RepairVisuals.Draw(g, repairGlyph, new Rectangle(S(12),
+                S(12) + Math.Max(0, (_title.Height - S(22)) / 2), S(22), S(22)), _options.Theme);
+            return;
+        }
         var save = g.Save();
         float unit = S(21) / 24f;
         g.TranslateTransform(S(12), S(12) + Math.Max(0, (_title.Height - S(21)) / 2));
@@ -160,4 +178,17 @@ internal sealed class V269CleanupCard : Panel
         if (disposing) _titleFont?.Dispose();
         base.Dispose(disposing);
     }
+}
+
+internal sealed class V269CleanupCard : V269ToolCard
+{
+    internal V269CleanupCard(string title, string description, int kind)
+        : base(title, description, kind, kind == 4 ? "Abrir" : "Limpar",
+            kind == 4 ? "folder" : "brush", "V269Cleanup") { }
+}
+
+internal sealed class V269RepairCard : V269ToolCard
+{
+    internal V269RepairCard(string title, string description, int kind, string command, V269RepairGlyph glyph)
+        : base(title, description, kind, command, "play", "V269Repair", glyph) { }
 }

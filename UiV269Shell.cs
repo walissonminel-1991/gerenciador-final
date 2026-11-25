@@ -49,7 +49,7 @@ internal sealed record V269FlowResult(V269Page Page, bool Complete, Action Dismi
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
     V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null,
-    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269AppDetailModel? Cleanup = null, V269Page? FlowPage = null, string? CancelLabel = null);
+    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269AppDetailModel? Cleanup = null, V269Page? FlowPage = null, string? CancelLabel = null, V269AppDetailModel? Repair = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -96,6 +96,9 @@ internal sealed class V269RightPane : UserControl
     private bool _appHistoryPage;
     private bool _driversPage;
     private bool _cleanupPage;
+    private bool _repairPage;
+    private Func<IReadOnlyList<V269AppPreviousResult>>? _repairHistoryProvider;
+    private Action<Guid>? _repairHistoryDismiss;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _cleanupHistoryProvider;
     private Action<Guid>? _cleanupHistoryDismiss;
     private bool _appFlow;
@@ -214,7 +217,7 @@ internal sealed class V269RightPane : UserControl
         UpdateOperationContentLayout();FitOperationHistory();
     }
 
-    internal async Task<bool> ConfirmAsync(string title, string description, CancellationToken token)
+    internal async Task<bool> ConfirmAsync(string title, string description, CancellationToken token, V269Page? flowPage = null)
     {
         if (_confirmation is not null || IsDisposed || token.IsCancellationRequested) return false;
         var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -224,7 +227,7 @@ internal sealed class V269RightPane : UserControl
         {
             _layout.RowStyles[3].Height = 38;
             _choices.Visible = true;
-            PresentCore(new(V269PanelKind.Confirmation, title, description));
+            PresentCore(new(V269PanelKind.Confirmation, title, description, FlowPage: flowPage));
             _layout.PerformLayout();
             _choices.Controls[0].Focus();
             return await pending.Task.WaitAsync(token);
@@ -263,20 +266,28 @@ internal sealed class V269RightPane : UserControl
     {
         _cleanupHistoryProvider=provider;_cleanupHistoryDismiss=dismiss;RefreshAppOperationHistory();
     }
-    internal void SetAppHistoryPage(bool active, bool drivers = false, bool cleanup = false)
+    internal void ConfigureRepairHistory(Func<IReadOnlyList<V269AppPreviousResult>> provider, Action<Guid> dismiss)
+    {
+        _repairHistoryProvider = provider;
+        _repairHistoryDismiss = dismiss;
+        RefreshAppOperationHistory();
+    }
+    internal void SetAppHistoryPage(bool active, bool drivers = false, bool cleanup = false, bool repair = false)
     {
         _appHistoryPage=active;
         _driversPage=drivers;
         _cleanupPage=cleanup;
+        _repairPage=repair;
         UpdateAppFlowScope();RefreshAppOperationHistory();FitOperationHistory();
     }
     private void UpdateAppFlowScope()
     {
         bool result = Current is { Kind: V269PanelKind.Result, FlowResult: { } flow } &&
             (flow.Page == V269Page.Aplicativos && _appHistoryPage || flow.Page == V269Page.Drivers && _driversPage ||
-                flow.Page == V269Page.Limpeza && _cleanupPage);
+                flow.Page == V269Page.Limpeza && _cleanupPage || flow.Page == V269Page.Reparo && _repairPage);
         bool active = result || Current is { Kind: V269PanelKind.Progress, CancelFlow: not null } ||
-            (_appHistoryPage || _driversPage || _cleanupPage) &&
+            Current is { Kind: V269PanelKind.Progress or V269PanelKind.Confirmation, FlowPage: V269Page.Reparo } ||
+            (_appHistoryPage || _driversPage || _cleanupPage || _repairPage) &&
                 Current?.Kind is (V269PanelKind.Confirmation or V269PanelKind.Progress);
         bool changed=active!=_appFlow;_appFlow=active;
         _appFlowHeading.Text = Current?.Kind switch
@@ -318,8 +329,10 @@ internal sealed class V269RightPane : UserControl
         var flowPage = Current?.FlowPage ?? (Current?.CancelFlow is not null ? V269Page.Drivers : (V269Page?)null);
         var provider = _appHistoryPage && flowPage is (null or V269Page.Aplicativos) ? _appHistoryProvider :
             _driversPage && flowPage is (null or V269Page.Drivers) ? _driverHistoryProvider :
-            _cleanupPage && flowPage is (null or V269Page.Limpeza) ? _cleanupHistoryProvider : null;
-        var dismiss = _appHistoryPage ? _appHistoryDismiss : _driversPage ? _driverHistoryDismiss : _cleanupHistoryDismiss;
+            _cleanupPage && flowPage is (null or V269Page.Limpeza) ? _cleanupHistoryProvider :
+            _repairPage && flowPage is (null or V269Page.Reparo) ? _repairHistoryProvider : null;
+        var dismiss = _appHistoryPage ? _appHistoryDismiss : _driversPage ? _driverHistoryDismiss :
+            _cleanupPage ? _cleanupHistoryDismiss : _repairHistoryDismiss;
         var currentId = Current?.FlowResult?.HistoryId;
         V269AppPreviousResult[] results = _appFlow
             ? provider?.Invoke().Where(entry => entry.Id != currentId).ToArray() ?? [] : [];
@@ -405,6 +418,12 @@ internal sealed class V269RightPane : UserControl
             if(!(app.PreviousResults??Array.Empty<V269AppPreviousResult>()).SequenceEqual(latest))
                 presentation=presentation with {Application=app with {PreviousResults=latest}};
         }
+        if (_repairPage && presentation?.Repair is { } repair && _repairHistoryProvider is not null)
+        {
+            var latest = _repairHistoryProvider();
+            if (!(repair.PreviousResults ?? []).SequenceEqual(latest))
+                presentation = presentation with { Repair = repair with { PreviousResults = latest } };
+        }
         Current = presentation;
         if (presentation?.DriverReview is { IsDisposed: false } driverReview &&
             !ReferenceEquals(driverReview, _driverReview))
@@ -419,7 +438,7 @@ internal sealed class V269RightPane : UserControl
         }
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
-        var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver ?? presentation.Cleanup : null;
+        var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver ?? presentation.Cleanup ?? presentation.Repair : null;
         bool structured = detail is not null;
         _structuredApp=structured;UpdateAppFlowScope();ApplyPaneSurface();
         _applicationDetails.Present(detail);
@@ -440,7 +459,8 @@ internal sealed class V269RightPane : UserControl
     {
         // A autorização de Aplicativos não exibe o status/log de uma execução anterior.
         // Os controles reais permanecem intactos e voltam durante o progresso.
-        bool show=!_driversPage&&!_structuredApp&&Current?.CancelFlow is null &&
+        bool show=!_driversPage&&!_repairPage&&!_structuredApp&&Current?.CancelFlow is null &&
+            Current?.FlowPage != V269Page.Reparo &&
             Current?.Kind != V269PanelKind.DriverReview && (!_appFlow||Current?.Kind==V269PanelKind.Progress);
         _operationContent.Visible=show;
         bool reserve=show&&_hasOperationContent;
@@ -643,7 +663,7 @@ internal sealed class V269Shell : UserControl
         (V269Page.Aplicativos, "Aplicativos", "Programas instalados, atualizações e remoção controlada."),
         (V269Page.Drivers, "Drivers", "Consulte dispositivos, verifique atualizações e gerencie drivers elegíveis."),
         (V269Page.Limpeza, "Limpeza e Desempenho", "Ferramentas de limpeza e visão do espaço em disco."),
-        (V269Page.Reparo, "Reparo e Rede", "Diagnósticos e reparos supervisionados"),
+        (V269Page.Reparo, "Reparo e Rede", "Verificações e reparos orientados do Windows e da rede."),
         (V269Page.Sistema, "Sistema", "Windows Update, energia e memória"),
         (V269Page.Inicializacao, "Inicialização", "Itens de inicialização"),
         (V269Page.Configuracoes, "Configurações", "Ajuste o GERENCIADOR FINAL com temas variados e preferências de uso.")
@@ -881,10 +901,11 @@ internal sealed class V269Shell : UserControl
         }
         if (changed && ((SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
             (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
-            (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza))))
+            (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza)) ||
+            (SelectedPage == V269Page.Reparo && (_rightPane.Current?.Repair is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Reparo))))
             _rightPane.Present(null);
         SelectedPage = page;
-        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza);
+        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza, page==V269Page.Reparo);
         var descriptor = Pages[(int)page];
         _pageTitle.Text = descriptor.Title;
         _pageSubtitle.Text = descriptor.Subtitle;
@@ -905,6 +926,13 @@ internal sealed class V269Shell : UserControl
     {
         if(SelectedPage is not (V269Page.Aplicativos or V269Page.Drivers))return;
         _appPaneOpen=true;ApplyDimensions();
+    }
+
+    internal void EnsureV269RepairPane()
+    {
+        if (SelectedPage != V269Page.Reparo) return;
+        _compactPaneOpen = true;
+        ApplyDimensions();
     }
 
     internal void PresentPanel(V269PanelPresentation? presentation) =>
@@ -984,7 +1012,9 @@ internal sealed class V269Shell : UserControl
         if (_columns is null || _navigationLayout is null) return;
         int width = Math.Max(1, ClientSize.Width);
         bool apps=SelectedPage is V269Page.Aplicativos or V269Page.Drivers;
-        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers;
+        bool repair = SelectedPage == V269Page.Reparo;
+        bool split = apps || repair;
+        bool home = SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo;
         int windowWidth = LayoutWindowWidth;
         // Início usa os breakpoints do CSS congelado, medidos pela janela.
         int S(int n) => V269VisualTokens.Scale(n, InterfaceScalePercent);
@@ -997,7 +1027,8 @@ internal sealed class V269Shell : UserControl
         ApplyHomeSurfaces(home);
         _homeGlyph.Visible = home;
         _homeGlyph.Page = SelectedPage;
-        _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269DriverVisuals.GlyphInk(V269DriverGlyph.Chip, Theme) : Theme switch {
+        _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269DriverVisuals.GlyphInk(V269DriverGlyph.Chip, Theme) :
+            repair ? V269RepairVisuals.WrenchInk(Theme) : Theme switch {
             V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
             V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
             _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };
@@ -1043,7 +1074,7 @@ internal sealed class V269Shell : UserControl
                 }
                 finally { _movingHomeToggle = false; }
             }
-            bool compact = apps ? windowWidth<=1040 : width < 1060;
+            bool compact = split ? windowWidth<=1040 : width < 1060;
             // O painel é fechado por padrão no dashboard, mas o histórico
             // e a exportação local continuam acessíveis por comando explícito.
             toggle.Visible = !apps && (compact || dashboard);
@@ -1063,9 +1094,10 @@ internal sealed class V269Shell : UserControl
             showRight=mandatory||(!compact||(_appPaneOpen??retained));
             right=S(_appPaneWidth);
         }
-        bool below=apps&&windowWidth<=1040&&showRight;
-        if(!showRight||apps)right=0;
-        PlaceV269AppPane(apps&&showRight?below?2:1:0);
+        if (repair) showRight = mandatory || windowWidth > 1040 || _compactPaneOpen;
+        bool below=split&&windowWidth<=1040&&showRight;
+        if(!showRight||split)right=0;
+        PlaceV269AppPane(split&&showRight?below?2:1:0);
         if (home)
         {
             // As medidas CSS já incluem borda e padding da barra lateral.
@@ -1073,7 +1105,7 @@ internal sealed class V269Shell : UserControl
             sidebar = S(sidebarCss + 11);
             _columns.Padding = new Padding(S(9));
             _sidebar.Margin = new Padding(0, 0, S(11), 0);
-            _content.Margin = new Padding(0,0,showRight&&!apps?S(10):0,0);
+            _content.Margin = new Padding(0,0,showRight&&!split?S(10):0,0);
             _navigationLayout.Padding = new Padding(S(8), S(8), S(8), S(9));
         }
         else
@@ -1085,7 +1117,7 @@ internal sealed class V269Shell : UserControl
         }
         _columns.ColumnStyles[0].Width = sidebar;
         _columns.ColumnStyles[2].Width = right;
-        _rightPane.Visible = right > 0 || apps&&showRight;
+        _rightPane.Visible = right > 0 || split&&showRight;
         int navHeight = _paneToggle is null ? 48 :
             Math.Clamp((ClientSize.Height - 64) / Pages.Length, 27, 48);
         // No HTML, Configurações pertence a .nav-end, não a .nav-list.
