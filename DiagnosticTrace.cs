@@ -7,8 +7,8 @@ namespace GerenciadorAplicativos;
 internal static class DiagnosticTrace
 {
     private static readonly object Gate = new();
-    internal static Action<string>? LocalEventSink;
-    internal static Action<string,Exception>? LocalFailureSink;
+    internal static Action<string>? LocalEventSink { get; set; }
+    internal static Action<string,Exception>? LocalFailureSink { get; set; }
     private static readonly UTF8Encoding NoBom = new(false);
     // Versionamento vem do assembly compilado para impedir logs com versao
     // antiga quando o executavel muda. Nao grava caminhos pessoais no conteudo.
