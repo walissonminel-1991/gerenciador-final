@@ -1100,7 +1100,11 @@ internal sealed class DarkScrollableFlow : UserControl
         {
             if (!EmbeddedInPage) _flow.Top = -_scroll.Value;
         };
-        _viewport.Resize += (_, _) => Reflow();
+        _viewport.Resize += (_, _) =>
+        {
+            Reflow();
+            ToolViewportResized?.Invoke(this, EventArgs.Empty);
+        };
         _flow.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); Reflow(); };
         _flow.ControlRemoved += (_, _) => Reflow();
         _viewport.MouseWheel += (_, e) => ScrollFromWheel(e);
@@ -1118,6 +1122,8 @@ internal sealed class DarkScrollableFlow : UserControl
     // entre os cartões e após o último item.
     internal int CleanupScrollbarWidth => _scroll.Width;
     internal int CleanupViewportWidth => _viewport.ClientSize.Width;
+    internal int CleanupViewportHeight => _viewport.ClientSize.Height;
+    internal event EventHandler? ToolViewportResized;
 
     internal void ApplyCleanupSurface(V269Theme theme)
     {

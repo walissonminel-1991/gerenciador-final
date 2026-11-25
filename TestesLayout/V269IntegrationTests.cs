@@ -237,7 +237,7 @@ internal static class V269IntegrationTests
                     "cartões ocupam a largura útil, sem faixa vazia lateral");
                 var cleanupPage=form.Controls.Find("V269CleanupPage",true).Single();
                 Require(cleanupPage.Width==cleanupViewport.CleanupViewportWidth,
-                    "Limpeza usa a largura efetiva do viewport, sem reservar barra inexistente");
+                    $"Limpeza usa a largura efetiva do viewport, sem reservar barra inexistente: conteúdo={cleanupPage.Width}, viewport={cleanupViewport.CleanupViewportWidth}, host={cleanupViewport.ClientSize}, barra={cleanupViewport.HasVerticalScrollbar}");
                 int cardPad=V269AppTable.Scale(shell.LayoutWindowWidth<=1250?9:12,100,first.DeviceDpi);
                 Require(first.Command.Right==first.ClientSize.Width-cardPad &&
                     first.Command.Bottom==first.ClientSize.Height-cardPad,

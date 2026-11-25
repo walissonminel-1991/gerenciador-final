@@ -74,15 +74,37 @@ internal sealed partial class MainForm
                     width=Math.Max(1,host.ClientSize.Width-host.CleanupScrollbarWidth);
                     required=MeasureAt(width);
                 }
-                int targetHeight=Math.Max(host.ClientSize.Height,required);
-                if(content.Height!=targetHeight)content.Height=targetHeight;
-                int oldViewportWidth=host.CleanupViewportWidth;
+                void SetHeight(int minimum, int viewportHeight)
+                {
+                    int target = Math.Max(viewportHeight, minimum);
+                    if (content.Height != target) content.Height = target;
+                }
+                SetHeight(required, host.ClientSize.Height);
                 host.Reflow();
-                if(themedTools && host.CleanupViewportWidth!=oldViewportWidth)host.Reflow();
+                if (themedTools)
+                {
+                    // Dock da barra pode atualizar o viewport depois da
+                    // medição. Reconciliar com a área efetivamente atribuída
+                    // pelo WinForms antes de concluir a transação visual.
+                    for (int attempt = 0; attempt < 2; attempt++)
+                    {
+                        host.PerformLayout();
+                        int actual = host.CleanupViewportWidth;
+                        if (actual <= 0 || content.Width == actual) break;
+                        SetHeight(MeasureAt(actual), host.CleanupViewportHeight);
+                        host.Reflow();
+                    }
+                    if (host.Content.Width != host.CleanupViewportWidth) host.Reflow();
+                }
             }
             finally { arranging = false; }
         }
         host.SizeChanged += (_, _) => Arrange();
+        if (themedTools)
+            host.ToolViewportResized += (_, _) =>
+            {
+                if (host.Visible && content.Width != host.CleanupViewportWidth) Arrange();
+            };
         host.VisibleChanged += (_, _) =>
         {
             if (IsTrayTransitioning) return;
