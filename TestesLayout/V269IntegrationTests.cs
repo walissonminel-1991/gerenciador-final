@@ -162,19 +162,28 @@ internal static class V269IntegrationTests
         var originalSize=surface.Size;int originalTheme=theme.SelectedIndex;
         var previous=shell.RightPane.Current;var previousPage=shell.SelectedPage;
         var original=disks.Content.Controls.Cast<Control>().ToArray();
+        var history=(List<V269AppPreviousResult>)typeof(MainForm).GetField("_v269CleanupPreviousResults",flags)!.GetValue(form)!;
+        var originalHistory=history.ToArray();
         var fixtures=new[]
         {
-            (Control)create.Invoke(form,[new DiskUsageInfo(@"C:\\","Disco local",1024000000000L,558700000000L,"NTFS")])!,
-            (Control)create.Invoke(form,[new DiskUsageInfo(@"D:\\","Dados",931500000000L,652900000000L,"NTFS")])!
+            (Control)create.Invoke(form,[new DiskUsageInfo(@"C:\","Disco local",1024000000000L,558700000000L,"NTFS")])!,
+            (Control)create.Invoke(form,[new DiskUsageInfo(@"D:\","Dados",931500000000L,652900000000L,"NTFS")])!
         };
         try
         {
             Directory.CreateDirectory("LayoutCaptures");
             disks.Content.Controls.Clear();
             foreach(var fixture in fixtures)disks.Content.Controls.Add(fixture);
-            foreach(var target in CleanupTarget.All)set.Invoke(form,[target,"Prévia · 4 arquivos · 1,1 GiB"]);
+            string[] estimates=["1,1 GB","2,4 GB","820 MB","440 MB","720 MB"];
+            for(int i=0;i<estimates.Length;i++)set.Invoke(form,[CleanupTarget.All[i],estimates[i]]);
+            history.Clear();
+            history.AddRange(new V269AppPreviousResult[]{
+                new(Guid.NewGuid(),"Limpeza avançada","Fixture: nenhuma limpeza real foi executada.",true),
+                new(Guid.NewGuid(),"Analisar limpeza","Fixture: estimativas sintéticas.",true),
+                new(Guid.NewGuid(),"Analisar limpeza","Fixture: estimativas sintéticas.",true),
+                new(Guid.NewGuid(),"Analisar limpeza","Fixture: estimativas sintéticas.",true)});
             shell.SelectPage(V269Page.Limpeza);
-            foreach(var size in new[]{new Size(1200,659),new Size(1400,861)})
+            foreach(var size in new[]{new Size(1200,659),new Size(1844,1116)})
             foreach(V269Theme palette in Enum.GetValues<V269Theme>())
             {
                 theme.SelectedIndex=(int)palette;surface.Size=size;surface.PerformLayout();relayout();Application.DoEvents();
@@ -205,10 +214,39 @@ internal static class V269IntegrationTests
                 surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
                 capture.Save($"LayoutCaptures/v269-limpeza-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
             }
+            // Captura do estado exato da referência: lixeira selecionada e quatro resultados anteriores.
+            var context=SynchronizationContext.Current;
+            try
+            {
+                foreach(V269Theme palette in Enum.GetValues<V269Theme>())
+                {
+                    theme.SelectedIndex=(int)palette;surface.Size=new Size(1844,1116);
+                    shell.PresentPanel(null);
+                    var recycle=form.Controls.Find("V269CleanupCard3",true).Single();
+                    typeof(Control).GetMethod("OnClick",flags)!.Invoke(recycle,[EventArgs.Empty]);
+                    SynchronizationContext.SetSynchronizationContext(new PaneTestSynchronizationContext(form));
+                    using var token=new CancellationTokenSource();
+                    var confirmation=shell.RightPane.ConfirmAsync("Esvaziar Lixeira",
+                        "Exclui permanentemente itens descartados. Fixture: nenhuma manutenção real.",token.Token);
+                    try
+                    {
+                        surface.PerformLayout();relayout();Application.DoEvents();
+                        Require(shell.RightPane.Controls.Find("V269AppPreviousResult",true).Length==4,
+                            "quatro resultados anteriores no estado de confirmação da limpeza");
+                        using var capture=new Bitmap(surface.Width,surface.Height);
+                        surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
+                        capture.Save($"LayoutCaptures/v269-limpeza-REFERENCIA-CONFIRMACAO-{palette}-1844x1116.png");
+                    }
+                    finally{shell.RightPane.ResolveConfirmation(false);Pump(confirmation);}
+                    Require(!confirmation.Result,"fixture de referência nunca autoriza manutenção");
+                }
+            }
+            finally{SynchronizationContext.SetSynchronizationContext(context);}
             VerifyInventoryFlowStates(form,shell,V269Page.Limpeza);
         }
         finally
         {
+            history.Clear();history.AddRange(originalHistory);
             disks.Content.Controls.Clear();
             foreach(var fixture in fixtures)fixture.Dispose();
             actions.RemoveAll(c=>c.IsDisposed);
