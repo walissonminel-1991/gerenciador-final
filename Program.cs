@@ -572,7 +572,15 @@ internal sealed class ModernButton : Button
     {
         if (ClientSize.Width < 6 || ClientSize.Height < 6) return;
         // Desenha tudo em GDI+; nenhum relevo/borda legado do botão padrão.
-        e.Graphics.Clear(Parent?.BackColor ?? Color.FromArgb(21, 27, 35));
+        var background = Parent?.BackColor ?? BackColor;
+        if (background.A != 255)
+        {
+            // Não limpar um buffer reutilizado com alfa zero.
+            for (Control? ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
+                if (ancestor.BackColor.A == 255) { background = ancestor.BackColor; break; }
+        }
+        if (background.A != 255) background = Color.FromArgb(21, 27, 35);
+        using (var erase = new SolidBrush(background)) e.Graphics.FillRectangle(erase, ClientRectangle);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         Rectangle rect = new Rectangle(2, 2, ClientSize.Width - 5, ClientSize.Height - 5);
         bool animatedPress = _pendingClick && _visualProgress < 0.64F;
@@ -619,6 +627,7 @@ internal sealed class ModernButton : Button
             }
             var captionFlags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding |
+                TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform |
                 (AllowMultilineText ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine);
             TextRenderer.DrawText(e.Graphics, Text, drawFont, content,
                 Enabled ? ForeColor : Color.FromArgb(164, 176, 190), captionFlags);
@@ -770,10 +779,10 @@ internal sealed partial class MainForm : Form
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
-        // Buffering somente na janela principal: sem compositar toda a
-        // hierarquia nativa de TextBox/FlowLayout (custo no PC FRACO).
+        // A janela é um contêiner de HWNDs, não uma superfície de desenho.
+        // Conservar buffering local dos controles que realmente desenham.
         SetStyle(ControlStyles.OptimizedDoubleBuffer |
-            ControlStyles.AllPaintingInWmPaint, true);
+            ControlStyles.AllPaintingInWmPaint, false);
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         // Tamanho fixo por monitor; a escala já existente em Configurações

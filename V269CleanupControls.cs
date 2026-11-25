@@ -151,7 +151,8 @@ internal sealed class V269CleanupButton : Button
         int x=left+icon+S(6);
         TextRenderer.DrawText(g,Text,Font,new Rectangle(x,0,Math.Max(1,Width-x-S(3)),Height),
             Enabled?H(text):V269VisualTokens.ForTheme(_options.Theme).SecondaryText,
-            TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding);
+            TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|
+            TextFormatFlags.PreserveGraphicsClipping|TextFormatFlags.PreserveGraphicsTranslateTransform);
         if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,new Rectangle(3,3,Math.Max(1,Width-6),Math.Max(1,Height-6)));
     }
     protected override void Dispose(bool disposing){if(disposing)_font?.Dispose();base.Dispose(disposing);}

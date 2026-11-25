@@ -1349,8 +1349,10 @@ internal sealed class V269Shell : UserControl
             button.HomePresentation = home;
             button.HomeScale = InterfaceScalePercent;
             button.CurrentTheme = Theme;
-            button.BackColor = home ? Color.Transparent :
-                button.IsSelected ? V269VisualTokens.ForTheme(Theme).Selection : V269VisualTokens.ForTheme(Theme).Sidebar;
+            // O botão desenha a superfície do menu explicitamente, sem pedir
+            // que o WinForms repinte uma cadeia de pais transparentes.
+            button.BackColor = V269VisualTokens.ForTheme(Theme).Sidebar;
+            if (!home && button.IsSelected) button.BackColor = V269VisualTokens.ForTheme(Theme).Selection;
             button.Invalidate();
         }
     }
@@ -1458,8 +1460,7 @@ internal sealed class V269Shell : UserControl
         foreach (var (page, button) in _navigation)
         {
             bool selected = page == SelectedPage;
-            button.BackColor = _homeGeometry ? Color.Transparent :
-                selected ? palette.Selection : palette.Sidebar;
+            button.BackColor = !_homeGeometry && selected ? palette.Selection : palette.Sidebar;
             // Como no HTML V2.6.9: texto claro ao selecionar fundo azul
             // no tema Claro, e texto suave claro no Dark.
             button.ForeColor = selected
@@ -1521,7 +1522,8 @@ internal sealed class V269Shell : UserControl
         internal V269NavButton(V269Page page)
         {
             Page = page;
-            SetStyle(ControlStyles.SupportsTransparentBackColor, true);
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             TextAlign = ContentAlignment.MiddleLeft;
@@ -1588,8 +1590,19 @@ internal sealed class V269Shell : UserControl
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var theme = CurrentTheme;
             Color H(string h) => ColorTranslator.FromHtml(h);
-            // OnPaintBackground desenha a superfície pai; não apagar
-            // o gradiente do menu com um preenchimento opaco.
+            // Toda pintura inicializa o fundo, inclusive a área não selecionada.
+            // A origem do gradiente é a barra inteira, não cada botão.
+            var origin = Location;
+            Control? ancestor = Parent;
+            while (ancestor is not null && ancestor is not V269HomeSurfacePanel)
+            {
+                origin.Offset(ancestor.Location);
+                ancestor = ancestor.Parent;
+            }
+            using (var background = new SolidBrush(BackColor))
+                g.FillRectangle(background, ClientRectangle);
+            if (ancestor is V269HomeSurfacePanel surface)
+                surface.PaintChildSurface(g, origin, ClientRectangle);
             var area = new Rectangle(1, 1, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
             using var shape = Rounded(area, 9);
             if (IsSelected)
@@ -1639,7 +1652,8 @@ internal sealed class V269Shell : UserControl
                 new Rectangle(icon.Right+S(8), 1, Math.Max(1,Width-icon.Right-S(12)), Math.Max(1,Height-2)),
                 theme == V269Theme.Dark ? H(IsSelected ? "#e3e6e9" : "#c6cdd3") : ForeColor,
                 TextFormatFlags.WordBreak | TextFormatFlags.VerticalCenter |
-                TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding |
+                TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform);
             if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(g,Rectangle.Inflate(area,-3,-3));
         }
     }
@@ -1674,14 +1688,36 @@ internal sealed class V269HomeSurfacePanel : Panel
         _home = home; _theme = theme;
         Padding = home ? new Padding(1) : Padding.Empty;
         var palette = V269VisualTokens.ForTheme(theme);
-        BackColor = home ? Color.Transparent : _sidebar ? palette.Sidebar : palette.Content;
+        BackColor = home ? ColorTranslator.FromHtml(theme switch {
+            V269Theme.Dark => "#151719", V269Theme.Claro => "#deebf7", _ => "#081827" })
+            : _sidebar ? palette.Sidebar : palette.Content;
         Invalidate(true);
     }
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        base.OnPaintBackground(e);
+        if (!_home || Width < 3 || Height < 3) { base.OnPaintBackground(e); return; }
+        PaintSurface(e.Graphics);
+    }
+
+    internal void PaintChildSurface(Graphics graphics, Point offset, Rectangle childBounds)
+    {
         if (!_home || Width < 3 || Height < 3) return;
+        var state = graphics.Save();
+        try
+        {
+            graphics.SetClip(childBounds, CombineMode.Intersect);
+            graphics.TranslateTransform(-offset.X, -offset.Y);
+            PaintSurface(graphics);
+        }
+        finally { graphics.Restore(state); }
+    }
+
+    private void PaintSurface(Graphics graphics)
+    {
+        // Fundo opaco antes de desenhar cantos arredondados/gradiente.
+        using (var background = new SolidBrush(BackColor))
+            graphics.FillRectangle(background, ClientRectangle);
         Color H(string color) => ColorTranslator.FromHtml(color);
         var (first, last, border, angle) = (_theme, _sidebar) switch
         {
@@ -1692,13 +1728,13 @@ internal sealed class V269HomeSurfacePanel : Panel
             (_, true) => (H("#081c31"), H("#0b2539"), H("#25445f"), 90f),
             _ => (H("#0a2539"), H("#071a2b"), H("#25445f"), 55f)
         };
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
         using var path = V269Shell.Rounded(bounds, Math.Max(1, 12 * DeviceDpi / 96));
         using var fill = new LinearGradientBrush(bounds, first, last, angle);
         using var outline = new Pen(border);
-        e.Graphics.FillPath(fill, path);
-        e.Graphics.DrawPath(outline, path);
+        graphics.FillPath(fill, path);
+        graphics.DrawPath(outline, path);
     }
 }
 

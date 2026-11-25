@@ -1910,7 +1910,8 @@ internal sealed class V269HomeCard : Control
         DrawIcon(g, new Rectangle(pad, verticalPad, S(21), S(21)), model.Key, icon);
         TextRenderer.DrawText(g, model.Title, title,
             new Rectangle(pad + S(30), verticalPad, Math.Max(1, contentWidth - S(30)), heading - S(6)), titleInk,
-            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis |
+            TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform);
         g.DrawLine(rule, pad, verticalPad + heading, width - pad, verticalPad + heading);
         var picture = new Rectangle(pad, bodyY, imageWidth, imageHeight);
         using (var picShape = Rounded(picture, S(9)))
@@ -1951,12 +1952,13 @@ internal sealed class V269HomeCard : Control
             }
             else TextRenderer.DrawText(g, ArtError is null ? "Carregando imagem" : "Imagem indisponível",
                 font, picture, muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix |
+                TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform);
             using var photoOutline = new Pen(photoBorder);
             g.DrawPath(photoOutline, picShape);
         }
         if (nameHeight > 0) TextRenderer.DrawText(g, model.Name, nameFont,
-            new Rectangle(dataX, bodyY, specsWidth, nameHeight), nameInk, Flags);
+            new Rectangle(dataX, bodyY, specsWidth, nameHeight), nameInk, PaintFlags);
         Rows(g, model.Specs, dataX, bodyY + nameHeight, specsWidth);
         if (wide) g.DrawLine(rule, sensorX - sensorPad, bodyY, sensorX - sensorPad,
             bodyY + sensorsHeight);
@@ -2008,10 +2010,10 @@ internal sealed class V269HomeCard : Control
                 }
                 if (target is not null)
                 {
-                    TextRenderer.DrawText(target, row.Label, font, new Rectangle(x, y + vertical, left, h1), muted, Flags);
+                    TextRenderer.DrawText(target, row.Label, font, new Rectangle(x, y + vertical, left, h1), muted, PaintFlags);
                     TextRenderer.DrawText(target, row.Value, bold,
                         new Rectangle(stacked ? x : x + left + rowGap, y + vertical + (stacked ? h1 : 0), right, h2),
-                        ink, Flags | (stacked ? TextFormatFlags.Left : TextFormatFlags.Right));
+                        ink, PaintFlags | (stacked ? TextFormatFlags.Left : TextFormatFlags.Right));
                     using var line = new Pen(soft);
                     target.DrawLine(line, x, y + h - 1, x + w, y + h - 1);
                 }
@@ -2023,6 +2025,8 @@ internal sealed class V269HomeCard : Control
 
     private const TextFormatFlags Flags = TextFormatFlags.WordBreak |
         TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.TextBoxControl;
+    private const TextFormatFlags PaintFlags = Flags | TextFormatFlags.PreserveGraphicsClipping |
+        TextFormatFlags.PreserveGraphicsTranslateTransform;
     private static int HeightOf(string text, Font font, int width) =>
         Math.Max(font.Height, TextRenderer.MeasureText(text, font,
             new Size(Math.Max(1, width), 10000), Flags).Height);

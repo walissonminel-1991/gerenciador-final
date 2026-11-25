@@ -163,8 +163,63 @@ internal static class V269IntegrationTests
         }
         else Console.WriteLine("V269: Limpeza e Reparo aprovados no percurso WORK18 desta mesma execução.");
         Timed("Sistema e Inicialização",()=>VerifyLastTabs(form,shell));
+        Timed("Pintura real V269", () => VerifyLiveWindowPaint(form, shell));
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    // Captura do desktop real (WM_PAINT), não WM_PRINT/DrawToBitmap.
+    // A barra de seleção do HTML só pode existir no botão ativo.
+    private static void VerifyLiveWindowPaint(MainForm form, V269Shell shell)
+    {
+        var themeChoice = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        int oldTheme = themeChoice.SelectedIndex;
+        var oldPage = shell.SelectedPage;
+        bool oldTopMost = form.TopMost;
+        Directory.CreateDirectory("LayoutCaptures");
+        try
+        {
+            form.TopMost = true;
+            form.Activate();
+            var buttons = Enum.GetValues<V269Page>().ToDictionary(p => p,
+                p => form.Controls.Find("V269Nav" + p, true).OfType<Button>().Single());
+            foreach (var theme in Enum.GetValues<V269Theme>())
+            {
+                themeChoice.SelectedIndex = (int)theme;
+                foreach (var page in Enum.GetValues<V269Page>())
+                {
+                    shell.SelectPage(page);
+                    Application.DoEvents();
+                    var bounds = form.RectangleToScreen(form.ClientRectangle);
+                    Require(Screen.FromControl(form).Bounds.Contains(bounds),
+                        "captura real exige janela inteira visível no desktop");
+                    using var shot = new Bitmap(bounds.Width, bounds.Height);
+                    using (var graphics = Graphics.FromImage(shot))
+                        graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
+                    string path = $"LayoutCaptures/v269-DESKTOP-{theme}-{page}-{bounds.Width}x{bounds.Height}.png";
+                    shot.Save(path);
+                    Color rail = theme == V269Theme.Dark ? ColorTranslator.FromHtml("#c8d0d7") : Color.White;
+                    int Distance(Color a, Color b) => Math.Abs(a.R-b.R)+Math.Abs(a.G-b.G)+Math.Abs(a.B-b.B);
+                    foreach (var (key, button) in buttons)
+                    {
+                        var point = button.PointToScreen(new Point(2, button.Height/2));
+                        point.Offset(-bounds.X, -bounds.Y);
+                        Require(new Rectangle(Point.Empty, shot.Size).Contains(point),
+                            "botão de navegação fora do desktop: " + key);
+                        bool hasRail = Distance(shot.GetPixel(point.X, point.Y), rail) < 75;
+                        Require(hasRail == (key == page),
+                            $"WM_PAINT: trilho de seleção incorreto em {theme}/{page}/{key}; evidência {path}");
+                    }
+                }
+            }
+            Console.WriteLine("PASS V2.6.9: 24 capturas reais do desktop; trilho único de seleção nos três temas.");
+        }
+        finally
+        {
+            themeChoice.SelectedIndex = oldTheme;
+            shell.SelectPage(oldPage);
+            form.TopMost = oldTopMost;
+        }
     }
 
     // As duas abas de ferramentas são independentes das fixtures de inventário.
