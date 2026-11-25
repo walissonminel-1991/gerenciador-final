@@ -16,6 +16,38 @@ internal static class V269AppOrdering
     internal static string Key(ProgramEntry entry) =>
         string.IsNullOrWhiteSpace(entry.InventoryId) ? "" :
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(entry.InventoryId.ToUpperInvariant())));
+    // Preservar o texto composto e a comparação cultural da pesquisa original,
+    // inclusive ocorrências que atravessam os separadores entre campos.
+    // Buffer pequeno na pilha; campos muito extensos seguem o caminho original.
+    internal static bool MatchesSearch(ProgramEntry entry, string query)
+    {
+        if (query.Length == 0) return true;
+        ReadOnlySpan<string?> fields = [entry.Name, entry.Version, entry.Publisher,
+            entry.PackageId, entry.AvailableVersion, entry.CatalogIdentity,
+            entry.CatalogDisplayName, entry.InventorySource, entry.MsiProductCode];
+        Span<char> buffer = stackalloc char[512];
+        int length = 0;
+        for (int i = 0; i < fields.Length; i++)
+        {
+            if (i != 0)
+            {
+                if (length == buffer.Length) return SearchLong();
+                buffer[length++] = ' ';
+            }
+            var field = fields[i].AsSpan();
+            if (field.Length > buffer.Length - length) return SearchLong();
+            field.CopyTo(buffer[length..]);
+            length += field.Length;
+        }
+        return MemoryExtensions.Contains((ReadOnlySpan<char>)buffer[..length],
+            query.AsSpan(), StringComparison.CurrentCultureIgnoreCase);
+
+        bool SearchLong() => string.Join(" ", entry.Name, entry.Version, entry.Publisher,
+            entry.PackageId, entry.AvailableVersion, entry.CatalogIdentity,
+            entry.CatalogDisplayName, entry.InventorySource, entry.MsiProductCode)
+            .Contains(query, StringComparison.CurrentCultureIgnoreCase);
+    }
+
     internal static ProgramEntry[] Sort(IEnumerable<ProgramEntry> source, V269AppSort sort,
         IReadOnlyList<string> manual)
     {
