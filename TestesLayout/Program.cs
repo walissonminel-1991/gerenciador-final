@@ -9,8 +9,14 @@ internal static class LayoutTests
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+        var suiteClock=System.Diagnostics.Stopwatch.StartNew();
+        Console.WriteLine("LAYOUT-SUITE inicio; limite_ms=240000");
         using var deadline = new System.Threading.Timer(
-            _ => Environment.FailFast("Timeout no teste de layout"),
+            _ =>
+            {
+                Console.Error.WriteLine($"LAYOUT-SUITE timeout global; decorrido_ms={suiteClock.ElapsedMilliseconds}");
+                Environment.FailFast("Timeout no teste de layout");
+            },
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
         GfThermalEvidenceTests.Run();
@@ -939,6 +945,7 @@ internal static class LayoutTests
             var receipt=MaintenanceVisualReceipt();
             bool alreadyTested=receipt is {} proof&&File.Exists(proof.Path)&&
                 string.Equals(File.ReadAllText(proof.Path),proof.Identity,StringComparison.Ordinal);
+            Console.WriteLine($"LAYOUT-SUITE recibo_manutencao_valido={alreadyTested}; executar_particao_manutencao={!alreadyTested}");
             V269IntegrationTests.Run(includeMaintenanceVisual: !alreadyTested);
         }
     }
