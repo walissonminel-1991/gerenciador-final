@@ -125,6 +125,7 @@ internal static class GfMonitorHostTests
     {
         GfResourceMonitorForm Window() => Application.OpenForms.OfType<GfResourceMonitorForm>().Single();
         Label Metric(int index) => (Label)Window().Controls.Find("MonitorCompactMetric" + index, true).Single();
+        var ink = GfMeterScale.InkColors(V269Theme.AzulGf);
         var now = DateTimeOffset.UtcNow;
         var enabled = GfResourceMonitorPreferences.Default with { Enabled = true, OpacityPercent = 75 };
         using (var host = new GfMonitorHost(path, () => true))
@@ -143,16 +144,16 @@ internal static class GfMonitorHostTests
             Require(Metric(0).Text == "CPU 14%" && Metric(1).Text == "GPU 80%" &&
                 Metric(2).Text == "RAM 42%" && Metric(5).Text == "GPU 70°C",
                 "replay apresenta dados de todas as fontes disponíveis");
-            Require(Metric(5).ForeColor == GfMeterScale.Colors(V269Theme.AzulGf).Yellow,
-                "evidência do produtor chega ao aviso térmico da janela");
+            Require(Metric(5).ForeColor == ink.Yellow,
+                "evidência do produtor chega ao aviso térmico da janela compacta");
             var newer = now.AddSeconds(1);
             var p = ThermalFixture(newer,850);
             p = p with { WindowsCounters = p.WindowsCounters with
                 { CpuUsagePercent = MonitorReading<double>.Available(25, "fixture") } };
             Require(host.Publish(generation,p,newer) &&
                 Metric(0).Text == "CPU 25%" && Metric(5).Text=="GPU 85°C" &&
-                Metric(5).ForeColor==GfMeterScale.Colors(V269Theme.AzulGf).Red,
-                "temperatura acima do máximo chega à janela em vermelho sem atraso");
+                Metric(5).ForeColor == ink.Red,
+                "temperatura acima do máximo chega ao texto da janela compacta sem atraso");
             Window().Close();
             Require(!host.WantsCollection(false, true) && !host.Preferences().Enabled &&
                 !GfResourceMonitorPreferencesStore.Load(path).Enabled, "fechar manualmente desabilita e persiste");

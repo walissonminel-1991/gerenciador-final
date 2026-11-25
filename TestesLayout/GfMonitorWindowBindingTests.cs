@@ -61,26 +61,32 @@ internal static class GfMonitorWindowBindingTests
                 GpuThermalEvidence: GfThermalEvidence.FromD3dKmt(key, generation, key, generation, true, 700, 800, at));
         }
         Label Temperature() => All(form).OfType<Label>().Single(l => l.Name == "MonitorCompactMetric5");
-        GfDynamicProgressBar GpuBar() => All(form).OfType<GfDynamicProgressBar>()
-            .Single(b => b.AccessibleName == "Temperatura GPU");
         var fill = GfMeterScale.Colors(V269Theme.AzulGf);
         var ink = GfMeterScale.InkColors(V269Theme.AzulGf);
         relay.BeginGeneration(1);
         using var binding = new GfMonitorWindowBinding(form, relay, now);
         Require(relay.Publish(1, Sample(48, -3, 1), now), "amostra fria entregue");
         Require(relay.Publish(1, Sample(70, -2, 1), now) && Temperature().Text == "GPU 70°C" &&
-            Temperature().ForeColor == ink.Yellow &&
-            GpuBar().CurrentFrame.Color == fill.Yellow && GpuBar().CurrentFrame.Immediate,
-            "aviso comprovado no texto e na barra da janela real, sem atraso da EMA");
+            Temperature().ForeColor == ink.Yellow,
+            "aviso comprovado no texto da janela compacta, sem atraso da EMA");
         Require(relay.Publish(1, Sample(81, -1, 1), now) &&
-            Temperature().ForeColor == ink.Red &&
-            GpuBar().CurrentFrame.Color == fill.Red && GpuBar().CurrentFrame.Immediate,
-            "máximo comprovado no texto e na barra da janela real");
+            Temperature().ForeColor == ink.Red,
+            "máximo comprovado no texto da janela compacta");
         relay.BeginGeneration(2);
         Require(Temperature().Text == "GPU —", "geração limpa também estado térmico");
         Require(relay.Publish(2, Sample(48, -3, 2), now) &&
-            Temperature().ForeColor != ink.Red && GpuBar().CurrentFrame.Color != fill.Red,
+            Temperature().ForeColor != ink.Red,
             "perfil novo não herda alerta anterior");
+        form.SetExpanded(true);
+        Application.DoEvents();
+        GfDynamicProgressBar GpuBar() => All(form).OfType<GfDynamicProgressBar>()
+            .Single(b => b.AccessibleName == "Temperatura GPU");
+        Require(relay.Publish(2, Sample(70, -2, 2), now) &&
+            GpuBar().CurrentFrame.Color == fill.Yellow && GpuBar().CurrentFrame.Immediate,
+            "aviso comprovado na barra da janela expandida, sem atraso da EMA");
+        Require(relay.Publish(2, Sample(81, -1, 2), now) &&
+            GpuBar().CurrentFrame.Color == fill.Red && GpuBar().CurrentFrame.Immediate,
+            "máximo comprovado na barra da janela expandida");
         form.Close();
     }
 }
