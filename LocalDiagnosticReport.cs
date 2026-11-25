@@ -13,6 +13,29 @@ internal sealed class LocalDiagnosticReport
 {
     internal static LocalDiagnosticReport Session { get; } = new();
     private const int Limit = 128;
+    private readonly DiagnosticRecoveryJournal _recovery = new();
+    internal void StartRecovery(string diagnosticPath) => _recovery.Start(Path.GetDirectoryName(diagnosticPath)!);
+    internal void CloseRecovery(bool normal) => _recovery.Close(normal);
+    private long _lastUiTick;
+    private int _previousUiInterval;
+    internal void ObserveUiCadence(int expectedMs)
+    {
+        long now=Stopwatch.GetTimestamp();
+        lock(_gate)
+        {
+            if(_lastUiTick!=0)
+            {
+                double elapsed=Stopwatch.GetElapsedTime(_lastUiTick,now).TotalMilliseconds;
+                int expected=Math.Max(expectedMs,_previousUiInterval);
+                if(elapsed>expected+5000d)
+                {
+                    Append(_events,FormattableString.Invariant($"{DateTimeOffset.UtcNow:O} UI.LACUNA intervalo_ms={elapsed:F0} esperado_ms={expected} (não prova travamento)"),ref _eventTotal);
+                    _recovery.Record(DiagnosticRecoveryKind.UiDelay,(long)elapsed,expected,checkpoint:true);
+                }
+            }
+            _lastUiTick=now;_previousUiInterval=expectedMs;
+        }
+    }
     private const long JournalLimit = 16 * 1024 * 1024;
     private FileStream? _journalStream;
     private StreamWriter? _journal;
@@ -167,8 +190,13 @@ internal sealed class LocalDiagnosticReport
     {
         // Estados fechados; nenhum título de aplicativo, comando ou descrição de usuário.
         if (state is not ("inicio" or "fim" or "resultado" or "bloqueado" or "cancelado")) return;
-        lock (_gate) Append(_events, FormattableString.Invariant(
-            $"{DateTimeOffset.UtcNow:O} operacao aba={page} estado={state} resultado_confirmado={complete}"),ref _eventTotal);
+        lock (_gate)
+        {
+            Append(_events, FormattableString.Invariant(
+                $"{DateTimeOffset.UtcNow:O} operacao aba={page} estado={state} resultado_confirmado={complete}"),ref _eventTotal);
+            var kind=state switch{"inicio"=>DiagnosticRecoveryKind.OperationBegin,"fim"=>DiagnosticRecoveryKind.OperationEnd,_=>DiagnosticRecoveryKind.OperationResult};
+            _recovery.Record(kind,(long)page,complete==true?1:complete==false?0:-1,checkpoint:true);
+        }
     }
 
     internal void SampleHardware(HardwareSensorPortfolio snapshot)
@@ -313,9 +341,13 @@ internal sealed class LocalDiagnosticReport
             long? bytes = _thread == Environment.CurrentManagedThreadId
                 ? GC.GetAllocatedBytesForCurrentThread() - _allocated : null;
             lock (owner._gate)
+            {
                 owner.Append(owner._ui, FormattableString.Invariant(
                     $"{DateTimeOffset.UtcNow:O} etapa={stage} aba={page} duracao_ms={elapsed:F3} alocacoes_thread_ui_bytes={bytes}"),
                     ref owner._uiTotal);
+                if(stage==DiagnosticUiStage.Navigation&&page.HasValue)
+                    owner._recovery.Record(DiagnosticRecoveryKind.Navigation,(long)page.Value,(long)elapsed);
+            }
         }
     }
 
@@ -338,9 +370,12 @@ internal sealed class LocalDiagnosticReport
             .Where(name=>name.Length<=200&&name.All(c=>char.IsAsciiLetterOrDigit(c)||c is '.' or '_' or '+' or '`' or '<' or '>' or '-'))
             .ToArray();
         lock (_gate)
+        {
             Append(_failures, FormattableString.Invariant(
                 $"{DateTimeOffset.UtcNow:O} etapa={code} tipo={type} hresult=0x{error.HResult:X8} simbolos_gf={string.Join(",",frames)}"),
                 ref _failureTotal);
+            _recovery.Record(DiagnosticRecoveryKind.Failure,error.HResult,checkpoint:true);
+        }
     }
 
     // Acoplado à cadência já existente de memória. Não cria timer, não
@@ -365,6 +400,7 @@ internal sealed class LocalDiagnosticReport
                 string line = FormattableString.Invariant(
                     $"{DateTimeOffset.UtcNow:O} janela={context} estado={activity} intervalo_ms={elapsed:F0} cpu_pct_normalizada={percent:F3} cpu_acumulada_ms={cpu:F2} ram_residente_bytes={process.WorkingSet64} ram_privada_bytes={process.PrivateMemorySize64} pico_residente_sessao_bytes={process.PeakWorkingSet64} handles={process.HandleCount}");
                 Append(_process, line, ref _processTotal);
+                _recovery.Record(DiagnosticRecoveryKind.ProcessSample,(long)cpu,process.WorkingSet64,process.PrivateMemorySize64,checkpoint:true);
                 _lastCpu = cpu;
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
@@ -396,6 +432,7 @@ internal sealed class LocalDiagnosticReport
             Section("Eventos técnicos selecionados (somente códigos e contagens)", _events, _eventTotal);
             Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
             AddJournalTo(text);
+            text.AppendLine(_recovery.FormatPrevious());
             return text.ToString();
 
             void Section(string title, Queue<string> entries, long total)
