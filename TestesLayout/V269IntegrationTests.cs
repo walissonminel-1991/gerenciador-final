@@ -1888,9 +1888,12 @@ internal static class V269IntegrationTests
                 Require(card.PreferredCardHeight(420,1200,true)==height,"altura idêntica em cache");
         Require(card.PreferredHeightMeasurements==count && metrics.Count==1,
             "vinte medidas repetidas não repetem a renderização de geometria");
+        int fontSets=card.FontSetCreations;
+        Require(fontSets==1,"primeira geometria cria um conjunto de quatro fontes");
         card.SetModel(model with { Sensors = [new V269HomeRow("Uso","20%")] });
         card.PreferredCardHeight(420,1200,true);
         Require(card.PreferredHeightMeasurements==++count,"mudança de leitura invalida a altura");
+        Require(card.FontSetCreations==fontSets,"mudança de sensor não recria fontes");
         card.PreferredCardHeight(400,1200,true);
         Require(card.PreferredHeightMeasurements==++count,"mudança da largura invalida a altura");
         card.PreferredCardHeight(400,1440,true);
@@ -1900,6 +1903,8 @@ internal static class V269IntegrationTests
         card.ApplyAppearance(V269AppearanceOptions.Default with { TextPercent = 110 },Color.Transparent);
         card.PreferredCardHeight(400,1440,false);
         Require(card.PreferredHeightMeasurements==++count,"mudança de escala de texto invalida a altura");
+        Require(card.FontSetCreations==fontSets+3,"fontes renovadas apenas por breakpoint, altura compacta e escala");
+        Console.WriteLine("PASS Início V2.6.9: fontes GDI reutilizadas nas atualizações de sensores.");
         Console.WriteLine("PASS Início V2.6.9: cache de geometria com invalidação por modelo e escala.");
     }
 
