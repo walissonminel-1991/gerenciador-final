@@ -256,7 +256,8 @@ internal sealed class V269AppFlowMeter : Control
         Visible = _value.HasValue;
         _meter.BackColor=V269AppDetailStyle.Palette(theme).RightPanel;
         _meter.Configure(theme,false); // manter geometria estática já aprovada
-        _meter.Present(GfUniversalMeter.Operation(_value,GfMeterState.Running,false,theme),AccessibleDescription);
+        _meter.Present(GfUniversalMeter.Operation(_value,
+            _value.HasValue ? GfMeterState.Running : GfMeterState.Unavailable,false,theme),AccessibleDescription);
         ArrangeMeter();
         Invalidate();
     }

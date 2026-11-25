@@ -168,6 +168,7 @@ internal static class V269ShellTests
             "tema da barra compartilhada acompanha o shell");
         shell.PresentPanel(null);
         Check(shell.RightPane.Current is null && !bar.Visible && bar.CurrentFrame.State==GfMeterState.Unavailable &&
+            !percent.Visible && chromatic.CurrentFrame.State==GfMeterState.Unavailable &&
             !shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
             "Ao dispensar a operação, Configurações deve recuperar a largura sem simular sucesso.");
 
