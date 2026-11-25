@@ -701,7 +701,7 @@ internal static class V269IntegrationTests
                     Require(description.Height<surface.Height/3,"descrição curta não ocupa espaço desnecessário");
                     var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
                     Require(!viewport.VerticalScroll.Visible&&!viewport.HorizontalScroll.Visible&&
-                        description is TextBox {ScrollBars:ScrollBars.None},"conteúdo curto não apresenta barras de rolagem");
+                        !shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).Single().Visible && description is TextBox {ScrollBars:ScrollBars.None},"conteúdo curto não apresenta barras de rolagem");
                     var operationalHistoryBar=shell.RightPane.Controls.Find("V269AppOperationHistoryScroll",true).Single();
                     Require(!operationalHistoryBar.Visible,"histórico que cabe não possui rolagem interna");
                     var heading=shell.RightPane.Controls.Find("V269AppFlowHeading",true).Single();
@@ -828,13 +828,17 @@ internal static class V269IntegrationTests
                     var longFlowViewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
                     shell.PresentPanel(operational! with {Description=string.Join("\r\n",Enumerable.Repeat("Linha de teste do acompanhamento.",80))});
                     surface.PerformLayout();Application.DoEvents();
-                    Require(longFlowViewport.VerticalScroll.Visible&&!longFlowViewport.HorizontalScroll.Visible&&
+                    var themedScroll = shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).OfType<DarkVScrollBar>().Single();
+                    Require(themedScroll.Visible && !longFlowViewport.AutoScroll && !longFlowViewport.HorizontalScroll.Visible &&
                         shell.RightPane.Controls.Find("V269PanelDescription",true).Single() is TextBox {ScrollBars:ScrollBars.None}&&
                         !shell.RightPane.Controls.Find("V269AppOperationHistoryScroll",true).Single().Visible,
                         "overflow real usa somente a rolagem externa do painel");
+                    themedScroll.Value = themedScroll.MaximumValue;
+                    Require(longFlowViewport.Controls.OfType<TableLayoutPanel>().Single().Top == -themedScroll.Value,
+                        "rolagem temática alcança o fim do painel");
                     shell.PresentPanel(operational);
                     surface.PerformLayout();Application.DoEvents();
-                    Require(!longFlowViewport.VerticalScroll.Visible,"reduzir conteúdo remove a rolagem externa");
+                    Require(!themedScroll.Visible && !longFlowViewport.VerticalScroll.Visible,"reduzir conteúdo remove a rolagem externa");
                     var flowDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
                     var realCancel=form.Controls.Find("UninstallCancel",true).Single();
                     Require(!ScreenBounds(flowHistory).IntersectsWith(ScreenBounds(flowDescription))&&flowDescription.Height>0&&
@@ -973,6 +977,12 @@ internal static class V269IntegrationTests
                 Select(0);
                 Require(ReferenceEquals(retained, shell.RightPane.Current),
                     "seleção repetida conserva a mesma apresentação de detalhes");
+                var repairSurface = form.Controls.Find("V269RepairSurface", true).Single();
+                var repairViewport = form.Controls.Find("V269RepairViewport", true).OfType<DarkScrollableFlow>().Single();
+                var repairFlow = form.Controls.Find("RepairActions", true).OfType<DarkScrollableFlow>().Single();
+                Require(repairSurface.BackColor == Color.Transparent && repairViewport.BackColor == Color.Transparent &&
+                    repairFlow.Content.BackColor == Color.Transparent && repairFlow.Width == repairViewport.CleanupViewportWidth,
+                    "Reparo preserva o fundo do HTML e ocupa a largura efetiva do viewport");
                 var rows = cards.GroupBy(card => card.Top).ToArray();
                 Require(rows.All(row => row.Count() <= 3) && (size.Width < 1844 || rows.Length == 4) &&
                     cards.All(card => card.Command.Right <= card.ClientSize.Width && card.Command.Bottom <= card.ClientSize.Height),
@@ -1051,20 +1061,9 @@ internal static class V269IntegrationTests
             Control Find(string name) => shell.RightPane.Controls.Find(name, true).Single();
             void Capture(string stage, V269Theme palette)
             {
-                var before = surface.Size;
-                try
-                {
-                    foreach (var size in new[] { new Size(1200, 659), new Size(1844, 1116) })
-                    {
-                        surface.Size = size;
-                        surface.PerformLayout();
-                        Application.DoEvents();
-                        using var image = new Bitmap(surface.Width, surface.Height);
-                        surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
-                        image.Save($"LayoutCaptures/v269-{tab}-PAINEL-{stage}-{palette}-{surface.Width}x{surface.Height}.png");
-                    }
-                }
-                finally { surface.Size = before; surface.PerformLayout(); }
+                using var image = new Bitmap(surface.Width, surface.Height);
+                surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
+                image.Save($"LayoutCaptures/v269-{tab}-PAINEL-{stage}-{palette}-{surface.Width}x{surface.Height}.png");
             }
             if (page == V269Page.Drivers)
             {
@@ -1090,57 +1089,70 @@ internal static class V269IntegrationTests
                     "trocar de aba encerra a revisão sem operação");
                 shell.SelectPage(page);
             }
-            foreach (V269Theme palette in Enum.GetValues<V269Theme>())
+            foreach (var size in new[] { new Size(1200, 659), new Size(1844, 1116) })
             {
-                theme.SelectedIndex = (int)palette;
-                SynchronizationContext.SetSynchronizationContext(paneContext);
-                var confirmation = shell.RightPane.ConfirmAsync($"Atualizar {tab}", "Alvo sintético. Nenhum executor é chamado.", cancellation.Token);
+                surface.Size = size;
                 surface.PerformLayout();
                 Application.DoEvents();
-                Require(Find("V269FlowNotice").Visible && Find("V269AcceptConfirmation").Visible &&
-                    !Find("V269FlowPercentMeter").Visible,
-                    "confirmação mantém aviso próprio, dois comandos e nenhuma barra");
-                Capture("CONFIRMACAO", palette);
-                shell.RightPane.ResolveConfirmation(false);
-                Pump(confirmation);
-                Require(!confirmation.Result, "a captura não confirma uma ação");
-
-                bool cancelled = false;
-                Action? cancel = page is V269Page.Drivers or V269Page.Limpeza or V269Page.Reparo ? () => cancelled = true : null;
-                shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "7 de 25 itens consultados.",
-                    28, CancelFlow: cancel, FlowPage:page));
-                surface.PerformLayout();
-                Application.DoEvents();
-                var meter = Find("V269FlowPercentMeter");
-                var note = Find("V269FlowNotice");
-                Require(meter.Visible && meter.AccessibleDescription == "28%" && note.Visible &&
-                    meter.PointToScreen(Point.Empty).Y < note.PointToScreen(Point.Empty).Y,
-                    "progresso comprovado aparece antes do aviso");
-                Capture("ANDAMENTO", palette);
-                if (cancel is not null)
+                foreach (V269Theme palette in Enum.GetValues<V269Theme>())
                 {
-                    var cancelAction = (Button)Find("V269CancelOwnedFlow");
-                    Require(cancelAction.Visible, "cancelamento segue acessível no painel da operação");
-                    cancelAction.PerformClick();
-                    Require(cancelled, "cancelamento usa a ação da operação");
-                }
-
-                foreach (bool complete in new[] { true, false })
-                {
-                    const string result = "Resultado sintético, sem manutenção.";
-                    shell.PresentPanel(new(V269PanelKind.Result, $"Verificar {tab}", result,
-                        FlowResult: new(page, complete, () => shell.PresentPanel(null))));
+                    theme.SelectedIndex = (int)palette;
+                    SynchronizationContext.SetSynchronizationContext(paneContext);
+                    var confirmation = shell.RightPane.ConfirmAsync($"Atualizar {tab}", "Alvo sintético. Nenhum executor é chamado.", cancellation.Token);
                     surface.PerformLayout();
                     Application.DoEvents();
-                    var dismiss = (Button)Find("V269DismissFlowResult");
-                    Require(Find("V269AppFlowHeading").Text == (complete ? "Operação concluída" : "Resultado da operação") &&
-                        note.Visible && note.AccessibleName == result && dismiss.Visible && !meter.Visible,
-                        "o resultado mostra o desfecho informado e pode ser dispensado");
-                    Capture(complete ? "CONCLUIDO" : "ATENCAO", palette);
-                    dismiss.PerformClick();
-                    Require(shell.RightPane.Current is null, "dispensar remove somente o resultado apresentado");
+                    Require(Find("V269FlowNotice").Visible && Find("V269AcceptConfirmation").Visible &&
+                        !Find("V269FlowPercentMeter").Visible,
+                        "confirmação mantém aviso próprio, dois comandos e nenhuma barra");
+                    Capture("CONFIRMACAO", palette);
+                    shell.RightPane.ResolveConfirmation(false);
+                    Pump(confirmation);
+                    Require(!confirmation.Result, "a captura não confirma uma ação");
+
+                    bool cancelled = false;
+                    Action? cancel = page is V269Page.Drivers or V269Page.Limpeza or V269Page.Reparo ? () => cancelled = true : null;
+                    shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "7 de 25 itens consultados.",
+                        28, CancelFlow: cancel, FlowPage:page));
+                    surface.PerformLayout();
+                    Application.DoEvents();
+                    var meter = Find("V269FlowPercentMeter");
+                    var note = Find("V269FlowNotice");
+                    Require(meter.Visible && meter.AccessibleDescription == "28%" && note.Visible &&
+                        meter.PointToScreen(Point.Empty).Y < note.PointToScreen(Point.Empty).Y,
+                        "progresso comprovado aparece antes do aviso");
+                    Capture("ANDAMENTO", palette);
+                    if (cancel is not null)
+                    {
+                        var cancelAction = (Button)Find("V269CancelOwnedFlow");
+                        Require(cancelAction.Visible, "cancelamento segue acessível no painel da operação");
+                        cancelAction.PerformClick();
+                        Require(cancelled, "cancelamento usa a ação da operação");
+                    }
+
+                    foreach (bool complete in new[] { true, false })
+                    {
+                        const string result = "Resultado sintético, sem manutenção.";
+                        shell.PresentPanel(new(V269PanelKind.Result, $"Verificar {tab}", result,
+                            FlowResult: new(page, complete, () => shell.PresentPanel(null))));
+                        surface.PerformLayout();
+                        Application.DoEvents();
+                        var dismiss = (Button)Find("V269DismissFlowResult");
+                        Require(Find("V269AppFlowHeading").Text == (complete ? "Operação concluída" : "Resultado da operação") &&
+                            note.Visible && note.AccessibleName == result && dismiss.Visible && !meter.Visible,
+                            "o resultado mostra o desfecho informado e pode ser dispensado");
+                        Capture(complete ? "CONCLUIDO" : "ATENCAO", palette);
+                        dismiss.PerformClick();
+                        Require(shell.RightPane.Current is null, "dispensar remove somente o resultado apresentado");
+                    }
                 }
             }
+            shell.PresentPanel(new(V269PanelKind.Result, "Resultado contextual", "Fixture",
+                FlowResult: new(page, true, () => { })));
+            var destination = page == V269Page.Drivers ? V269Page.Aplicativos : V269Page.Drivers;
+            shell.SelectPage(destination);
+            Require(shell.RightPane.Current?.FlowResult?.Page != page,
+                "resultado contextual não bloqueia o painel de outra aba");
+            shell.SelectPage(page);
         }
         finally
         {

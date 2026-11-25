@@ -1114,8 +1114,8 @@ internal sealed class DarkScrollableFlow : UserControl
         DpiChangedAfterParent += (_, _) => Reflow();
     }
 
-    // Opt-in exclusivo da aba Limpeza: o gradiente do shell permanece
-    // visível nos espaços entre cartões e após a última unidade.
+    // Superfície das ferramentas V2.6.9: preserva o gradiente do shell
+    // entre os cartões e após o último item.
     internal int CleanupScrollbarWidth => _scroll.Width;
     internal int CleanupViewportWidth => _viewport.ClientSize.Width;
 

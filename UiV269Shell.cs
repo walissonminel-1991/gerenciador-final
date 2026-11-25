@@ -64,7 +64,7 @@ internal sealed class V269RightPane : UserControl
 {
     private readonly TableLayoutPanel _layout;
     private readonly Panel _flowViewport=new(){Name="V269AppFlowViewport",Dock=DockStyle.Fill,Margin=Padding.Empty,TabStop=false};
-    private readonly DarkVScrollBar _cleanupFlowScroll=new(){Name="V269CleanupFlowScroll",Dock=DockStyle.Right,Visible=false,AccessibleName="Rolagem da operação de limpeza"};
+    private readonly DarkVScrollBar _cleanupFlowScroll=new(){Name="V269CleanupFlowScroll",Dock=DockStyle.Right,Visible=false,AccessibleName="Rolagem do acompanhamento da operação"};
     private readonly WheelDeltaAccumulator _cleanupFlowWheel=new();
     private bool _cleanupFlowScrollActive;
     private readonly Label _title;
@@ -106,6 +106,7 @@ internal sealed class V269RightPane : UserControl
     private Action<Guid>? _cleanupHistoryDismiss;
     private bool _appFlow;
     private bool _fittingOperationHistory;
+    private int _presentationDepth;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _appHistoryProvider;
     private Action<Guid>? _appHistoryDismiss;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _driverHistoryProvider;
@@ -266,10 +267,28 @@ internal sealed class V269RightPane : UserControl
             {
                 _choices.Visible = false;
                 _layout.RowStyles[3].Height = 0;
+                // Se o usuário mudou de aba enquanto autorizava, não
+                // restaurar os detalhes ou resultado contextual de outra aba.
+                if (previous is not null &&
+                    (previous.Application is not null && !_appHistoryPage ||
+                     previous.Driver is not null && !_driversPage ||
+                     previous.Cleanup is not null && !_cleanupPage ||
+                     previous.Repair is not null && !_repairPage ||
+                     previous.FlowResult is { } result && !IsFlowPageSelected(result.Page)))
+                    previous = null;
                 PresentCore(previous);
             }
         }
     }
+
+    private bool IsFlowPageSelected(V269Page page) => page switch
+    {
+        V269Page.Aplicativos => _appHistoryPage,
+        V269Page.Drivers => _driversPage,
+        V269Page.Limpeza => _cleanupPage,
+        V269Page.Reparo => _repairPage,
+        _ => true
+    };
 
     internal void ResolveConfirmation(bool accepted) => _confirmation?.TrySetResult(accepted);
 
@@ -309,8 +328,8 @@ internal sealed class V269RightPane : UserControl
     private void UpdateAppFlowScope()
     {
         bool result = Current is { Kind: V269PanelKind.Result, FlowResult: { } flow } &&
-            (flow.Page == V269Page.Aplicativos && _appHistoryPage || flow.Page == V269Page.Drivers && _driversPage ||
-                flow.Page == V269Page.Limpeza && _cleanupPage || flow.Page == V269Page.Reparo && _repairPage);
+            flow.Page is (V269Page.Aplicativos or V269Page.Drivers or V269Page.Limpeza or V269Page.Reparo) &&
+            IsFlowPageSelected(flow.Page);
         bool active = result || Current is { Kind: V269PanelKind.Progress, CancelFlow: not null } ||
             Current is { Kind: V269PanelKind.Progress or V269PanelKind.Confirmation, FlowPage: V269Page.Reparo } ||
             (_appHistoryPage || _driversPage || _cleanupPage || _repairPage) &&
@@ -377,16 +396,13 @@ internal sealed class V269RightPane : UserControl
     }
     private void FitOperationHistory()
     {
-        if(_fittingOperationHistory||IsDisposed||Disposing)return;
+        if(_presentationDepth != 0 || _fittingOperationHistory||IsDisposed||Disposing)return;
         _fittingOperationHistory=true;
         try
         {
             // Aplicativos usa a mesma política de overflow do aside HTML:
             // medir o conjunto inteiro, sem subdividir em áreas de rolagem.
-            bool themedCleanup=_appFlow&&_cleanupPage&&
-                Current?.FlowPage is (null or V269Page.Limpeza)&&
-                (Current?.FlowResult is null||Current.FlowResult.Page==V269Page.Limpeza);
-            if(!themedCleanup&&_cleanupFlowScrollActive)
+            if(!_appFlow&&_cleanupFlowScrollActive)
             {
                 _cleanupFlowScrollActive=false;
                 _cleanupFlowScroll.SetMetrics(0,1);
@@ -408,7 +424,6 @@ internal sealed class V269RightPane : UserControl
             int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
             _description.ScrollBars=ScrollBars.None;
             int height=Math.Max(1,_flowViewport.ClientSize.Height);
-            int fullWidth=Math.Max(1,_flowViewport.Width);
             bool executing=AppProgressChromeActive&&_hasOperationContent;
             int operation=executing?Math.Max(S(52),_description.Font.Height+S(32)):0;
             int MeasureFlow(int width)
@@ -433,37 +448,24 @@ internal sealed class V269RightPane : UserControl
             _flowViewport.SuspendLayout();_layout.SuspendLayout();
             try
             {
-                if(themedCleanup)
+                if (_flowViewport.AutoScroll)
                 {
-                    if(_flowViewport.AutoScroll)
-                    {
-                        _flowViewport.AutoScrollPosition=Point.Empty;
-                        _flowViewport.AutoScrollMinSize=Size.Empty;
-                        _flowViewport.AutoScroll=false;
-                    }
-                    _cleanupFlowScrollActive=true;
-                    _cleanupFlowScroll.ApplyAppScrollTheme(_appPaneTheme);
-                    int width=Math.Max(1,ClientSize.Width-Padding.Horizontal);
-                    int content=MeasureFlow(width);
-                    if(content>height)
-                    {
-                        width=Math.Max(1,width-_cleanupFlowScroll.Width);
-                        content=MeasureFlow(width);
-                    }
-                    _cleanupFlowScroll.SetMetrics(content,height);
-                    _layout.Dock=DockStyle.None;
-                    _layout.Bounds=new Rectangle(0,-_cleanupFlowScroll.Value,width,Math.Max(height,content));
+                    _flowViewport.AutoScrollPosition = Point.Empty;
+                    _flowViewport.AutoScrollMinSize = Size.Empty;
+                    _flowViewport.AutoScroll = false;
                 }
-                else
+                _cleanupFlowScrollActive = true;
+                _cleanupFlowScroll.ApplyAppScrollTheme(_appPaneTheme);
+                int width = Math.Max(1, ClientSize.Width - Padding.Horizontal);
+                int content = MeasureFlow(width);
+                if (content > height)
                 {
-                    int content=MeasureFlow(fullWidth);
-                    if(content>height)
-                        content=MeasureFlow(Math.Max(1,fullWidth-SystemInformation.VerticalScrollBarWidth));
-                    _flowViewport.AutoScroll=true;
-                    _layout.Dock=DockStyle.Top;
-                    _layout.Height=Math.Max(height,content);
-                    _flowViewport.AutoScrollMinSize=new Size(0,content);
+                    width = Math.Max(1, width - _cleanupFlowScroll.Width);
+                    content = MeasureFlow(width);
                 }
+                _cleanupFlowScroll.SetMetrics(content, height);
+                _layout.Dock = DockStyle.None;
+                _layout.Bounds = new Rectangle(0, -_cleanupFlowScroll.Value, width, Math.Max(height, content));
             }
             finally{_layout.ResumeLayout(true);_flowViewport.ResumeLayout(true);}
         }
@@ -474,13 +476,18 @@ internal sealed class V269RightPane : UserControl
         // Um estado do painel é uma transação: as mudanças de linhas,
         // visibilidade e conteúdo não precisam rearranjar o viewport
         // separadamente. A medição final usa a geometria já aplicada.
+        _presentationDepth++;
         _flowViewport.SuspendLayout();
         _layout.SuspendLayout();
         try { PresentCoreLayout(presentation); }
         finally
         {
-            _flowViewport.ResumeLayout(true);
-            _layout.ResumeLayout(true);
+            try
+            {
+                _flowViewport.ResumeLayout(true);
+                _layout.ResumeLayout(true);
+            }
+            finally { _presentationDepth--; }
         }
         FitOperationHistory();
         PresentationChanged?.Invoke(this, EventArgs.Empty);
@@ -496,12 +503,27 @@ internal sealed class V269RightPane : UserControl
             if(!(app.PreviousResults??Array.Empty<V269AppPreviousResult>()).SequenceEqual(latest))
                 presentation=presentation with {Application=app with {PreviousResults=latest}};
         }
+        if (_driversPage && presentation?.Driver is { } driver && _driverHistoryProvider is not null)
+        {
+            var latest = _driverHistoryProvider();
+            if (!(driver.PreviousResults ?? []).SequenceEqual(latest))
+                presentation = presentation with { Driver = driver with { PreviousResults = latest } };
+        }
+        if (_cleanupPage && presentation?.Cleanup is { } cleanup && _cleanupHistoryProvider is not null)
+        {
+            var latest = _cleanupHistoryProvider();
+            if (!(cleanup.PreviousResults ?? []).SequenceEqual(latest))
+                presentation = presentation with { Cleanup = cleanup with { PreviousResults = latest } };
+        }
         if (_repairPage && presentation?.Repair is { } repair && _repairHistoryProvider is not null)
         {
             var latest = _repairHistoryProvider();
             if (!(repair.PreviousResults ?? []).SequenceEqual(latest))
                 presentation = presentation with { Repair = repair with { PreviousResults = latest } };
         }
+        if (Current?.Kind != presentation?.Kind || Current?.Title != presentation?.Title ||
+            Current?.FlowPage != presentation?.FlowPage)
+            _cleanupFlowScroll.Value = 0;
         Current = presentation;
         if (presentation?.DriverReview is { IsDisposed: false } driverReview &&
             !ReferenceEquals(driverReview, _driverReview))
@@ -778,6 +800,14 @@ internal sealed class V269Shell : UserControl
     private readonly TableLayoutPanel _headingLayout;
     private readonly V269RightPane _rightPane;
     private bool _homeGeometry;
+    private (V269Page Page, bool Mandatory, bool Retained, bool CompactOpen,
+        bool? DashboardOpen, bool? AppOpen)? _lastPaneLayout;
+
+    private (V269Page Page, bool Mandatory, bool Retained, bool CompactOpen,
+        bool? DashboardOpen, bool? AppOpen) PaneLayoutState() =>
+        (SelectedPage, _rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress,
+            _rightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History or V269PanelKind.DriverReview,
+            _compactPaneOpen, _dashboardPaneOpen, _appPaneOpen);
 
     internal event EventHandler<V269NavigationEventArgs>? NavigationChanged;
     internal V269Theme Theme { get; private set; } = V269Theme.AzulGf;
@@ -947,7 +977,9 @@ internal sealed class V269Shell : UserControl
                 _dashboardPaneOpen = null;
                 _appPaneOpen=null;
             }
-            ApplyDimensions();
+            // Alterar texto, percentual ou histórico não muda a geometria
+            // da janela quando a necessidade de espaço do painel é a mesma.
+            if (_lastPaneLayout != PaneLayoutState()) ApplyDimensions();
         };
         SizeChanged += (_, _) => ApplyDimensions();
         ApplyAppearance(V269Theme.AzulGf, 100, 100);
@@ -991,7 +1023,8 @@ internal sealed class V269Shell : UserControl
             if (review.IsDisposed && ReferenceEquals(_rightPane.Current?.DriverReview, review))
                 _rightPane.Present(null);
         }
-        if (changed && ((SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
+        if (changed && (_rightPane.Current?.FlowResult is not null ||
+            (SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
             (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
             (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza)) ||
             (SelectedPage == V269Page.Reparo && (_rightPane.Current?.Repair is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Reparo))))
@@ -1108,7 +1141,11 @@ internal sealed class V269Shell : UserControl
         _centralLayout.SuspendLayout();
         _headingLayout.SuspendLayout();
         _navigationLayout.SuspendLayout();
-        try { ApplyDimensionsCore(); }
+        try
+        {
+            ApplyDimensionsCore();
+            _lastPaneLayout = PaneLayoutState();
+        }
         finally
         {
             _columns.ResumeLayout(true);

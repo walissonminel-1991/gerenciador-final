@@ -133,7 +133,10 @@ internal static class LayoutTests
             Work18UpdateUiTests.Run();
             Stage3UpdateQueryTests.Run();
             UninstallCleanupTests.VerifyTrayConfirmation();
-            TestMainWorkspace();
+            // A matriz de workspace continua em Release. O roteiro visual
+            // integrado completo roda na etapa 38 (BetaInternal), sem
+            // recapturar aqui as mesmas fixtures e os mesmos três temas.
+            TestMainWorkspace(runIntegratedVisualSuite: false);
             return;
         }
         if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
@@ -381,7 +384,7 @@ internal static class LayoutTests
         TestMainWorkspace();
     }
 
-    private static void TestMainWorkspace()
+    private static void TestMainWorkspace(bool runIntegratedVisualSuite = true)
     {
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
@@ -942,7 +945,7 @@ internal static class LayoutTests
         // O teste do novo shell cria um Form próprio; executá-lo após a suíte
         // legada evita modificar a ordem das janelas e o estado de foco dela.
         V269ShellTests.Run();
-        V269IntegrationTests.Run();
+        if (runIntegratedVisualSuite) V269IntegrationTests.Run();
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]

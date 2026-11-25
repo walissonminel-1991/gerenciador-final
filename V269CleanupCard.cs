@@ -13,7 +13,7 @@ internal class V269ToolCard : Panel
     private readonly int _kind;
     private readonly V269RepairGlyph? _repairGlyph;
     private bool _selected;
-    private bool _compactCleanup;
+    private bool _compactLayout;
     private V269AppearanceOptions _options = V269AppearanceOptions.Default;
     private Font? _titleFont;
     private int _optionsDpi;
@@ -51,11 +51,12 @@ internal class V269ToolCard : Panel
     }
     private int S(int n) => V269AppTable.Scale(n, _options.InterfacePercent, DeviceDpi);
     private static Color H(string s) => V269AppTable.H(s);
-    private int CardPad => S(_compactCleanup ? 9 : 12);
-    internal void ApplyCleanupLayout(bool compact)
+    private int CardPad => S(_compactLayout ? 9 : 12);
+    internal void ApplyToolLayout(bool compact)
     {
-        if(_repairGlyph.HasValue || _compactCleanup==compact)return;
-        _compactCleanup=compact;
+        if(_compactLayout==compact)return;
+        _titleMeasurement = null;
+        _compactLayout=compact;
         Arrange();
         Invalidate(true);
     }
@@ -100,13 +101,13 @@ internal class V269ToolCard : Panel
             cached.Scale == _options.InterfacePercent && ReferenceEquals(cached.Font, _title.Font))
             return cached.Height;
         int height = Math.Max(S(30), TextRenderer.MeasureText(_title.Text, _title.Font,
-            new Size(Math.Max(1, width - S(55)), int.MaxValue),
+            new Size(Math.Max(1, width - 2 * CardPad - S(31)), int.MaxValue),
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding).Height + S(2));
         _titleMeasurement = (width, DeviceDpi, _options.InterfacePercent, _title.Font, height);
         return height;
     }
     internal int HeightForWidth(int width) => Math.Max(S(114),
-        S(12) * 2 + TitleHeight(width) + S(8) + Math.Max(S(30), _command.Font.Height + S(8)));
+        CardPad * 2 + TitleHeight(width) + S(8) + Math.Max(S(30), _command.Font.Height + S(8)));
     private void Arrange()
     {
         int pad = CardPad, left = pad + S(31);
@@ -144,8 +145,8 @@ internal class V269ToolCard : Panel
     {
         if (_repairGlyph is { } repairGlyph)
         {
-            V269RepairVisuals.Draw(g, repairGlyph, new Rectangle(S(12),
-                S(12) + Math.Max(0, (_title.Height - S(22)) / 2), S(22), S(22)), _options.Theme);
+            V269RepairVisuals.Draw(g, repairGlyph, new Rectangle(CardPad,
+                CardPad + Math.Max(0, (_title.Height - S(22)) / 2), S(22), S(22)), _options.Theme);
             return;
         }
         var save = g.Save();

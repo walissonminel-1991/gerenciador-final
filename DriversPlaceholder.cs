@@ -283,8 +283,11 @@ internal sealed partial class MainForm
         void DismissDriverResult(Guid id)
         {
             if (root.IsDisposed || driverResults.RemoveAll(entry => entry.Id == id) == 0) return;
+            bool currentResult = _nav.RightPane.Current?.FlowResult is
+                { Page: V269Page.Drivers, HistoryId: var current } && current == id;
+            if (currentResult) _nav.PresentPanel(null);
             _nav.RightPane.RefreshAppOperationHistory();
-            if (_nav.RightPane.Current?.Driver is not null) PresentDetails(true);
+            if (currentResult || _nav.RightPane.Current?.Driver is not null) PresentDetails(true);
         }
         int refreshRevision = 0;
         bool syncingStatusAccessibility = false;
@@ -460,11 +463,7 @@ internal sealed partial class MainForm
             driverResults.Insert(0, result);
             if (driverResults.Count > 4) driverResults.RemoveAt(4);
             _nav.PresentPanel(new(V269PanelKind.Result, result.Title, result.Description,
-                FlowResult: new(V269Page.Drivers, complete, () =>
-                {
-                    _nav.PresentPanel(null);
-                    PresentDetails(false);
-                }, result.Id)));
+                FlowResult: new(V269Page.Drivers, complete, () => DismissDriverResult(result.Id), result.Id)));
         }
         if (v269)
         {

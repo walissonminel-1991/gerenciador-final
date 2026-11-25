@@ -793,7 +793,7 @@ internal sealed partial class MainForm : Form
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo ? 0 : _caption?.Height ?? 0;
+            int caption = _nav.SelectedPage is V269Page.Inicio or V269Page.Configuracoes or V269Page.Aplicativos or V269Page.Drivers or V269Page.Reparo or V269Page.Limpeza ? 0 : _caption?.Height ?? 0;
             var bounds = new Rectangle(
                 0, caption, Math.Max(1, ClientSize.Width),
                 Math.Max(1, ClientSize.Height - caption));
@@ -1486,7 +1486,7 @@ internal sealed partial class MainForm : Form
         if (owned?.FlowResult is { } result && _nav.SelectedPage == V269Page.Aplicativos)
         {
             _v269AppRetainedResult = null;
-            _nav.PresentPanel(owned with { FlowResult = result with { HistoryId = entry.Id } });
+            _nav.PresentPanel(owned with { FlowResult = result with { HistoryId = entry.Id, Dismiss = () => DismissV269AppResult(entry.Id) } });
             return;
         }
         if(owned is not null)_v269AppRetainedResult=owned;
@@ -1506,6 +1506,9 @@ internal sealed partial class MainForm : Form
         // Em operação, dispensar apenas a linha da sessão. Nunca substituir
         // Current, resolver a confirmação, alterar token ou gravar histórico.
         if(operational){_nav.RightPane.RefreshAppOperationHistory();return;}
+        if (_nav.RightPane.Current?.FlowResult is { Page: V269Page.Aplicativos, HistoryId: var current } && current == id)
+            _nav.PresentPanel(null);
+        _nav.RightPane.RefreshAppOperationHistory();
         if(_programList.SelectedItem is {} item)PresentV269AppDetails(item);
     }
 
@@ -1728,7 +1731,7 @@ internal sealed partial class MainForm : Form
     private void AddToolsPages()
     {
         var cleaning = new Panel { Name = "V269CleanupSurface", BackColor = Color.Transparent, Dock = DockStyle.Fill };
-        var repair = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
+        var repair = new Panel { Name = "V269RepairSurface", BackColor = Color.Transparent, Dock = DockStyle.Fill };
         var system = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
 
         // Cores de impacto: azul = rotina, cinza = baixo impacto/inspeção,
@@ -1871,7 +1874,7 @@ internal sealed partial class MainForm : Form
                         if (card.Margin != margin) card.Margin = margin;
                         if (card.Size != size) card.Size = size;
                         card.ApplyOptions(key.Item5);
-                        card.ApplyCleanupLayout(key.Item6);
+                        card.ApplyToolLayout(key.Item6);
                     }
                 }
                 finally { flow.ResumeLayout(false); }
@@ -2937,11 +2940,7 @@ internal sealed partial class MainForm : Form
                     if (verification is not null && ReferenceEquals(_nav.RightPane.Current, verification))
                     {
                         _nav.PresentPanel(new(V269PanelKind.Result, entry.Title, entry.Description,
-                            FlowResult: new(V269Page.Aplicativos, complete, () =>
-                            {
-                                _nav.PresentPanel(null);
-                                if (_programList.SelectedItem is { } item) PresentV269AppDetails(item);
-                            }, entry.Id)));
+                            FlowResult: new(V269Page.Aplicativos, complete, () => DismissV269AppResult(entry.Id), entry.Id)));
                     }
                     else _nav.RightPane.RefreshAppOperationHistory();
                 }

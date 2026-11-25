@@ -38,9 +38,10 @@ internal sealed partial class MainForm
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
-        if(trackCleaning)
+        bool themedTools = trackCleaning || trackRepair;
+        if (themedTools)
         {
-            host.Name = "V269CleanupViewport";
+            host.Name = trackCleaning ? "V269CleanupViewport" : "V269RepairViewport";
             host.ApplyCleanupSurface(_v269Appearance.Theme);
         }
         host.Content.Padding = Padding.Empty;
@@ -59,7 +60,7 @@ internal sealed partial class MainForm
                 // 3 px de margem tecnica. A largura usa o espaco efetivo,
                 // mas nao desativa a rolagem quando o conteudo ultrapassa.
                 int scrollbar = (int)Math.Ceiling(14d * host.DeviceDpi / 96d);
-                int width = Math.Max(1, host.ClientSize.Width - (trackCleaning ? 0 : scrollbar));
+                int width = Math.Max(1, host.ClientSize.Width - (themedTools ? 0 : scrollbar));
                 int MeasureAt(int available)
                 {
                     if(content.Width!=available)content.Width=available;
@@ -67,7 +68,7 @@ internal sealed partial class MainForm
                     return minimumHeight(available);
                 }
                 int required=MeasureAt(width);
-                if(trackCleaning && required>host.ClientSize.Height)
+                if(themedTools && required>host.ClientSize.Height)
                 {
                     // Só reservar a largura real da barra quando existe overflow.
                     width=Math.Max(1,host.ClientSize.Width-host.CleanupScrollbarWidth);
@@ -77,7 +78,7 @@ internal sealed partial class MainForm
                 if(content.Height!=targetHeight)content.Height=targetHeight;
                 int oldViewportWidth=host.CleanupViewportWidth;
                 host.Reflow();
-                if(trackCleaning && host.CleanupViewportWidth!=oldViewportWidth)host.Reflow();
+                if(themedTools && host.CleanupViewportWidth!=oldViewportWidth)host.Reflow();
             }
             finally { arranging = false; }
         }

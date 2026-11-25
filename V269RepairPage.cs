@@ -138,9 +138,9 @@ internal sealed partial class MainForm
             Name = "RepairActions", Dock = DockStyle.Fill, Margin = Padding.Empty,
             EmbeddedInPage = true, BackColor = AppServices.Background
         };
+        host.ApplyCleanupSurface(_v269Appearance.Theme);
         var flow = host.Content;
         flow.Padding = Padding.Empty;
-        flow.BackColor = AppServices.Background;
         foreach (var tool in tools)
         {
             var card = new V269RepairCard(tool.Title, tool.Description, _v269RepairItems.Count, tool.Command, tool.Glyph);
@@ -159,7 +159,7 @@ internal sealed partial class MainForm
         _v269RepairSelected.Card.SetSelected(true);
         RefreshV269RepairCommands();
         bool fitting = false;
-        (int Width, int Gap, int Columns, int Dpi, V269AppearanceOptions Options)? fitted = null;
+        (int Width, int Gap, int Columns, int Dpi, V269AppearanceOptions Options, bool Compact)? fitted = null;
         void Fit()
         {
             if (fitting || host.IsDisposed || host.ClientSize.Width <= 0) return;
@@ -171,7 +171,7 @@ internal sealed partial class MainForm
                 int width = Math.Max(1, host.ClientSize.Width - Math.Max(4, S(4)));
                 int columns = _nav.LayoutWindowWidth <= 850 || width < S(540) ? 2 : 3;
                 if (width < S(330)) columns = 1;
-                var key = (width, gap, columns, host.DeviceDpi, _v269Appearance.Normalize());
+                var key = (width, gap, columns, host.DeviceDpi, _v269Appearance.Normalize(), _nav.LayoutWindowWidth <= 1250);
                 if (fitted == key) return; // alteração apenas de altura não invalida os cartões.
                 int cardWidth = Math.Max(1, (width - gap * (columns - 1)) / columns);
                 flow.SuspendLayout();
@@ -180,7 +180,11 @@ internal sealed partial class MainForm
                     for (int row = 0; row < _v269RepairItems.Count; row += columns)
                     {
                         var cards = _v269RepairItems.Skip(row).Take(columns).Select(item => item.Card).ToArray();
-                        foreach (var card in cards) card.ApplyOptions(key.Item5);
+                        foreach (var card in cards)
+                        {
+                            card.ApplyOptions(key.Item5);
+                            card.ApplyToolLayout(key.Item6);
+                        }
                         int height = cards.Max(card => card.HeightForWidth(cardWidth));
                         for (int column = 0; column < cards.Length; column++)
                         {

@@ -1101,7 +1101,7 @@ internal sealed partial class MainForm
         if(root is V269CleanupDiskCard cleanupDisk){cleanupDisk.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupSection cleanupSection)cleanupSection.ApplyOptions(_v269Appearance);
         if(root is DarkScrollableFlow cleanupFlow &&
-            root.Name is ("V269CleanupActions" or "V269CleanupViewport" or "V269CleanupDiskList"))
+            root.Name is ("V269CleanupActions" or "V269CleanupViewport" or "V269CleanupDiskList" or "RepairActions" or "V269RepairViewport"))
             cleanupFlow.ApplyCleanupSurface(_v269Appearance.Theme);
         if((root.Name is "V269CleanupActions" or "RepairActions") && root.Tag is Action fitTools)fitTools();
         if(root==_diskCards)ResizeDiskCards();
@@ -1220,7 +1220,21 @@ internal sealed partial class MainForm
         finally
         {
             _v269Confirming = false;
-            if (!IsDisposed && !Disposing) _nav.SetPageInteraction(true);
+            if (!IsDisposed && !Disposing)
+            {
+                _nav.SetPageInteraction(true);
+                if (_nav.RightPane.Current is null && !_betaClose.IsClosing)
+                {
+                    switch (_nav.SelectedPage)
+                    {
+                        case V269Page.Aplicativos when _programList.SelectedItem is { } item:
+                            PresentV269AppDetails(item); break;
+                        case V269Page.Drivers: _presentV269DriverDetails?.Invoke(false); break;
+                        case V269Page.Limpeza: PresentV269CleanupRetained(); break;
+                        case V269Page.Reparo: PresentV269RepairRetained(); break;
+                    }
+                }
+            }
             if (previouslyFocused is { IsDisposed: false, CanFocus: true } && !IsInTray)
                 previouslyFocused.Focus();
         }

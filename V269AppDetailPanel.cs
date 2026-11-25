@@ -256,8 +256,13 @@ internal sealed class V269AppFlowMeter : Control
         Visible = _value.HasValue;
         _meter.BackColor=V269AppDetailStyle.Palette(theme).RightPanel;
         _meter.Configure(theme,false); // manter geometria estática já aprovada
-        _meter.Present(GfUniversalMeter.Operation(_value,
-            _value.HasValue ? GfMeterState.Running : GfMeterState.Unavailable,false,theme),AccessibleDescription);
+        var frame = GfUniversalMeter.Operation(_value,
+            _value.HasValue ? GfMeterState.Running : GfMeterState.Unavailable, false, theme);
+        // O fluxo HTML em Dark tem preenchimento grafite claro. A escala
+        // cromática de sensores e os estados medidos continuam intactos.
+        if (theme == V269Theme.Dark && frame.State == GfMeterState.Running)
+            frame = frame with { Color = V269AppTable.H("#b6bec6") };
+        _meter.Present(frame, AccessibleDescription);
         ArrangeMeter();
         Invalidate();
     }
@@ -831,19 +836,17 @@ internal sealed class V269AppDetailIcon:Control
         using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),Math.Max(2,Width/6));
         using var fill=new SolidBrush(_palette.Card);using var border=new Pen(_palette.Border);
         g.FillPath(fill,shape);g.DrawPath(border,shape);
+        var theme = _palette == V269AppDetailStyle.Palette(V269Theme.Claro) ? V269Theme.Claro :
+            _palette == V269AppDetailStyle.Palette(V269Theme.Dark) ? V269Theme.Dark : V269Theme.AzulGf;
         if (_repairGlyph is { } repairGlyph)
         {
             int size = Math.Max(1, (int)Math.Round(Width * 26d / 48d));
-            var theme = _palette == V269AppDetailStyle.Palette(V269Theme.Claro) ? V269Theme.Claro :
-                _palette == V269AppDetailStyle.Palette(V269Theme.Dark) ? V269Theme.Dark : V269Theme.AzulGf;
             V269RepairVisuals.Draw(g, repairGlyph, new Rectangle((Width-size)/2, (Height-size)/2, size, size), theme);
             return;
         }
         if (_cleanupGlyph is { } cleanupGlyph)
         {
             int size=Math.Max(1,(int)Math.Round(Width*26d/48d));
-            var theme=_palette==V269AppDetailStyle.Palette(V269Theme.Claro)?V269Theme.Claro:
-                _palette==V269AppDetailStyle.Palette(V269Theme.Dark)?V269Theme.Dark:V269Theme.AzulGf;
             V269CleanupGlyph.Draw(g,cleanupGlyph,new Rectangle((Width-size)/2,(Height-size)/2,size,size),theme);
             return;
         }
