@@ -3055,17 +3055,15 @@ internal sealed partial class MainForm : Form
     {
         string query = _search.Text.Trim();
         IEnumerable<ProgramEntry> filtered = _installed.Where(entry =>
-            ActionableInventory.ShouldShowInMainList(entry, _appFilter) && (query.Length == 0 ||
-            string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion,
-                entry.CatalogIdentity, entry.CatalogDisplayName, entry.InventorySource,
-                entry.MsiProductCode)
-                .Contains(query, StringComparison.CurrentCultureIgnoreCase)));
+            ActionableInventory.ShouldShowInMainList(entry, _appFilter));
         filtered = _appFilter switch
         {
             "Com atualização" => filtered.Where(x => x.IsUpdate),
             "Selecionados" => filtered.Where(x => _checkedApps.Contains(x)),
             _ => filtered
         };
+        if (query.Length != 0)
+            filtered = filtered.Where(entry => V269AppOrdering.MatchesSearch(entry, query));
         var match = V269AppOrdering.Sort(filtered,_v269AppSort,_v269ManualOrder);
         _programList.SetItems(match);
         _emptyState.Text = query.Length > 0
