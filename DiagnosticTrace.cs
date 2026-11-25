@@ -171,6 +171,7 @@ internal static class DiagnosticTrace
     public static void Failure(string stage, Exception ex)
     {
         // Mensagens completas de excecao podem conter caminhos com dados pessoais.
+        LocalDiagnosticReport.Session.RecordFailure(stage, ex);
         Write($"{stage} excecao={ex.GetType().Name} hresult=0x{ex.HResult:X8}");
     }
 }
