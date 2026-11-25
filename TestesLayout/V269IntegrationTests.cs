@@ -1316,8 +1316,41 @@ internal static class V269IntegrationTests
         }
     }
 
+    private static void VerifyAppIconQueueVisibility()
+    {
+        using var owner=new Control();
+        _=owner.Handle;
+        var first=new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int reads=0;
+        using var cache=new V269AppIconCache(owner,_=>
+            Interlocked.Increment(ref reads)==1?first.Task:Task.FromResult<byte[]?>(null));
+        void WaitFor(Func<bool> ready,string message)
+        {
+            var watch=System.Diagnostics.Stopwatch.StartNew();
+            while(!ready()&&watch.Elapsed<TimeSpan.FromSeconds(5))
+            {Application.DoEvents();Thread.Sleep(5);}
+            Require(ready(),message);
+        }
+        cache.Get(@"C:\GF\fixture-one.ico");
+        WaitFor(()=>Volatile.Read(ref reads)==1,"primeira leitura de ícone iniciada");
+        cache.Get(@"C:\GF\fixture-two.ico");
+        Require(cache.PendingCount==2,"leitura ativa e fila pendente");
+        owner.Visible=false;
+        Require(cache.PendingCount==1,"ocultar Aplicativos descarta somente a fila");
+        first.SetResult(null);
+        WaitFor(()=>cache.PendingCount==0,"leitura ativa termina sem agendar outra");
+        Require(Volatile.Read(ref reads)==1,"nenhuma extração adicional fora da aba");
+        cache.Get(@"C:\GF\fixture-two.ico");
+        Require(cache.PendingCount==0,"aba oculta não enfileira leitura");
+        owner.Visible=true;
+        cache.Get(@"C:\GF\fixture-two.ico");
+        WaitFor(()=>Volatile.Read(ref reads)==2&&cache.PendingCount==0,"retorno à aba retoma extração sob demanda");
+        Console.WriteLine("PASS Aplicativos V2.6.9: fila de ícones suspensa fora da aba.");
+    }
+
     private static void VerifyAppIconSources()
     {
+        VerifyAppIconQueueVisibility();
         Require(V269LocalIconSource.Parse("\"C:\\Program Files\\GF\\app.exe\",-12") is {Index:-12}&&
             V269LocalIconSource.Parse("C:\\GF\\app.ico") is {Index:0},"ícones locais com índice documentado");
         foreach(string invalid in new[]{"https://site/app.ico","\\\\server\\share\\a.exe","C:\\GF\\..\\a.exe",
