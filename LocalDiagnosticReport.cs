@@ -33,6 +33,30 @@ internal sealed class LocalDiagnosticReport
                 + " " + sample.Format(), ref _performanceTotal);
     }
 
+    // Instrumentação leve de trechos síncronos de UI: não mede o tempo
+    // até a pintura efetiva, não lê o processo e não escreve no disco.
+    internal IDisposable MeasureUi(string stage) => new UiScope(this, stage);
+
+    private sealed class UiScope(LocalDiagnosticReport owner, string stage) : IDisposable
+    {
+        private readonly long _started = Stopwatch.GetTimestamp();
+        private readonly long _allocated = GC.GetAllocatedBytesForCurrentThread();
+        private readonly int _thread = Environment.CurrentManagedThreadId;
+        private bool _disposed;
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            double elapsed = Stopwatch.GetElapsedTime(_started).TotalMilliseconds;
+            long? bytes = _thread == Environment.CurrentManagedThreadId
+                ? GC.GetAllocatedBytesForCurrentThread() - _allocated : null;
+            lock (owner._gate)
+                Append(owner._performance, FormattableString.Invariant(
+                    $"{DateTimeOffset.UtcNow:O} etapa={stage} duracao_ms={elapsed:F3} alocacoes_thread_ui_bytes={bytes}"),
+                    ref owner._performanceTotal);
+        }
+    }
+
     internal void RecordFailure(string stage, Exception error)
     {
         // Somente código técnico delimitado; nunca Exception.Message/StackTrace.
@@ -103,13 +127,15 @@ internal sealed class LocalDiagnosticReport
     }
 
     internal static string SaveToDocuments(string report) =>
-        SaveToFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), report);
+        SaveToFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments,
+            Environment.SpecialFolderOption.DoNotVerify), report);
 
     internal static string SaveToFolder(string folder, string report)
     {
-        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+        if (string.IsNullOrWhiteSpace(folder))
             throw new IOException("Pasta Documentos indisponível.");
         string directory = InstallerFileGuard.ValidateLocalPath(folder);
+        if (!Directory.Exists(directory)) throw new IOException("Pasta Documentos indisponível.");
         // Falhar fechado em UNC/reparse ou diretório não confiável. Não
         // escolher outro destino nem sobrescrever um relatório anterior.
         using var pinned = InstallerFileGuard.PinDirectory(directory, allowLeafWrites: true);
