@@ -2219,14 +2219,17 @@ internal sealed partial class MainForm : Form
 
     private Control CreateDiskCard(DiskUsageInfo disk)
     {
-        long used = disk.TotalBytes - disk.FreeBytes;
-        double fraction = disk.TotalBytes > 0 ? Math.Clamp((double)used / disk.TotalBytes, 0d, 1d) : 0d;
-        int percent = (int)Math.Round(fraction * 100);
+        bool valid = disk.TotalBytes > 0 && disk.FreeBytes >= 0 && disk.FreeBytes <= disk.TotalBytes;
+        long used = valid ? disk.TotalBytes - disk.FreeBytes : 0;
+        var frame = GfUniversalMeter.Disk(valid ? (ulong)used : null, valid ? (ulong)disk.TotalBytes : null, _v269Appearance.Theme);
+        string usage = frame.Fraction is double fraction
+            ? $"{DisplayGigabytes(used)} de {DisplayGigabytes(disk.TotalBytes)} ({Math.Round(fraction*100)}%)"
+            : "Ocupação indisponível";
         string letter = disk.Root.TrimEnd('\\');
         string name = string.IsNullOrWhiteSpace(disk.Label) ? "Disco local" : disk.Label;
         var card = new V269CleanupDiskCard($"{name} ({letter})",
-            $"{DisplayGigabytes(used)} de {DisplayGigabytes(disk.TotalBytes)} ({percent}%)",
-            $"{disk.FileSystem} · {DisplayGigabytes(disk.FreeBytes)} livres", fraction);
+            usage, valid ? $"{disk.FileSystem} · {DisplayGigabytes(disk.FreeBytes)} livres" : disk.FileSystem,
+            valid ? (ulong)used : null, valid ? (ulong)disk.TotalBytes : null);
         string? task = SingleVolumeOptimization.TaskForRoot(disk.Root);
         var optimize = card.Command;
         optimize.Name = "OptimizeVolume" + letter.TrimEnd(':');

@@ -232,6 +232,7 @@ internal sealed class V269AppFlowMeter : Control
     private int? _value;
     private int _scale = 100;
     private V269Theme _theme;
+    private readonly GfDynamicProgressBar _meter=new() { Name="V269FlowChromaticBar",TabStop=false };
 
     internal V269AppFlowMeter()
     {
@@ -241,21 +242,31 @@ internal sealed class V269AppFlowMeter : Control
         Dock = DockStyle.Bottom;
         Visible = false;
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        Controls.Add(_meter);
     }
 
     internal void SetProgress(int? value, V269Theme theme, int scale, Font font)
     {
-        _value = value is int n ? Math.Clamp(n, 0, 100) : null;
+        _value = value is int n && n>=0 && n<=100 ? n : null;
         _theme = theme;
         _scale = scale;
         Font = font;
         AccessibleDescription = _value is int p ? p + "%" : "";
         Height = _value.HasValue ? Font.Height + S(21) : 0;
         Visible = _value.HasValue;
+        _meter.Configure(theme,false); // manter geometria estática já aprovada
+        _meter.Present(GfUniversalMeter.Operation(_value,GfMeterState.Running,false,theme),AccessibleDescription);
+        ArrangeMeter();
         Invalidate();
     }
 
     private int S(int px) => V269AppTable.Scale(px, _scale, DeviceDpi);
+    private void ArrangeMeter()
+    {
+        if(_meter is null)return;
+        _meter.Bounds=new Rectangle(0,S(1)+Font.Height+S(3)+S(3),Math.Max(1,Width-1),S(11));
+    }
+    protected override void OnResize(EventArgs e){base.OnResize(e);ArrangeMeter();}
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -266,21 +277,7 @@ internal sealed class V269AppFlowMeter : Control
         const TextFormatFlags options = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
         TextRenderer.DrawText(graphics, "Progresso", Font, label, palette.SecondaryText, options);
         TextRenderer.DrawText(graphics, value + "%", Font, label, palette.Text, options | TextFormatFlags.Right);
-        var bar = new Rectangle(0, label.Bottom+S(3), Width-1, S(11));
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var shape = ModernButton.RoundRect(bar, bar.Height/2);
-        using var track = new SolidBrush(palette.Card);
-        using var outline = new Pen(palette.Border);
-        using var fill = new SolidBrush(_theme == V269Theme.Dark ? V269AppTable.H("#c8d0d7") : palette.Accent);
-        graphics.FillPath(track, shape);
-        var state = graphics.Save();
-        try
-        {
-            graphics.SetClip(shape, CombineMode.Intersect);
-            graphics.FillRectangle(fill, bar.X, bar.Y, bar.Width*value/100, bar.Height);
-        }
-        finally { graphics.Restore(state); }
-        graphics.DrawPath(outline, shape);
+
     }
 }
 
