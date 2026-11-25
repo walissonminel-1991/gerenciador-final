@@ -1549,14 +1549,25 @@ internal static class V269IntegrationTests
             {
                 for(int i=1;i<=150;i++)
                     chronological.RecordEvent("REGISTRO_PROGRAMAS.LIDO quantidade="+i+" nome=PRIVADO");
+                using(var export=chronological.CaptureForExport())
+                {
+                    chronological.RecordEvent("REGISTRO_PROGRAMAS.LIDO quantidade=777777");
+                    string exported=LocalDiagnosticReport.SaveToFolder(folder,"GF-DIAG-1 fixture",export);
+                    string captured=File.ReadAllText(exported);
+                    Require(captured.Contains("eventos gravados: 150; omitidos: 0")&&
+                        captured.Contains("REGISTRO_PROGRAMAS.LIDO quantidade=1"+Environment.NewLine)&&
+                        !captured.Contains("quantidade=777777")&&!captured.Contains("AVISO: cronologia integral indisponível")&&
+                        captured.EndsWith("=== FIM DO RELATÓRIO ==="+Environment.NewLine,StringComparison.Ordinal),
+                        "exportação contém exatamente o prefixo capturado; eventos posteriores ficam na sessão");
+                }
                 string firstSnapshot=chronological.Format();
-                Require(firstSnapshot.Contains("128 retidas de 150")&&
-                    firstSnapshot.Contains("eventos gravados: 150; omitidos: 0")&&
+                Require(firstSnapshot.Contains("128 retidas de 151")&&
+                    firstSnapshot.Contains("eventos gravados: 151; omitidos: 0")&&
                     firstSnapshot.Contains("REGISTRO_PROGRAMAS.LIDO quantidade=1"+Environment.NewLine)&&
                     !firstSnapshot.Contains("PRIVADO"),"cronologia conserva registros anteriores ao limite de RAM");
                 chronological.RecordOperation(V269Page.Reparo,"resultado",false);
                 string secondSnapshot=chronological.Format();
-                Require(secondSnapshot.Contains("eventos gravados: 151; omitidos: 0")&&
+                Require(secondSnapshot.Contains("eventos gravados: 152; omitidos: 0")&&
                     secondSnapshot.Contains("operacao aba=Reparo estado=resultado resultado_confirmado=False"),
                     "segunda exportação conserva cronologia e resultado não confirmado");
             }
