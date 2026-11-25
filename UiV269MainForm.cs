@@ -160,6 +160,7 @@ internal sealed partial class MainForm
             request.Token.ThrowIfCancellationRequested();
             if (IsDisposed || Disposing) return;
             _v269LastSnapshot = snapshot;
+            LocalDiagnosticReport.Session.SampleHardware(snapshot);
             publish = snapshot;
             _v269NextGpuSample = Environment.TickCount64 + 8000;
             _v269LastHomeModels = V269HomeModels(snapshot);
@@ -317,6 +318,7 @@ internal sealed partial class MainForm
     {
         if (_v269LastSnapshot is not null) _v269LastSnapshot = snapshot;
         else _v269MonitorSnapshot = snapshot;
+        LocalDiagnosticReport.Session.SampleHardware(snapshot);
     }
 
     internal static LiveHardwareSample V269UnavailableLiveCounters(DateTimeOffset at) =>
@@ -888,9 +890,14 @@ internal sealed partial class MainForm
                     $"Tela atual: {Screen.FromControl(this).Bounds.Width}x{Screen.FromControl(this).Bounds.Height}"+Environment.NewLine+
                     "Relatório da sessão atual; o GF não envia este arquivo. Revise antes de compartilhar."+Environment.NewLine+
                     Environment.NewLine+_reliability.Report(_installed,_inventoryIncomplete);
-                report+=Environment.NewLine+Environment.NewLine+(_v269LastSnapshot is{} snapshot
-                    ? "Última consulta de hardware (não é uma leitura nova):"+Environment.NewLine+HardwareMonitoringDiagnosticReport.Format(snapshot)
+                var snapshot=_v269LastSnapshot??_v269MonitorSnapshot;
+                report+=Environment.NewLine+Environment.NewLine+(snapshot is not null
+                    ? "Última consulta de hardware (não é uma leitura nova):"+Environment.NewLine+
+                      LocalDiagnosticReport.FormatHardware(snapshot)+Environment.NewLine+
+                      HardwareMonitoringDiagnosticReport.Format(snapshot)
                     : "Hardware: nenhuma fotografia disponível nesta sessão.");
+                report+=Environment.NewLine+Environment.NewLine+LocalDiagnosticReport.FormatWindowsConfiguration()+
+                    Environment.NewLine+$"GF: notificações={_v269General.Notifications}; minimizar na bandeja={_v269General.MinimizeToTray}; inicialização automática={ReadV269Startup()}; coleta consentida={AnonymousTelemetryContext.Current?.Consent??TelemetryConsent.NotAsked}; animações={CanAnimateV269}";
                 var testExport=loadPreferences?null:V269DiagnosticExportForTest;
                 if(!loadPreferences&&testExport is null)
                 {
