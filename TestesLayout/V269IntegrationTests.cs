@@ -408,6 +408,7 @@ internal static class V269IntegrationTests
         int notifications = 0;
         var dispatch = new List<double>();
         var settle = new List<double>();
+        var transitions = new List<(V269Page From, V269Page To, V269Theme Theme, bool Pump, double Dispatch, double? Drain)>();
         void Changed(object? sender, V269NavigationEventArgs e)
         {
             notifications++;
@@ -417,14 +418,18 @@ internal static class V269IntegrationTests
         }
         void Click(V269Page page, bool pump)
         {
-            bool changed = shell.SelectedPage != page;
+            var from = shell.SelectedPage;
+            var palette = shell.Theme;
+            bool changed = from != page;
             int count = notifications;
             var clock = System.Diagnostics.Stopwatch.StartNew();
             var button = buttons[page];
             Require(button.Visible && button.Enabled && button.CanSelect,
                 "navegação indisponível: " + page);
             button.PerformClick();
-            dispatch.Add(clock.Elapsed.TotalMilliseconds);
+            double dispatchMs = clock.Elapsed.TotalMilliseconds;
+            dispatch.Add(dispatchMs);
+            double? drainMs = null;
             Require(shell.SelectedPage == page && notifications == count + (changed ? 1 : 0),
                 "clique perdido, duplicado ou adiado: " + page);
             Require(views.All(pair => ReferenceEquals(shell.PageContent(pair.Key), pair.Value) &&
@@ -434,11 +439,13 @@ internal static class V269IntegrationTests
             {
                 clock.Restart();
                 Application.DoEvents();
-                settle.Add(clock.Elapsed.TotalMilliseconds);
+                drainMs = clock.Elapsed.TotalMilliseconds;
+                settle.Add(drainMs.Value);
                 Require(shell.SelectedPage == page &&
                     views.All(pair => pair.Value.Visible == (pair.Key == page)),
                     "fila STA restaurou uma aba antiga: " + page);
             }
+            transitions.Add((from, page, palette, pump, dispatchMs, drainMs));
         }
         shell.NavigationChanged += Changed;
         try
@@ -465,6 +472,20 @@ internal static class V269IntegrationTests
             }
             Report("click_dispatch", dispatch);
             Report("sta_drain", settle);
+            // Registrar depois do percurso: escrita no console não pode
+            // alterar artificialmente a latência de cada clique/rajada.
+            foreach (var sample in transitions)
+            {
+                string drain = sample.Drain?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "NA";
+                Console.WriteLine(FormattableString.Invariant(
+                    $"V269-UX-TRANSITION from={sample.From} to={sample.To} theme={sample.Theme} pump={sample.Pump} dispatch_ms={sample.Dispatch:F2} drain_ms={drain}"));
+            }
+            foreach (var group in transitions.GroupBy(s => s.To))
+            {
+                var sorted = group.Select(s => s.Dispatch).OrderBy(x => x).ToArray();
+                Console.WriteLine(FormattableString.Invariant(
+                    $"V269-UX-PAGE page={group.Key} n={sorted.Length} p50_ms={sorted[(int)Math.Ceiling(sorted.Length*.5)-1]:F2} p95_ms={sorted[(int)Math.Ceiling(sorted.Length*.95)-1]:F2} max_ms={sorted[^1]:F2}"));
+            }
             Console.WriteLine("PASS V269-UX navegação sequencial: cliques nativos, rajadas, 3 temas, identidade e seleção única.");
         }
         finally
