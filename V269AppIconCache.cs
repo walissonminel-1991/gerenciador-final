@@ -64,8 +64,36 @@ internal sealed record V269MsixIconSource(string Family,string FullName)
     }
 }
 internal sealed record V269IconRequest(V269LocalIconSource? Local,V269MsixIconSource? Msix);
-internal sealed class V269AppIconCache(Control owner):IDisposable
+internal sealed class V269AppIconCache : IDisposable
 {
+    private readonly Control owner;
+    private readonly Func<V269IconRequest,Task<byte[]?>> _read;
+
+    internal V269AppIconCache(Control owner,Func<V269IconRequest,Task<byte[]?>>? read=null)
+    {
+        this.owner=owner;
+        _read=read??ReadAsync;
+        owner.VisibleChanged+=OwnerVisibilityChanged;
+    }
+
+    private static async Task<byte[]?> ReadAsync(V269IconRequest source) =>
+        source.Msix is {} msix?await ReadMsixAsync(msix):
+        source.Local is {} local?ReadResource(local):null;
+
+    internal int PendingCount=>_pending.Count;
+
+    private void OwnerVisibilityChanged(object? sender,EventArgs e)
+    {
+        if(_disposed)return;
+        if(!owner.Visible)
+        {
+            // A leitura já iniciada pode terminar; descartar apenas a fila ainda
+            // não executada. Na volta, a pintura solicita os ícones visíveis.
+            while(_queue.TryDequeue(out var source))_pending.Remove(source);
+            return;
+        }
+        owner.Invalidate();Start();
+    }
     private readonly Dictionary<V269IconRequest,Bitmap?> _items=new();
     private readonly Queue<V269IconRequest> _order=new(),_queue=new();
     private readonly HashSet<V269IconRequest> _pending=new();
@@ -82,12 +110,11 @@ internal sealed class V269AppIconCache(Control owner):IDisposable
     }
     private void Start()
     {
-        if(_disposed||_running||_queue.Count==0)return;
+        if(_disposed||_running||_queue.Count==0||!owner.Visible||!owner.IsHandleCreated)return;
         _running=true;var source=_queue.Dequeue();
         _=Task.Run(async ()=>
         {
-            byte[]? bytes=source.Msix is {} msix?await ReadMsixAsync(msix):
-                source.Local is {} local?ReadResource(local):null;
+            byte[]? bytes=await _read(source);
             try
             {
                 if(!owner.IsDisposed&&owner.IsHandleCreated)
@@ -109,7 +136,7 @@ internal sealed class V269AppIconCache(Control owner):IDisposable
         while(_items.Count>=192&&_order.TryDequeue(out var first))
             if(_items.Remove(first,out var removed))removed?.Dispose();
         _items[source]=image;_order.Enqueue(source);
-        owner.Invalidate();Start();
+        if(owner.Visible){owner.Invalidate();Start();}
     }
     // O logotipo vem da API oficial de recursos do pacote instalado no usuário
     // corrente. Um pacote com múltiplas entradas não tem um logotipo único
@@ -200,6 +227,7 @@ internal sealed class V269AppIconCache(Control owner):IDisposable
     public void Dispose()
     {
         _disposed=true;
+        owner.VisibleChanged-=OwnerVisibilityChanged;
         foreach(var image in _items.Values)image?.Dispose();
         _items.Clear();_queue.Clear();_order.Clear();_pending.Clear();
     }
