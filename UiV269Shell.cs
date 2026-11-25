@@ -838,6 +838,9 @@ internal sealed class V269Shell : UserControl
     private V269AppSplitter? _appSplitter;
     private bool? _dashboardPaneOpen;
     private bool _movingHomeToggle;
+    // Uma troca de aba pode fechar detalhes e publicar eventos do painel.
+    // Consolidar esses pedidos antes de calcular a geometria da nova aba.
+    private bool _selectingPage;
 
     internal void SetOperationContent(Control content)
     {
@@ -1014,7 +1017,12 @@ internal sealed class V269Shell : UserControl
         _pages[page] = control;
         control.Dock = DockStyle.Fill;
         control.Margin = Padding.Empty;
-        if (control.Parent != _bodyHost) _bodyHost.Controls.Add(control);
+        if (control.Parent != _bodyHost)
+        {
+            // Nunca expor uma view inativa durante a montagem do shell.
+            control.Visible = page == SelectedPage;
+            _bodyHost.Controls.Add(control);
+        }
         RefreshVisiblePage();
     }
 
@@ -1030,29 +1038,34 @@ internal sealed class V269Shell : UserControl
         if (!changed && _pages.TryGetValue(page, out var active) && active.Visible &&
             _pageTitle.Text == Pages[(int)page].Title && _navigation[page].IsSelected)
             return;
-        if (changed) _dashboardPaneOpen = null;
-        if (changed && SelectedPage == V269Page.Drivers &&
-            _rightPane.Current is { Kind: V269PanelKind.DriverReview, DriverReview: { IsDisposed: false } review })
+        _selectingPage = true;
+        try
         {
-            review.Close();
-            if (review.IsDisposed && ReferenceEquals(_rightPane.Current?.DriverReview, review))
+            if (changed) _dashboardPaneOpen = null;
+            if (changed && SelectedPage == V269Page.Drivers &&
+                _rightPane.Current is { Kind: V269PanelKind.DriverReview, DriverReview: { IsDisposed: false } review })
+            {
+                review.Close();
+                if (review.IsDisposed && ReferenceEquals(_rightPane.Current?.DriverReview, review))
+                    _rightPane.Present(null);
+            }
+            if (changed && (_rightPane.Current?.FlowResult is not null ||
+                (_rightPane.Current?.Module is not null && _rightPane.Current.FlowPage==SelectedPage) ||
+                (SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
+                (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
+                (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza)) ||
+                (SelectedPage == V269Page.Reparo && (_rightPane.Current?.Repair is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Reparo))))
                 _rightPane.Present(null);
+            SelectedPage = page;
+            _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza, page==V269Page.Reparo,
+                page is V269Page.Sistema or V269Page.Inicializacao ? page : null);
+            var descriptor = Pages[(int)page];
+            _pageTitle.Text = descriptor.Title;
+            _pageSubtitle.Text = descriptor.Subtitle;
+            RefreshVisiblePage();
+            ApplyNavigationSelection(V269VisualTokens.ForTheme(Theme));
         }
-        if (changed && (_rightPane.Current?.FlowResult is not null ||
-            (_rightPane.Current?.Module is not null && _rightPane.Current.FlowPage==SelectedPage) ||
-            (SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
-            (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
-            (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza)) ||
-            (SelectedPage == V269Page.Reparo && (_rightPane.Current?.Repair is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Reparo))))
-            _rightPane.Present(null);
-        SelectedPage = page;
-        _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza, page==V269Page.Reparo,
-            page is V269Page.Sistema or V269Page.Inicializacao ? page : null);
-        var descriptor = Pages[(int)page];
-        _pageTitle.Text = descriptor.Title;
-        _pageSubtitle.Text = descriptor.Subtitle;
-        RefreshVisiblePage();
-        ApplyNavigationSelection(V269VisualTokens.ForTheme(Theme));
+        finally { _selectingPage = false; }
         ApplyDimensions();
         if (changed) NavigationChanged?.Invoke(this, new V269NavigationEventArgs(page));
     }
@@ -1152,7 +1165,7 @@ internal sealed class V269Shell : UserControl
 
     private void ApplyDimensions()
     {
-        if (_columns is null || _navigationLayout is null) return;
+        if (_selectingPage || _columns is null || _navigationLayout is null) return;
         // Aplicar as mesmas propriedades em uma transação visual.
         _columns.SuspendLayout();
         _centralLayout.SuspendLayout();
@@ -1449,10 +1462,20 @@ internal sealed class V269Shell : UserControl
     {
         // Não reconstruir ou descartar views: seleção, rolagem e operações
         // devem continuar sob controle da aba/motor que as criou.
-        foreach (var (page, content) in _pages)
-            content.Visible = page == SelectedPage;
-        if (_pages.TryGetValue(SelectedPage, out Control? active))
-            active.BringToFront();
+        _bodyHost.SuspendLayout();
+        try
+        {
+            // Primeiro ocultar todas as views anteriores; depois revelar a ativa.
+            // A ordem de inserção não pode produzir duas views simultaneamente.
+            foreach (var (page, content) in _pages)
+                if (page != SelectedPage) content.Visible = false;
+            if (_pages.TryGetValue(SelectedPage, out Control? active))
+            {
+                active.BringToFront();
+                active.Visible = true;
+            }
+        }
+        finally { _bodyHost.ResumeLayout(true); }
     }
 
     private void ApplyNavigationSelection(V269Palette palette)

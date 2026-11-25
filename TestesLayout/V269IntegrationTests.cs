@@ -17,6 +17,7 @@ internal static class V269IntegrationTests
             throw new InvalidOperationException($"View ausente: {page}")).ToArray();
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
+        Timed("Navegação sequencial nativa", () => VerifySequentialNavigation(form, shell));
         VerifyNoLegacyControls();
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
@@ -53,7 +54,7 @@ internal static class V269IntegrationTests
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var waiting = (Task<bool>)confirm.Invoke(form, ["Revisão de teste",
                 "Alvo sintético. Nenhuma manutenção.", CancellationToken.None])!;
-            shell.SelectPage(V269Page.Drivers);
+            form.Controls.Find("V269NavDrivers", true).OfType<Button>().Single().PerformClick();
             Require(form.Controls.Find("V269HomeMinimize", true).Single().Visible && !paneToggle.Visible,
                 "Drivers reutiliza a barra do HTML e o acesso contextual ao painel");
             Require(!waiting.IsCompleted && shell.RightPane.Visible &&
@@ -166,6 +167,89 @@ internal static class V269IntegrationTests
         Timed("Pintura real V269", () => VerifyLiveWindowPaint(form, shell));
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    // Percurso de uso contínuo: o mesmo Form, os mesmos controles e o
+    // despacho Click dos botões reais. Não iniciar serviços nem executar ações
+    // de manutenção. Tempos separados de despacho e drenagem da fila STA.
+    private static void VerifySequentialNavigation(MainForm form, V269Shell shell)
+    {
+        var pages = Enum.GetValues<V269Page>();
+        var views = pages.ToDictionary(p => p, p => shell.PageContent(p)!);
+        var buttons = pages.ToDictionary(p => p,
+            p => form.Controls.Find("V269Nav" + p, true).OfType<Button>().Single());
+        var themeChoice = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        int originalTheme = themeChoice.SelectedIndex;
+        var originalPage = shell.SelectedPage;
+        int notifications = 0;
+        var dispatch = new List<double>();
+        var settle = new List<double>();
+        void Changed(object? sender, V269NavigationEventArgs e)
+        {
+            notifications++;
+            Require(shell.SelectedPage == e.Page &&
+                views.All(pair => pair.Value.Visible == (pair.Key == e.Page)),
+                "evento de navegação publicado antes do estado visual coerente");
+        }
+        void Click(V269Page page, bool pump)
+        {
+            bool changed = shell.SelectedPage != page;
+            int count = notifications;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var button = buttons[page];
+            Require(button.Visible && button.Enabled && button.CanSelect,
+                "navegação indisponível: " + page);
+            button.PerformClick();
+            dispatch.Add(clock.Elapsed.TotalMilliseconds);
+            Require(shell.SelectedPage == page && notifications == count + (changed ? 1 : 0),
+                "clique perdido, duplicado ou adiado: " + page);
+            Require(views.All(pair => ReferenceEquals(shell.PageContent(pair.Key), pair.Value) &&
+                pair.Value.Visible == (pair.Key == page)),
+                "view recriada ou seleção simultânea: " + page);
+            if (pump)
+            {
+                clock.Restart();
+                Application.DoEvents();
+                settle.Add(clock.Elapsed.TotalMilliseconds);
+                Require(shell.SelectedPage == page &&
+                    views.All(pair => pair.Value.Visible == (pair.Key == page)),
+                    "fila STA restaurou uma aba antiga: " + page);
+            }
+        }
+        shell.NavigationChanged += Changed;
+        try
+        {
+            foreach (var theme in Enum.GetValues<V269Theme>())
+            {
+                Click(V269Page.Configuracoes, true);
+                themeChoice.SelectedIndex = (int)theme;
+                Application.DoEvents();
+                Require(shell.Theme == theme, "mudança de tema não aplicada");
+                foreach (var page in pages) Click(page, true);
+                // Rajadas sem bombear mensagens entre os cliques: última
+                // seleção vence; nenhum callback atrasado pode restaurar outra aba.
+                foreach (var page in pages.Reverse()) Click(page, false);
+                Click(V269Page.Inicio, true);
+                Click(V269Page.Inicio, true); // clique repetido é idempotente
+            }
+            void Report(string phase, List<double> samples)
+            {
+                samples.Sort();
+                double P(double q) => samples[Math.Clamp((int)Math.Ceiling(q * samples.Count) - 1, 0, samples.Count - 1)];
+                Console.WriteLine(FormattableString.Invariant(
+                    $"V269-UX-LATENCY {phase} n={samples.Count} p50_ms={P(.50):F2} p95_ms={P(.95):F2} max_ms={samples[^1]:F2}"));
+            }
+            Report("click_dispatch", dispatch);
+            Report("sta_drain", settle);
+            Console.WriteLine("PASS V269-UX navegação sequencial: cliques nativos, rajadas, 3 temas, identidade e seleção única.");
+        }
+        finally
+        {
+            shell.NavigationChanged -= Changed;
+            themeChoice.SelectedIndex = originalTheme;
+            shell.SelectPage(originalPage);
+            Application.DoEvents();
+        }
     }
 
     // Captura do desktop real (WM_PAINT), não WM_PRINT/DrawToBitmap.
