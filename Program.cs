@@ -30,7 +30,11 @@ internal static class Program
         DiagnosticTrace.LocalEventSink = LocalDiagnosticReport.Session.RecordEvent;
         DiagnosticTrace.LocalFailureSink = LocalDiagnosticReport.Session.RecordFailure;
         bool traceStarted = DiagnosticTrace.Start();
-        if (traceStarted) LocalDiagnosticReport.Session.StartJournal(DiagnosticTrace.LogFilePath);
+        if (traceStarted)
+        {
+            LocalDiagnosticReport.Session.StartJournal(DiagnosticTrace.LogFilePath);
+            LocalDiagnosticReport.Session.StartRecovery(DiagnosticTrace.LogFilePath);
+        }
         if (!traceStarted || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
         {
             MessageBox.Show(
@@ -38,11 +42,13 @@ internal static class Program
                 "O teste foi interrompido antes de iniciar a consulta de pacotes.\n\n" +
                 "Motivo técnico: " + DiagnosticTrace.LastFailure,
                 "Diagnóstico indisponível", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            LocalDiagnosticReport.Session.CloseRecovery(false);
             LocalDiagnosticReport.Session.CloseJournal();
             DiagnosticTrace.Stop();
             return 2;
         }
         V269AdminLaunchTicket? reopenAdministrator = null;
+        bool normalExit=false;
         try
         {
             LocalPerformanceMetrics.Sink = sample =>
@@ -68,8 +74,10 @@ internal static class Program
                     "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
                     "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
-            AppDomain.CurrentDomain.UnhandledException += (_, _) =>
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             {
+                if(e.ExceptionObject is Exception fatal)
+                    LocalDiagnosticReport.Session.RecordFailure("APP.FALHA_FATAL",fatal);
                 // Melhor esforco em falha fatal: codigo fixo, sem excecao bruta
                 // e sem rede. Kill/queda de energia podem impedir esta gravacao.
                 var recorder = AnonymousTelemetryContext.Current;
@@ -82,6 +90,7 @@ internal static class Program
             Application.Run(mainForm);
             reopenAdministrator = mainForm.ConsumeV269AdminRestart();
             DiagnosticTrace.Write("APP.ENCERRAMENTO_NORMAL");
+            normalExit=true;
             return 0;
         }
         catch (Exception ex)
@@ -97,6 +106,7 @@ internal static class Program
         {
             DiagnosticTrace.LocalEventSink = null;
             DiagnosticTrace.LocalFailureSink = null;
+            LocalDiagnosticReport.Session.CloseRecovery(normalExit);
             LocalDiagnosticReport.Session.CloseJournal();
             DiagnosticTrace.Stop();
             if (reopenAdministrator is { } ticket) V269AdminSessionLauncher.RequestOnce(ticket);
