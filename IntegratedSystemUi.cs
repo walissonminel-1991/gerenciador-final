@@ -762,6 +762,7 @@ internal sealed partial class MainForm
     private void PresentV269ModuleResult(V269Page page,string title,string message,bool complete)
     {
         if(IsDisposed||Disposing)return;
+        LocalDiagnosticReport.Session.RecordOperation(page,"resultado",complete);
         var id=Guid.NewGuid();
         if(!_v269ModuleHistory.TryGetValue(page,out var history))_v269ModuleHistory[page]=history=new();
         history.Insert(0,new V269AppPreviousResult(id,title,message,complete));
