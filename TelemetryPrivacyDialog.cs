@@ -190,8 +190,6 @@ internal sealed partial class MainForm
         _privacyStatusButton.Text = PrivacyConsentPresentation.ButtonLabel(state);
         _privacyStatusButton.AccessibleName = "Privacidade: " + _privacyStatusButton.Text;
         _privacyStatusButton.AccessibleDescription = PrivacyConsentPresentation.Explanation(state);
-        _toolTips.SetToolTip(_privacyStatusButton,
-            _privacyStatusButton.AccessibleDescription);
         _privacyStatusButton.BackColor = state == TelemetryConsent.LocalOnly
             ? Color.FromArgb(43, 66, 89) : AppServices.Gray;
         _privacyStatusButton.Invalidate();

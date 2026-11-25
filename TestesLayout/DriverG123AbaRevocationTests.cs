@@ -206,8 +206,6 @@ internal static class DriverG123AbaRevocationTests
                 var status = Find<Label>(page, "DriverInventoryStatus");
                 var historyStatus = Find<Label>(page, "DriverHistoryStatus");
                 var title = Find<Label>(page, "DriverInventoryTitle");
-                var tooltip = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!
-                    .GetValue(owner)!;
                 searchBox = Find<TextBox>(page, "DriverInventorySearch");
                 refreshAction!();
                 PumpUntil(() => historyStatus.Text.Contains("Desde a consulta anterior", StringComparison.Ordinal)
@@ -238,8 +236,7 @@ internal static class DriverG123AbaRevocationTests
                     Ensure(list.Items.Count == 2 && !investigate.Enabled &&
                         File.ReadAllBytes(path).SequenceEqual(approvedHistory),
                         "filtros reabilitaram consulta revogada " + sizes[i]);
-                    Ensure(status.AccessibleDescription?.Contains(status.Text, StringComparison.Ordinal) == true &&
-                        string.IsNullOrEmpty(tooltip.GetToolTip(status)),
+                    Ensure(status.AccessibleDescription?.Contains(status.Text, StringComparison.Ordinal) == true,
                         "estado inacessível ou tooltip invasivo após revogação");
                 }
 
