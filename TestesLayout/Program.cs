@@ -133,10 +133,14 @@ internal static class LayoutTests
             Work18UpdateUiTests.Run();
             Stage3UpdateQueryTests.Run();
             UninstallCleanupTests.VerifyTrayConfirmation();
-            // A matriz de workspace continua em Release. O roteiro visual
-            // integrado completo roda na etapa 38 (BetaInternal), sem
-            // recapturar aqui as mesmas fixtures e os mesmos três temas.
+            // Release: matriz e partição visual independente de Limpeza/Reparo.
+            // BetaInternal usa o mesmo SHA e execução e verifica o recibo antes
+            // de deixar de repetir essas mesmas capturas. Fora da CI a suíte
+            // padrão continua integral.
             TestMainWorkspace(runIntegratedVisualSuite: false);
+            V269IntegrationTests.RunMaintenanceVisual();
+            if(MaintenanceVisualReceipt() is { } receipt)
+                File.WriteAllText(receipt.Path,receipt.Identity);
             return;
         }
         if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
@@ -930,7 +934,28 @@ internal static class LayoutTests
         // O teste do novo shell cria um Form próprio; executá-lo após a suíte
         // legada evita modificar a ordem das janelas e o estado de foco dela.
         V269ShellTests.Run();
-        if (runIntegratedVisualSuite) V269IntegrationTests.Run();
+        if (runIntegratedVisualSuite)
+        {
+            var receipt=MaintenanceVisualReceipt();
+            bool alreadyTested=receipt is {} proof&&File.Exists(proof.Path)&&
+                string.Equals(File.ReadAllText(proof.Path),proof.Identity,StringComparison.Ordinal);
+            V269IntegrationTests.Run(includeMaintenanceVisual: !alreadyTested);
+        }
+    }
+
+    private static (string Path,string Identity)? MaintenanceVisualReceipt()
+    {
+        if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true")return null;
+        var sha=Environment.GetEnvironmentVariable("GITHUB_SHA");
+        var run=Environment.GetEnvironmentVariable("GITHUB_RUN_ID");
+        var attempt=Environment.GetEnvironmentVariable("GITHUB_RUN_ATTEMPT");
+        if(sha is null||sha.Length!=40||!sha.All(Uri.IsHexDigit)||
+            !long.TryParse(run,out long runId)||runId<=0||
+            !int.TryParse(attempt,out int attemptId)||attemptId<=0)return null;
+        string identity=$"V269-TOOLS-COMPLETE:{sha}:{runId}:{attemptId}";
+        // Só escrito após o retorno integral da partição de testes.
+        // Não aceitar recibos de outro checkout, execução ou tentativa.
+        return (Path.Combine("LayoutCaptures",$"V269-tools-{sha}-{runId}-{attemptId}.ok"),identity);
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]

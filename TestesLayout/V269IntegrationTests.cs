@@ -5,7 +5,7 @@ using GerenciadorAplicativos;
 
 internal static class V269IntegrationTests
 {
-    internal static void Run()
+    internal static void Run(bool includeMaintenanceVisual = true)
     {
         using var form = new MainForm(startServices: false);
         form.Show();
@@ -151,11 +151,35 @@ internal static class V269IntegrationTests
             Console.WriteLine($"V269-END {name} ms={clock.ElapsedMilliseconds}");
         }
         Timed("Drivers", () => VerifyDrivers(form,shell));
-        Timed("Limpeza", () => VerifyCleanup(form,shell));
-        Timed("Reparo", () => VerifyRepair(form,shell));
+        if (includeMaintenanceVisual)
+        {
+            Timed("Limpeza", () => VerifyCleanup(form,shell));
+            Timed("Reparo", () => VerifyRepair(form,shell));
+        }
+        else Console.WriteLine("V269: Limpeza e Reparo aprovados no percurso WORK18 desta mesma execução.");
         Timed("Sistema e Inicialização",()=>VerifyLastTabs(form,shell));
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    // As duas abas de ferramentas são independentes das fixtures de inventário.
+    // O mesmo conjunto de testes e capturas pode ser executado no percurso WORK18
+    // sem aumentar o prazo de quatro minutos nem repetir a matriz visual.
+    internal static void RunMaintenanceVisual()
+    {
+        using var form = new MainForm(startServices:false);
+        form.Show(); Application.DoEvents();
+        var shell=form.Controls.Find("V269Shell",true).OfType<V269Shell>().Single();
+        var clock=System.Diagnostics.Stopwatch.StartNew();
+        Console.WriteLine("V269-BEGIN Limpeza");
+        VerifyCleanup(form,shell);
+        Console.WriteLine($"V269-END Limpeza ms={clock.ElapsedMilliseconds}");
+        clock.Restart();
+        Console.WriteLine("V269-BEGIN Reparo");
+        VerifyRepair(form,shell);
+        Console.WriteLine($"V269-END Reparo ms={clock.ElapsedMilliseconds}");
+        form.Close();
+        Console.WriteLine("PASS V2.6.9: partição visual de Limpeza e Reparo completa.");
     }
 
     private static void VerifyCleanup(MainForm form,V269Shell shell)
