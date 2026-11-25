@@ -38,6 +38,11 @@ internal sealed partial class MainForm
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
+        if(trackCleaning)
+        {
+            host.Name = "V269CleanupViewport";
+            host.ApplyCleanupSurface(_v269Appearance.Theme);
+        }
         host.Content.Padding = Padding.Empty;
         host.Content.WrapContents = false;
         content.Dock = DockStyle.None;

@@ -1736,7 +1736,7 @@ internal sealed partial class MainForm : Form
 
     private void AddToolsPages()
     {
-        var cleaning = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
+        var cleaning = new Panel { Name = "V269CleanupSurface", BackColor = Color.Transparent, Dock = DockStyle.Fill };
         var repair = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
         var system = new Panel { BackColor = AppServices.Background, Dock = DockStyle.Fill };
 
@@ -1773,7 +1773,7 @@ internal sealed partial class MainForm : Form
         var cleaningLayout = new TableLayoutPanel
         {
             Name = "V269CleanupPage", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = Padding.Empty,
-            BackColor = AppServices.Background
+            BackColor = Color.Transparent
         };
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 275));
@@ -1782,7 +1782,7 @@ internal sealed partial class MainForm : Form
         cleaningLayout.Controls.Add(BuildDiskPanel(), 0, 1);
         cleaning.Controls.Add(ScrollablePage(cleaningLayout, width =>
         {
-            int cardsHeight = ToolsHeight(cleaningActions, width);
+            int cardsHeight = ((DarkScrollableFlow)cleaningActions).MeasureContentHeight(Math.Max(1,width));
             int diskHeight = DiskPanelHeight(width);
             cleaningLayout.RowStyles[0].Height = cardsHeight;
             cleaningLayout.RowStyles[1].Height = diskHeight;
@@ -1817,11 +1817,11 @@ internal sealed partial class MainForm : Form
         var host = new DarkScrollableFlow
         {
             Name = "V269CleanupActions", Dock = DockStyle.Fill, Margin = Padding.Empty,
-            EmbeddedInPage = true, BackColor = AppServices.Background
+            EmbeddedInPage = true
         };
+        host.ApplyCleanupSurface(_v269Appearance.Theme);
         var flow = host.Content;
         flow.Padding = Padding.Empty;
-        flow.BackColor = AppServices.Background;
         var cards = new List<V269CleanupCard>();
         string[] glyphs = ["folder", "monitor", "refresh", "trash", "brush", "cpu"];
         string[] risks = ["Baixo", "Médio", "Atenção", "Irreversível", "Variável", "Baixo"];
@@ -1863,7 +1863,7 @@ internal sealed partial class MainForm : Form
             {
                 int S(int x) => V269AppTable.Scale(x, _v269Appearance.InterfacePercent, host.DeviceDpi);
                 int gap = S(9);
-                int width = Math.Max(1, host.ClientSize.Width - Math.Max(16, S(16)));
+                int width = Math.Max(1, host.ClientSize.Width);
                 int columns = _nav.LayoutWindowWidth <= 850 || width < S(540) ? 2 : 3;
                 if (width < S(330)) columns = 1;
                 var key = (width, gap, columns, host.DeviceDpi, _v269Appearance.Normalize());
@@ -2197,6 +2197,7 @@ internal sealed partial class MainForm : Form
                     root.RowStyles[0].Height=Math.Max(D(30),heading.Font.Height+D(5));
                     root.RowStyles[1].Height=rows*(height+D(9))+D(10);
                     root.RowStyles[2].Height=Math.Max(D(32),_cleanupPreview.Font.Height+D(8));
+                    _diskCards.Content.Padding = new Padding(0,D(12),0,D(2));
                     // A altura da linha de estado é decidida por DiskPanelHeight conforme os dados disponíveis.
                 }
                 finally{previewRow.ResumeLayout(true);}
@@ -2217,10 +2218,10 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(_diskSummary, 0, 4);
         _diskCards.EmbeddedInPage = true;
         _diskCards.Dock = DockStyle.Fill;
-        _diskCards.Content.Padding = new Padding(0, 4, 0, 2);
+        _diskCards.Content.Padding = new Padding(0, D(12), 0, D(2));
         _diskCards.Margin = Padding.Empty;
-        _diskCards.BackColor = PanelBackground;
-        _diskCards.Content.BackColor = PanelBackground;
+        _diskCards.Name = "V269CleanupDiskList";
+        _diskCards.ApplyCleanupSurface(_v269Appearance.Theme);
         _diskCards.Resize += (_, _) => ResizeDiskCards();
         root.Controls.Add(_diskCards, 0, 5);
         return root;

@@ -228,6 +228,15 @@ internal static class V269IntegrationTests
                 }
                 var section=form.Controls.Find("V269DiskSection",true).OfType<TableLayoutPanel>().Single();
                 var report=form.Controls.Find("CleanupCategoryReport",true).OfType<TableLayoutPanel>().Single();
+                var cleanupSurface=form.Controls.Find("V269CleanupSurface",true).Single();
+                var cleanupViewport=form.Controls.Find("V269CleanupViewport",true).OfType<DarkScrollableFlow>().Single();
+                Require(cleanupSurface.BackColor==Color.Transparent && cleanupViewport.BackColor==Color.Transparent &&
+                    cards.Content.BackColor==Color.Transparent && disks.Content.BackColor==Color.Transparent,
+                    "gradiente aprovado permanece visível entre cartões e discos");
+                Require(cards.Content.Controls.Cast<Control>().Max(c=>c.Right)>=cards.Content.Width-3,
+                    "cartões ocupam a largura útil, sem faixa vazia lateral");
+                Require(report.RowStyles.Cast<RowStyle>().All(row=>row.Height>=V269AppTable.Scale(28,100,report.DeviceDpi)),
+                    "estimativas preservam o espaçamento mínimo do HTML");
                 var stableRows=report.RowStyles.Cast<RowStyle>().ToArray();
                 relayout();
                 Require(report.RowStyles.Cast<RowStyle>().SequenceEqual(stableRows),

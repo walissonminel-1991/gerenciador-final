@@ -1103,6 +1103,9 @@ internal sealed partial class MainForm
         if(root is V269CleanupButton cleanupButton){cleanupButton.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupDiskCard cleanupDisk){cleanupDisk.ApplyOptions(_v269Appearance);return;}
         if(root is V269CleanupSection cleanupSection)cleanupSection.ApplyOptions(_v269Appearance);
+        if(root is DarkScrollableFlow cleanupFlow &&
+            root.Name is ("V269CleanupActions" or "V269CleanupViewport" or "V269CleanupDiskList"))
+            cleanupFlow.ApplyCleanupSurface(_v269Appearance.Theme);
         if((root.Name is "V269CleanupActions" or "RepairActions") && root.Tag is Action fitTools)fitTools();
         if(root==_diskCards)ResizeDiskCards();
         if(root.Name is "V269AppsTableFrame" or "V269DriversTableFrame"){root.BackColor=V269AppTable.Colors(_v269Appearance.Theme).Border;

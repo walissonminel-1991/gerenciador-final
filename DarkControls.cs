@@ -1114,6 +1114,17 @@ internal sealed class DarkScrollableFlow : UserControl
         DpiChangedAfterParent += (_, _) => Reflow();
     }
 
+    // Opt-in exclusivo da aba Limpeza: o gradiente do shell permanece
+    // visível nos espaços entre cartões e após a última unidade.
+    internal void ApplyCleanupSurface(V269Theme theme)
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor,true);
+        BackColor=Color.Transparent;
+        _viewport.BackColor=Color.Transparent;
+        _flow.BackColor=Color.Transparent;
+        _scroll.ApplyAppScrollTheme(theme);
+    }
+
     private void ScrollFromWheel(MouseEventArgs e)
     {
         int notches = _wheel.Consume(e.Delta);

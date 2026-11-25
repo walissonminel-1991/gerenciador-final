@@ -7,7 +7,7 @@ namespace GerenciadorAplicativos;
 
 internal static class V269CleanupGlyph
 {
-    internal static void Draw(Graphics g, string kind, Rectangle bounds, V269Theme theme)
+    internal static void Draw(Graphics g, string kind, Rectangle bounds, V269Theme theme, Color? inkOverride = null)
     {
         var save = g.Save();
         g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -17,7 +17,7 @@ internal static class V269CleanupGlyph
         string teal = theme == V269Theme.Claro ? "#087d82" : theme == V269Theme.Dark ? "#55cbb5" : "#6bd6b2";
         string rose=theme==V269Theme.Claro?"#ba4a5e":theme==V269Theme.Dark?"#eb8293":"#d8919f";
         string orange=theme==V269Theme.Claro?"#bc592b":theme==V269Theme.Dark?"#ee9d68":"#e8a784";
-        using var pen = new Pen(V269AppTable.H(kind is "brush" or "shield" ? teal : kind=="trash"?rose:kind=="cpu"?orange:blue), 2.05f)
+        using var pen = new Pen(inkOverride ?? V269AppTable.H(kind is "brush" or "shield" ? teal : kind=="trash"?rose:kind=="cpu"?orange:blue), 2.05f)
             { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         switch (kind)
         {
@@ -117,7 +117,8 @@ internal sealed class V269CleanupButton : Button
             g.DrawPolygon(play, new Point[] { new(left + S(4), y + S(3)),
                 new(left + icon - S(3), y + icon / 2), new(left + S(4), y + icon - S(3)) });
         }
-        else if(Enabled) V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme);
+        else if(Enabled) V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme,
+            _primary && _glyph=="search" && Text=="Analisar limpeza" ? H(text) : null);
         else
         {
             using var muted = new Pen(V269VisualTokens.ForTheme(_options.Theme).SecondaryText);

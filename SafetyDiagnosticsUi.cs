@@ -422,8 +422,11 @@ internal sealed partial class MainForm
                     report.Controls.Add(pair.Title, col, row);
                     report.Controls.Add(pair.State, col + 1, row);
                 }
-                heights[row] = Math.Max(heights[row], Math.Max(ReportTextHeight(pair.Title, titleWidth),
-                    ReportTextHeight(pair.State, stateWidth)) + S(7));
+                // CSS aprovado: padding vertical de 5px, borda de 1px
+                // e espaçamento de 5px entre as células.
+                heights[row] = Math.Max(heights[row], Math.Max(S(28),
+                    Math.Max(ReportTextHeight(pair.Title, titleWidth),
+                    ReportTextHeight(pair.State, stateWidth)) + S(16)));
             }
             foreach (int height in heights) report.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
             int total = heights.Sum();
