@@ -50,9 +50,19 @@ internal sealed partial class MainForm
         content.Margin = Padding.Empty;
         host.Content.Controls.Add(content);
         bool arranging = false;
+        bool selectionPending = false;
+        Size lastArrangedSize = Size.Empty;
         void Arrange(string origin)
         {
             if (arranging || host.IsDisposed || (trackSystem && !host.Visible)) return;
+            if (themedTools && _nav.IsPageLayoutTransition)
+            {
+                // VisibleChanged pode preceder o Dock definitivo da página.
+                // A seleção faz todas as mudanças de geometria numa transação
+                // síncrona; medir uma vez ao finalizar, com os dados atuais.
+                selectionPending = true;
+                return;
+            }
             arranging = true;
             try
             {
@@ -97,15 +107,41 @@ internal sealed partial class MainForm
                     }
                     if (host.Content.Width != host.CleanupViewportWidth) host.Reflow();
                 }
+                lastArrangedSize = host.ClientSize;
             }
             finally { arranging = false; }
         }
-        host.SizeChanged += (_, _) => Arrange("SizeChanged");
+        host.SizeChanged += (_, _) =>
+        {
+            // Um resize do viewport filho pode ter medido esta mesma
+            // dimensão antes de SizeChanged chegar ao host. Não repetir
+            // somente quando a geometria já está reconciliada.
+            if (themedTools && !_nav.IsPageLayoutTransition &&
+                host.ClientSize == lastArrangedSize &&
+                content.Width == host.CleanupViewportWidth &&
+                content.Height >= host.CleanupViewportHeight) return;
+            Arrange("SizeChanged");
+        };
         if (themedTools)
+        {
             host.ToolViewportResized += (_, _) =>
             {
-                if (host.Visible && content.Width != host.CleanupViewportWidth) Arrange("ToolViewportResized");
+                if (!host.Visible || content.Width == host.CleanupViewportWidth) return;
+                // Se a dimensão externa mudou, seu SizeChanged será a
+                // autoridade. Se só o viewport interno mudou, reconciliar.
+                if (!_nav.IsPageLayoutTransition && host.ClientSize != lastArrangedSize) return;
+                Arrange("ToolViewportResized");
             };
+            void CommitSelection(object? sender, EventArgs args)
+            {
+                bool pending = selectionPending;
+                selectionPending = false;
+                if (pending && host.Visible && !host.IsDisposed)
+                    Arrange("SelectionCommitted");
+            }
+            _nav.PageLayoutCommitted += CommitSelection;
+            host.Disposed += (_, _) => _nav.PageLayoutCommitted -= CommitSelection;
+        }
         host.VisibleChanged += (_, _) =>
         {
             if (IsTrayTransitioning || !host.Visible) return;

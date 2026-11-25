@@ -1006,6 +1006,10 @@ internal sealed class V269Shell : UserControl
     // Uma troca de aba pode fechar detalhes e publicar eventos do painel.
     // Consolidar esses pedidos antes de calcular a geometria da nova aba.
     private bool _selectingPage;
+    // A aba só deve medir seu conteúdo após o shell negociar a área final.
+    // Não bloqueia ApplyDimensions nem altera a publicação de NavigationChanged.
+    internal bool IsPageLayoutTransition { get; private set; }
+    internal event EventHandler? PageLayoutCommitted;
 
     internal void SetOperationContent(Control content)
     {
@@ -1204,39 +1208,47 @@ internal sealed class V269Shell : UserControl
         if (!changed && _pages.TryGetValue(page, out var active) && active.Visible &&
             _pageTitle.Text == Pages[(int)page].Title && _navigation[page].IsSelected)
             return;
-        _selectingPage = true;
+        IsPageLayoutTransition = true;
         try
         {
-            if (changed)
+            _selectingPage = true;
+            try
             {
-                _rightPane.CloseReadOnly(false);
-                _dashboardPaneOpen = null;
-            }
-            if (changed && SelectedPage == V269Page.Drivers &&
-                _rightPane.Current is { Kind: V269PanelKind.DriverReview, DriverReview: { IsDisposed: false } review })
-            {
-                review.Close();
-                if (review.IsDisposed && ReferenceEquals(_rightPane.Current?.DriverReview, review))
+                if (changed)
+                {
+                    _rightPane.CloseReadOnly(false);
+                    _dashboardPaneOpen = null;
+                }
+                if (changed && SelectedPage == V269Page.Drivers &&
+                    _rightPane.Current is { Kind: V269PanelKind.DriverReview, DriverReview: { IsDisposed: false } review })
+                {
+                    review.Close();
+                    if (review.IsDisposed && ReferenceEquals(_rightPane.Current?.DriverReview, review))
+                        _rightPane.Present(null);
+                }
+                if (changed && (_rightPane.Current?.FlowResult is not null ||
+                    (_rightPane.Current?.Module is not null && _rightPane.Current.FlowPage==SelectedPage) ||
+                    (SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
+                    (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
+                    (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza)) ||
+                    (SelectedPage == V269Page.Reparo && (_rightPane.Current?.Repair is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Reparo))))
                     _rightPane.Present(null);
+                SelectedPage = page;
+                _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza, page==V269Page.Reparo,
+                    page is V269Page.Sistema or V269Page.Inicializacao ? page : null);
+                var descriptor = Pages[(int)page];
+                _pageTitle.Text = descriptor.Title;
+                _pageSubtitle.Text = descriptor.Subtitle;
+                RefreshVisiblePage();
+                ApplyNavigationSelection(V269VisualTokens.ForTheme(Theme));
             }
-            if (changed && (_rightPane.Current?.FlowResult is not null ||
-                (_rightPane.Current?.Module is not null && _rightPane.Current.FlowPage==SelectedPage) ||
-                (SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
-                (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null) ||
-                (SelectedPage == V269Page.Limpeza && (_rightPane.Current?.Cleanup is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Limpeza)) ||
-                (SelectedPage == V269Page.Reparo && (_rightPane.Current?.Repair is not null || _rightPane.Current?.FlowResult?.Page == V269Page.Reparo))))
-                _rightPane.Present(null);
-            SelectedPage = page;
-            _rightPane.SetAppHistoryPage(page==V269Page.Aplicativos, page==V269Page.Drivers, page==V269Page.Limpeza, page==V269Page.Reparo,
-                page is V269Page.Sistema or V269Page.Inicializacao ? page : null);
-            var descriptor = Pages[(int)page];
-            _pageTitle.Text = descriptor.Title;
-            _pageSubtitle.Text = descriptor.Subtitle;
-            RefreshVisiblePage();
-            ApplyNavigationSelection(V269VisualTokens.ForTheme(Theme));
+            finally { _selectingPage = false; }
+            ApplyDimensions();
         }
-        finally { _selectingPage = false; }
-        ApplyDimensions();
+        finally { IsPageLayoutTransition = false; }
+        // Despachar na mesma pilha de clique, antes do evento público.
+        // Nenhum timer, BeginInvoke ou medida de outra aba.
+        PageLayoutCommitted?.Invoke(this, EventArgs.Empty);
         if (changed) NavigationChanged?.Invoke(this, new V269NavigationEventArgs(page));
     }
 

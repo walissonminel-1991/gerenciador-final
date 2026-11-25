@@ -375,6 +375,22 @@ internal static class V269IntegrationTests
                     $"REC-UX-04 reexibição estável não pode repetir W, W-barra, W: {page} passes={passes}");
                 Console.WriteLine($"V269-VIEWPORT-MEASURE page={page} hide=0 show={passes}");
                 Console.WriteLine($"V269-UX-DOCK page={page} outer={viewport.ClientSize.Width} effective={physicalViewport.Width} bar={bar.Width} visible={bar.Visible} passes={passes}");
+                // O callback explícito não pode ser deduplicado pelo tamanho:
+                // dados de domínio, texto e opções podem mudar sem resize.
+                string callback = page switch
+                {
+                    V269Page.Limpeza => "_relayoutCleaning",
+                    V269Page.Reparo => "_relayoutRepair",
+                    _ => "_relayoutSystem"
+                };
+                var relayout = (Action)typeof(MainForm).GetField(callback,
+                    BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
+                long afterShow = viewport.PageMeasurementCount;
+                relayout();
+                Require(viewport.PageMeasurementCount > afterShow &&
+                    content.Width==viewport.CleanupViewportWidth &&
+                    content.Height>=viewport.CleanupViewportHeight,
+                    "REC-UX-04B: conteúdo explícito é medido mesmo sem mudança externa "+page);
             }
         }
         finally { shell.SelectPage(original); Application.DoEvents(); }
@@ -636,6 +652,25 @@ internal static class V269IntegrationTests
             Require(shell.SelectedPage == e.Page &&
                 views.All(pair => pair.Value.Visible == (pair.Key == e.Page)),
                 "evento de navegação publicado antes do estado visual coerente");
+            int measuredIndex = e.Page switch
+            {
+                V269Page.Limpeza => 0, V269Page.Reparo => 1, V269Page.Sistema => 2, _ => -1
+            };
+            if (measuredIndex >= 0)
+            {
+                var viewport = measuredViewports[measuredIndex];
+                var pageContent = viewport.Content.Controls.Cast<Control>().Single();
+                // O evento observa a geometria final ainda na pilha do
+                // clique, não uma correção após Application.DoEvents.
+                Require(pageContent.Width == viewport.CleanupViewportWidth &&
+                    pageContent.Height >= viewport.CleanupViewportHeight,
+                    "REC-UX-04B: navegação publicada após geometria reconciliada");
+                var samples = trace.Where(x=>x.View==viewport.Name).ToArray();
+                Require(samples.Count(x=>x.Pass=="candidate" && x.Origin=="SelectionCommitted")==1 &&
+                    samples.All(x=>x.Outer==viewport.ClientSize.Width) &&
+                    samples.All(x=>x.Origin=="SelectionCommitted"),
+                    $"REC-UX-04B: uma transação na largura final {e.Page}, outer={viewport.ClientSize.Width}; "+string.Join(",",samples.Select(x=>$"{x.Origin}:{x.Pass}:{x.Outer}")));
+            }
         }
         void Click(V269Page page, bool pump)
         {
