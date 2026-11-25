@@ -7,6 +7,8 @@ namespace GerenciadorAplicativos;
 internal static class DiagnosticTrace
 {
     private static readonly object Gate = new();
+    internal static Action<string>? LocalEventSink;
+    internal static Action<string,Exception>? LocalFailureSink;
     private static readonly UTF8Encoding NoBom = new(false);
     // Versionamento vem do assembly compilado para impedir logs com versao
     // antiga quando o executavel muda. Nao grava caminhos pessoais no conteudo.
@@ -154,7 +156,7 @@ internal static class DiagnosticTrace
                 AnonymousTelemetryContext.Current?.Record(evt);
                 writer.Flush();
                 stream.Flush(flushToDisk: true);
-                LocalDiagnosticReport.Session.RecordEvent(evt);
+                LocalEventSink?.Invoke(evt);
                 return true;
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or
@@ -172,7 +174,7 @@ internal static class DiagnosticTrace
     public static void Failure(string stage, Exception ex)
     {
         // Mensagens completas de excecao podem conter caminhos com dados pessoais.
-        LocalDiagnosticReport.Session.RecordFailure(stage, ex);
+        LocalFailureSink?.Invoke(stage, ex);
         Write($"{stage} excecao={ex.GetType().Name} hresult=0x{ex.HResult:X8}");
     }
 }
