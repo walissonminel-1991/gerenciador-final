@@ -1592,9 +1592,12 @@ internal sealed class V269HomeDashboard : Panel
     {
         if (models.Count != 5 || !_cards.Select(x => x.Key).SequenceEqual(models.Select(x => x.Key)))
             throw new ArgumentException("Cinco cartões do HTML, em ordem.");
-        bool changed = false;
-        for (int i = 0; i < _cards.Length; i++) changed |= _cards[i].SetModel(models[i]);
-        if (changed) Arrange();
+        // Uma nova leitura pode exigir pintura de um cartão, mas não
+        // necessariamente uma nova distribuição dos cinco cartões.
+        bool geometryChanged = false;
+        for (int i = 0; i < _cards.Length; i++)
+            geometryChanged |= _cards[i].SetModelAndCheckGeometry(models[i]);
+        if (geometryChanged) Arrange();
     }
 
     internal void ApplyAppearance(V269AppearanceOptions appearance)
@@ -1742,6 +1745,21 @@ internal sealed class V269HomeCard : Control
             model.Specs.Concat(model.Sensors).Select(x => x.Label + ": " + x.Value)));
         Invalidate();
         return true;
+    }
+
+    // Reavaliar somente a geometria do cartão que mudou. Se a altura
+    // permanece igual, o dashboard não precisa redistribuir os controles.
+    internal bool SetModelAndCheckGeometry(V269HomeModel model)
+    {
+        var priorKey = _heightKey;
+        int priorHeight = _preferredHeight;
+        if (!SetModel(model)) return false;
+        if (priorKey is not { } key || key.Dpi != DeviceDpi ||
+            key.InterfaceScale != _appearance.InterfacePercent ||
+            key.TextScale != _appearance.TextPercent || key.Theme != _appearance.Theme ||
+            key.WindowWidth != _windowWidth || key.CompactHeight != _compactHeight)
+            return true;
+        return PreferredCardHeight(key.Width, key.WindowWidth, key.CompactHeight) != priorHeight;
     }
 
     internal void ApplyAppearance(V269AppearanceOptions appearance, Color background)

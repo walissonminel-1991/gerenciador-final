@@ -165,9 +165,150 @@ internal static class V269IntegrationTests
         }
         else Console.WriteLine("V269: Limpeza e Reparo aprovados no percurso WORK18 desta mesma execução.");
         Timed("Sistema e Inicialização",()=>VerifyLastTabs(form,shell));
+        Timed("Sessão contínua V269", () => VerifyContinuousSession(form, shell, homeSnapshot));
         Timed("Pintura real V269", () => VerifyLiveWindowPaint(form, shell));
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    // Uma sessão na mesma MainForm, sem reiniciar views entre etapas.
+    // Provedores de hardware/driver e ações destrutivas não são executados:
+    // o objetivo é a concorrência e publicação dos estados na interface real.
+    private static void VerifyContinuousSession(MainForm form, V269Shell shell, HardwareSensorPortfolio snapshot)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var views = Enum.GetValues<V269Page>().ToDictionary(p => p, p => shell.PageContent(p)!);
+        var buttons = views.Keys.ToDictionary(p => p,
+            p => form.Controls.Find("V269Nav" + p, true).OfType<Button>().Single());
+        var apps = (DarkProgramList)typeof(MainForm).GetField("_programList", flags)!.GetValue(form)!;
+        var installed = (List<ProgramEntry>)typeof(MainForm).GetField("_installed", flags)!.GetValue(form)!;
+        var render = typeof(MainForm).GetMethod("RenderPrograms", flags)!;
+        var search = form.Controls.Find("V269AppsSearch", true).OfType<TextBox>().Single();
+        var drivers = form.Controls.Find("DriverInventoryList", true).OfType<DarkDriverList>().Single();
+        var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        var motion = form.Controls.Find("V269Animations", true).OfType<CheckBox>().Single();
+        var home = (V269HomeDashboard)views[V269Page.Inicio];
+        var cardIds = home.Cards.ToArray();
+        var savedModels = cardIds.Select(c => c.Model!).ToArray();
+        var savedApps = installed.ToArray();
+        var savedDrivers = drivers.Items.ToArray();
+        var savedSearch = search.Text;
+        var savedPage = shell.SelectedPage;
+        var savedPanel = shell.RightPane.Current;
+        var savedTheme = theme.SelectedIndex;
+        var savedMotion = motion.Checked;
+        var savedContext = SynchronizationContext.Current;
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        var savedSize = surface.Size;
+        var timings = new List<double>();
+        void Step(string label, Action action)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            action();
+            Application.DoEvents();
+            timings.Add(clock.Elapsed.TotalMilliseconds);
+            Require(views.All(pair => ReferenceEquals(pair.Value, shell.PageContent(pair.Key)) &&
+                pair.Value.Visible == (pair.Key == shell.SelectedPage)),
+                "sessão perdeu uma view: " + label);
+            Require(home.Cards.SequenceEqual(cardIds), "sessão recriou cartões: " + label);
+            Console.WriteLine(FormattableString.Invariant(
+                $"V269-SESSION {label} ms={clock.Elapsed.TotalMilliseconds:F2}"));
+        }
+        void Go(V269Page page)
+        {
+            buttons[page].PerformClick();
+            Require(shell.SelectedPage == page, "navegação não imediata: " + page);
+        }
+        void Wheel(Control control, int delta) =>
+            control.GetType().GetMethod("OnMouseWheel", flags)!.Invoke(control,
+                [new MouseEventArgs(MouseButtons.None, 0, 20, 40, delta)]);
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(new PaneTestSynchronizationContext(form));
+            shell.PresentPanel(null);
+            surface.Size = new Size(1200, 659);
+            installed.Clear();
+            installed.AddRange(Enumerable.Range(0, 90).Select(i => new ProgramEntry
+            {
+                Name = "GF Sessão App " + i.ToString("D2"), InventoryId = "GF-SESSION-" + i,
+                Version = "1.0", InventoryOnly = true
+            }));
+            var fixture = Enumerable.Range(0, 80).Select(i => new DriverInventoryEntry(
+                @"ROOT\GF-SESSION\" + i, "Dispositivo de sessão " + i, "Fixture", "1.0", "test.inf", true, true)).ToArray();
+            Step("aplicativos-inventario", () => { Go(V269Page.Aplicativos); search.Clear(); render.Invoke(form, []); });
+            Require(apps.Items.Count == 90, "inventário sintético não publicado");
+            Step("pesquisa", () => { search.Focus(); search.Text = "App 42"; });
+            Require(apps.Items.Count == 1 && apps.Items[0].Name.EndsWith("42"), "pesquisa perdeu identidade");
+            Step("rolagem-apps", () => { search.Clear(); apps.Focus(); Wheel(apps, -240); });
+            var appBar = apps.Controls.Find("V269AppsVerticalScroll", false).OfType<DarkVScrollBar>().Single();
+            int appOffset = appBar.Value;
+            Require(appOffset > 0, "roda não rolou aplicativos");
+            Step("drivers-inventario", () => { Go(V269Page.Drivers); drivers.SetItems(fixture); drivers.Focus(); Wheel(drivers, -240); });
+            var driverBar = drivers.Controls.Find("V269DriversVerticalScroll", true).OfType<DarkVScrollBar>().Single();
+            Require(driverBar.Value > 0 && !drivers.ActionsCurrent, "drivers sem autoridade ou rolagem inválida");
+            Step("hardware", () => { Go(V269Page.Inicio); home.SetModels(MainForm.V269HomeModels(snapshot)); });
+            Step("retorno-apps", () => Go(V269Page.Aplicativos));
+            Require(appBar.Value == appOffset && apps.Items.Count == 90, "voltar perdeu rolagem de aplicativos");
+            using var cancellation = new CancellationTokenSource();
+            Step("progresso", () =>
+            {
+                Go(V269Page.Drivers);
+                shell.PresentPanel(new(V269PanelKind.Progress, "Consulta sintética", "2 de 10", 20,
+                    CancelFlow: cancellation.Cancel, FlowPage: V269Page.Drivers));
+            });
+            Step("progresso-em-outra-aba", () => Go(V269Page.Configuracoes));
+            Require(shell.RightPane.Current is { Kind: V269PanelKind.Progress, ProgressPercent: 20 },
+                "troca de aba descartou progresso em curso");
+            Step("tema-e-movimento", () =>
+            {
+                theme.SelectedIndex = (int)V269Theme.Dark;
+                motion.Checked = !savedMotion;
+            });
+            Step("progresso-incremental", () =>
+            {
+                shell.PresentPanel(new(V269PanelKind.Progress, "Consulta sintética", "6 de 10", 60,
+                    CancelFlow: cancellation.Cancel, FlowPage: V269Page.Drivers));
+                Go(V269Page.Drivers);
+            });
+            Require(shell.RightPane.Current is { ProgressPercent: 60 } &&
+                shell.RightPane.Controls.Find("V269FlowPercentMeter", true).Single().AccessibleDescription == "60%",
+                "painel não refletiu progresso informado");
+            Step("cancelar", () => shell.RightPane.Controls.Find("V269CancelOwnedFlow", true)
+                .OfType<Button>().Single().PerformClick());
+            Require(cancellation.IsCancellationRequested, "cancelamento não chegou à operação sintética");
+            shell.PresentPanel(null);
+            Step("inicializacao-consulta", () => Go(V269Page.Inicializacao));
+            var pending = new TaskCompletionSource<IReadOnlyList<StartupItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var refresh = typeof(MainForm).GetMethod("RefreshStartupEntriesAsync", flags)!;
+            var task = (Task)refresh.Invoke(form, [(Func<Task<IReadOnlyList<StartupItem>>>)(() => pending.Task)])!;
+            Step("alternar-durante-consulta", () => { Go(V269Page.Sistema); Go(V269Page.Inicio); Go(V269Page.Inicializacao); });
+            var title = (Label)typeof(MainForm).GetField("_v269StartupTitle", flags)!.GetValue(form)!;
+            string previousTitle = title.Text;
+            pending.SetResult([new StartupItem("GF resultado antigo", "Fixture", "registry", "fixture", true, false)]);
+            Pump(task);
+            Require(title.Text == previousTitle, "resultado obsoleto sobrescreveu a sessão atual");
+            Step("viewport-compacto", () => { surface.Size = new Size(992, 659); Go(V269Page.Reparo); Go(V269Page.Limpeza); });
+            Step("tema-claro", () => { Go(V269Page.Configuracoes); theme.SelectedIndex = (int)V269Theme.Claro; });
+            Step("final-hardware", () => Go(V269Page.Inicio));
+            timings.Sort();
+            Console.WriteLine(FormattableString.Invariant(
+                $"V269-SESSION-LATENCY n={timings.Count} p50_ms={timings[(timings.Count-1)/2]:F2} p95_ms={timings[(int)Math.Ceiling(timings.Count*.95)-1]:F2} max_ms={timings[^1]:F2}"));
+            Console.WriteLine("PASS V269-SESSION: sessão contínua com dados sintéticos e controles reais.");
+        }
+        finally
+        {
+            shell.PresentPanel(null);
+            shell.SelectPage(V269Page.Aplicativos);
+            installed.Clear(); installed.AddRange(savedApps); search.Text = savedSearch; render.Invoke(form, []);
+            drivers.SetItems(savedDrivers);
+            home.SetModels(savedModels);
+            shell.SelectPage(V269Page.Configuracoes);
+            theme.SelectedIndex = savedTheme; motion.Checked = savedMotion;
+            surface.Size = savedSize;
+            shell.SelectPage(savedPage); shell.PresentPanel(savedPanel);
+            SynchronizationContext.SetSynchronizationContext(savedContext);
+            Application.DoEvents();
+        }
     }
 
     private static void VerifyIndependentFeedback()
@@ -2432,7 +2573,16 @@ internal static class V269IntegrationTests
         card.ApplyAppearance(V269AppearanceOptions.Default with { TextPercent = 110 },Color.Transparent);
         card.PreferredCardHeight(400,1440,false);
         Require(card.PreferredHeightMeasurements==++count,"mudança de escala de texto invalida a altura");
-        Console.WriteLine("PASS Início V2.6.9: cache de geometria com invalidação por modelo e escala.");
+        // Altura comprovadamente constante não deve disparar rearranjo.
+        using var incremental = new V269HomeCard("cpu");
+        incremental.SetGeometry(1440, false);
+        incremental.SetModel(model);
+        int initialHeight = incremental.PreferredCardHeight(650,1440,false);
+        Require(!incremental.SetModelAndCheckGeometry(model with { Sensors = [new V269HomeRow("Uso","20%")] }) &&
+            incremental.PreferredCardHeight(650,1440,false) == initialHeight &&
+            incremental.AccessibleDescription?.Contains("20%") == true,
+            "leitura com altura constante repinta cartão sem redistribuir dashboard");
+        Console.WriteLine("PASS Início V2.6.9: cache de geometria e atualização incremental.");
     }
 
     private static HardwareSensorPortfolio VerifyHome(MainForm form, Control view)
