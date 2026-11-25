@@ -891,6 +891,11 @@ internal sealed class V269Shell : UserControl
     {
         if (!Enum.IsDefined(page)) throw new ArgumentOutOfRangeException(nameof(page));
         bool changed = SelectedPage != page;
+        // Um segundo clique na aba já ativa não altera seleção nem geometria.
+        // SizeChanged e ApplyAppearance mantêm seus próprios percursos.
+        if (!changed && _pages.TryGetValue(page, out var active) && active.Visible &&
+            _pageTitle.Text == Pages[(int)page].Title && _navigation[page].IsSelected)
+            return;
         if (changed) _dashboardPaneOpen = null;
         if (changed && SelectedPage == V269Page.Drivers &&
             _rightPane.Current is { Kind: V269PanelKind.DriverReview, DriverReview: { IsDisposed: false } review })
@@ -931,6 +936,7 @@ internal sealed class V269Shell : UserControl
     internal void EnsureV269RepairPane()
     {
         if (SelectedPage != V269Page.Reparo) return;
+        if (_compactPaneOpen && _rightPane.Visible) return;
         _compactPaneOpen = true;
         ApplyDimensions();
     }
@@ -1010,6 +1016,23 @@ internal sealed class V269Shell : UserControl
     private void ApplyDimensions()
     {
         if (_columns is null || _navigationLayout is null) return;
+        // Aplicar as mesmas propriedades em uma transação visual.
+        _columns.SuspendLayout();
+        _centralLayout.SuspendLayout();
+        _headingLayout.SuspendLayout();
+        _navigationLayout.SuspendLayout();
+        try { ApplyDimensionsCore(); }
+        finally
+        {
+            _columns.ResumeLayout(true);
+            _centralLayout.ResumeLayout(true);
+            _headingLayout.ResumeLayout(true);
+            _navigationLayout.ResumeLayout(true);
+        }
+    }
+
+    private void ApplyDimensionsCore()
+    {
         int width = Math.Max(1, ClientSize.Width);
         bool apps=SelectedPage is V269Page.Aplicativos or V269Page.Drivers;
         bool repair = SelectedPage == V269Page.Reparo;

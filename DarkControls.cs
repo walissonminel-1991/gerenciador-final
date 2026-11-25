@@ -1166,10 +1166,12 @@ internal sealed class DarkScrollableFlow : UserControl
         _arranging = true;
         try
         {
-            _flow.Width = width;
             int measured = MeasureContentHeight(width);
             int totalHeight = IsPageViewport ? Math.Max(0, measured - 3) : measured;
-            _flow.Height = Math.Max(totalHeight, height);
+            // Uma única alteração de tamanho, sem duas passagens por Width/Height.
+            _flow.SuspendLayout();
+            try { _flow.Size = new Size(width, Math.Max(totalHeight, height)); }
+            finally { _flow.ResumeLayout(false); }
             if (EmbeddedInPage)
             {
                 _scroll.SetMetrics(0, height);

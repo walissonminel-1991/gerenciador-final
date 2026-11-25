@@ -1853,6 +1853,7 @@ internal sealed partial class MainForm : Form
         }
         _v269CleanupDefault?.Invoke();
         bool fitting = false;
+        (int Width, int Gap, int Columns, int Dpi, V269AppearanceOptions Options)? fitted = null;
         void Fit()
         {
             if (fitting || host.IsDisposed || host.ClientSize.Width <= 0) return;
@@ -1864,15 +1865,25 @@ internal sealed partial class MainForm : Form
                 int width = Math.Max(1, host.ClientSize.Width - Math.Max(16, S(16)));
                 int columns = _nav.LayoutWindowWidth <= 850 || width < S(540) ? 2 : 3;
                 if (width < S(330)) columns = 1;
+                var key = (width, gap, columns, host.DeviceDpi, _v269Appearance.Normalize());
+                if (fitted == key) return;
                 int cardWidth = Math.Max(1, (width - gap * (columns - 1)) / columns);
-                for (int i = 0; i < cards.Count; i++)
+                flow.SuspendLayout();
+                try
                 {
-                    var card = cards[i];
-                    card.Margin = new Padding(0, 0, i % columns == columns - 1 ? 0 : gap, gap);
-                    card.Size = new Size(cardWidth, S(114));
-                    card.ApplyOptions(_v269Appearance);
+                    for (int i = 0; i < cards.Count; i++)
+                    {
+                        var card = cards[i];
+                        var margin = new Padding(0, 0, i % columns == columns - 1 ? 0 : gap, gap);
+                        var size = new Size(cardWidth, S(114));
+                        if (card.Margin != margin) card.Margin = margin;
+                        if (card.Size != size) card.Size = size;
+                        card.ApplyOptions(key.Item5);
+                    }
                 }
+                finally { flow.ResumeLayout(false); }
                 host.Reflow();
+                fitted = key;
             }
             finally { fitting = false; }
         }

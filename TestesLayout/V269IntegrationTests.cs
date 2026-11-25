@@ -198,6 +198,17 @@ internal static class V269IntegrationTests
                 var cards=form.Controls.Find("V269CleanupActions",true).OfType<DarkScrollableFlow>().Single();
                 Require(cards.Content.Controls.Count==6&&cards.Content.Controls.OfType<V269CleanupCard>().Count()==6,
                     "Limpeza mantém seis ferramentas, sem executar manutenção");
+                var stableBounds = cards.Content.Controls.Cast<Control>().Select(c => c.Bounds).ToArray();
+                int repeatedLayouts = 0;
+                void CountCleanupLayout(object? sender, LayoutEventArgs args) => repeatedLayouts++;
+                cards.Content.Layout += CountCleanupLayout;
+                try
+                {
+                    for (int repeat = 0; repeat < 3; repeat++) ((Action)cards.Tag!)();
+                    Require(repeatedLayouts == 0 && stableBounds.SequenceEqual(cards.Content.Controls.Cast<Control>().Select(c => c.Bounds)),
+                        "Fit de Limpeza sem entradas novas não deve refazer layout");
+                }
+                finally { cards.Content.Layout -= CountCleanupLayout; }
                 Require(disks.Content.Controls.Cast<Control>().All(x=>x.Width>0&&x.Height>0)&&
                     fixtures[0].Top<fixtures[1].Top,"discos em linhas verticais");
                 var first=cards.Content.Controls.OfType<V269CleanupCard>().First();
@@ -221,6 +232,7 @@ internal static class V269IntegrationTests
                 using var capture=new Bitmap(surface.Width,surface.Height);
                 surface.DrawToBitmap(capture,new Rectangle(Point.Empty,surface.Size));
                 capture.Save($"LayoutCaptures/v269-limpeza-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
+                Console.WriteLine($"V269-CLEANUP-CAPTURE {palette} {size.Width}x{size.Height}");
             }
             // Captura do estado exato da referência: lixeira selecionada e quatro resultados anteriores.
             var context=SynchronizationContext.Current;
