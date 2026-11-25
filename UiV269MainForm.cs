@@ -794,6 +794,8 @@ internal sealed partial class MainForm
     private V269SettingsPage? _v269Settings;
     private bool _v269SettingsBusy;
     private bool _v269SettingsLive;
+    // Injeção restrita às views sintéticas; nunca substitui Documentos na sessão real.
+    internal Func<string,string>? V269DiagnosticExportForTest { get; set; }
     private V269AdminLaunchTicket? _v269AdminRestartTicket;
     private bool _v269AdminClosedNormally;
     internal bool V269CanAnimateButtons => CanAnimateV269;
@@ -887,7 +889,8 @@ internal sealed partial class MainForm
                 report+=Environment.NewLine+Environment.NewLine+(_v269LastSnapshot is{} snapshot
                     ? "Última consulta de hardware (não é uma leitura nova):"+Environment.NewLine+HardwareMonitoringDiagnosticReport.Format(snapshot)
                     : "Hardware: nenhuma fotografia disponível nesta sessão.");
-                if(!loadPreferences)
+                var testExport=loadPreferences?null:V269DiagnosticExportForTest;
+                if(!loadPreferences&&testExport is null)
                 {
                     // View sintética não grava na pasta real do usuário.
                     PresentV269SettingsInformation("Diagnóstico local",report);
@@ -898,7 +901,7 @@ internal sealed partial class MainForm
                     _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
                 report+=Environment.NewLine+Environment.NewLine+LocalDiagnosticReport.Session.Format();
                 view.SetNotice("Gerando relatório local em Documentos…");
-                string path=await Task.Run(()=>LocalDiagnosticReport.SaveToDocuments(report));
+                string path=await Task.Run(()=>testExport is null?LocalDiagnosticReport.SaveToDocuments(report):testExport(report));
                 if(!view.IsDisposed&&!IsDisposed&&!Disposing)
                 {
                     view.SetNotice("Relatório criado em Documentos: "+path+" — pronto para leitura e envio manual.");
@@ -906,7 +909,7 @@ internal sealed partial class MainForm
                 }
                 DiagnosticTrace.Write("DIAGNOSTICO.EXPORTACAO_OK");
             }
-            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or
+            catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or
                 NotSupportedException or System.Security.SecurityException)
             {
                 DiagnosticTrace.Failure("DIAGNOSTICO.EXPORTACAO_FALHA",ex);
