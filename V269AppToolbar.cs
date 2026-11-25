@@ -43,12 +43,7 @@ internal sealed class V269AppSearchBox : Panel
         _editor.LostFocus+=(_,_)=>Invalidate();
     }
     private int S(int x)=>V269AppTable.Scale(x,_options.InterfacePercent,DeviceDpi);
-    private (Color Surface,Color Border,Color Ink) Colors()=>_options.Theme switch
-    {
-        V269Theme.Claro=>(V269AppTable.H("#eaf5fe"),V269AppTable.H("#8eafc7"),V269AppTable.H("#17374c")),
-        V269Theme.Dark=>(V269AppTable.H("#353a40"),V269AppTable.H("#737c85"),V269AppTable.H("#d1d6db")),
-        _=>(V269AppTable.H("#102638"),V269AppTable.H("#416783"),V269AppTable.H("#dfedf7"))
-    };
+    private (Color Surface,Color Border,Color Ink) Colors()=> V269VisualTokens.InventorySearch(_options.Theme);
     internal void ApplyOptions(V269AppearanceOptions options)
     {
         _options=options.Normalize();var palette=Colors();
@@ -111,12 +106,7 @@ internal sealed class V269AppToolbarButton:Button
     {
         if(Width<3||Height<3)return;var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
         Color H(string s)=>V269AppTable.H(s);
-        var (surface,border,ink)=_options.Theme switch
-        {
-            V269Theme.Claro=>(_primary?H("#2579b4"):H("#e2f0fb"),H("#8eafc7"),_primary?Color.White:H("#173d59")),
-            V269Theme.Dark=>(_primary?H("#515961"):H("#3a3f45"),_primary?H("#b7c0c8"):H("#68717a"),H("#dce0e4")),
-            _=>(_primary?H("#205f95"):H("#102638"),_primary?H("#6ea7cf"):H("#416783"),H("#dfedf7"))
-        };
+        var (surface,border,ink)= V269VisualTokens.InventoryToolbar(_options.Theme,_primary);
         if(_filterSelected)
         {
             var p=V269VisualTokens.ForTheme(_options.Theme);
@@ -158,12 +148,7 @@ internal sealed class V269AppSortCombo:ComboBox
         IntegralHeight=false;FlatStyle=FlatStyle.Flat;
     }
     private int S(int n)=>V269AppTable.Scale(n,_options.InterfacePercent,DeviceDpi);
-    private (Color Top,Color Bottom,Color Border,Color Ink) Colors()=>_options.Theme switch
-    {
-        V269Theme.Claro=>(V269AppTable.H("#eaf5fe"),V269AppTable.H("#eaf5fe"),V269AppTable.H("#8eafc7"),V269AppTable.H("#17374c")),
-        V269Theme.Dark=>(V269AppTable.H("#383d43"),V269AppTable.H("#30353a"),V269AppTable.H("#737c85"),V269AppTable.H("#d1d6db")),
-        _=>(V269AppTable.H("#0d2233"),V269AppTable.H("#0b1d2b"),V269AppTable.H("#3d5a70"),V269AppTable.H("#e1edf7"))
-    };
+    private (Color Top,Color Bottom,Color Border,Color Ink) Colors()=>V269VisualTokens.DropdownPalette(_options.Theme);
     internal void ApplyOptions(V269AppearanceOptions options)
     {
         _options=options.Normalize();var c=Colors();

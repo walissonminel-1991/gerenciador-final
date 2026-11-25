@@ -117,12 +117,7 @@ internal sealed class V269CleanupButton : Button
     {
         if (Width < 3 || Height < 3) return;
         var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
-        var (top, bottom, border, text) = _options.Theme switch
-        {
-            V269Theme.Claro => _primary ? ("#2a8ac7","#13649e","#1c6798","#ffffff") : ("#d8eaf7","#d8eaf7","#89abc3","#173d59"),
-            V269Theme.Dark => _primary ? ("#6b747e","#515961","#b7c0c8","#e4e7ea") : ("#3a3f45","#3a3f45","#68717a","#d1d6db"),
-            _ => _primary ? ("#205f95","#205f95","#6ea7cf","#eff8ff") : ("#142f44","#142f44","#416783","#dfedf7")
-        };
+        var (top, bottom, border, text) = V269VisualTokens.CleanupButton(_options.Theme,_primary);
         Color H(string s) => V269AppTable.H(s);
         var bounds = new Rectangle(0,0,Width-1,Height-1);
         using var shape = ModernButton.RoundRect(bounds,S(8));
@@ -170,19 +165,9 @@ internal sealed class V269CleanupSection : TableLayoutPanel
     {
         base.OnPaintBackground(e);
         if(Width<3||Height<3)return;
-        var (top,bottom,border)=_options.Theme switch
-        {
-            V269Theme.Claro=>("#eef8ff","#dceefa","#8db1ca"),
-            V269Theme.Dark=>("#303438","#282c30","#565c62"),
-            _=>("#0d3047","#0b2237","#25445f")
-        };
+        var (top,bottom,border)= V269VisualTokens.ToolSection(_options.Theme);
         if(IsPlanCard)
-            (top,bottom,border)=_options.Theme switch
-            {
-                V269Theme.Claro=>_planActive?("#c2e0f5","#c2e0f5","#4a9cc9"):("#e2f2fd","#e2f2fd","#8ebad6"),
-                V269Theme.Dark=>_planActive?("#50565d","#41464c","#b4bdc6"):("#33373b","#2b2f33","#555c63"),
-                _=>_planActive?("#113048","#113048","#5e95bb"):("#0d2437","#0b2031","#30516b")
-            };
+            (top,bottom,border)=V269VisualTokens.ToolCard(_options.Theme,_planActive);
         var bounds=new Rectangle(0,0,Width-1,Height-1);
         e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
         using var path=ModernButton.RoundRect(bounds,V269AppTable.Scale(11,_options.InterfacePercent,DeviceDpi));
@@ -256,14 +241,8 @@ internal sealed class V269CleanupDiskCard : Panel
     {
         base.OnPaint(e);if(Width<3||Height<3)return;
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;Color H(string s)=>V269AppTable.H(s);
-        var (top,bottom,border,track)=_options.Theme switch
-        {
-            V269Theme.Claro=>("#edf5fb","#edf5fb","#8db1ca","#c6ddef"),
-            V269Theme.Dark=>("#33373b","#2b2f33","#555c63","#393e43"),
-            _=>("#0b2134","#0b2134","#25445f","#1d394e")
-        };
-        if(_selected)(top,bottom,border)=_options.Theme switch
-        {V269Theme.Dark=>("#50565d","#41464c","#b4bdc6"),V269Theme.Claro=>("#c2e0f5","#c2e0f5","#4a9cc9"),_=>("#0f2c45","#0f2c45","#478ab4")};
+        var (top,bottom,border,track)= V269VisualTokens.DiskCard(_options.Theme);
+        if(_selected)(top,bottom,border)= V269VisualTokens.DiskSelected(_options.Theme);
         var bounds=new Rectangle(0,0,Width-1,Height-1);
         using var path=ModernButton.RoundRect(bounds,S(9));using var bg=new LinearGradientBrush(bounds,H(top),H(bottom),LinearGradientMode.Vertical);
         using var line=new Pen(H(border));g.FillPath(bg,path);g.DrawPath(line,path);

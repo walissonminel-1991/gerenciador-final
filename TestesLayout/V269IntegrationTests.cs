@@ -376,6 +376,27 @@ internal static class V269IntegrationTests
         // com origem não zero e clip do desenho preservado.
         foreach (var theme in Enum.GetValues<V269Theme>())
         {
+            // Pixels interiores sem antialias: as quatro âncoras reais
+            // precisam sobreviver aos três temas e à pintura em cápsula.
+            foreach (var (percent, expected) in new[] {
+                (40,Color.FromArgb(0,162,232)),(60,Color.FromArgb(34,177,76)),
+                (75,Color.FromArgb(255,223,0)),(100,Color.FromArgb(237,28,36)) })
+            {
+                var usage = GfMeterScale.Frame(GfMeterKind.Usage,percent,theme);
+                using var pixels = new Bitmap(120,16);
+                using (var graphics = Graphics.FromImage(pixels))
+                    GfDynamicProgressBar.PaintFrame(graphics,new Rectangle(4,3,112,10),usage,
+                        V269VisualTokens.ForTheme(theme).Border);
+                Require(pixels.GetPixel(16,8).ToArgb()==expected.ToArgb(),
+                    "RGB interior da barra universal: "+theme+"/"+percent);
+                Require(V269VisualTokens.ContrastRatio(GfMeterScale.InkColor(usage,theme),
+                    V269VisualTokens.ForTheme(theme).Card)>=4.5,
+                    "texto usa paleta própria, não o RGB do preenchimento");
+            }
+            var success=GfUniversalMeter.Operation(null,GfMeterState.Success,true,theme);
+            Require(success.Color.ToArgb()==Color.FromArgb(34,177,76).ToArgb() &&
+                success.State==GfMeterState.Success && success.Fraction==1,
+                "verde vivo somente após sucesso confirmado");
             var frame = GfUniversalMeter.Operation(65,GfMeterState.Running,true,theme);
             var track = V269VisualTokens.ForTheme(theme).Border;
             using var image = new Bitmap(120,30);

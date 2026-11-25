@@ -118,7 +118,7 @@ internal static class GfResourceMonitorTests
                 "métrica expandida fora da captura: " + metric.Name);
             Require(MatchingPixels(bitmap, labelArea, label.ForeColor) >= 5,
                 "valor expandido não renderizado: " + metric.Name);
-            Require(MatchingPixels(bitmap, barArea, label.ForeColor) >= 5,
+            Require(MatchingPixels(bitmap, barArea, bar.CurrentFrame.Color) >= 5,
                 "preenchimento de barra ausente: " + metric.Name);
         }
     }
@@ -170,12 +170,18 @@ internal static class GfResourceMonitorTests
     private static void VerifyContrast(V269Theme theme)
     {
         Color background = V269VisualTokens.ForTheme(theme).Card;
-        var (blue, green, yellow, red) = GfMeterScale.Colors(theme);
+        var (blue, green, yellow, red) = GfMeterScale.InkColors(theme);
+        var fill = GfMeterScale.Colors(theme);
+        Require(fill.Blue == Color.FromArgb(0,162,232) &&
+            fill.Green == Color.FromArgb(34,177,76) &&
+            fill.Red == Color.FromArgb(237,28,36) &&
+            fill.Yellow == Color.FromArgb(255,223,0),
+            "preenchimentos semânticos opacos independentes do tema");
         if (theme == V269Theme.Dark)
-            Require(red == Color.FromArgb(242, 116, 126), "vermelho Dark corrigido");
+            Require(red == Color.FromArgb(242, 116, 126), "vermelho de texto Dark preservado");
         foreach (var kind in new[] { GfMeterKind.Usage, GfMeterKind.InvertedProgress, GfMeterKind.Temperature })
             for (int i = 0; i <= 10_000; i++)
-                Require(Contrast(GfMeterScale.ScaleColor(kind, i / 100d, theme), background) >= 4.5,
+                Require(Contrast(GfMeterScale.InkScaleColor(kind, i / 100d, theme), background) >= 4.5,
                     $"contraste {theme}/{kind}/{i / 100d:F2}%");
         foreach (var (a, b) in new[] { (blue, green), (green, yellow), (yellow, red), (yellow, blue) })
         {
@@ -194,10 +200,11 @@ internal static class GfResourceMonitorTests
             }
         }
         // Uma transição ampla percorre a escala, não o segmento azul/vermelho.
-        Require(GfMeterScale.ScaleColor(GfMeterKind.Usage, 60, theme) == green &&
-            GfMeterScale.ScaleColor(GfMeterKind.Usage, 75, theme) == yellow &&
+        Require(GfMeterScale.ScaleColor(GfMeterKind.Usage, 60, theme) == fill.Green &&
+            GfMeterScale.ScaleColor(GfMeterKind.Usage, 75, theme) == fill.Yellow &&
+            GfMeterScale.InkScaleColor(GfMeterKind.Usage,60,theme) == green &&
             GfMeterScale.Frame(GfMeterKind.Temperature, 70, theme, 95).ScalePosition == 60 &&
-            GfMeterScale.Frame(GfMeterKind.InvertedProgress, 35, theme).Color == yellow,
+            GfMeterScale.Frame(GfMeterKind.InvertedProgress, 35, theme).Color == fill.Yellow,
             "trajetória de cor e posição térmica");
     }
 

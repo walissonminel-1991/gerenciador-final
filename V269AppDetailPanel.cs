@@ -13,20 +13,8 @@ internal sealed record V269AppDetailModel(string Name,string Publisher,
 // do HTML. Os motores e painéis de confirmação/progresso não usam estas cores.
 internal static class V269AppDetailStyle
 {
-    internal static V269Palette Palette(V269Theme theme)
-    {
-        var p=V269VisualTokens.ForTheme(theme);
-        Color H(string s)=>V269AppTable.H(s);
-        return theme switch
-        {
-            V269Theme.Dark=>p with {RightPanel=H("#2a2e32"),Border=H("#60666d"),
-                Text=H("#dce0e4"),SecondaryText=H("#aab4bd"),Card=H("#30353a")},
-            V269Theme.Claro=>p with {RightPanel=H("#eaf4fc"),Border=H("#9bbacf")},
-            _=>p with {RightPanel=H("#0b2032"),Border=H("#25445f"),Card=H("#11283b")}
-        };
-    }
-    internal static Color Divider(V269Theme theme)=>V269AppTable.H(theme switch
-    {V269Theme.Dark=>"#3c4249",V269Theme.Claro=>"#b7d1e2",_=>"#1c354b"});
+    internal static V269Palette Palette(V269Theme theme) => V269VisualTokens.StructuredPanel(theme);
+    internal static Color Divider(V269Theme theme) => V269VisualTokens.StructuredDivider(theme);
 }
 
 // Botões de fluxo: somente a pintura varia. O botão WinForms mantém

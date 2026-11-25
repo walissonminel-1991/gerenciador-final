@@ -14,9 +14,9 @@ internal readonly record struct GfMeterFrame(double? Fraction, Color Color, GfMe
 internal static class GfMeterScale
 {
     internal static (Color Blue, Color Green, Color Yellow, Color Red) Colors(V269Theme theme) =>
-        theme == V269Theme.Claro
-            ? (Color.FromArgb(21, 105, 177), Color.FromArgb(27, 117, 68), Color.FromArgb(146, 100, 8), Color.FromArgb(180, 44, 60))
-            : (Color.FromArgb(45, 156, 219), Color.FromArgb(68, 193, 123), Color.FromArgb(232, 196, 75), theme == V269Theme.Dark ? Color.FromArgb(242, 116, 126) : Color.FromArgb(231, 96, 106));
+        V269VisualTokens.MeterFillColors;
+    internal static (Color Blue, Color Green, Color Yellow, Color Red) InkColors(V269Theme theme) =>
+        V269VisualTokens.MeterInkColors(theme);
 
     internal static Color Mix(Color a, Color b, double t)
     {
@@ -25,24 +25,41 @@ internal static class GfMeterScale
         return Color.FromArgb(C(a.R, b.R), C(a.G, b.G), C(a.B, b.B));
     }
 
-    internal static Color UsageColor(double percent, V269Theme theme)
+    internal static Color UsageColor(double percent, V269Theme theme) =>
+        ScaleColor(GfMeterKind.Usage, percent, theme);
+
+    internal static Color ScaleColor(GfMeterKind kind, double position, V269Theme theme) =>
+        ScaleColorCore(kind,position,Colors(theme));
+
+    internal static Color InkScaleColor(GfMeterKind kind, double position, V269Theme theme) =>
+        ScaleColorCore(kind,position,InkColors(theme));
+
+    internal static Color InkColor(GfMeterFrame frame, V269Theme theme)
     {
-        var (blue, green, yellow, red) = Colors(theme);
-        return percent <= 40 ? blue : percent <= 60 ? Mix(blue, green, (percent - 40) / 20)
-            : percent <= 75 ? Mix(green, yellow, (percent - 60) / 15)
-            : Mix(yellow, red, (percent - 75) / 25);
+        var (blue,green,_,red) = InkColors(theme);
+        return frame.State switch
+        {
+            GfMeterState.Success => green,
+            GfMeterState.Failed => red,
+            GfMeterState.Indeterminate => blue,
+            GfMeterState.Running when frame.ScaleKind is { } kind && frame.ScalePosition is double position =>
+                InkScaleColor(kind,position,theme),
+            _ => V269VisualTokens.ForTheme(theme).SecondaryText
+        };
     }
 
-    internal static Color ScaleColor(GfMeterKind kind, double position, V269Theme theme)
+    private static Color ScaleColorCore(GfMeterKind kind,double position,
+        (Color Blue,Color Green,Color Yellow,Color Red) colors)
     {
-        position = Math.Clamp(position, 0, 100);
-        var (blue, _, yellow, red) = Colors(theme);
+        position = Math.Clamp(position,0,100);
+        var (blue,green,yellow,red) = colors;
         return kind switch
         {
             GfMeterKind.Progress => blue,
-            GfMeterKind.InvertedProgress => position <= 35 ? Mix(red, yellow, position / 35) :
-                Mix(yellow, blue, (position - 35) / 65),
-            _ => UsageColor(position, theme)
+            GfMeterKind.InvertedProgress => position <= 35 ? Mix(red,yellow,position/35) :
+                Mix(yellow,blue,(position-35)/65),
+            _ => position <= 40 ? blue : position <= 60 ? Mix(blue,green,(position-40)/20)
+                : position <= 75 ? Mix(green,yellow,(position-60)/15) : Mix(yellow,red,(position-75)/25)
         };
     }
 

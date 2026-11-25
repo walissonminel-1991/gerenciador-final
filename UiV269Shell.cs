@@ -1447,8 +1447,7 @@ internal sealed class V269Shell : UserControl
         main.Configure(home, Theme);
         if (home)
         {
-            _columns.BackColor = ColorTranslator.FromHtml(Theme switch {
-                V269Theme.Dark => "#151719", V269Theme.Claro => "#deebf7", _ => "#081827" });
+            _columns.BackColor = V269VisualTokens.WorkspaceBase(Theme);
             _navigationLayout.BackColor = Color.Transparent;
             _centralLayout.BackColor = _headingLayout.BackColor = _bodyHost.BackColor = Color.Transparent;
             _pageTitle.ForeColor = ColorTranslator.FromHtml(Theme switch {
@@ -1601,20 +1600,8 @@ internal sealed class V269Shell : UserControl
 
         // Cores semânticas efetivas da cascata CSS congelada. Em Dark,
         // a regra final de data-gf-icon prevalece também na seleção.
-        internal static Color HomeIconColor(V269Theme theme, V269Page page, bool selected)
-        {
-            if (selected && theme != V269Theme.Dark) return Color.White;
-            string[] colors = theme switch
-            {
-                V269Theme.Dark => ["#65b8ef", "#b998f2", "#ee9d68", "#55cbb5",
-                    "#e4bb67", "#65b8ef", "#e4bb67", "#b998f2"],
-                V269Theme.Claro => ["#167bbb", "#7046c1", "#bc592b", "#087d82",
-                    "#ad6f1d", "#167bbb", "#ad6f1d", "#7046c1"],
-                _ => ["#75c4ed", "#b7a5f5", "#e8a784", "#6bd6b2",
-                    "#ecc27c", "#75c4ed", "#ecc27c", "#b7a5f5"]
-            };
-            return ColorTranslator.FromHtml(colors[(int)page]);
-        }
+        internal static Color HomeIconColor(V269Theme theme, V269Page page, bool selected) =>
+            V269VisualTokens.NavigationGlyph(theme,page,selected);
 
         private void PaintHomeNavigation(Graphics g)
         {
@@ -1638,14 +1625,11 @@ internal sealed class V269Shell : UserControl
             using var shape = Rounded(area, 9);
             if (IsSelected)
             {
-                var (first,last,border) = theme switch {
-                    V269Theme.Dark => (H("#666d74"),H("#50575e"),H("#b6c0c8")),
-                    V269Theme.Claro => (H("#6f97bc"),H("#5a7da1"),H("#7aa7d0")),
-                    _ => (H("#246aae"),H("#1b4f91"),H("#6ea9d1")) };
+                var (first,last,border) = V269VisualTokens.NavigationSelection(theme);
                 using var fill = new LinearGradientBrush(area, first, last, theme == V269Theme.Dark ? 15f : 0f);
                 using var line = new Pen(border);
                 g.FillPath(fill,shape); g.DrawPath(line,shape);
-                using var rail = new SolidBrush(theme == V269Theme.Dark ? H("#c8d0d7") : Color.White);
+                using var rail = new SolidBrush(V269VisualTokens.NavigationSelectionRail(theme));
                 using var railShape = Rounded(new Rectangle(1,9,4,Math.Max(1,Height-18)),2);
                 g.FillPath(rail,railShape);
             }
@@ -1660,18 +1644,7 @@ internal sealed class V269Shell : UserControl
             using var iconShape = Rounded(icon, 11);
             // Cores efetivas de .nav-item .ic e .nav-item.active .ic,
             // verificadas nos três temas da referência congelada.
-            var (iconTop, iconBottom, iconOutline) = theme switch
-            {
-                V269Theme.Claro => (Color.FromArgb(191, Color.White),
-                    Color.FromArgb(166, H("#d6e8f5")), Color.FromArgb(92, H("#578db9"))),
-                V269Theme.Dark when IsSelected => (Color.FromArgb(43, Color.White),
-                    Color.FromArgb(12, Color.White), Color.FromArgb(107, H("#d9e0e7"))),
-                V269Theme.Dark => (H("#383d42"), H("#292c31"), H("#626a72")),
-                _ when IsSelected => (Color.FromArgb(41, Color.White),
-                    Color.FromArgb(18, Color.White), Color.FromArgb(71, Color.White)),
-                _ => (Color.FromArgb(15, Color.White), Color.FromArgb(5, Color.White),
-                    Color.FromArgb(71, H("#7091b0")))
-            };
+            var (iconTop, iconBottom, iconOutline) = V269VisualTokens.NavigationIconSurface(theme,IsSelected);
             using var tint = new LinearGradientBrush(icon, iconTop, iconBottom, 90f);
             using var iconBorder = new Pen(iconOutline);
             g.FillPath(tint,iconShape); g.DrawPath(iconBorder,iconShape);
@@ -1681,7 +1654,7 @@ internal sealed class V269Shell : UserControl
             using var textFont = new Font(Font, IsSelected ? FontStyle.Bold : FontStyle.Regular);
             TextRenderer.DrawText(g, Text, textFont,
                 new Rectangle(icon.Right+S(8), 1, Math.Max(1,Width-icon.Right-S(12)), Math.Max(1,Height-2)),
-                theme == V269Theme.Dark ? H(IsSelected ? "#e3e6e9" : "#c6cdd3") : ForeColor,
+                V269VisualTokens.NavigationPaintInk(theme,IsSelected),
                 TextFormatFlags.WordBreak | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding |
                 TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform);
@@ -1719,8 +1692,7 @@ internal sealed class V269HomeSurfacePanel : Panel
         _home = home; _theme = theme;
         Padding = home ? new Padding(1) : Padding.Empty;
         var palette = V269VisualTokens.ForTheme(theme);
-        BackColor = home ? ColorTranslator.FromHtml(theme switch {
-            V269Theme.Dark => "#151719", V269Theme.Claro => "#deebf7", _ => "#081827" })
+        BackColor = home ? V269VisualTokens.WorkspaceBase(theme)
             : _sidebar ? palette.Sidebar : palette.Content;
         Invalidate(true);
     }
@@ -1749,16 +1721,7 @@ internal sealed class V269HomeSurfacePanel : Panel
         // Fundo opaco antes de desenhar cantos arredondados/gradiente.
         using (var background = new SolidBrush(BackColor))
             graphics.FillRectangle(background, ClientRectangle);
-        Color H(string color) => ColorTranslator.FromHtml(color);
-        var (first, last, border, angle) = (_theme, _sidebar) switch
-        {
-            (V269Theme.Dark, true) => (H("#1e2024"), H("#17191c"), H("#4a5057"), 90f),
-            (V269Theme.Dark, false) => (H("#25282b"), H("#1c1e21"), H("#4d535a"), 75f),
-            (V269Theme.Claro, true) => (H("#d5eaf9"), H("#c6e0f2"), H("#8db1ca"), 90f),
-            (V269Theme.Claro, false) => (H("#e4f3ff"), H("#d7e9f8"), H("#8db1ca"), 65f),
-            (_, true) => (H("#081c31"), H("#0b2539"), H("#25445f"), 90f),
-            _ => (H("#0a2539"), H("#071a2b"), H("#25445f"), 55f)
-        };
+        var (first,last,border,angle) = V269VisualTokens.WorkspaceGradient(_theme,_sidebar);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
         using var path = V269Shell.Rounded(bounds, Math.Max(1, 12 * DeviceDpi / 96));

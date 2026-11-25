@@ -125,12 +125,7 @@ internal class V269ToolCard : Panel
         if (Width < 3 || Height < 3) return;
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        var (top, bottom, border) = _options.Theme switch
-        {
-            V269Theme.Dark => _selected ? ("#50565d", "#41464c", "#b4bdc6") : ("#33373b", "#2b2f33", "#555c63"),
-            V269Theme.Claro => _selected ? ("#c2e0f5", "#c2e0f5", "#4a9cc9") : ("#e2f2fd", "#e2f2fd", "#8ebad6"),
-            _ => _selected ? ("#113048", "#113048", "#5e95bb") : ("#0d2437", "#0b2031", "#30516b")
-        };
+        var (top, bottom, border) = V269VisualTokens.ToolCard(_options.Theme,_selected);
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
         using var path = ModernButton.RoundRect(bounds, S(9));
         using var fill = new LinearGradientBrush(bounds, H(top), H(bottom), LinearGradientMode.Vertical);

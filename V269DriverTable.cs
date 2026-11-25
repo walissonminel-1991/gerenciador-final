@@ -40,20 +40,7 @@ internal static class V269DriverVisuals
         };
     }
 
-    internal static Color GlyphInk(V269DriverGlyph glyph, V269Theme theme)
-    {
-        bool light = theme == V269Theme.Claro;
-        string color = glyph switch
-        {
-            V269DriverGlyph.Audio or V269DriverGlyph.Headset or V269DriverGlyph.Chip =>
-                light ? "#ac4f24" : "#f5a273",
-            V269DriverGlyph.Plug or V269DriverGlyph.Gamepad =>
-                light ? "#3f752b" : "#95ca74",
-            V269DriverGlyph.Shield => light ? "#007882" : "#63c9b7",
-            _ => light ? "#126da0" : "#72c4ed"
-        };
-        return V269AppTable.H(color);
-    }
+    internal static Color GlyphInk(V269DriverGlyph glyph, V269Theme theme) => V269VisualTokens.DriverGlyphInk(glyph,theme);
 
     internal static string Enumerator(DriverInventoryEntry item)
     {

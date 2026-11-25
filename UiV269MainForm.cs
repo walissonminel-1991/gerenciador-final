@@ -1827,17 +1827,7 @@ internal sealed class V269HomeCard : Control
         if (Model is not { } model || width < 20) return S(150);
         // Valores finais da cascata CSS congelada V2.6.9. Separar
         // título, nome, rótulo, valor, linha e borda da arte.
-        var (card, border, soft, ink, muted, photo, titleInk, nameInk, photoBorder) = _appearance.Theme switch
-        {
-            V269Theme.Dark => (Hex("#303438"), Hex("#565c62"), Hex("#3c4249"),
-                Hex("#ced4d9"), Hex("#aab4bd"), Hex("#33383d"), Hex("#dce0e4"),
-                Hex("#ced4d9"), Hex("#575e65")),
-            V269Theme.Claro => (Hex("#eaf4fc"), Hex("#9bbacf"), Hex("#b7d1e2"),
-                Hex("#17374c"), Hex("#3f627a"), Hex("#dcecf9"), Hex("#17374c"),
-                Hex("#123b5d"), Hex("#b7d1e2")),
-            _ => (Hex("#0a2135"), Hex("#25445f"), Hex("#1c354b"), Hex("#e4edf6"),
-                Hex("#9ab0c2"), Hex("#10283e"), Hex("#e4edf6"), Hex("#e4edf6"), Hex("#1c354b"))
-        };
+        var (card, border, soft, ink, muted, photo, titleInk, nameInk, photoBorder) = V269VisualTokens.HomeCardPalette(_appearance.Theme);
         if (model.Key == "windows")
             photo = _appearance.Theme switch {
                 V269Theme.Dark => Hex("#232b33"), V269Theme.Claro => Hex("#d6e8f7"), _ => Hex("#102b46") };

@@ -99,12 +99,7 @@ internal class V269SettingsCard : Panel
     {
         base.OnPaintBackground(e);
         if (!PaintCard || Width <= 2 || Height <= 2) return;
-        var (first,last,border,angle) = Options.Theme switch
-        {
-            V269Theme.Dark => (H("#303438"), H("#282c30"), H("#565c62"), 65f),
-            V269Theme.Claro => (H("#eef8ff"), H("#dceefa"), H("#9bbacf"), 70f),
-            _ => (H("#0d3047"), H("#0b2237"), H("#25445f"), 65f)
-        };
+        var (first,last,border,angle) = V269VisualTokens.SettingsCardGradient(Options.Theme);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var bounds = new Rectangle(0,0,Width-1,Height-1);
         using var shape = V269Shell.Rounded(bounds,S(11));
@@ -149,12 +144,7 @@ internal sealed class V269SettingsSwitch : CheckBox
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         Color H(string value) => V269SettingsCard.H(value);
-        var (fill,outline) = Theme switch
-        {
-            V269Theme.Dark => (H(Checked ? "#858f98" : "#494f55"), H(Checked ? "#c0c9d0" : "#7d858d")),
-            V269Theme.Claro => (H(Checked ? "#237ab9" : "#a5b3bf"), H(Checked ? "#146394" : "#647d91")),
-            _ => (H(Checked ? "#2a7cbc" : "#2c4458"), H(Checked ? "#6db0da" : "#567387"))
-        };
+        var (fill,outline) = V269VisualTokens.SettingsSwitch(Theme,Checked);
         var bounds = new Rectangle(1,1,Width-3,Height-3);
         using var shape = V269Shell.Rounded(bounds,bounds.Height/2);
         using var brush = new SolidBrush(Enabled ? fill : Color.FromArgb(180,fill));
@@ -188,12 +178,7 @@ internal sealed class V269SettingsRange : TrackBar
         if(Width<3||Height<3)return;
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
         Color H(string x)=>V269SettingsCard.H(x);
-        var (accent,meter,border,knob)=_appearance.Theme switch
-        {
-            V269Theme.Dark=>(H("#c7cfd6"),H("#46505b"),H("#565c62"),H("#2b2f34")),
-            V269Theme.Claro=>(H("#2374ab"),H("#c3dced"),H("#9bbacf"),H("#f5fbff")),
-            _=>(H("#2d9cdb"),H("#28445d"),H("#25445f"),H("#0c2439"))
-        };
+        var (accent,meter,border,knob)= V269VisualTokens.SettingsSlider(_appearance.Theme);
         int thumb=Thumb,half=thumb/2,railHeight=Math.Min(Height-2,S(7)),y=(Height-railHeight)/2;
         var rail=new Rectangle(1,y,Math.Max(1,Width-2),railHeight);
         using var path=V269Shell.Rounded(rail,railHeight/2);
@@ -249,12 +234,7 @@ internal sealed class V269SettingsCombo : ComboBox
         IntegralHeight=false;FlatStyle=FlatStyle.Flat;
     }
     private int S(int px)=>Math.Max(1,(int)Math.Round(px*_appearance.InterfacePercent*DeviceDpi/9600d));
-    private (Color Top,Color Bottom,Color Border,Color Ink) Palette()=>_appearance.Theme switch
-    {
-        V269Theme.Dark=>(V269SettingsCard.H("#383d43"),V269SettingsCard.H("#30353a"),V269SettingsCard.H("#737c85"),V269SettingsCard.H("#d1d6db")),
-        V269Theme.Claro=>(V269SettingsCard.H("#eaf5fe"),V269SettingsCard.H("#eaf5fe"),V269SettingsCard.H("#8eafc7"),V269SettingsCard.H("#17374c")),
-        _=>(V269SettingsCard.H("#0d2233"),V269SettingsCard.H("#0b1d2b"),V269SettingsCard.H("#3d5a70"),V269SettingsCard.H("#e1edf7"))
-    };
+    private (Color Top,Color Bottom,Color Border,Color Ink) Palette()=> V269VisualTokens.DropdownPalette(_appearance.Theme);
     internal void ApplyOptions(V269AppearanceOptions options)
     {
         _appearance=options.Normalize();var p=Palette();
@@ -358,12 +338,7 @@ internal sealed class V269SettingsButton : Button
         if(Width<=2||Height<=2)return;
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
         Color H(string x)=>V269SettingsCard.H(x);
-        var (background,border,ink)=Options.Theme switch
-        {
-            V269Theme.Dark=>(H("#353a40"),H("#737c85"),H("#d1d6db")),
-            V269Theme.Claro=>(H("#e2f0fb"),H("#8eafc7"),H("#173d59")),
-            _=>(H("#102b41"),H("#3d5a70"),H("#c5d6e1"))
-        };
+        var (background,border,ink)= V269VisualTokens.SettingsButton(Options.Theme);
         int S(int px)=>Math.Max(1,(int)Math.Round(px*Options.InterfacePercent*DeviceDpi/9600d));
         using var shape=V269Shell.Rounded(new Rectangle(0,0,Width-1,Height-1),S(8));
         using var fill=new SolidBrush(background);using var line=new Pen(border);

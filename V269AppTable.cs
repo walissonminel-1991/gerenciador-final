@@ -89,20 +89,9 @@ internal static class V269AppTable
         new(bounds.X,bounds.Y,Scale(19,scale,dpi),bounds.Height);
     internal static Color H(string s)=>ColorTranslator.FromHtml(s);
     // Cores do HTML, somente para a área de inventário e suas barras.
-    internal static Color EmptySurface(V269Theme theme)=>H(theme switch
-    {V269Theme.Dark=>"#24272b",V269Theme.Claro=>"#eaf4fb",_=>"#081b2b"});
-    internal static (Color Track,Color Thumb,Color Hot) ScrollColors(V269Theme theme)=>theme switch
-    {
-        V269Theme.Dark=>(H("#24272b"),H("#686f77"),H("#9ca6af")),
-        V269Theme.Claro=>(H("#eaf4fc"),H("#8db1ca"),H("#5f97bf")),
-        _=>(H("#0a1f30"),H("#3a5c79"),H("#6598bf"))
-    };
-    internal static (Color Head,Color Row,Color Alternate,Color Selected,Color Ink,Color Border,Color Rail) Colors(V269Theme theme)=>theme switch
-    {
-        V269Theme.Dark=>(H("#34383d"),H("#282b2f"),H("#2d3136"),H("#50575f"),H("#cbd1d6"),H("#51575e"),H("#c8d0d7")),
-        V269Theme.Claro=>(H("#bcdcf3"),H("#eaf4fb"),H("#e4f2fd"),H("#c3dff3"),H("#20435f"),H("#9bbacf"),H("#2374ab")),
-        _=>(H("#17364a"),H("#091d2d"),H("#0c273a"),H("#1c4666"),H("#e4edf6"),H("#25445f"),H("#7bc2ff"))
-    };
+    internal static Color EmptySurface(V269Theme theme) => V269VisualTokens.InventorySurface(theme);
+    internal static (Color Track,Color Thumb,Color Hot) ScrollColors(V269Theme theme) => V269VisualTokens.InventoryScroll(theme);
+    internal static (Color Head,Color Row,Color Alternate,Color Selected,Color Ink,Color Border,Color Rail) Colors(V269Theme theme) => V269VisualTokens.InventoryPalette(theme);
     internal static Rectangle AppInstallDateHeaderBounds(IDeviceContext context, Rectangle cell, Font font, int dpi, bool compact)
     {
         const TextFormatFlags flags = TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
@@ -117,11 +106,10 @@ internal static class V269AppTable
         if(bounds.Width<1||bounds.Height<1)return;
         var colors=Colors(options.Theme);
         using Brush bg=options.Theme==V269Theme.Dark
-            ?new LinearGradientBrush(bounds,H("#3b4045"),H("#34383d"),LinearGradientMode.Vertical)
+            ?new LinearGradientBrush(bounds,V269VisualTokens.InventoryHeaderTop(options.Theme),colors.Head,LinearGradientMode.Vertical)
             :new SolidBrush(colors.Head);
         g.FillRectangle(bg,bounds);
-        Color ink=options.Theme switch
-        {V269Theme.Dark=>H("#cdd3d9"),V269Theme.Claro=>H("#143e60"),_=>H("#bfd2df")};
+        Color ink=V269VisualTokens.InventoryHeaderInk(options.Theme);
         var columns=Columns(bounds,options.InterfacePercent,dpi,compact,drivers);
         var headers = drivers ? DriverHeaders : Headers;
         for(int i=0;i<headers.Length;i++)
@@ -132,36 +120,27 @@ internal static class V269AppTable
             TextRenderer.DrawText(g,headers[i],font,rect,ink,TextFormatFlags.VerticalCenter|
                 TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|TextFormatFlags.PreserveGraphicsClipping);
         }
-        using var line=new Pen(options.Theme switch
-        {V269Theme.Dark=>H("#656b72"),V269Theme.Claro=>H("#b7d1e2"),_=>H("#355067")});
+        using var line=new Pen(V269VisualTokens.InventoryHeaderDivider(options.Theme));
         g.DrawLine(line,bounds.Left,bounds.Bottom-1,bounds.Right,bounds.Bottom-1);
     }
 
-    internal static Color RowInk(V269Theme theme,bool selected)=>!selected?Colors(theme).Ink:theme switch
-    {V269Theme.Dark=>H("#e0e4e7"),V269Theme.Claro=>H("#20435f"),_=>H("#eef7ff")};
-    internal static Color StateInk(V269Theme theme,bool selected,bool available)=>selected||available?RowInk(theme,selected):theme switch
-    {V269Theme.Dark=>H("#a7b0b8"),V269Theme.Claro=>H("#3f627a"),_=>H("#9ab0c2")};
+    internal static Color RowInk(V269Theme theme,bool selected) => V269VisualTokens.InventoryRowInk(theme,selected);
+    internal static Color StateInk(V269Theme theme,bool selected,bool available) => V269VisualTokens.InventoryStateInk(theme,selected,available);
     internal static void DrawRowBackground(Graphics g,Rectangle bounds,V269Theme theme,bool selected,bool alternate,int scale,int dpi)
     {
         if(bounds.Width<1||bounds.Height<1)return;
         var colors=Colors(theme);
-        var (first,last,selectedBorder)=theme switch
-        {
-            V269Theme.Dark=>(H("#5a626b"),H("#484e56"),H("#aeb9c3")),
-            V269Theme.Claro=>(H("#dcebf7"),H("#d1e3f1"),H("#78a9cb")),
-            _=>(H("#1a456d"),H("#143555"),H("#5c97c3"))
-        };
+        var (first,last,selectedBorder)=V269VisualTokens.InventorySelection(theme);
         using Brush fill=selected?new LinearGradientBrush(bounds,first,last,LinearGradientMode.Horizontal):
             new SolidBrush(alternate?colors.Alternate:colors.Row);
         g.FillRectangle(fill,bounds);
-        using var line=new Pen(theme switch
-        {V269Theme.Dark=>H("#3d4349"),V269Theme.Claro=>H("#b7d1e2"),_=>H("#1a3345")});
+        using var line=new Pen(V269VisualTokens.InventoryRowDivider(theme));
         g.DrawLine(line,bounds.Left,bounds.Bottom-1,bounds.Right,bounds.Bottom-1);
         if(selected&&bounds.Width>1&&bounds.Height>1)
         {
             using var border=new Pen(selectedBorder);
             g.DrawRectangle(border,bounds.X,bounds.Y,bounds.Width-1,bounds.Height-1);
-            using var rail=new SolidBrush(theme==V269Theme.Claro?H("#7bc2ff"):colors.Rail);
+            using var rail=new SolidBrush(V269VisualTokens.InventorySelectionRail(theme));
             int gap=Scale(4,scale,dpi);
             g.FillRectangle(rail,bounds.X,bounds.Y+gap,Math.Min(gap,bounds.Width),Math.Max(1,bounds.Height-2*gap));
         }
@@ -189,25 +168,7 @@ internal static class V269AppTable
 
     // Última cascata do HTML aprovado: cores específicas da tabela de Aplicativos.
     // Não alterar os tokens compartilhados pelas demais páginas.
-    internal static (Color Back,Color Ink,Color Border) ActionColors(V269Theme theme,bool remove,bool allowed)
-    {
-        var (back,ink,border)=(theme,remove,allowed) switch
-        {
-            (V269Theme.Claro,false,true)=>("#278b55","#ffffff","#2da269"),
-            (V269Theme.Claro,false,false)=>("#f0f8fd","#5f97bf","#9ebed6"),
-            (V269Theme.Claro,true,true)=>("#cf465e","#ffffff","#df6075"),
-            (V269Theme.Claro,true,false)=>("#e5edf3","#9ba8b4","#b5c4d0"),
-            (V269Theme.Dark,false,true)=>("#276e49","#e2fff1","#61c891"),
-            (V269Theme.Dark,false,false)=>("#383e44","#bac3ca","#68727b"),
-            (V269Theme.Dark,true,true)=>("#772d39","#ffe4e8","#f3798e"),
-            (V269Theme.Dark,true,false)=>("#373c42","#929ca5","#626a73"),
-            (_,false,true)=>("#1d633e","#caffdf","#46b977"),
-            (_,false,false)=>("#173249","#bfd9ec","#4b6981"),
-            (_,true,true)=>("#722734","#ffd9df","#f66b84"),
-            _=>("#263743","#8997a3","#435766")
-        };
-        return (H(back),H(ink),H(border));
-    }
+    internal static (Color Back,Color Ink,Color Border) ActionColors(V269Theme theme,bool remove,bool allowed) => V269VisualTokens.InventoryActionColors(theme,remove,allowed);
 
     // ViewBox 24x24 dos SVG refresh-solid e trash-solid do HTML congelado.
     internal static GraphicsPath ActionGlyph(bool remove)

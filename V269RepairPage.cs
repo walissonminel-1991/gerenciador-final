@@ -11,10 +11,7 @@ internal enum V269RepairGlyph
 
 internal static class V269RepairVisuals
 {
-    internal static Color WrenchInk(V269Theme theme) => V269AppTable.H(theme switch
-    {
-        V269Theme.Claro => "#ad690d", V269Theme.Dark => "#e7bd5f", _ => "#f2c477"
-    });
+    internal static Color WrenchInk(V269Theme theme) => V269VisualTokens.RepairWrenchInk(theme);
 
     internal static void Draw(Graphics g, V269RepairGlyph glyph, Rectangle bounds, V269Theme theme)
     {

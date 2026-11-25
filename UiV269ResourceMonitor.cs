@@ -525,11 +525,12 @@ internal sealed class GfResourceMonitorForm : Form
                     i >= 4 && !GfMeterScale.ValidThermalLimit(limit) ? " (escala térmica de referência)" : "");
             if (i is 1 or 3 or 5 && s.GpuDisplayName is { Length: > 0 } gpuName) description += " · " + gpuName;
             if (i == 4 && data[i] is null) description = "Temperatura da CPU indisponível. Nenhum sensor de CPU verificável.";
-            _values[i].Text = number; _values[i].ForeColor = frame.Color; _values[i].AccessibleDescription = description;
+            Color ink = GfMeterScale.InkColor(frame,_theme);
+            _values[i].Text = number; _values[i].ForeColor = ink; _values[i].AccessibleDescription = description;
             if (_compactValues[i] is Label compact)
             {
                 compact.Text = Names[i] + " " + number;
-                compact.ForeColor = frame.Color; compact.AccessibleDescription = description;
+                compact.ForeColor = ink; compact.AccessibleDescription = description;
             }
             _bars[i].Present(frame, description);
         }
