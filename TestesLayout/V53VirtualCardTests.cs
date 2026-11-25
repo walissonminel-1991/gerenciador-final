@@ -118,15 +118,21 @@ internal static class V53VirtualCardTests
         Require((int)typeof(DarkProgramList).GetMethod("RowAt",BindingFlags.Instance|BindingFlags.NonPublic)!
             .Invoke(appList,[point])! == 0,"mouse de teste atinge a primeira linha visível");
         move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,point.X,point.Y,0)]);
-        var tips=(ToolTip)typeof(DarkProgramList).GetField("_itemTips",
-            BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(appList)!;
-        Require(!tips.Active,"tooltip flutuante permanece inativo");
-        Require(tips.GetToolTip(appList).Contains(longName,StringComparison.Ordinal),
-            "reticências preservam o nome completo no conteúdo consultivo");
-        Require(appList.AccessibilityObject.GetChild(0)?.Name?.Contains(longName,StringComparison.Ordinal)==true,
-            "reticências preservam o nome completo para leitor de tela");
-        move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,80,appList.TableHeaderHeight/2,0)]);
-        Require(!tips.Active&&tips.GetToolTip(appList).Length==0,"cabeçalho não apresenta dados de uma linha inexistente");
+        Require(typeof(DarkProgramList).GetField("_itemTips",
+            BindingFlags.Instance|BindingFlags.NonPublic) is null,
+            "tooltip flutuante removido, inclusive suas alocações de texto");
+        var accessibleRow = appList.AccessibilityObject.GetChild(0);
+        Require(accessibleRow?.Name?.Contains(longName,StringComparison.Ordinal)==true &&
+            !string.IsNullOrWhiteSpace(accessibleRow.Description),
+            "reticências preservam o nome completo e descrição consultiva para leitor de tela");
+        var header = new Point(80,appList.TableHeaderHeight/2);
+        move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,header.X,header.Y,0)]);
+        Require((int)typeof(DarkProgramList).GetMethod("RowAt",BindingFlags.Instance|BindingFlags.NonPublic)!
+            .Invoke(appList,[header])! < 0,"cabeçalho não identifica uma linha inexistente");
+        var headerHit = ((ProgramEntry? Item,string Action))typeof(DarkProgramList).GetMethod("HitAction",
+            BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(appList,[header])!;
+        Require(headerHit.Item is null && headerHit.Action.Length==0,
+            "cabeçalho não autoriza ações de uma linha inexistente");
 
         // Render GDI real em runner 96 DPI, sem drivers/arquivos reais.
         var paint = typeof(DarkDriverList).GetMethod("DrawCard",

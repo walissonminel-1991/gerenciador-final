@@ -1553,7 +1553,9 @@ internal static class V269IntegrationTests
         foreach (string name in removedMethods)
             Require(typeof(MainForm).GetMethod(name, fields) is null, "entrada legada não deve retornar: " + name);
         Require(typeof(DarkProgramList).GetProperty("MultiSelectMode", fields) is null &&
-            typeof(DarkProgramList).GetEvent("ItemCheckboxClicked", fields) is null,
+            typeof(DarkProgramList).GetEvent("ItemCheckboxClicked", fields) is null &&
+            typeof(DarkProgramList).GetField("_itemTips", fields) is null &&
+            typeof(DarkProgramList).GetField("_tipRow", fields) is null,
             "controle de lista conserva ações individuais sem seleção múltipla legada");
         foreach (string type in new[] { "AppBatchUpdateCandidate", "AppBatchUpdatePolicy",
             "AppBatchUpdateStepResult", "AppBatchUpdateSummary", "AppBatchUpdateRun" })

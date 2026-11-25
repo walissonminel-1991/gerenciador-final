@@ -220,8 +220,6 @@ internal static class AppRowGeometry
 internal sealed class DarkProgramList : Control
 {
     private readonly List<ProgramEntry> _items = new();
-    private readonly ToolTip _itemTips = new() { Active = false, InitialDelay = 450, AutoPopDelay = 12000 };
-    private int _tipRow = -1;
     private readonly Dictionary<int, UpdateOperationSnapshot?> _paintedOperations = new();
     private readonly Dictionary<int, UninstallOperationSnapshot?> _paintedUninstalls = new();
     private readonly System.Windows.Forms.Timer _operationTimer = new() { Interval = 100 };
@@ -234,7 +232,6 @@ internal sealed class DarkProgramList : Control
     internal void RefreshOperations()
     {
         if (IsDisposed || Disposing) return;
-        _tipRow = -1;
         if (Visible && IsHandleCreated && _items.Any(p => OperationFor?.Invoke(p)?.Active == true || UninstallOperationFor?.Invoke(p)?.Active == true))
             _operationTimer.Start();
         else _operationTimer.Stop();
@@ -575,7 +572,7 @@ internal sealed class DarkProgramList : Control
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); _appActionsMenu.Dispose(); _tableFont?.Dispose(); _appIcons?.Dispose(); }
+        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _appActionsMenu.Dispose(); _tableFont?.Dispose(); _appIcons?.Dispose(); }
         base.Dispose(disposing);
     }
 
@@ -590,7 +587,6 @@ internal sealed class DarkProgramList : Control
         _paintedUninstalls.Clear();
         _items.AddRange(entries);
         RefreshOperations();
-        _tipRow = -1;
         int oldSelected = _selectedIndex;
         _selectedIndex = prior is null ? -1 : _items.FindIndex(x => ReferenceEquals(x, prior));
         if(_selectedIndex<0&&prior is not null&&!string.IsNullOrEmpty(prior.InventoryId))
@@ -692,21 +688,7 @@ internal sealed class DarkProgramList : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        int index = _itemHeight > 0 ? RowAt(e.Location) : -1;
         if(_dragApp is not null){Cursor=Cursors.SizeNS;return;}
-        if (index != _tipRow)
-        {
-            _tipRow = index;
-            string text = index >= 0 && index < _items.Count
-                ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
-                  "\nDisponível: " + _items[index].AvailableVersion +
-                  "\nFonte: " + _items[index].Source + "\n" + _items[index].UpdateEvidence +
-                  "\n" + ApplicationCapabilityInspection.Describe(_items[index], OperationFor?.Invoke(_items[index])) +
-                  (UninstallOperationFor?.Invoke(_items[index]) is { } uninstall ? "\n" + uninstall.Details :
-                   OperationFor?.Invoke(_items[index]) is { } operation ? "\n" + operation.Details : "")
-                : "";
-            _itemTips.SetToolTip(this, text);
-        }
         var (item, action) = HitAction(e.Location);
         if (!ReferenceEquals(item, _hoverItem) || _hoverAction != action)
         {
@@ -725,8 +707,6 @@ internal sealed class DarkProgramList : Control
         var previous = _hoverItem;
         _hoverItem = null;
         _hoverAction = "";
-        _tipRow = -1;
-        _itemTips.SetToolTip(this, "");
         Cursor = Cursors.Default;
         InvalidateActionRow(previous);
     }
