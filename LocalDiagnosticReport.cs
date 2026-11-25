@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace GerenciadorAplicativos;
 
@@ -587,9 +589,58 @@ internal sealed class LocalDiagnosticReport
         using var pinned = InstallerFileGuard.PinDirectory(directory, allowLeafWrites: true);
         string name = $"GF-Diagnostico-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}-{Guid.NewGuid():N}.txt";
         string path = Path.Combine(directory, name);
-        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        write(stream);
-        stream.Flush(flushToDisk: true);
-        return path;
+        string staging = Path.ChangeExtension(path, ".tmp");
+        // Criar exclusivamente, com direito DELETE no mesmo handle. Só publicar
+        // o nome .txt depois de concluir e descarregar todos os bytes.
+        using var handle = CreateDiagnosticFile(staging, 0x40010000u, 0, IntPtr.Zero,
+            1, 0x00200080u, IntPtr.Zero);
+        if (handle.IsInvalid)
+            throw new IOException("Não foi possível criar o relatório temporário.",
+                new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));
+        using var stream = new FileStream(handle, FileAccess.Write, 16384);
+        try
+        {
+            write(stream);
+            stream.Flush(flushToDisk: true);
+            PublishDiagnosticFile(handle, path);
+            return path;
+        }
+        catch
+        {
+            // Limpar apenas o arquivo que este GF abriu; nunca seguir o nome
+            // no disco nem remover um relatório anterior. Se a limpeza falhar,
+            // o arquivo incompleto continua identificado como .tmp.
+            try { InstallerFileGuard.MarkResidualForDeletion(stream); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) { }
+            throw;
+        }
     }
+
+    private static void PublishDiagnosticFile(SafeFileHandle handle, string path)
+    {
+        // FILE_RENAME_INFO: ReplaceIfExists=false, RootDirectory=NULL e nome
+        // UTF-16 absoluto. Renomear pelo handle aberto evita trocar o arquivo
+        // entre a verificação e a publicação.
+        byte[] name = Encoding.Unicode.GetBytes(path);
+        int lengthOffset = IntPtr.Size == 8 ? 16 : 8;
+        int nameOffset = lengthOffset + sizeof(uint);
+        byte[] info = new byte[nameOffset + name.Length + sizeof(char)];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+            info.AsSpan(lengthOffset, sizeof(uint)), (uint)name.Length);
+        name.CopyTo(info, nameOffset);
+        if (!SetDiagnosticFileInformation(handle, 3, info, (uint)info.Length))
+            throw new IOException("Não foi possível publicar o relatório concluído.",
+                new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", ExactSpelling = true,
+        CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateDiagnosticFile(string path, uint access, uint share,
+        IntPtr security, uint creation, uint flags, IntPtr template);
+
+    [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", ExactSpelling = true,
+        SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetDiagnosticFileInformation(SafeFileHandle file, int infoClass,
+        [In] byte[] info, uint size);
 }

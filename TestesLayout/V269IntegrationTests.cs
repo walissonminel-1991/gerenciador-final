@@ -1549,6 +1549,22 @@ internal static class V269IntegrationTests
                 Path.GetExtension(first)==".txt"&&File.ReadAllText(first)==text&&
                 File.ReadAllText(second)==text+"\nSegunda exportação."&&Directory.GetFiles(folder).Length==2,
                 "exportações TXT únicas, legíveis, sem sobrescrever a anterior");
+            // A falha acontece depois de gravar o cabeçalho e parte do prefixo.
+            // Não pode deixar um TXT aparentemente válido nem apagar os anteriores.
+            string incompleteInput=Path.Combine(folder,"prefixo-fixture.bin");
+            File.WriteAllBytes(incompleteInput,new byte[]{65,66,67});
+            bool incompleteRejected=false;
+            using(var source=new FileStream(incompleteInput,FileMode.Open,FileAccess.Read,FileShare.Read))
+            using(var incomplete=new LocalDiagnosticReport.ExportSnapshot("resumo","recuperação",source,4))
+            {
+                try { LocalDiagnosticReport.SaveToFolder(folder,"GF-DIAG fixture",incomplete); }
+                catch(IOException) { incompleteRejected=true; }
+            }
+            File.Delete(incompleteInput);
+            Require(incompleteRejected&&Directory.GetFiles(folder).Length==2&&
+                File.ReadAllText(first)==text&&File.ReadAllText(second)==text+"\nSegunda exportação.",
+                "falha de exportação não publica TXT parcial, não deixa temporário e preserva os anteriores");
+            Console.WriteLine("PASS Diagnóstico GF: falha de prefixo não publica TXT parcial.");
             bool refused=false;
             try { LocalDiagnosticReport.SaveToFolder("",text); }
             catch(IOException) { refused=true; }
