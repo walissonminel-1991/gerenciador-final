@@ -18,6 +18,7 @@ internal static class V269IntegrationTests
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
         Timed("Navegação sequencial nativa", () => VerifySequentialNavigation(form, shell));
+        Timed("Feedback independente", VerifyIndependentFeedback);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
@@ -113,8 +114,8 @@ internal static class V269IntegrationTests
                 detailButton.Enabled = true;
                 detailButton.Focus();
                 Application.DoEvents();
-                // ModernButton dispara Click somente após 145 ms de feedback.
-                // Manter a fotografia e o timer até o despacho real e fechamento.
+                // O clique é imediato; manter a fotografia até o fechamento
+                // do diálogo, independentemente da animação.
                 Require(detailButton.Visible && detailButton.Enabled && detailButton.CanSelect,
                     "botão de leituras alcançável com resultado preservado");
                 closeDialog.Start();
@@ -167,6 +168,46 @@ internal static class V269IntegrationTests
         Timed("Pintura real V269", () => VerifyLiveWindowPaint(form, shell));
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyIndependentFeedback()
+    {
+        using var window = new Form { Size = new Size(620, 320), ShowInTaskbar = false };
+        using var button = new ModernButton { Text = "Fixture sem manutenção", Dock = DockStyle.Top, Height = 42 };
+        using var tabs = new DarkTabHost { Dock = DockStyle.Fill };
+        tabs.AddTab("A", new Panel());
+        tabs.AddTab("B", new Panel());
+        tabs.AddTab("C", new Panel());
+        window.Controls.Add(tabs);
+        window.Controls.Add(button);
+        window.Show();
+        Application.DoEvents();
+        int clicks = 0, changes = 0;
+        button.Click += (_, _) => clicks++;
+        tabs.SelectedIndexChanged += (_, _) => changes++;
+        button.PerformClick();
+        Require(clicks == 1, "clique ModernButton precisa despachar antes de qualquer Tick");
+        button.PerformClick();
+        Require(clicks == 2, "segundo clique não pode depender da duração da animação");
+        button.Enabled = false;
+        button.PerformClick();
+        Require(clicks == 2, "botão desabilitado não despacha");
+        var strip = tabs.Controls.Cast<Control>().Single(c => c.GetType().Name == "TabStrip");
+        var key = strip.GetType().GetMethod("OnKeyDown", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        key.Invoke(strip, [new KeyEventArgs(Keys.Right)]);
+        Require(tabs.SelectedIndex == 1 && changes == 1, "teclado seleciona aba sem esperar animação");
+        key.Invoke(strip, [new KeyEventArgs(Keys.Right)]);
+        Require(tabs.SelectedIndex == 2 && changes == 2, "rajada de teclado não perde navegação");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < 200)
+        {
+            Application.DoEvents();
+            Thread.Sleep(5);
+        }
+        Require(clicks == 2 && changes == 2 && tabs.SelectedIndex == 2,
+            "timer de pintura não despacha comandos nem restaura seleção");
+        window.Close();
+        Console.WriteLine("PASS V269-UX feedback gráfico independente do clique e do teclado.");
     }
 
     // Percurso de uso contínuo: o mesmo Form, os mesmos controles e o

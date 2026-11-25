@@ -546,12 +546,8 @@ internal sealed class ModernButton : Button
             Invalidate();
             if (_visualProgress < 1F) return;
             _visualTimer.Stop();
-            if (!_pendingClick) return;
-            _pendingClick = false;
-            if (IsDisposed || !Enabled) return;
-            _dispatchingClick = true;
-            try { base.OnClick(EventArgs.Empty); }
-            finally { _dispatchingClick = false; }
+            _pendingClick = false; // somente pintura; jamais despachar comando no timer
+            Invalidate();
         };
     }
 
@@ -640,21 +636,26 @@ internal sealed class ModernButton : Button
         int Chan(int a, int b) => (int)(a + (b - a) * amount);
         return Color.FromArgb(Chan(first.R, second.R), Chan(first.G, second.G), Chan(first.B, second.B));
     }
-    // Mesmo clique em botões de navegação e manutenção: animação ANTES do evento.
-    // Evita que um navegador ou caixa modal oculta a reação ao clique.
+    // Feedback visual não é autorização nem fila de comandos.
     protected override void OnClick(EventArgs e)
     {
-        if (_dispatchingClick) { base.OnClick(e); return; }
-        if (!Enabled || IsDisposed || _pendingClick) return;
+        if (_dispatchingClick || !Enabled || IsDisposed || !Visible) return;
         Form? owner = FindForm();
         while (owner is not null && owner is not MainForm) owner = owner.Owner;
-        if (owner is MainForm main && !main.V269CanAnimateButtons)
-        { base.OnClick(e); return; }
-        _pendingClick = true;
-        _visualStart = Stopwatch.GetTimestamp();
-        _visualProgress = 0F;
-        _visualTimer.Start();
+        bool animate = owner is MainForm main ? main.V269CanAnimateButtons :
+            SystemInformation.UIEffectsEnabled && SystemInformation.IsMenuAnimationEnabled;
+        _visualTimer.Stop();
+        _pendingClick = animate;
+        _visualProgress = animate ? 0F : 1F;
+        if (animate)
+        {
+            _visualStart = Stopwatch.GetTimestamp();
+            _visualTimer.Start();
+        }
         Invalidate();
+        _dispatchingClick = true;
+        try { base.OnClick(e); }
+        finally { _dispatchingClick = false; }
     }
 
     protected override void OnMouseEnter(EventArgs e)
@@ -683,6 +684,16 @@ internal sealed class ModernButton : Button
         _pressed = false;
         Invalidate();
         base.OnMouseUp(e);
+    }
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        if (!Visible && _visualTimer is not null)
+        {
+            _visualTimer.Stop();
+            _pendingClick = _pressed = _hot = false;
+            _visualProgress = 1F;
+        }
+        base.OnVisibleChanged(e);
     }
     protected override void OnEnabledChanged(EventArgs e)
     {

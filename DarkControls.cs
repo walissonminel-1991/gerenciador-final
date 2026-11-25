@@ -311,7 +311,7 @@ internal sealed class DarkProgramList : Control
     private int _selectedIndex = -1;
     private int _scrollOffset;
     private int _itemHeight = 72;
-    // Pressão visual de 160 ms antes de abrir instaladores/navegador.
+    // Pressão visual de 160 ms, independente do despacho da ação.
     // Uma só animação leve por clique, sem formularios extras, sons ou arquivos.
     private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
     private ProgramEntry? _hoverItem;
@@ -552,22 +552,15 @@ internal sealed class DarkProgramList : Control
         if (_pulseItem is null) { _feedbackTimer.Stop(); return; }
         _pulseProgress = Math.Clamp((float)((Stopwatch.GetTimestamp() - _pulseStart) * 1000.0 /
             Stopwatch.Frequency / 160.0), 0F, 1F);
-        Invalidate();
-        if (_pulseProgress < 1F) return;
         var item = _pulseItem;
-        var action = _pulseAction;
-        _feedbackTimer.Stop();
-        _pulseItem = null;
-        _pulseAction = "";
-        _pulseProgress = 0;
-        Invalidate();
-        if (!IsDisposed && _actionsEnabled && _items.Contains(item))
+        if (_pulseProgress >= 1F || !Visible || !Enabled || !this.V269Options().AnimateButtonFeedback)
         {
-            // A autorização visual pode ter mudado durante o feedback.
-            if(_tableMode && ((action is "update" or "terminal") && !this.AllowsUpdate(item) ||
-                (action is "uninstall" or "uninstall-manual" or "msix-uninstall") && !this.AllowsRemoval(item)))return;
-            ItemActionClicked?.Invoke(item, action);
+            _feedbackTimer.Stop();
+            _pulseItem = null;
+            _pulseAction = "";
+            _pulseProgress = 0;
         }
+        InvalidateActionRow(item); // o timer não executa ações nem repinta toda a lista
     }
 
     protected override void Dispose(bool disposing)
@@ -758,17 +751,23 @@ internal sealed class DarkProgramList : Control
         bool click = hit is not null && ReferenceEquals(hit, _downItem) && action == _downAction;
         _downItem = null;
         _downAction = "";
-        if (click && !this.V269Options().AnimateButtonFeedback) ItemActionClicked?.Invoke(hit!, action);
-        else if (click)
+        if (!click || IsDisposed || !Visible || !Enabled || !_actionsEnabled ||
+            hit is null || !_items.Contains(hit)) { Invalidate(); return; }
+        // Revalidar a capacidade no instante do clique, antes do evento.
+        if ((action is "update" or "terminal") && !this.AllowsUpdate(hit) ||
+            (action is "uninstall" or "uninstall-manual" or "msix-uninstall") && !this.AllowsRemoval(hit))
+        { InvalidateActionRow(hit); return; }
+        if (this.V269Options().AnimateButtonFeedback && SystemInformation.UIEffectsEnabled &&
+            SystemInformation.IsMenuAnimationEnabled)
         {
-            // Feedback perceptível mesmo para a ação que abre o navegador instantaneamente.
             _pulseItem = hit;
             _pulseAction = action;
             _pulseStart = Stopwatch.GetTimestamp();
             _pulseProgress = 0;
             _feedbackTimer.Start();
         }
-        Invalidate();
+        InvalidateActionRow(hit);
+        ItemActionClicked?.Invoke(hit, action);
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
@@ -1272,9 +1271,7 @@ internal sealed class DarkTabHost : UserControl
                 Invalidate();
                 if (_pulseProgress < 1F) return;
                 _feedbackTimer.Stop();
-                int next = _pulseTab;
-                _pulseTab = -1;
-                if (!IsDisposed && next >= 0) _host.SelectTab(next);
+                _pulseTab = -1; // feedback visual, sem selecionar aba atrasada
                 Invalidate();
             };
         }
@@ -1291,10 +1288,19 @@ internal sealed class DarkTabHost : UserControl
         private void StartTabFeedback(int index)
         {
             if (index < 0 || index >= _host._pages.Count) return;
-            _pulseTab = index;
-            _pulseProgress = 0F;
-            _pulseStart = Stopwatch.GetTimestamp();
-            _feedbackTimer.Start();
+            Form? owner = FindForm();
+            while (owner is not null && owner is not MainForm) owner = owner.Owner;
+            bool animate = owner is MainForm main ? main.V269CanAnimateButtons :
+                SystemInformation.UIEffectsEnabled && SystemInformation.IsMenuAnimationEnabled;
+            _feedbackTimer.Stop();
+            _pulseTab = animate ? index : -1;
+            _pulseProgress = animate ? 0F : 1F;
+            if (animate)
+            {
+                _pulseStart = Stopwatch.GetTimestamp();
+                _feedbackTimer.Start();
+            }
+            _host.SelectTab(index);
             Invalidate();
         }
 

@@ -324,8 +324,8 @@ internal static class LayoutTests
             if (!preview.RenderedText.Contains("COLETA DESATIVADA\r\n\r\n"))
                 throw new Exception("Previa inicial nao preservou separacao de paragrafos.");
             simulate.PerformClick();
-            // ModernButton somente despacha Click depois de 145 ms de feedback.
-            // Testar o clique REAL, sem executar diretamente o callback.
+            // Testar o clique REAL, sem executar diretamente o callback;
+            // a animação não condiciona o despacho da simulação.
             for (int attempt = 0; attempt < 30 &&
                 !preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA"); attempt++)
             {
