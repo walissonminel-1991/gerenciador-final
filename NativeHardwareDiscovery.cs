@@ -23,6 +23,7 @@ internal sealed record HardwareDeviceDescriptor(
     string Bus,
     HardwareDeviceKind Kind)
 {
+    internal string? ReportedDeviceDescription { get; init; }
     internal string? InstalledDriverVersion { get; init; }
     internal string? ReportedPcieLink { get; init; }
 }
@@ -207,8 +208,9 @@ internal static class NativeHardwareDiscovery
 
                 string instance = ReadInstanceId(set, ref data);
                 if (instance.Length == 0) partial = true; // identidade sem evidência
+                string description = ReadProperty(set, ref data, SpdrpDevicedesc);
                 string name = ReadProperty(set, ref data, SpdrpFriendlyName);
-                if (name.Length == 0) name = ReadProperty(set, ref data, SpdrpDevicedesc);
+                if (name.Length == 0) name = description;
                 if (name.Length == 0) name = "Dispositivo sem nome informado";
                 string manufacturer = ReadProperty(set, ref data, SpdrpMfg);
                 string setupClass = ReadProperty(set, ref data, SpdrpClass);
@@ -216,6 +218,7 @@ internal static class NativeHardwareDiscovery
                 result.Add(new(instance, name, manufacturer, setupClass,
                     HardwareDeviceClassifier.BusOf(instance), kind)
                 {
+                    ReportedDeviceDescription = description,
                     InstalledDriverVersion = kind == HardwareDeviceKind.Graphics && instance.Length > 0
                         ? ReadInstalledDriver(set, ref data) : null,
                     ReportedPcieLink = kind == HardwareDeviceKind.Graphics &&
