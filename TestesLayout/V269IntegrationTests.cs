@@ -1614,6 +1614,25 @@ internal static class V269IntegrationTests
                     "checkpoint desconhecido é recusado sem sobrescrita");
             }
             finally{invalid.Close(false);}
+            string truncatedFolder=Path.Combine(folder,"truncated-recovery");
+            Directory.CreateDirectory(truncatedFolder);
+            var interrupted=new DiagnosticRecoveryJournal();
+            interrupted.Start(truncatedFolder);
+            interrupted.Record(DiagnosticRecoveryKind.OperationBegin,(long)V269Page.Reparo,checkpoint:true);
+            interrupted.Close(false);
+            string truncatedPath=Directory.GetFiles(truncatedFolder,"GF-recovery-v1-*.bin").Single();
+            using(var tail=new FileStream(truncatedPath,FileMode.Append,FileAccess.Write,FileShare.None))
+                tail.Write(System.Text.Encoding.UTF8.GetBytes("PRIVADO"));
+            var partial=new DiagnosticRecoveryJournal();
+            partial.Start(truncatedFolder);
+            try
+            {
+                string recovered=partial.FormatPrevious();
+                Require(recovered.Contains("OperationBegin aba=Reparo")&&
+                    recovered.Contains("AVISO: recuperação parcial")&&!recovered.Contains("PRIVADO"),
+                    "checkpoint truncado recupera somente registros completos sem importar texto");
+            }
+            finally{partial.Close(true);}
             Require(LocalDiagnosticReport.ModelText("Samsung MZ-V8P1T0")== "Samsung MZ-V8P1T0"&&
                 LocalDiagnosticReport.ModelText(@"PCI\VEN_1234")== "N/D"&&
                 LocalDiagnosticReport.ModelText("1234567890ABCDEF")== "N/D"&&
@@ -1645,6 +1664,19 @@ internal static class V269IntegrationTests
                     captured.Contains("REGISTRO_PROGRAMAS.LIDO quantidade=1"+Environment.NewLine)&&
                     !captured.Contains("AVISO: cronologia integral indisponível"),
                     "benchmark compara capturas com a mesma cronologia completa");
+                static string Chronology(string report)
+                {
+                    const string start="=== CRONOLOGIA DA SESSÃO ATÉ A GERAÇÃO DO RELATÓRIO ===";
+                    const string end="=== RECUPERAÇÃO DE SESSÃO ANTERIOR ===";
+                    int first=report.IndexOf(start,StringComparison.Ordinal);
+                    int last=report.IndexOf(end,StringComparison.Ordinal);
+                    Require(first>=0&&last>first,"seções da cronologia presentes");
+                    return report[first..last].TrimEnd('\r','\n');
+                }
+                string original=Chronology(full);
+                Require(System.Text.Encoding.UTF8.GetByteCount(original)>16*1024*8&&
+                    string.Equals(original,Chronology(captured),StringComparison.Ordinal),
+                    "exportação em múltiplos blocos preserva toda a cronologia, ordem e UTF-8");
             }
             // Aquecer os dois caminhos; comparar somente trabalho síncrono de
             // captura. A leitura/gravação assíncrona não entra nestes números.
