@@ -325,6 +325,9 @@ internal sealed class V269RightPane : UserControl
         _repairPage=repair;
         UpdateAppFlowScope();RefreshAppOperationHistory();FitOperationHistory();
     }
+    private bool CleanupConfirmationChrome => _cleanupPage &&
+        Current is { Kind: V269PanelKind.Confirmation, FlowPage: null or V269Page.Limpeza };
+
     private void UpdateAppFlowScope()
     {
         bool result = Current is { Kind: V269PanelKind.Result, FlowResult: { } flow } &&
@@ -352,7 +355,7 @@ internal sealed class V269RightPane : UserControl
         _choices.Visible = pending || result || operationCancel;
         int choiceHeight = V269AppTable.Scale(active ? 44 : 38, _appInterfacePercent, DeviceDpi);
         _layout.RowStyles[3].Height = pending || result || operationCancel ? choiceHeight : 0;
-        _flowNote.SetContent(active, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
+        _flowNote.SetContent(active, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font, CleanupConfirmationChrome);
         _flowMeter.SetProgress(active && Current?.Kind == V269PanelKind.Progress ? Current.ProgressPercent : null,
             _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
         bool driverReview = _driversPage && Current is { Kind: V269PanelKind.DriverReview };
@@ -696,13 +699,15 @@ internal sealed class V269RightPane : UserControl
             _appFlowState.Font=_applicationDetails.Font;
             _appFlowState.ApplyState(Current?.Kind, Current?.ProgressPercent, Current?.FlowResult?.Complete,
                 _appPaneTheme,_appInterfacePercent);
-            _flowNote.SetContent(true, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
+            _flowNote.SetContent(true, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font, CleanupConfirmationChrome);
             _flowMeter.SetProgress(Current?.Kind == V269PanelKind.Progress ? Current.ProgressPercent : null,
                 _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
             int stateHeight=Math.Max(V269AppTable.Scale(36,_appInterfacePercent,DeviceDpi),_appFlowState.Font.Height*2+4);
             _appFlowState.Height=stateHeight;
-            _flowStateGap.Height=F(19);
-            _flowTitleGap.Height=F(12);
+            // Na confirmação de Limpeza, aproximar o estado do divisor e
+            // separar o título da ação conforme o ritmo vertical do HTML.
+            _flowStateGap.Height=F(CleanupConfirmationChrome ? 14 : 19);
+            _flowTitleGap.Height=F(CleanupConfirmationChrome ? 16 : 12);
             _title.TextAlign=ContentAlignment.MiddleLeft;_title.Margin=Padding.Empty;
             bool distinct=!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
             _layout.RowStyles[0].Height=height+_flowStateGap.Height+stateHeight+_flowTitleGap.Height+

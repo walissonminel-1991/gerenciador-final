@@ -155,6 +155,7 @@ internal sealed class V269AppFlowNote : Control
     private int _scale = 100;
     private bool _isResult;
     private bool _complete;
+    private bool _cleanupConfirmation;
 
     internal V269AppFlowNote()
     {
@@ -165,12 +166,14 @@ internal sealed class V269AppFlowNote : Control
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
     }
 
-    internal void SetContent(bool active, V269PanelPresentation? panel, V269Theme theme, int scale, Font font)
+    internal void SetContent(bool active, V269PanelPresentation? panel, V269Theme theme, int scale, Font font,
+        bool cleanupConfirmation = false)
     {
         _theme = theme;
         _scale = scale;
         _isResult = panel?.Kind == V269PanelKind.Result;
         _complete = panel?.FlowResult?.Complete == true;
+        _cleanupConfirmation = active && cleanupConfirmation && panel?.Kind == V269PanelKind.Confirmation;
         Text = !active ? "" : panel?.Kind switch
         {
             V269PanelKind.Confirmation => "A confirmação autoriza somente a ação e o alvo indicados acima.",
@@ -189,14 +192,20 @@ internal sealed class V269AppFlowNote : Control
     private const TextFormatFlags Wrap = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
         TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
 
+    // O HTML reserva espaço entre o aviso e os comandos de confirmação.
+    // Manter as demais operações e páginas exatamente com a métrica anterior.
+    internal int BottomGap => S(_cleanupConfirmation ? 30 : 8);
+    private int TopGap => S(8);
+    private int VerticalPadding => S(_cleanupConfirmation ? 11 : 8);
     internal int MeasureHeight(int width) => Text.Length == 0 ? 0 :
-        TextRenderer.MeasureText(Text, Font, new Size(Math.Max(1, width-LeftPadding-S(8)), 32767), Wrap).Height + S(32);
+        TextRenderer.MeasureText(Text, Font, new Size(Math.Max(1, width-LeftPadding-S(8)), 32767), Wrap).Height +
+        (_cleanupConfirmation ? TopGap + BottomGap + 2 * VerticalPadding : S(32));
 
     protected override void OnPaint(PaintEventArgs e)
     {
         if (Text.Length == 0 || Width < 3 || Height < S(16)) return;
         var palette = V269AppDetailStyle.Palette(_theme);
-        var area = new Rectangle(0, S(8), Width-1, Math.Max(1, Height-S(16)));
+        var area = new Rectangle(0, TopGap, Width-1, Math.Max(1, Height-(_cleanupConfirmation ? TopGap+BottomGap : S(16))));
         Color accent = _isResult
             ? V269AppTable.H(_complete ? (_theme == V269Theme.Claro ? "#087660" : "#70c6a3") :
                 (_theme == V269Theme.Claro ? "#966117" : "#e4bb79"))
@@ -222,8 +231,8 @@ internal sealed class V269AppFlowNote : Control
                 e.Graphics.DrawLine(pen, S(15), y+S(9), S(16), y+S(9));
             }
         }
-        TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(LeftPadding,area.Y+S(8),
-            Math.Max(1,Width-LeftPadding-S(8)),Math.Max(1,area.Height-S(16))), palette.Text, Wrap);
+        TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(LeftPadding,area.Y+VerticalPadding,
+            Math.Max(1,Width-LeftPadding-S(8)),Math.Max(1,area.Height-(_cleanupConfirmation ? 2*VerticalPadding : S(16)))), palette.Text, Wrap);
     }
 }
 

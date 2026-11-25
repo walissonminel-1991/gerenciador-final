@@ -285,6 +285,11 @@ internal static class V269IntegrationTests
                         var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
                         var scroll=shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).OfType<DarkVScrollBar>().Single();
                         Require(!viewport.AutoScroll,"Limpeza não usa a barra branca nativa no painel de operação");
+                        var note=shell.RightPane.Controls.Find("V269FlowNotice",true).OfType<V269AppFlowNote>().Single();
+                        var accept=shell.RightPane.Controls.Find("V269AcceptConfirmation",true).Single();
+                        Require(note.Visible && note.BottomGap==V269AppTable.Scale(30,100,note.DeviceDpi) &&
+                            accept.PointToScreen(Point.Empty).Y>=note.PointToScreen(Point.Empty).Y+note.Height,
+                            "confirmação de Limpeza preserva o respiro do HTML entre aviso e comandos");
                         if(scroll.MaximumValue>0)
                         {
                             Require(scroll.Visible,"overflow de Limpeza usa a barra temática");
