@@ -280,12 +280,14 @@ internal sealed partial class MainForm
         bool verifying = false;
         bool verificationComplete = false;
         var driverResults = new List<V269AppPreviousResult>();
+        void DismissDriverResult(Guid id)
+        {
+            if (root.IsDisposed || driverResults.RemoveAll(entry => entry.Id == id) == 0) return;
+            _nav.RightPane.RefreshAppOperationHistory();
+            if (_nav.RightPane.Current?.Driver is not null) PresentDetails(true);
+        }
         if (v269)
-            _nav.RightPane.ConfigureDriverHistory(() => driverResults, id =>
-            {
-                if (driverResults.RemoveAll(entry => entry.Id == id) != 0)
-                    _nav.RightPane.RefreshAppOperationHistory();
-            });
+            _nav.RightPane.ConfigureDriverHistory(() => driverResults, DismissDriverResult);
         int refreshRevision = 0;
         bool syncingStatusAccessibility = false;
         bool statusSyncPending = false;
@@ -418,9 +420,11 @@ internal sealed partial class MainForm
                 ? instruction : state.Text;
             if (selected is null)
             {
-                if (current?.Driver is { Fields.Count: 0 } previous && previous.Reasons == note) return;
+                if (current?.Driver is { Fields.Count: 0 } previous && previous.Reasons == note &&
+                    (previous.PreviousResults ?? []).SequenceEqual(driverResults)) return;
                 _nav.PresentPanel(new(V269PanelKind.Details, "Detalhes do driver", note, Driver:
-                    new V269AppDetailModel("Selecione um dispositivo", "", [], note, DriverGlyph: V269DriverGlyph.Chip)));
+                    new V269AppDetailModel("Selecione um dispositivo", "", [], note,
+                        PreviousResults: driverResults.ToArray(), DismissResult: DismissDriverResult, DriverGlyph: V269DriverGlyph.Chip)));
                 return;
             }
 
@@ -445,9 +449,12 @@ internal sealed partial class MainForm
                     note += Environment.NewLine + list.UninstallReason(selected);
             }
             if (current?.Driver is { } prior && prior.Name == name && prior.Publisher == provider &&
-                prior.Reasons == note && prior.Fields.SequenceEqual(fields)) return;
+                prior.Reasons == note && prior.Fields.SequenceEqual(fields) &&
+                (prior.PreviousResults ?? []).SequenceEqual(driverResults)) return;
             _nav.PresentPanel(new(V269PanelKind.Details, "Detalhes do driver", note, Driver:
-                new V269AppDetailModel(name, provider, fields, note, DriverGlyph: V269DriverVisuals.Glyph(selected))));
+                new V269AppDetailModel(name, provider, fields, note,
+                    PreviousResults: driverResults.ToArray(), DismissResult: DismissDriverResult,
+                    DriverGlyph: V269DriverVisuals.Glyph(selected))));
         }
         void PublishDriverResult(string title, string description, bool complete)
         {
@@ -739,9 +746,10 @@ internal sealed partial class MainForm
                     refreshAfter = true;
                 }
                 SetDriverStatus(outcome.Message);
-                _nav.PresentPanel(new(V269PanelKind.Result, "Remoção OEM · " + outcome.State,
+                PublishDriverResult("Remoção OEM · " + outcome.State,
                     outcome.Message + (outcome.BackupPath is null ? "" :
-                        Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath)));
+                        Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath),
+                    DriverResidualReviewPolicy.MayInspect(outcome.State));
                 if (DriverResidualReviewPolicy.MayInspect(outcome.State))
                     SetDriverStatus("INF removido; resíduos protegidos, sem limpeza genérica.");
             }

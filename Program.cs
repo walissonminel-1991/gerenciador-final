@@ -1472,10 +1472,17 @@ internal sealed partial class MainForm : Form
     private void RecordV269AppResult(string title,string description,V269PanelPresentation? owned=null)
     {
         if(IsDisposed||Disposing)return;
-        _v269AppPreviousResults.Insert(0,new(Guid.NewGuid(),title,description));
+        var entry = new V269AppPreviousResult(Guid.NewGuid(), title, description, owned?.FlowResult?.Complete);
+        _v269AppPreviousResults.Insert(0,entry);
         // O HTML exibe os quatro últimos; este limite não alcança o
         // registro persistente nem os estados reais de atualização/remoção.
         if(_v269AppPreviousResults.Count>4)_v269AppPreviousResults.RemoveAt(4);
+        if (owned?.FlowResult is { } result && _nav.SelectedPage == V269Page.Aplicativos)
+        {
+            _v269AppRetainedResult = null;
+            _nav.PresentPanel(owned with { FlowResult = result with { HistoryId = entry.Id } });
+            return;
+        }
         if(owned is not null)_v269AppRetainedResult=owned;
         _nav.RightPane.RefreshAppOperationHistory();
         if(_nav.SelectedPage==V269Page.Aplicativos&&_programList.SelectedItem is {} item)
@@ -2671,7 +2678,9 @@ internal sealed partial class MainForm : Form
             if (!appVerification || IsDisposed || Disposing || _busy || _v269Confirming) return;
             if (verification is null && _nav.SelectedPage != V269Page.Aplicativos ||
                 verification is not null && !ReferenceEquals(_nav.RightPane.Current, verification)) return;
-            verification = new(V269PanelKind.Progress, "Verificar aplicativos", message, percent);
+            verification = new(V269PanelKind.Progress, "Verificar aplicativos", message, percent,
+                CancelFlow: () => { if (ReferenceEquals(_consultaCatalogoCts, cancellation)) cancellation.Cancel(); },
+                FlowPage: V269Page.Aplicativos, CancelLabel: "Cancelar consulta");
             _nav.PresentPanel(verification);
         }
         int totalSources = Math.Max(1, OfficialReleaseSources.ApplicableSourceCount(installed) + 2);
@@ -2875,6 +2884,11 @@ internal sealed partial class MainForm : Form
                             }, entry.Id)));
                     }
                     else _nav.RightPane.RefreshAppOperationHistory();
+                }
+                else if (verification is not null && ReferenceEquals(_nav.RightPane.Current, verification))
+                {
+                    _nav.PresentPanel(null);
+                    if (_programList.SelectedItem is { } item) PresentV269AppDetails(item);
                 }
             }
         }
@@ -3473,6 +3487,49 @@ internal sealed partial class MainForm : Form
         return operation;
     }
 
+    private void ReportV269AppDownload(UpdateOperation operation, ProgramEntry entry,
+        UpdateProgress progress, CancellationTokenSource source)
+    {
+        operation.Report(progress);
+        if (IsDisposed || Disposing || !IsHandleCreated) return;
+        void Present()
+        {
+            if (IsDisposed || Disposing || !_busy || !_v269AppExecutionActive ||
+                !ReferenceEquals(_installerDownloadCts, source) || source.IsCancellationRequested) return;
+            var state = operation.Snapshot;
+            if (!state.Active) return;
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Atualizar " + entry.Name, state.Text,
+                state.Progress.Stage == UpdateStage.Downloading ? state.Progress.Percent : null,
+                CancelFlow: () => { if (ReferenceEquals(_installerDownloadCts, source)) source.Cancel(); },
+                FlowPage: V269Page.Aplicativos, CancelLabel: "Cancelar download"));
+        }
+        if (InvokeRequired)
+        {
+            try { BeginInvoke(new Action(Present)); }
+            catch (InvalidOperationException) { }
+        }
+        else Present();
+    }
+
+    private void FinishV269AppDownload(ProgramEntry entry)
+    {
+        _installerDownloadCts = null;
+        if (!IsDisposed && !Disposing && _nav.RightPane.Current is
+            { Kind: V269PanelKind.Progress, FlowPage: V269Page.Aplicativos, CancelLabel: "Cancelar download" })
+            _nav.PresentPanel(new(V269PanelKind.Progress, "Atualizar " + entry.Name, _operationResult));
+    }
+
+    private void RecordV269UpdateOutcome(ProgramEntry entry, UpdateOperationSnapshot state)
+    {
+        if (!_v269AppExecutionActive || state.Active || IsDisposed || Disposing) return;
+        _v269AppExecutionResult = new(V269PanelKind.Result, "Atualizar " + entry.Name, state.Details,
+            FlowResult: new(V269Page.Aplicativos, state.Progress.Stage == UpdateStage.Confirmed, () =>
+            {
+                _nav.PresentPanel(null);
+                if (_programList.SelectedItem is { } item) PresentV269AppDetails(item);
+            }));
+    }
+
     private CancellationTokenSource? _deploymentWaitCts;
 
     private async Task UpdateWindowsTerminalAsync(ProgramEntry entry)
@@ -3521,11 +3578,11 @@ internal sealed partial class MainForm : Form
                     try
                     {
                         bundle = await Task.Run(() => WindowsTerminalUpdater.DownloadAndVerifyAsync(
-                            recipe, folder, Status, downloadCts.Token, operation.Report));
+                            recipe, folder, Status, downloadCts.Token, progress => ReportV269AppDownload(operation, entry, progress, downloadCts)));
                     }
                     finally
                     {
-                        _installerDownloadCts = null;
+                        FinishV269AppDownload(entry);
                         if (!IsDisposed && _checkUpdatesButton is not null)
                             _checkUpdatesButton.Text = "Cancelar espera";
                     }
@@ -3595,6 +3652,7 @@ internal sealed partial class MainForm : Form
                 _deploymentWaitCts = null;
                 if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                RecordV269UpdateOutcome(entry, operation.Snapshot);
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 try { if (!WindowsTerminalUpdater.IsFolderProtected(folder) && Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
                 catch (IOException) { Log("Nao foi possivel remover o pacote MSIX temporario."); }
@@ -3660,11 +3718,11 @@ internal sealed partial class MainForm : Form
                     if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
                     try
                     {
-                        verifiedInstaller = await Task.Run(() => VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token, operation.Report));
+                        verifiedInstaller = await Task.Run(() => VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token, progress => ReportV269AppDownload(operation, entry, progress, downloadCts)));
                     }
                     finally
                     {
-                        _installerDownloadCts = null;
+                        FinishV269AppDownload(entry);
                         if (!IsDisposed && _checkUpdatesButton is not null)
                             _checkUpdatesButton.Text = "Verificar";
                     }
@@ -3777,6 +3835,7 @@ internal sealed partial class MainForm : Form
                 _deploymentWaitCts = null;
                 if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                RecordV269UpdateOutcome(entry, operation.Snapshot);
                 if (_batchUpdatesActive) _batchLastAttempt = operation.Snapshot;
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 if (VerifiedUpdaters.IsFolderProtected(folder))

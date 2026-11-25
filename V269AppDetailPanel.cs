@@ -51,11 +51,12 @@ internal sealed class V269AppFlowButton : Button
         else BackColor=SystemColors.Control;
         Invalidate();
     }
+    private bool HasOutcomeGlyph => Name == "V269DismissFlowResult";
     internal int RequiredAppTextWidth()
     {
         int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
         return TextRenderer.MeasureText(Text,Font,Size.Empty,TextFormatFlags.SingleLine|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding).Width
-            + S(6)*2+(_dismiss?0:S(12)+S(5))+2;
+            + S(6)*2+(_dismiss&&!HasOutcomeGlyph?0:S(12)+S(5))+2;
     }
     public override Size GetPreferredSize(Size proposedSize)
     {
@@ -82,11 +83,13 @@ internal sealed class V269AppFlowButton : Button
         using var fill=new SolidBrush(surface);using var outline=new Pen(border);
         g.FillPath(fill,shape);g.DrawPath(outline,shape);
         int left=S(6);
-        if(!_dismiss)
+        if(!_dismiss||HasOutcomeGlyph)
         {
             int n=S(12),y=(Height-n)/2;
-            using var pen=new Pen(ink,Math.Max(1f,DeviceDpi/96f)){StartCap=LineCap.Round,EndCap=LineCap.Round};
-            if(_primary)g.DrawLines(pen,new Point[]{new(left,y+n/2),new(left+n/3,y+n-2),new(left+n,y+2)});
+            var glyphInk = _primary || HasOutcomeGlyph
+                ? H(_theme == V269Theme.Claro ? "#087660" : _theme == V269Theme.Dark ? "#8acf78" : "#70c6a3") : ink;
+            using var pen=new Pen(glyphInk,Math.Max(1f,DeviceDpi/96f)){StartCap=LineCap.Round,EndCap=LineCap.Round};
+            if(_primary||HasOutcomeGlyph)g.DrawLines(pen,new Point[]{new(left,y+n/2),new(left+n/3,y+n-2),new(left+n,y+2)});
             else{g.DrawLine(pen,left,y+2,left+n,y+n-2);g.DrawLine(pen,left+n,y+2,left,y+n-2);}
             left+=n+S(5);
         }

@@ -49,7 +49,7 @@ internal sealed record V269FlowResult(V269Page Page, bool Complete, Action Dismi
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
     V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null,
-    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null);
+    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269Page? FlowPage = null, string? CancelLabel = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -67,7 +67,9 @@ internal sealed class V269RightPane : UserControl
     private readonly Label _title;
     private readonly Panel _titleHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
     private readonly Label _appFlowHeading=new(){Name="V269AppFlowHeading",Dock=DockStyle.Top,
-        TextAlign=ContentAlignment.MiddleLeft,Visible=false,Margin=Padding.Empty};
+        TextAlign=ContentAlignment.TopLeft,Visible=false,Margin=Padding.Empty};
+    private readonly Panel _flowStateGap = new() { Dock = DockStyle.Top, Visible = false, Margin = Padding.Empty };
+    private readonly Panel _flowTitleGap = new() { Dock = DockStyle.Top, Visible = false, Margin = Padding.Empty };
     private readonly V269AppFlowState _appFlowState=new();
     private readonly TextBox _description;
     private readonly ProgressBar _progress;
@@ -163,7 +165,9 @@ internal sealed class V269RightPane : UserControl
             e.Graphics.DrawLine(line,0,_title.Height-1,_title.Width-1,_title.Height-1);
         };
         _titleHost.Controls.Add(_title);
+        _titleHost.Controls.Add(_flowTitleGap);
         _titleHost.Controls.Add(_appFlowState);
+        _titleHost.Controls.Add(_flowStateGap);
         _titleHost.Controls.Add(_appFlowHeading);
         _appFlowHeading.SendToBack();
         _layout.Controls.Add(_titleHost, 0, 0);
@@ -273,8 +277,10 @@ internal sealed class V269RightPane : UserControl
             _ => "Operação em andamento"
         };
         _appFlowHeading.Visible=active;_appFlowState.Visible=active;
+        _flowStateGap.Visible=active;_flowTitleGap.Visible=active;
         bool pending = _confirmation is not null && Current?.Kind == V269PanelKind.Confirmation;
         bool operationCancel = active && Current is { Kind: V269PanelKind.Progress, CancelFlow: not null };
+        _cancelFlow.Text = Current?.CancelLabel ?? "Cancelar espera";
         foreach (Control choice in _choices.Controls)
             choice.Visible = ReferenceEquals(choice, _dismissFlowResult) ? result :
                 ReferenceEquals(choice, _cancelFlow) ? operationCancel : pending;
@@ -300,8 +306,9 @@ internal sealed class V269RightPane : UserControl
     internal void RefreshAppOperationHistory()
     {
         if(IsDisposed||Disposing)return;
-        var provider = _appHistoryPage && Current?.CancelFlow is null ? _appHistoryProvider :
-            _driversPage ? _driverHistoryProvider : null;
+        var flowPage = Current?.FlowPage ?? (Current?.CancelFlow is not null ? V269Page.Drivers : (V269Page?)null);
+        var provider = _appHistoryPage && flowPage is (null or V269Page.Aplicativos) ? _appHistoryProvider :
+            _driversPage && flowPage is (null or V269Page.Drivers) ? _driverHistoryProvider : null;
         var dismiss = _appHistoryPage ? _appHistoryDismiss : _driverHistoryDismiss;
         var currentId = Current?.FlowResult?.HistoryId;
         V269AppPreviousResult[] results = _appFlow
@@ -446,7 +453,7 @@ internal sealed class V269RightPane : UserControl
     {
         if(!_appFlow||_appFlowHeading.Width<2)return;
         int S(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
-        int n=S(20),x=S(2),y=Math.Max(0,(_appFlowHeading.Height-S(9)-n)/2);
+        int n=S(20),x=S(2),y=S(1);
         bool confirmation=Current?.Kind==V269PanelKind.Confirmation;
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
         string color=confirmation || Current?.FlowResult?.Complete==true
@@ -480,8 +487,12 @@ internal sealed class V269RightPane : UserControl
             g.DrawLines(pen,new Point[]{new(x+2,y+2),new(x+2,y+n/2),new(x+n/2,y+n/2)});
             g.DrawLines(pen,new Point[]{new(x+n-2,y+n-2),new(x+n-2,y+n/2),new(x+n/2,y+n/2)});
         }
+        var palette = V269AppDetailStyle.Palette(_appPaneTheme);
+        TextRenderer.DrawText(g, "ACOMPANHAMENTO LOCAL", _applicationDetails.Font,
+            new Rectangle(S(29), _appFlowHeading.Height-S(23), Math.Max(1,_appFlowHeading.Width-S(29)), S(18)),
+            palette.SecondaryText, TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
         using var line=new Pen(V269AppDetailStyle.Divider(_appPaneTheme));
-        g.DrawLine(line,0,_appFlowHeading.Height-S(5),_appFlowHeading.Width-1,_appFlowHeading.Height-S(5));
+        g.DrawLine(line,0,_appFlowHeading.Height-S(3),_appFlowHeading.Width-1,_appFlowHeading.Height-S(3));
     }
 
     internal void ApplyPalette(V269Palette palette)
@@ -540,8 +551,8 @@ internal sealed class V269RightPane : UserControl
         if(_appFlow)
         {
             int F(int n)=>V269AppTable.Scale(n,_appInterfacePercent,DeviceDpi);
-            int height=Math.Max(F(42),_appFlowHeading.Font.Height+F(15));
-            _appFlowHeading.Padding=new Padding(F(29),0,0,F(9));
+            int height=Math.Max(F(49),_appFlowHeading.Font.Height+F(25));
+            _appFlowHeading.Padding=new Padding(F(29),0,0,F(24));
             _appFlowHeading.Height=height;_appFlowHeading.Invalidate();
             _appFlowState.Font=_applicationDetails.Font;
             _appFlowState.ApplyState(Current?.Kind, Current?.ProgressPercent, Current?.FlowResult?.Complete,
@@ -551,9 +562,12 @@ internal sealed class V269RightPane : UserControl
                 _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
             int stateHeight=Math.Max(V269AppTable.Scale(36,_appInterfacePercent,DeviceDpi),_appFlowState.Font.Height*2+4);
             _appFlowState.Height=stateHeight;
+            _flowStateGap.Height=F(19);
+            _flowTitleGap.Height=F(12);
             _title.TextAlign=ContentAlignment.MiddleLeft;_title.Margin=Padding.Empty;
             bool distinct=!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
-            _layout.RowStyles[0].Height=height+stateHeight+(distinct?Math.Max(26,_title.Font.Height+6):0);
+            _layout.RowStyles[0].Height=height+_flowStateGap.Height+stateHeight+_flowTitleGap.Height+
+                (distinct?Math.Max(26,_title.Font.Height+6):0);
             return;
         }
         if(!_structuredApp)
@@ -972,10 +986,7 @@ internal sealed class V269Shell : UserControl
         ApplyHomeSurfaces(home);
         _homeGlyph.Visible = home;
         _homeGlyph.Page = SelectedPage;
-        _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269AppTable.H(Theme switch
-        {
-            V269Theme.Dark => "#c6cdd3", V269Theme.Claro => "#2b79a8", _ => "#69bfe0"
-        }) : Theme switch {
+        _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269DriverVisuals.GlyphInk(V269DriverGlyph.Chip, Theme) : Theme switch {
             V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
             V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
             _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };

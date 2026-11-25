@@ -143,12 +143,12 @@ internal static class V269IntegrationTests
             "tema Claro preserva contraste do registro e o resultado publicado");
         VerifySettings(form,shell);
         VerifyApps(form,shell,confirmationContext);
-        VerifyDrivers(form,shell,confirmationContext);
+        VerifyDrivers(form,shell);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
 
-    private static void VerifyDrivers(MainForm form, V269Shell shell, WindowsFormsSynchronizationContext confirmationContext)
+    private static void VerifyDrivers(MainForm form, V269Shell shell)
     {
         var root = shell.PageContent(V269Page.Drivers)!;
         var list = root.Controls.Find("DriverInventoryList", true).OfType<DarkDriverList>().Single();
@@ -223,7 +223,7 @@ internal static class V269IntegrationTests
                     capture.Save($"LayoutCaptures/v269-drivers-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
                 }
             }
-            VerifyInventoryFlowStates(form, shell, V269Page.Drivers, confirmationContext);
+            VerifyInventoryFlowStates(form, shell, V269Page.Drivers);
         }
         finally
         {
@@ -687,7 +687,7 @@ internal static class V269IntegrationTests
                     shell.PresentPanel(null);
                 }
             }
-            VerifyInventoryFlowStates(form, shell, V269Page.Aplicativos, confirmationContext);
+            VerifyInventoryFlowStates(form, shell, V269Page.Aplicativos);
         }
         finally
         {
@@ -699,8 +699,7 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS Aplicativos V2.6.9: tabela real, pesquisa, ordenação, detalhes, ausência de controles extras e 15 capturas sintéticas.");
     }
 
-    private static void VerifyInventoryFlowStates(MainForm form, V269Shell shell, V269Page page,
-        WindowsFormsSynchronizationContext confirmationContext)
+    private static void VerifyInventoryFlowStates(MainForm form, V269Shell shell, V269Page page)
     {
         var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
         var surface = form.Controls.OfType<TableLayoutPanel>().Single();
@@ -712,15 +711,28 @@ internal static class V269IntegrationTests
         using var cancellation = new CancellationTokenSource();
         try
         {
-            SynchronizationContext.SetSynchronizationContext(confirmationContext);
+            // Manter as continuações no HWND da janela principal, inclusive depois
+            // de fechar um formulário filho no fixture sem Application.Run.
+            var paneContext = new PaneTestSynchronizationContext(form);
             shell.SelectPage(page);
             surface.Size = new Size(1200, 659);
             Control Find(string name) => shell.RightPane.Controls.Find(name, true).Single();
             void Capture(string stage, V269Theme palette)
             {
-                using var image = new Bitmap(surface.Width, surface.Height);
-                surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
-                image.Save($"LayoutCaptures/v269-{tab}-PAINEL-{stage}-{palette}-1200x659.png");
+                var before = surface.Size;
+                try
+                {
+                    foreach (var size in new[] { new Size(1200, 659), new Size(1844, 1116) })
+                    {
+                        surface.Size = size;
+                        surface.PerformLayout();
+                        Application.DoEvents();
+                        using var image = new Bitmap(surface.Width, surface.Height);
+                        surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
+                        image.Save($"LayoutCaptures/v269-{tab}-PAINEL-{stage}-{palette}-{surface.Width}x{surface.Height}.png");
+                    }
+                }
+                finally { surface.Size = before; surface.PerformLayout(); }
             }
             if (page == V269Page.Drivers)
             {
@@ -731,6 +743,7 @@ internal static class V269IntegrationTests
                 Application.DoEvents();
                 Require(review.Visible && !review.TopLevel && review.Parent == Find("V269DriverReviewHost"),
                     "a revisão WUA usa a área do painel");
+                SynchronizationContext.SetSynchronizationContext(paneContext);
                 var authorization = shell.RightPane.ConfirmAsync("Confirmar instalação física de driver",
                     "Alvo sintético. Nenhum executor é chamado.", cancellation.Token);
                 Application.DoEvents();
@@ -748,6 +761,7 @@ internal static class V269IntegrationTests
             foreach (V269Theme palette in Enum.GetValues<V269Theme>())
             {
                 theme.SelectedIndex = (int)palette;
+                SynchronizationContext.SetSynchronizationContext(paneContext);
                 var confirmation = shell.RightPane.ConfirmAsync($"Atualizar {tab}", "Alvo sintético. Nenhum executor é chamado.", cancellation.Token);
                 surface.PerformLayout();
                 Application.DoEvents();
@@ -1714,6 +1728,12 @@ internal static class V269IntegrationTests
     {
         if (control is T match) return match;
         return control.Controls.Cast<Control>().Select(Find<T>).FirstOrDefault(child => child is not null);
+    }
+
+    private sealed class PaneTestSynchronizationContext(Control owner) : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state) =>
+            owner.BeginInvoke(new Action(() => callback(state)));
     }
 
     private static void Pump(Task task)
