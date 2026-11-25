@@ -278,6 +278,14 @@ internal sealed partial class MainForm
         history.AccessibleDescription = history.Text;
         V269PanelPresentation? verificationPanel = null;
         bool verifying = false;
+        bool verificationComplete = false;
+        var driverResults = new List<V269AppPreviousResult>();
+        if (v269)
+            _nav.RightPane.ConfigureDriverHistory(() => driverResults, id =>
+            {
+                if (driverResults.RemoveAll(entry => entry.Id == id) != 0)
+                    _nav.RightPane.RefreshAppOperationHistory();
+            });
         int refreshRevision = 0;
         bool syncingStatusAccessibility = false;
         bool statusSyncPending = false;
@@ -869,6 +877,7 @@ internal sealed partial class MainForm
             actionHint.AccessibleDescription = actionHint.Text;
             SyncInvestigationDescription();
             verifying = v269 && showProgress && _nav.SelectedPage == V269Page.Drivers;
+            verificationComplete = false;
             SetDriverStatus("Consultando drivers em segundo plano…");
             _driverReadTask = readForTest is null
                 ? Task.Run(() => DriverDeviceMetadata.Enrich(DriverStoreAudit.CaptureWithPackages(token), token))
@@ -882,6 +891,7 @@ internal sealed partial class MainForm
                 // Nao promete atomicidade contra escritor externo que coopere
                 // zero; rejeita incoerencias observadas sem retry/timer.
                 var result = DriverInventorySnapshot.FreezeStable(captured, token);
+                verificationComplete = !result.Partial && result.Items.Count == 0;
                 var historyInventory = result;
                 long publishedGeneration = inventoryGeneration;
                 publishedSnapshotGeneration = publishedGeneration;
@@ -996,6 +1006,7 @@ internal sealed partial class MainForm
                                     "Isso não comprova ausência de atualização.");
                             else
                             {
+                                verificationComplete = true;
                                 latestOfficial = officialResult;
                                 officialGeneration = publishedGeneration;
                                 eligibleUpdateIds = DriverUpdateEligibility.Find(
@@ -1073,8 +1084,16 @@ internal sealed partial class MainForm
                     {
                         if (ReferenceEquals(_nav.RightPane.Current, verificationPanel))
                         {
-                            _nav.PresentPanel(null);
-                            PresentDetails(false);
+                            var entry = new V269AppPreviousResult(Guid.NewGuid(), "Verificar drivers",
+                                state.Text, verificationComplete);
+                            driverResults.Insert(0, entry);
+                            if (driverResults.Count > 4) driverResults.RemoveAt(4);
+                            _nav.PresentPanel(new(V269PanelKind.Result, entry.Title, entry.Description,
+                                FlowResult: new(V269Page.Drivers, verificationComplete, () =>
+                                {
+                                    _nav.PresentPanel(null);
+                                    PresentDetails(false);
+                                }, entry.Id)));
                         }
                         verificationPanel = null;
                     }

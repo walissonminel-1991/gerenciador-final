@@ -1441,10 +1441,7 @@ internal sealed partial class MainForm : Form
         }
         if (!loaded || IsDisposed) return;
         _appFilter = "Todos";
-        bool catalogWillRun=_consultaCatalogoCts is null&&_installed.Count>0;
-        await LoadUpdatesAsync(forceRefresh: true);
-        if(appVerification&&catalogWillRun&&!IsDisposed&&!Disposing)
-            RecordV269AppResult("Verificação de atualizações",_operationResult);
+        await LoadUpdatesCoreAsync(forceRefresh: true, appVerification);
         // Não selecionar automaticamente somente os candidatos: preservar
         // a lista inteira, com possíveis atualizações no topo.
         if (!IsDisposed) RenderPrograms();
@@ -2650,7 +2647,9 @@ internal sealed partial class MainForm : Form
 
     private readonly UpdateResultHistory _updateHistory = new();
 
-    private async Task LoadUpdatesAsync(bool forceRefresh = false)
+    private Task LoadUpdatesAsync(bool forceRefresh = false) => LoadUpdatesCoreAsync(forceRefresh, false);
+
+    private async Task LoadUpdatesCoreAsync(bool forceRefresh, bool appVerification)
     {
         // Fontes HTTPS oficiais trabalham em paralelo: uma falha não apaga o resultado
         // das outras. Não executam instaladores, comandos externos, WinGet ou COM.
@@ -2665,6 +2664,16 @@ internal sealed partial class MainForm : Form
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
+        V269PanelPresentation? verification = null;
+        bool? outcome = null;
+        void PresentVerificationProgress(string message, int? percent = null)
+        {
+            if (!appVerification || IsDisposed || Disposing || _busy || _v269Confirming) return;
+            if (verification is null && _nav.SelectedPage != V269Page.Aplicativos ||
+                verification is not null && !ReferenceEquals(_nav.RightPane.Current, verification)) return;
+            verification = new(V269PanelKind.Progress, "Verificar aplicativos", message, percent);
+            _nav.PresentPanel(verification);
+        }
         int totalSources = Math.Max(1, OfficialReleaseSources.ApplicableSourceCount(installed) + 2);
         if (!_busy)
         {
@@ -2674,6 +2683,7 @@ internal sealed partial class MainForm : Form
             _progress.Value = 0;
             _progress.Visible = true;
             Status("Consultando fontes de versões…");
+            PresentVerificationProgress("Consultando fontes de versões…");
         }
         RenderTitle();
         if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar consulta";
@@ -2694,7 +2704,9 @@ internal sealed partial class MainForm : Form
                 {
                     _progress.Maximum = totalSources;
                     _progress.Value = Math.Min(completedSources, totalSources);
-                    Status($"Fontes concluídas: {completedSources}/{totalSources} · {diagnostic.Provider}: {diagnostic.Status}");
+                    string message = $"Fontes concluídas: {completedSources}/{totalSources} · {diagnostic.Provider}: {diagnostic.Status}";
+                    Status(message);
+                    PresentVerificationProgress(message, Math.Min(completedSources, totalSources) * 100 / totalSources);
                 }
             });
             async Task<(IReadOnlyList<UpdateMatch>? Matches, int Count, bool Cached, long NetworkMs,
@@ -2805,6 +2817,7 @@ internal sealed partial class MainForm : Form
             int conflicts = merged.Count(m => m.HasSourceConflict);
             int requiringReview = merged.Count(m => m.State == MatchState.Candidate && m.RequiresReview);
             if (conflicts > 0) Log($"Fontes divergentes: {conflicts} resultado(s); instalação direta bloqueada, detalhes na dica da linha.");
+            outcome = sourceFailures == 0;
             Status($"Consulta {(sourceFailures > 0 ? "parcial" : "concluída")}: {candidates} possíveis atualizações" +
                 (requiringReview > 0 ? $" ({requiringReview} em revisão)" : "") +
                 $" · {sourceFailures} fonte(s) indisponível(is)");
@@ -2817,6 +2830,7 @@ internal sealed partial class MainForm : Form
             RenderPrograms();
             DiagnosticTrace.Write("MULTIFONTES.CONSULTA_CANCELADA");
             Log("Consulta cancelada ou esgotada; resultados anteriores preservados em revisão quando disponíveis.");
+            outcome = false;
             Status("Consulta cancelada ou esgotada; resultados anteriores exigem revalidação");
         }
         catch (Exception ex)
@@ -2827,6 +2841,7 @@ internal sealed partial class MainForm : Form
                 installed.Select(x => new UpdateMatch(x, null, MatchState.Unmatched)).ToArray(), true));
             RenderPrograms();
             Log("Falha geral na consulta multifontes (" + ex.GetType().Name + ").");
+            outcome = false;
             Status("Consulta não concluída; lista local preservada");
         }
         finally
@@ -2845,6 +2860,22 @@ internal sealed partial class MainForm : Form
                 RenderTitle();
                 if (_checkUpdatesButton is not null)
                     _checkUpdatesButton.Text = "Verificar";
+                if (appVerification && outcome is bool complete && !Disposing)
+                {
+                    var entry = new V269AppPreviousResult(Guid.NewGuid(), "Verificar aplicativos", _operationResult, complete);
+                    _v269AppPreviousResults.Insert(0, entry);
+                    if (_v269AppPreviousResults.Count > 4) _v269AppPreviousResults.RemoveAt(4);
+                    if (verification is not null && ReferenceEquals(_nav.RightPane.Current, verification))
+                    {
+                        _nav.PresentPanel(new(V269PanelKind.Result, entry.Title, entry.Description,
+                            FlowResult: new(V269Page.Aplicativos, complete, () =>
+                            {
+                                _nav.PresentPanel(null);
+                                if (_programList.SelectedItem is { } item) PresentV269AppDetails(item);
+                            }, entry.Id)));
+                    }
+                    else _nav.RightPane.RefreshAppOperationHistory();
+                }
             }
         }
     }

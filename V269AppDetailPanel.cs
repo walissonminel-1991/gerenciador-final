@@ -3,7 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 namespace GerenciadorAplicativos;
 
-internal sealed record V269AppPreviousResult(Guid Id,string Title,string Description);
+internal sealed record V269AppPreviousResult(Guid Id,string Title,string Description,bool? Complete = null);
 internal sealed record V269AppDetailModel(string Name,string Publisher,
     IReadOnlyList<(string Label,string Value)> Fields,string Reasons,string IconSource="",V269MsixIconSource? MsixIcon=null,string Description="",
     IReadOnlyList<V269AppPreviousResult>? PreviousResults=null,Action<Guid>? DismissResult=null, V269DriverGlyph? DriverGlyph=null);
@@ -102,17 +102,25 @@ internal sealed class V269AppFlowState : Control
 {
     private V269Theme _theme;
     private int _percent=100;
-    private bool _confirmation;
+    private Color _stateColor;
     internal V269AppFlowState()
     {
         Name="V269AppFlowState";AccessibleRole=AccessibleRole.StaticText;
         SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);
         Dock=DockStyle.Top;Margin=Padding.Empty;Visible=false;
     }
-    internal void ApplyState(bool confirmation,int? progress,V269Theme theme,int percent)
+    internal void ApplyState(V269PanelKind? kind,int? progress,bool? complete,V269Theme theme,int percent)
     {
-        _confirmation=confirmation;_theme=theme;_percent=percent;
-        Text=confirmation?"Aguardando autorização":progress is int n?$"Em andamento · {Math.Clamp(n,0,100)}%":"Em andamento · progresso não informado";
+        _theme=theme;_percent=percent;
+        var (caption, color) = kind switch
+        {
+            V269PanelKind.Confirmation => ("Aguardando autorização", "#e4bb79"),
+            V269PanelKind.Result when complete == true => ("Concluído", "#70c6a3"),
+            V269PanelKind.Result => ("Requer atenção", "#e4bb79"),
+            _ => (progress is int n ? $"Em andamento · {Math.Clamp(n,0,100)}%" : "Em andamento · progresso não informado", "#58b8e6")
+        };
+        _stateColor=V269AppTable.H(color);
+        Text=caption;
         AccessibleName=Text;Invalidate();
     }
     protected override void OnPaint(PaintEventArgs e)
@@ -130,10 +138,145 @@ internal sealed class V269AppFlowState : Control
         using var shape=ModernButton.RoundRect(new Rectangle(0,0,Width-1,Height-1),S(8));
         using var fill=new SolidBrush(surface);using var line=new Pen(border);
         g.FillPath(fill,shape);g.DrawPath(line,shape);
-        int dot=S(9);using var state=new SolidBrush(H(_confirmation?"#e4bb79":"#58b8e6"));
+        int dot=S(9);using var state=new SolidBrush(_stateColor);
         g.FillEllipse(state,S(12),(Height-dot)/2,dot,dot);
         TextRenderer.DrawText(g,Text,Font,new Rectangle(S(30),0,Math.Max(1,Width-S(36)),Height),palette.Text,
             TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding);
+    }
+}
+
+internal sealed class V269AppFlowNote : Control
+{
+    private V269Theme _theme;
+    private int _scale = 100;
+    private bool _isResult;
+    private bool _complete;
+
+    internal V269AppFlowNote()
+    {
+        Name = "V269FlowNotice";
+        AccessibleRole = AccessibleRole.StaticText;
+        Dock = DockStyle.Bottom;
+        Visible = false;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+    }
+
+    internal void SetContent(bool active, V269PanelPresentation? panel, V269Theme theme, int scale, Font font)
+    {
+        _theme = theme;
+        _scale = scale;
+        _isResult = panel?.Kind == V269PanelKind.Result;
+        _complete = panel?.FlowResult?.Complete == true;
+        Text = !active ? "" : panel?.Kind switch
+        {
+            V269PanelKind.Confirmation => "A confirmação autoriza somente a ação e o alvo indicados acima.",
+            V269PanelKind.Progress => "É possível navegar entre abas e continuar acompanhando a operação.",
+            V269PanelKind.Result => panel.Description,
+            _ => ""
+        };
+        AccessibleName = Text;
+        Font = font;
+        Visible = Text.Length > 0;
+        Invalidate();
+    }
+
+    private int S(int px) => V269AppTable.Scale(px, _scale, DeviceDpi);
+    private int LeftPadding => S(_isResult ? 31 : 13);
+    private const TextFormatFlags Wrap = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
+        TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
+
+    internal int MeasureHeight(int width) => Text.Length == 0 ? 0 :
+        TextRenderer.MeasureText(Text, Font, new Size(Math.Max(1, width-LeftPadding-S(8)), 32767), Wrap).Height + S(32);
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        if (Text.Length == 0 || Width < 3 || Height < S(16)) return;
+        var palette = V269AppDetailStyle.Palette(_theme);
+        var area = new Rectangle(0, S(8), Width-1, Math.Max(1, Height-S(16)));
+        Color accent = _isResult
+            ? V269AppTable.H(_complete ? (_theme == V269Theme.Claro ? "#087660" : "#70c6a3") :
+                (_theme == V269Theme.Claro ? "#966117" : "#e4bb79"))
+            : palette.Accent;
+        using var stripe = new SolidBrush(accent);
+        if (!_isResult)
+        {
+            using var shape = ModernButton.RoundRect(area, S(7));
+            using var fill = new SolidBrush(palette.Card);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            e.Graphics.FillPath(fill, shape);
+        }
+        e.Graphics.FillRectangle(stripe, area.X, area.Y, S(2), area.Height);
+        if (_isResult)
+        {
+            using var pen = new Pen(accent, S(2));
+            int y = area.Y + S(13);
+            if (_complete)
+                e.Graphics.DrawLines(pen, new Point[]{new(S(9),y+S(4)),new(S(13),y+S(8)),new(S(21),y)});
+            else
+            {
+                e.Graphics.DrawLine(pen, S(15), y, S(15), y+S(6));
+                e.Graphics.DrawLine(pen, S(15), y+S(9), S(16), y+S(9));
+            }
+        }
+        TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(LeftPadding,area.Y+S(8),
+            Math.Max(1,Width-LeftPadding-S(8)),Math.Max(1,area.Height-S(16))), palette.Text, Wrap);
+    }
+}
+
+internal sealed class V269AppFlowMeter : Control
+{
+    private int? _value;
+    private int _scale = 100;
+    private V269Theme _theme;
+
+    internal V269AppFlowMeter()
+    {
+        Name = "V269FlowPercentMeter";
+        AccessibleRole = AccessibleRole.ProgressBar;
+        AccessibleName = "Progresso da operação";
+        Dock = DockStyle.Bottom;
+        Visible = false;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+    }
+
+    internal void SetProgress(int? value, V269Theme theme, int scale, Font font)
+    {
+        _value = value is int n ? Math.Clamp(n, 0, 100) : null;
+        _theme = theme;
+        _scale = scale;
+        Font = font;
+        AccessibleDescription = _value is int p ? p + "%" : "";
+        Height = _value.HasValue ? Font.Height + S(21) : 0;
+        Visible = _value.HasValue;
+        Invalidate();
+    }
+
+    private int S(int px) => V269AppTable.Scale(px, _scale, DeviceDpi);
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        if (_value is not int value || Width < 3 || Height < S(20)) return;
+        var graphics = e.Graphics;
+        var palette = V269AppDetailStyle.Palette(_theme);
+        var label = new Rectangle(0, S(1), Width, Font.Height+S(3));
+        const TextFormatFlags options = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
+        TextRenderer.DrawText(graphics, "Progresso", Font, label, palette.SecondaryText, options);
+        TextRenderer.DrawText(graphics, value + "%", Font, label, palette.Text, options | TextFormatFlags.Right);
+        var bar = new Rectangle(0, label.Bottom+S(3), Width-1, S(11));
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var shape = ModernButton.RoundRect(bar, bar.Height/2);
+        using var track = new SolidBrush(palette.Card);
+        using var outline = new Pen(palette.Border);
+        using var fill = new SolidBrush(_theme == V269Theme.Dark ? V269AppTable.H("#c8d0d7") : palette.Accent);
+        graphics.FillPath(track, shape);
+        var state = graphics.Save();
+        try
+        {
+            graphics.SetClip(shape, CombineMode.Intersect);
+            graphics.FillRectangle(fill, bar.X, bar.Y, bar.Width*value/100, bar.Height);
+        }
+        finally { graphics.Restore(state); }
+        graphics.DrawPath(outline, shape);
     }
 }
 
@@ -160,6 +303,7 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
         ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,68));
         RowStyles.Add(new RowStyle(SizeType.AutoSize));RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _heading.Text=result.Title;_message.Text=result.Description;
+        _symbol.Text = result.Complete switch { true => "✓", false => "!", _ => "•" };
         _dismiss.AccessibleName="Dispensar resultado anterior de "+result.Title;
         _dismiss.Enabled=dismiss is not null;_dismiss.Click+=(_,_)=>dismiss?.Invoke(result.Id);
         Controls.Add(_symbol,0,0);SetRowSpan(_symbol,2);
@@ -192,7 +336,7 @@ internal sealed class V269AppHistoryRow : TableLayoutPanel
     internal void ApplyPalette(V269Palette palette)
     {
         BackColor=palette.RightPanel;_heading.ForeColor=palette.Text;
-        _symbol.ForeColor=_message.ForeColor=palette.SecondaryText;_line=palette.Border;
+        _symbol.ForeColor=palette.Accent;_message.ForeColor=palette.SecondaryText;_line=palette.Border;
         _theme=palette==V269AppDetailStyle.Palette(V269Theme.Dark)?V269Theme.Dark:
             palette==V269AppDetailStyle.Palette(V269Theme.Claro)?V269Theme.Claro:V269Theme.AzulGf;
         _dismiss.ApplyAppStyle(true,_theme,_percent);_dismiss.ForeColor=palette.Text;

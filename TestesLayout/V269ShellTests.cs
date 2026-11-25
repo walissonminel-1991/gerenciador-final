@@ -135,10 +135,12 @@ internal static class V269ShellTests
         shell.PresentPanel(progress);
         var bar = shell.Controls.Find("V269PanelProgress", true)
             .OfType<ProgressBar>().Single();
-        Check(bar.Visible && bar.Value == 37, "Progresso deve permanecer no painel direito.");
+        var percent = shell.RightPane.Controls.Find("V269FlowPercentMeter", true).Single();
+        Check(percent.Visible && percent.AccessibleDescription == "37%" && !bar.Visible,
+            "Aplicativos usa a barra temática com a porcentagem medida.");
         shell.SelectPage(V269Page.Configuracoes);
         Check(ReferenceEquals(shell.RightPane.Current, progress) && shell.RightPane.Visible &&
-            dashboardColumns.ColumnStyles[2].Width > 0,
+            dashboardColumns.ColumnStyles[2].Width > 0 && bar.Visible && bar.Value == 37 && !percent.Visible,
             "O painel não pode perder nem ocultar o progresso ao trocar de aba.");
 
         shell.ApplyAppearance(V269Theme.Claro, 90, 90);

@@ -43,9 +43,12 @@ internal enum V269PanelKind
 /// Estado exclusivamente visual do painel. O serviço de domínio conserva
 /// autorização, revalidação, cancelamento e evidências de execução.
 /// </summary>
+internal sealed record V269FlowResult(V269Page Page, bool Complete, Action Dismiss, Guid? HistoryId = null);
+
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
-    V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null);
+    V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null,
+    V269FlowResult? FlowResult = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -67,6 +70,12 @@ internal sealed class V269RightPane : UserControl
     private readonly V269AppFlowState _appFlowState=new();
     private readonly TextBox _description;
     private readonly ProgressBar _progress;
+    private readonly V269AppFlowMeter _flowMeter = new();
+    private readonly V269AppFlowNote _flowNote = new();
+    private readonly V269AppFlowButton _dismissFlowResult = new(false, true)
+    {
+        Name = "V269DismissFlowResult", Text = "Dispensar resultado", AutoSize = true, Visible = false
+    };
     private readonly Panel _operationContent;
     private readonly V269AppDetailPanel _applicationDetails=new();
     private readonly Panel _descriptionHost=new(){Dock=DockStyle.Fill,Margin=Padding.Empty};
@@ -78,6 +87,8 @@ internal sealed class V269RightPane : UserControl
     private bool _fittingOperationHistory;
     private Func<IReadOnlyList<V269AppPreviousResult>>? _appHistoryProvider;
     private Action<Guid>? _appHistoryDismiss;
+    private Func<IReadOnlyList<V269AppPreviousResult>>? _driverHistoryProvider;
+    private Action<Guid>? _driverHistoryDismiss;
     private V269AppOperationHistory? _operationHistory;
     private V269AppPreviousResult[] _operationHistorySnapshot=[];
     private V269Palette _basePanePalette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
@@ -148,6 +159,8 @@ internal sealed class V269RightPane : UserControl
         _layout.Controls.Add(_titleHost, 0, 0);
         _layout.Controls.Add(_progress, 0, 1);
         _descriptionHost.Controls.Add(_description);
+        _descriptionHost.Controls.Add(_flowMeter);
+        _descriptionHost.Controls.Add(_flowNote);
         _descriptionHost.Controls.Add(_applicationDetails);
         _descriptionHost.SizeChanged+=(_,_)=>FitOperationHistory();
         _layout.Controls.Add(_descriptionHost,0,2);
@@ -162,6 +175,8 @@ internal sealed class V269RightPane : UserControl
             button.Click += (_, _) => ResolveConfirmation(accepted);
             _choices.Controls.Add(button);
         }
+        _dismissFlowResult.Click += (_, _) => Current?.FlowResult?.Dismiss();
+        _choices.Controls.Add(_dismissFlowResult);
         _operationContent = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         _layout.Controls.Add(_choices, 0, 3);
         _layout.Controls.Add(_operationContent, 0, 4);
@@ -218,6 +233,12 @@ internal sealed class V269RightPane : UserControl
     {
         _appHistoryProvider=provider;_appHistoryDismiss=dismiss;RefreshAppOperationHistory();
     }
+    internal void ConfigureDriverHistory(Func<IReadOnlyList<V269AppPreviousResult>> provider, Action<Guid> dismiss)
+    {
+        _driverHistoryProvider = provider;
+        _driverHistoryDismiss = dismiss;
+        RefreshAppOperationHistory();
+    }
     internal void SetAppHistoryPage(bool active, bool drivers = false)
     {
         _appHistoryPage=active;
@@ -226,11 +247,31 @@ internal sealed class V269RightPane : UserControl
     }
     private void UpdateAppFlowScope()
     {
-        bool active=(_appHistoryPage||_driversPage)&&(Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress);
+        bool result = Current is { Kind: V269PanelKind.Result, FlowResult: { } flow } &&
+            (flow.Page == V269Page.Aplicativos && _appHistoryPage || flow.Page == V269Page.Drivers && _driversPage);
+        bool active = result || (_appHistoryPage || _driversPage) &&
+            Current?.Kind is (V269PanelKind.Confirmation or V269PanelKind.Progress);
         bool changed=active!=_appFlow;_appFlow=active;
-        _appFlowHeading.Text=Current?.Kind==V269PanelKind.Confirmation?
-            "Confirmação da ação":"Operação em andamento";
+        _appFlowHeading.Text = Current?.Kind switch
+        {
+            V269PanelKind.Confirmation => "Confirmação da ação",
+            V269PanelKind.Result => Current.FlowResult?.Complete == true ? "Operação concluída" : "Resultado da operação",
+            _ => "Operação em andamento"
+        };
         _appFlowHeading.Visible=active;_appFlowState.Visible=active;
+        bool pending = _confirmation is not null && Current?.Kind == V269PanelKind.Confirmation;
+        foreach (Control choice in _choices.Controls)
+            choice.Visible = ReferenceEquals(choice, _dismissFlowResult) ? result : pending;
+        _choices.Visible = pending || result;
+        int choiceHeight = V269AppTable.Scale(active ? 44 : 38, _appInterfacePercent, DeviceDpi);
+        _layout.RowStyles[3].Height = _choices.Visible || pending || result ? choiceHeight : 0;
+        _flowNote.SetContent(active, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
+        _flowMeter.SetProgress(active && Current?.Kind == V269PanelKind.Progress ? Current.ProgressPercent : null,
+            _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
+        _description.Visible = !_structuredApp && !result;
+        bool legacyProgress = !active && Current is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
+        _progress.Visible = legacyProgress;
+        _layout.RowStyles[1].Height = legacyProgress ? 34 : 0;
         // A operação pode já fornecer o mesmo título do estado.
         _title.Visible=!active||!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
         if(changed)ApplyPaneSurface();
@@ -240,13 +281,17 @@ internal sealed class V269RightPane : UserControl
     internal void RefreshAppOperationHistory()
     {
         if(IsDisposed||Disposing)return;
-        V269AppPreviousResult[] results=_appFlow&&_appHistoryPage?_appHistoryProvider?.Invoke().ToArray()??[]:[];
+        var provider = _appHistoryPage ? _appHistoryProvider : _driversPage ? _driverHistoryProvider : null;
+        var dismiss = _appHistoryPage ? _appHistoryDismiss : _driverHistoryDismiss;
+        var currentId = Current?.FlowResult?.HistoryId;
+        V269AppPreviousResult[] results = _appFlow
+            ? provider?.Invoke().Where(entry => entry.Id != currentId).ToArray() ?? [] : [];
         if(results.SequenceEqual(_operationHistorySnapshot))return;
         _operationHistorySnapshot=results;
         _operationHistory?.Dispose();_operationHistory=null;
         _layout.RowStyles[5].Height=0;
-        if(results.Length==0||_appHistoryDismiss is null){FitOperationHistory();return;}
-        _operationHistory=new V269AppOperationHistory(results,_appHistoryDismiss);
+        if(results.Length==0||dismiss is null){FitOperationHistory();return;}
+        _operationHistory=new V269AppOperationHistory(results,dismiss);
         // Assim como no HTML, resultados anteriores vêm depois dos
         // controles de autorização/progresso. O registro real continua acessível.
         _layout.Controls.Add(_operationHistory,0,5);
@@ -281,10 +326,16 @@ internal sealed class V269RightPane : UserControl
             int operation=executing?Math.Max(S(52),_description.Font.Height+S(32)):0;
             int MeasureFlow(int width)
             {
-                int measured=TextRenderer.MeasureText(_description.Text,_description.Font,
-                    new Size(Math.Max(1,width-S(10)),32767),
-                    TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height+S(12);
-                int description=Math.Max(Math.Max(_description.Font.Height+S(8),S(26)),measured);
+                int description = 0;
+                if (Current?.Kind != V269PanelKind.Result)
+                {
+                    int measured=TextRenderer.MeasureText(_description.Text,_description.Font,
+                        new Size(Math.Max(1,width-S(10)),32767),
+                        TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height+S(12);
+                    description=Math.Max(Math.Max(_description.Font.Height+S(8),S(26)),measured);
+                }
+                _flowNote.Height = _flowNote.MeasureHeight(width);
+                description += _flowNote.Height + _flowMeter.Height;
                 int history=_operationHistory is {} previous?previous.PreferredHeightForWidth(width)+S(3):0;
                 _layout.RowStyles[2].Height=description;
                 _layout.RowStyles[4].Height=operation;
@@ -324,12 +375,12 @@ internal sealed class V269RightPane : UserControl
         bool structured = detail is not null;
         _structuredApp=structured;UpdateAppFlowScope();ApplyPaneSurface();
         _applicationDetails.Present(detail);
-        _description.Visible=!structured;_applicationDetails.Visible=structured;
+        _applicationDetails.Visible=structured;
         if(structured)_applicationDetails.BringToFront();
         UpdateOperationContentLayout();
         bool inProgress = presentation is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
-        _progress.Visible = inProgress;
-        _layout.RowStyles[1].Height = inProgress ? 34 : 0;
+        _progress.Visible = inProgress && !_appFlow;
+        _layout.RowStyles[1].Height = inProgress && !_appFlow ? 34 : 0;
         _progress.Value = Math.Clamp(presentation?.ProgressPercent ?? 0, 0, 100);
         _progress.AccessibleDescription = inProgress ? _progress.Value + "%" : string.Empty;
         AccessibleDescription = presentation?.Title ?? "";
@@ -341,7 +392,7 @@ internal sealed class V269RightPane : UserControl
     {
         // A autorização de Aplicativos não exibe o status/log de uma execução anterior.
         // Os controles reais permanecem intactos e voltam durante o progresso.
-        bool show=!_driversPage&&!_structuredApp&&!(_appFlow&&Current?.Kind==V269PanelKind.Confirmation);
+        bool show=!_driversPage&&!_structuredApp&&(!_appFlow||Current?.Kind==V269PanelKind.Progress);
         _operationContent.Visible=show;
         bool reserve=show&&_hasOperationContent;
         _layout.RowStyles[2].SizeType=_appFlow?SizeType.Absolute:SizeType.Percent;
@@ -375,6 +426,17 @@ internal sealed class V269RightPane : UserControl
                 new(x+n/2,y+n-1),new(x+3,y+3*n/5),new(x+2,y+n/5)});
             g.DrawLines(pen,new Point[]{new(x+n/3,y+n/2),new(x+n/2,y+2*n/3),new(x+3*n/4,y+n/3)});
         }
+        else if (Current?.Kind == V269PanelKind.Result)
+        {
+            if (Current.FlowResult?.Complete == true)
+                g.DrawLines(pen, new Point[] { new(x+2,y+n/2), new(x+n/3,y+n-3), new(x+n-2,y+3) });
+            else
+            {
+                g.DrawEllipse(pen, x+1, y+1, n-2, n-2);
+                g.DrawLine(pen, x+n/2, y+5, x+n/2, y+n-7);
+                g.DrawLine(pen, x+n/2, y+n-4, x+n/2+1, y+n-4);
+            }
+        }
         else
         {
             g.DrawArc(pen,new Rectangle(x+2,y+2,Math.Max(2,n-4),Math.Max(2,n-4)),30,140);
@@ -404,6 +466,7 @@ internal sealed class V269RightPane : UserControl
             button.MinimumSize=_appFlow?button.GetPreferredSize(Size.Empty):new Size(70,26);
         }
         _choices.PerformLayout();
+        _descriptionHost.PerformLayout();
         _layout.BackColor = palette.RightPanel;
         _flowViewport.BackColor=palette.RightPanel;
         ForeColor = palette.Text;
@@ -433,8 +496,11 @@ internal sealed class V269RightPane : UserControl
             _appFlowHeading.Padding=new Padding(F(29),0,0,F(9));
             _appFlowHeading.Height=height;_appFlowHeading.Invalidate();
             _appFlowState.Font=_applicationDetails.Font;
-            _appFlowState.ApplyState(Current?.Kind==V269PanelKind.Confirmation,Current?.ProgressPercent,
+            _appFlowState.ApplyState(Current?.Kind, Current?.ProgressPercent, Current?.FlowResult?.Complete,
                 _appPaneTheme,_appInterfacePercent);
+            _flowNote.SetContent(true, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
+            _flowMeter.SetProgress(Current?.Kind == V269PanelKind.Progress ? Current.ProgressPercent : null,
+                _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
             int stateHeight=Math.Max(V269AppTable.Scale(36,_appInterfacePercent,DeviceDpi),_appFlowState.Font.Height*2+4);
             _appFlowState.Height=stateHeight;
             _title.TextAlign=ContentAlignment.MiddleLeft;_title.Margin=Padding.Empty;

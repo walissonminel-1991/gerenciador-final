@@ -40,6 +40,21 @@ internal static class V269DriverVisuals
         };
     }
 
+    internal static Color GlyphInk(V269DriverGlyph glyph, V269Theme theme)
+    {
+        bool light = theme == V269Theme.Claro;
+        string color = glyph switch
+        {
+            V269DriverGlyph.Audio or V269DriverGlyph.Headset or V269DriverGlyph.Chip =>
+                light ? "#ac4f24" : "#f5a273",
+            V269DriverGlyph.Plug or V269DriverGlyph.Gamepad =>
+                light ? "#3f752b" : "#95ca74",
+            V269DriverGlyph.Shield => light ? "#007882" : "#63c9b7",
+            _ => light ? "#126da0" : "#72c4ed"
+        };
+        return V269AppTable.H(color);
+    }
+
     internal static string Enumerator(DriverInventoryEntry item)
     {
         int separator = item.DeviceId.IndexOf('\\');
@@ -309,8 +324,9 @@ internal sealed partial class DarkDriverList
             graphics.DrawPath(outline, path);
         }
         int n = Scale(17);
+        var glyph = V269DriverVisuals.Glyph(item);
         V269DriverVisuals.DrawGlyph(graphics, new Rectangle(emblem.X + (emblem.Width - n) / 2,
-            emblem.Y + (emblem.Height - n) / 2, n, n), V269DriverVisuals.Glyph(item), ink);
+            emblem.Y + (emblem.Height - n) / 2, n, n), glyph, V269DriverVisuals.GlyphInk(glyph, theme));
         int x = emblem.Right + Scale(9);
         int width = cells[0].Right - x - padding;
         int textTop = row.Y + (row.Height - bold.Height - small.Height) / 2;

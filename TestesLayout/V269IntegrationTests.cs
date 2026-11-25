@@ -223,6 +223,7 @@ internal static class V269IntegrationTests
                     capture.Save($"LayoutCaptures/v269-drivers-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
                 }
             }
+            VerifyInventoryFlowStates(form, shell, V269Page.Drivers);
         }
         finally
         {
@@ -687,6 +688,7 @@ internal static class V269IntegrationTests
                     shell.PresentPanel(null);
                 }
             }
+            VerifyInventoryFlowStates(form, shell, V269Page.Aplicativos);
         }
         finally
         {
@@ -696,6 +698,80 @@ internal static class V269IntegrationTests
             surface.PerformLayout();Application.DoEvents();
         }
         Console.WriteLine("PASS Aplicativos V2.6.9: tabela real, pesquisa, ordenação, detalhes, ausência de controles extras e 15 capturas sintéticas.");
+    }
+
+    private static void VerifyInventoryFlowStates(MainForm form, V269Shell shell, V269Page page)
+    {
+        var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        var originalSize = surface.Size;
+        var originalTheme = theme.SelectedIndex;
+        var previous = shell.RightPane.Current;
+        string tab = page == V269Page.Drivers ? "drivers" : "aplicativos";
+        var oldContext = SynchronizationContext.Current;
+        using var ui = new WindowsFormsSynchronizationContext();
+        using var cancellation = new CancellationTokenSource();
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(ui);
+            shell.SelectPage(page);
+            surface.Size = new Size(1200, 659);
+            Control Find(string name) => shell.RightPane.Controls.Find(name, true).Single();
+            void Capture(string stage, V269Theme palette)
+            {
+                using var image = new Bitmap(surface.Width, surface.Height);
+                surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
+                image.Save($"LayoutCaptures/v269-{tab}-PAINEL-{stage}-{palette}-1200x659.png");
+            }
+            foreach (V269Theme palette in Enum.GetValues<V269Theme>())
+            {
+                theme.SelectedIndex = (int)palette;
+                var confirmation = shell.RightPane.ConfirmAsync($"Atualizar {tab}", "Alvo sintético. Nenhum executor é chamado.", cancellation.Token);
+                surface.PerformLayout();
+                Application.DoEvents();
+                Require(Find("V269FlowNotice").Visible && Find("V269AcceptConfirmation").Visible &&
+                    !Find("V269FlowPercentMeter").Visible,
+                    "confirmação mantém aviso próprio, dois comandos e nenhuma barra");
+                Capture("CONFIRMACAO", palette);
+                shell.RightPane.ResolveConfirmation(false);
+                Pump(confirmation);
+                Require(!confirmation.Result, "a captura não confirma uma ação");
+
+                shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "7 de 25 itens consultados.", 28));
+                surface.PerformLayout();
+                Application.DoEvents();
+                var meter = Find("V269FlowPercentMeter");
+                var note = Find("V269FlowNotice");
+                Require(meter.Visible && meter.AccessibleDescription == "28%" && note.Visible &&
+                    meter.PointToScreen(Point.Empty).Y < note.PointToScreen(Point.Empty).Y,
+                    "progresso comprovado aparece antes do aviso");
+                Capture("ANDAMENTO", palette);
+
+                foreach (bool complete in new[] { true, false })
+                {
+                    const string result = "Resultado sintético, sem manutenção.";
+                    shell.PresentPanel(new(V269PanelKind.Result, $"Verificar {tab}", result,
+                        FlowResult: new(page, complete, () => shell.PresentPanel(null))));
+                    surface.PerformLayout();
+                    Application.DoEvents();
+                    var dismiss = (Button)Find("V269DismissFlowResult");
+                    Require(Find("V269AppFlowHeading").Text == (complete ? "Operação concluída" : "Resultado da operação") &&
+                        note.Visible && note.AccessibleName == result && dismiss.Visible && !meter.Visible,
+                        "o resultado mostra o desfecho informado e pode ser dispensado");
+                    Capture(complete ? "CONCLUIDO" : "ATENCAO", palette);
+                    dismiss.PerformClick();
+                    Require(shell.RightPane.Current is null, "dispensar remove somente o resultado apresentado");
+                }
+            }
+        }
+        finally
+        {
+            cancellation.Cancel();
+            SynchronizationContext.SetSynchronizationContext(oldContext);
+            theme.SelectedIndex = originalTheme;
+            surface.Size = originalSize;
+            shell.PresentPanel(previous);
+        }
     }
 
     private static void VerifyAppIconSources()
