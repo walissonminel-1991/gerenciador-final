@@ -30,20 +30,39 @@ internal sealed record DriverStoreAuditResult(IReadOnlyList<DriverStoreEvidence>
 // leitura de conteúdo, elevação, download ou qualquer operação de manutenção.
 internal static class DriverStoreAudit
 {
-    internal static DriverInventoryResult CaptureWithPackages(CancellationToken token)
+    internal enum AuditPhase { Inventory, Store, Published, History, Correlation, Binding }
+
+    internal static DriverInventoryResult CaptureWithPackages(CancellationToken token,
+        Action<AuditPhase,bool,long>? observe = null)
     {
-        var inventory = DriverInventory.Capture(token);
-        var store = Capture(inventory, token);
-        var published = DriverPublishedPackages.Capture(inventory, token);
-        var history = DriverWindowsHistory.Capture(token);
-        var byInf = store.Packages.ToDictionary(x => x.InfName, StringComparer.OrdinalIgnoreCase);
-        var audited = inventory with
+        var inventory = Phase(AuditPhase.Inventory, () => DriverInventory.Capture(token));
+        var store = Phase(AuditPhase.Store, () => Capture(inventory, token));
+        var published = Phase(AuditPhase.Published, () => DriverPublishedPackages.Capture(inventory, token));
+        var history = Phase(AuditPhase.History, () => DriverWindowsHistory.Capture(token));
+        var audited = Phase(AuditPhase.Correlation, () =>
         {
-            Store = store, PublishedPackages = published, WindowsHistory = history,
-            Items = inventory.Items.Select(x => x with
-                { PackageEvidence = byInf.GetValueOrDefault(x.InfName), WindowsEvents = DriverWindowsHistory.Correlate(x, history) }).ToArray()
-        };
-        return DriverBindingEvidence.Enrich(audited, token);
+            var byInf = store.Packages.ToDictionary(x => x.InfName, StringComparer.OrdinalIgnoreCase);
+            return inventory with
+            {
+                Store = store, PublishedPackages = published, WindowsHistory = history,
+                Items = inventory.Items.Select(x => x with
+                    { PackageEvidence = byInf.GetValueOrDefault(x.InfName), WindowsEvents = DriverWindowsHistory.Correlate(x, history) }).ToArray()
+            };
+        });
+        return Phase(AuditPhase.Binding, () => DriverBindingEvidence.Enrich(audited, token));
+
+        T Phase<T>(AuditPhase phase, Func<T> work)
+        {
+            if (observe is null) return work();
+            long started = Stopwatch.GetTimestamp();
+            observe(phase, false, 0);
+            try { return work(); }
+            finally
+            {
+                // Retorno da chamada, inclusive falha/cancelamento; não prova êxito.
+                observe(phase, true, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
+        }
     }
 
     internal static DriverStoreAuditResult Capture(DriverInventoryResult inventory, CancellationToken token,
