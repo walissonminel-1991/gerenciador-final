@@ -693,7 +693,9 @@ internal sealed partial class MainForm : Form
     private readonly Label _status = new();
     private readonly Label _listTitle = new();
     private readonly Label _itemHint = new();
-    private readonly ProgressBar _progress = new();
+    private readonly GfDynamicProgressBar _progress = new() { AccessibleName = "Progresso da operação" };
+    private double? _legacyOperationPercent;
+    private GfMeterState _legacyOperationState = GfMeterState.Unavailable;
     private readonly V269Shell _nav = new();
     private readonly List<ProgramEntry> _installed = new();
     private readonly List<ProgramEntry> _available = new();
@@ -1601,21 +1603,9 @@ internal sealed partial class MainForm : Form
         if(uninstall is not null||update is not null)
         {
             var label=status;label.Height=Math.Max(1,status.Height-S(7));Text(state,label,color:V269AppTable.StateInk(options.Theme,selected,true));
-            if(update?.Progress.Percent is int percent)
-            {
-                using var progress=new SolidBrush(V269Palette.EnabledUpdate);
-                g.FillRectangle(progress,status.X,status.Bottom-S(5),status.Width*Math.Clamp(percent,0,100)/100,S(3));
-            }
-            else if(uninstall?.Active==true||update?.Active==true)
-            {
-                // Atividade indeterminada: não converter tempo decorrido em porcentagem.
-                using var track=new SolidBrush(colors.Border);
-                using var activity=new SolidBrush(colors.Rail);
-                int segment=Math.Max(1,status.Width/3);
-                int x=CanAnimateV269?Math.Max(0,status.Width-segment)*_programList.OperationFrame/17:0;
-                g.FillRectangle(track,status.X,status.Bottom-S(5),status.Width,S(3));
-                g.FillRectangle(activity,status.X+x,status.Bottom-S(5),segment,S(3));
-            }
+            var frame = uninstall is not null ? GfUniversalMeter.Uninstall(uninstall.Stage, options.Theme) :
+                GfUniversalMeter.Update(update!.Progress, options.Theme);
+            DrawOperationMeter(g, new Rectangle(status.X,status.Bottom-S(5),status.Width,S(3)), frame, colors.Border);
         }
         else Text(state,status,color:V269AppTable.StateInk(options.Theme,selected,item.IsUpdate&&_programList.AllowsUpdate(item)));
         if(!_multiSelectMode)
@@ -1672,25 +1662,26 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         var track = new Rectangle(area.X + 1, area.Bottom - 5, area.Width - 2, 4);
         if (track.Width < 4) return;
-        using var background = new SolidBrush(Color.FromArgb(20, 30, 42));
-        using var fill = new SolidBrush(color);
-        using var rounded = ModernButton.RoundRect(track, 2);
-        graphics.FillPath(background, rounded);
-        var oldClip = graphics.Save();
-        try
+        DrawOperationMeter(graphics, track, GfUniversalMeter.Update(state.Progress, _v269Appearance.Theme),
+            V269Palette.Border);
+    }
+
+    private void DrawOperationMeter(Graphics graphics, Rectangle track, GfMeterFrame frame, Color trackColor)
+    {
+        if (track.Width <= 0 || track.Height <= 0) return;
+        using var background = new SolidBrush(trackColor);
+        using var fill = new SolidBrush(frame.Color);
+        graphics.FillRectangle(background, track);
+        if (frame.Fraction is double fraction && fraction > 0)
+            graphics.FillRectangle(fill, track.X, track.Y, (float)(track.Width * fraction), track.Height);
+        else if (frame.State == GfMeterState.Indeterminate)
         {
-            graphics.SetClip(rounded, CombineMode.Intersect);
-            if (state.Progress.Percent is int percent)
-                graphics.FillRectangle(fill, track.X, track.Y, track.Width * percent / 100, track.Height);
-            else if (state.Active)
-            {
-                int segment = Math.Max(12, track.Width / 4);
-                int offset = (_programList.OperationFrame * (track.Width + segment) / 18) - segment;
-                graphics.FillRectangle(fill, track.X + offset, track.Y, segment, track.Height);
-            }
-            else graphics.FillRectangle(fill, track);
+            int segment = Math.Max(1, track.Width / 3);
+            int travel = track.Width - segment;
+            int x = CanAnimateV269 ? travel * Math.Clamp(_programList.OperationFrame, 0, 17) / 17 : travel / 2;
+            graphics.FillRectangle(fill, track.X + x, track.Y, segment, track.Height);
         }
-        finally { graphics.Restore(oldClip); }
+        // Falha, cancelamento e resultado pendente mantêm texto real, sem preencher 100%.
     }
 
     private static string DisplayAppVersion(string version)
@@ -2230,14 +2221,17 @@ internal sealed partial class MainForm : Form
 
     private Control CreateDiskCard(DiskUsageInfo disk)
     {
-        long used = disk.TotalBytes - disk.FreeBytes;
-        double fraction = disk.TotalBytes > 0 ? Math.Clamp((double)used / disk.TotalBytes, 0d, 1d) : 0d;
-        int percent = (int)Math.Round(fraction * 100);
+        bool valid = disk.TotalBytes > 0 && disk.FreeBytes >= 0 && disk.FreeBytes <= disk.TotalBytes;
+        long used = valid ? disk.TotalBytes - disk.FreeBytes : 0;
+        var frame = GfUniversalMeter.Disk(valid ? (ulong)used : null, valid ? (ulong)disk.TotalBytes : null, _v269Appearance.Theme);
+        string usage = frame.Fraction is double fraction
+            ? $"{DisplayGigabytes(used)} de {DisplayGigabytes(disk.TotalBytes)} ({Math.Round(fraction*100)}%)"
+            : "Ocupação indisponível";
         string letter = disk.Root.TrimEnd('\\');
         string name = string.IsNullOrWhiteSpace(disk.Label) ? "Disco local" : disk.Label;
         var card = new V269CleanupDiskCard($"{name} ({letter})",
-            $"{DisplayGigabytes(used)} de {DisplayGigabytes(disk.TotalBytes)} ({percent}%)",
-            $"{disk.FileSystem} · {DisplayGigabytes(disk.FreeBytes)} livres", fraction);
+            usage, valid ? $"{disk.FileSystem} · {DisplayGigabytes(disk.FreeBytes)} livres" : disk.FileSystem,
+            valid ? (ulong)used : null, valid ? (ulong)disk.TotalBytes : null);
         string? task = SingleVolumeOptimization.TaskForRoot(disk.Root);
         var optimize = card.Command;
         optimize.Name = "OptimizeVolume" + letter.TrimEnd(':');
@@ -2352,15 +2346,27 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(top, 0, 0);
         _progress.Dock = DockStyle.Fill;
         _progress.Margin = new Padding(0, 0, 0, 2);
-        _progress.Style = ProgressBarStyle.Blocks;
         _progress.Visible = false;
-        _progress.Minimum = 0;
-        _progress.Maximum = 100;
-        _progress.Value = 0;
+        PresentLegacyOperationMeter(null, GfMeterState.Unavailable);
         root.Controls.Add(_progress, 0, 1);
         _log.Dock = DockStyle.Fill;
         root.Controls.Add(_log, 0, 2);
         return root;
+    }
+
+    private void PresentLegacyOperationMeter(double? percent, GfMeterState state)
+    {
+        _legacyOperationPercent = percent;
+        _legacyOperationState = state;
+        RefreshLegacyOperationMeter();
+    }
+
+    private void RefreshLegacyOperationMeter()
+    {
+        _progress.Configure(_v269Appearance.Theme, CanAnimateV269);
+        var frame = GfUniversalMeter.Operation(_legacyOperationPercent, _legacyOperationState, false, _v269Appearance.Theme);
+        _progress.Present(frame, frame.Fraction is double value ? $"{value * 100:0}%" :
+            frame.State == GfMeterState.Indeterminate ? "Progresso não informado" : "");
     }
 
     private void ShowLocalReliabilityReport()
@@ -2528,8 +2534,7 @@ internal sealed partial class MainForm : Form
             // Somente operações explícitas exibem o progresso animado.
             // Pesquisa local continua acessivel durante manutencao longa.
             _progress.Visible = true;
-            _progress.Style = CanAnimateV269 ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
-            _progress.MarqueeAnimationSpeed = CanAnimateV269 ? 24 : 0;
+            PresentLegacyOperationMeter(null, GfMeterState.Indeterminate);
         }
         _operationResult = description;
         _status.Text = description;
@@ -2548,10 +2553,8 @@ internal sealed partial class MainForm : Form
             {
                 if (!quietStartup)
                 {
-                    _progress.MarqueeAnimationSpeed = 0;
-                    _progress.Style = ProgressBarStyle.Blocks;
-                    _progress.Value = 0;
                     _progress.Visible = false;
+                    PresentLegacyOperationMeter(null, GfMeterState.Unavailable);
                     _programList.ActionsEnabled = !_batchUpdatesActive;
                 }
                 _status.Text = _operationResult;
@@ -2746,10 +2749,8 @@ internal sealed partial class MainForm : Form
         if (!_busy)
         {
             // Consulta somente leitura: duração incerta, indicar atividade sem inventar percentual.
-            _progress.Style = ProgressBarStyle.Blocks;
-            _progress.Maximum = totalSources;
-            _progress.Value = 0;
             _progress.Visible = true;
+            PresentLegacyOperationMeter(null, GfMeterState.Indeterminate);
             Status("Consultando fontes de versões…");
             PresentVerificationProgress("Consultando fontes de versões…");
         }
@@ -2770,8 +2771,7 @@ internal sealed partial class MainForm : Form
                 completedSources++;
                 if (!_busy)
                 {
-                    _progress.Maximum = totalSources;
-                    _progress.Value = Math.Min(completedSources, totalSources);
+                    PresentLegacyOperationMeter(Math.Min(completedSources, totalSources) * 100d / totalSources, GfMeterState.Running);
                     string message = $"Fontes concluídas: {completedSources}/{totalSources} · {diagnostic.Provider}: {diagnostic.Status}";
                     Status(message);
                     PresentVerificationProgress(message, Math.Min(completedSources, totalSources) * 100 / totalSources);
@@ -2919,11 +2919,8 @@ internal sealed partial class MainForm : Form
             {
                 if (!_busy)
                 {
-                    _progress.MarqueeAnimationSpeed = 0;
-                    _progress.Style = ProgressBarStyle.Blocks;
-                    _progress.Value = 0;
-                    _progress.Maximum = 100;
                     _progress.Visible = false;
+                    PresentLegacyOperationMeter(null, GfMeterState.Unavailable);
                 }
                 RenderTitle();
                 if (_checkUpdatesButton is not null)
@@ -4518,9 +4515,7 @@ internal sealed partial class MainForm : Form
                         windowsProgress.Update(logLine, out int percentage) &&
                         !IsDisposed)
                     {
-                        _progress.MarqueeAnimationSpeed = 0;
-                        _progress.Style = ProgressBarStyle.Continuous;
-                        _progress.Value = percentage;
+                        PresentLegacyOperationMeter(percentage, GfMeterState.Running);
                         if (_v269RepairExecutionActive) _v269RepairPercent = percentage;
                         else _nav.PresentPanel(new(V269PanelKind.Progress, "Manutenção do Windows",
                             _status.Text, percentage));

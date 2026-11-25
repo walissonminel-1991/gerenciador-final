@@ -46,6 +46,26 @@ internal static class D3dKmtGpuSensorProviderTests
         Check(!a.RelativePowerPercent.Source.Contains("watts", StringComparison.OrdinalIgnoreCase),
             "potência normalizada D3DKMT não representa W");
 
+        foreach (uint temperature in new uint[] { 900, 1050, 1100 })
+        {
+            var reading = D3dKmtGpuSensorProvider.Join([rows[0] with
+            { TemperatureTenthsC = temperature, TemperatureWarningTenthsC = 900 }]).Adapters.Single();
+            Check(reading.TemperatureC.Value == temperature / 10d &&
+                  reading.TemperatureWarningTenthsC == 900 && reading.TemperatureMaxTenthsC == 1050,
+                "medição abaixo, no máximo e acima do máximo preserva capacidades reais");
+        }
+        foreach (uint warning in new uint[] { 0, 1050, 1200, uint.MaxValue })
+        {
+            var reading = D3dKmtGpuSensorProvider.Join([rows[0] with
+            { TemperatureTenthsC = 1100, TemperatureWarningTenthsC = warning }]).Adapters.Single();
+            Check(reading.TemperatureC.Value == 110 && reading.TemperatureWarningTenthsC is null &&
+                  reading.TemperatureMaxTenthsC is null,
+                "capacidade inconsistente não inventa limites nem apaga temperatura válida");
+        }
+        var missingCaps = D3dKmtGpuSensorProvider.Join([rows[0] with
+        { HasCapabilities = false, TemperatureWarningTenthsC = 900 }]).Adapters.Single();
+        Check(missingCaps.TemperatureC.Value is null && missingCaps.TemperatureWarningTenthsC is null &&
+              missingCaps.TemperatureMaxTenthsC is null, "sem consulta de capacidades não atribuir evidência");
         var reject = D3dKmtGpuSensorProvider.Join([
             rows[0] with { FanRpm = 35_000, TemperatureTenthsC = 1800,
                 PowerTenthsPercent = 9999, MemoryFrequencyHz = 0 },

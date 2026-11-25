@@ -20,7 +20,12 @@ internal static class LayoutTests
         GfMonitorPreferencesAndProgressTests.Run();
         GfMonitorHostTests.Run();
         GfMonitorSettingsTests.Run();
-        if (args.Contains("--monitor-gf")) { GfResourceMonitorTests.Run(); return; }
+        if (args.Contains("--monitor-gf"))
+        {
+            D3dKmtGpuSensorProviderTests.Run(); // ABI e fixtures, sem sonda física.
+            GfResourceMonitorTests.Run();
+            return;
+        }
         GfResourceMonitorTests.Run(); // somente fixtures e janela consultiva; sem coleta ou manutenção.
         BundlewareReviewTests.Run(); // política ARP: nenhum comando de desinstalação é iniciado.
         if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
@@ -122,6 +127,8 @@ internal static class LayoutTests
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
         if (args.Contains("--work18"))
         {
+            // Este percurso encerra antes da suíte nativa completa.
+            D3dKmtGpuSensorProviderTests.Run();
             Work18UpdateUiTests.Run();
             Stage3UpdateQueryTests.Run();
             UninstallCleanupTests.VerifyTrayConfirmation();
