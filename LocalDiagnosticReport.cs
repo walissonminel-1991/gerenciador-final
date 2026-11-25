@@ -181,7 +181,7 @@ internal sealed class LocalDiagnosticReport
             var counters=snapshot.WindowsCounters;
             var sensors=counters.Sensors;
             string line=FormattableString.Invariant(
-                $"{DateTimeOffset.UtcNow:O} MONITOR amostra_cpu_utc={counters.CapturedAtUtc:O} cpu_pct={Reading(counters.CpuUsagePercent)} cpu_mhz={Reading(counters.CpuFrequencyMhz)} cpu_c={Reading(sensors.CpuTemperatureC)} cpu_w={Reading(sensors.CpuPowerWatts)} cpu_rpm={Reading(sensors.CpuFanRpm)} ram_usada_bytes={counters.Memory?.UsedBytes} ram_total_bytes={counters.Memory?.TotalBytes}");
+                $"{DateTimeOffset.UtcNow:O} MONITOR fotografia_utc={snapshot.CapturedAtUtc:O} amostra_cpu_utc={counters.CapturedAtUtc:O} cpu_pct={Reading(counters.CpuUsagePercent)} cpu_mhz={Reading(counters.CpuFrequencyMhz)} cpu_c={Reading(sensors.CpuTemperatureC)} cpu_w={Reading(sensors.CpuPowerWatts)} cpu_rpm={Reading(sensors.CpuFanRpm)} ram_usada_bytes={counters.Memory?.UsedBytes} ram_total_bytes={counters.Memory?.TotalBytes}");
             Append(_hardware,line,ref _hardwareTotal);
             // WDDM e D3DKMT não são combinados por posição. Não registrar LUID,
             // ID PnP, nomes de dispositivos ou valores NVML como RPM físicos.
@@ -262,6 +262,11 @@ internal sealed class LocalDiagnosticReport
             text.AppendLine($"GPU {++i}: fabricante chip={vendor}; modelo DXGI={ModelText(gpu.Name)}; VRAM dedicada bytes={gpu.DedicatedVideoMemory}; heap de VRAM acessível à CPU reportado (não confirma ReBAR)={gpu.DiscreteGpuUploadHeapSupported}");
         }
         if(i==0)text.AppendLine("GPU: modelo DXGI indisponível.");
+        if(snapshot.NvidiaGpus.NvidiaDriverVersion is { } nvDriver)
+            text.AppendLine("Versão driver NVIDIA (NVML): "+ModelText(nvDriver));
+        i=0;
+        foreach(var gpu in snapshot.DeviceInventory.Devices.Where(x=>x.Kind==HardwareDeviceKind.Graphics))
+            text.AppendLine($"GPU PnP {++i}: driver instalado={ModelText(gpu.InstalledDriverVersion)}; barramento reportado={ModelText(gpu.ReportedPcieLink)}");
         i=0;
         foreach(var disk in snapshot.Storage.Disks)
             text.AppendLine($"Disco físico {++i}: fabricante={ModelText(disk.ReportedManufacturer)}; modelo={ModelText(disk.ReportedModel)}; temperatura C={Reading(disk.TemperatureC)}; desgaste reportado pct={Reading(disk.WearPercent)}; horas={Reading(disk.PowerOnHours)}");
@@ -320,9 +325,21 @@ internal sealed class LocalDiagnosticReport
         string code = stage.Length is > 0 and <= 80 &&
             stage.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_')
             ? stage : "ETAPA_NAO_IDENTIFICADA";
+        // A localização do defeito usa somente símbolos do assembly GF,
+        // nunca StackTrace textual, arquivo fonte, linha de usuário ou parâmetros.
+        string type = error.GetType().FullName ?? "Exception";
+        if(type.Length>120||type.Any(c=>!(char.IsAsciiLetterOrDigit(c)||c is '.' or '_' or '+' or '`')))
+            type="Exception";
+        string[] frames=(new StackTrace(error,false).GetFrames()??[])
+            .Select(frame=>frame.GetMethod())
+            .Where(method=>method?.DeclaringType?.Assembly==typeof(LocalDiagnosticReport).Assembly)
+            .Take(8)
+            .Select(method=>method!.DeclaringType!.Name+"."+method.Name)
+            .Where(name=>name.Length<=200&&name.All(c=>char.IsAsciiLetterOrDigit(c)||c is '.' or '_' or '+' or '`' or '<' or '>' or '-'))
+            .ToArray();
         lock (_gate)
             Append(_failures, FormattableString.Invariant(
-                $"{DateTimeOffset.UtcNow:O} etapa={code} hresult=0x{error.HResult:X8}"),
+                $"{DateTimeOffset.UtcNow:O} etapa={code} tipo={type} hresult=0x{error.HResult:X8} simbolos_gf={string.Join(",",frames)}"),
                 ref _failureTotal);
     }
 
