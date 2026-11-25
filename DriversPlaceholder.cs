@@ -385,6 +385,8 @@ internal sealed partial class MainForm
                     : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
         }
         bool uninstallBusy = false;
+        Form? driverPilot = null;
+        root.Disposed += (_, _) => driverPilot?.Dispose();
         // Estado WUA declarado antes dos handlers que o observam.
         DriverOfficialResult? latestOfficial = null;
         long officialGeneration = -1;
@@ -398,7 +400,7 @@ internal sealed partial class MainForm
             bool current = !root.IsDisposed &&
                 publishedSnapshotGeneration == inventoryGeneration &&
                 lastResult is not null;
-            bool actionable = current && !uninstallBusy && readForTest is null;
+            bool actionable = current && !uninstallBusy && driverPilot is null && readForTest is null;
             list.SetActionPolicy(actionable, device => lastResult is not null
                 ? DriverSilentUninstall.Evaluate(lastResult, device)
                 : new DriverSilentUninstallDecision(false, "Inventário indisponível."));
@@ -408,7 +410,7 @@ internal sealed partial class MainForm
         {
             if (!v269 || root.IsDisposed || _nav.SelectedPage != V269Page.Drivers) return;
             var current = _nav.RightPane.Current;
-            if (current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress) return;
+            if (current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.DriverReview) return;
             if (!explicitRequest && current?.Kind is (V269PanelKind.Result or V269PanelKind.History)) return;
 
             var selected = list.SelectedItem;
@@ -446,6 +448,18 @@ internal sealed partial class MainForm
                 prior.Reasons == note && prior.Fields.SequenceEqual(fields)) return;
             _nav.PresentPanel(new(V269PanelKind.Details, "Detalhes do driver", note, Driver:
                 new V269AppDetailModel(name, provider, fields, note, DriverGlyph: V269DriverVisuals.Glyph(selected))));
+        }
+        void PublishDriverResult(string title, string description, bool complete)
+        {
+            var result = new V269AppPreviousResult(Guid.NewGuid(), title, description, complete);
+            driverResults.Insert(0, result);
+            if (driverResults.Count > 4) driverResults.RemoveAt(4);
+            _nav.PresentPanel(new(V269PanelKind.Result, result.Title, result.Description,
+                FlowResult: new(V269Page.Drivers, complete, () =>
+                {
+                    _nav.PresentPanel(null);
+                    PresentDetails(false);
+                }, result.Id)));
         }
         if (v269)
         {
@@ -524,7 +538,8 @@ internal sealed partial class MainForm
 
         void OpenDriverUpdate(DriverInventoryEntry requested)
         {
-            if (root.IsDisposed || uninstallBusy || readForTest is not null ||
+            if (root.IsDisposed || _busy || _v269Confirming || _betaClose.IsClosing || uninstallBusy ||
+                driverPilot is not null || readForTest is not null ||
                 publishedSnapshotGeneration != inventoryGeneration ||
                 officialGeneration != inventoryGeneration ||
                 lastResult is not { } inventory ||
@@ -543,15 +558,76 @@ internal sealed partial class MainForm
                 !DriverG32RecoveryTicket.CanOffer(inventory, requested, choice))
                 return;
             long generation = inventoryGeneration;
-            using var dialog = DriverUpdatePilotDialog.Create(inventory, official,
-                requested, () => !root.IsDisposed && !uninstallBusy &&
-                    generation == inventoryGeneration &&
-                    publishedSnapshotGeneration == generation &&
-                    ReferenceEquals(lastResult, inventory) &&
-                    ReferenceEquals(latestOfficial, official),
-                DriverG31Wiring.NewProductionBackend(),
-                DriverG31Wiring.NewProductionJournalFactory());
-            dialog.ShowDialog(this);
+            string title = "Atualizar " + DriverHardwareCatalog.DisplayName(requested);
+            bool ownsOperation = false;
+            bool CurrentOffer() => !root.IsDisposed && !uninstallBusy &&
+                (ownsOperation || (_nav.SelectedPage == V269Page.Drivers && !_busy)) &&
+                !_betaClose.IsClosing &&
+                generation == inventoryGeneration &&
+                publishedSnapshotGeneration == generation &&
+                ReferenceEquals(lastResult, inventory) &&
+                ReferenceEquals(latestOfficial, official) &&
+                ReferenceEquals(list.SelectedItem, requested);
+            V269PanelPresentation? progress = null;
+            void ReportProgress(string message)
+            {
+                if (root.IsDisposed || progress is null || !ReferenceEquals(_nav.RightPane.Current, progress)) return;
+                progress = progress with { Description = message };
+                _nav.PresentPanel(progress);
+            }
+            var hooks = new DriverPilotPaneHooks(
+                async (heading, question) =>
+                {
+                    bool accepted = await ConfirmV269Async(heading, question);
+                    if (_nav.SelectedPage == V269Page.Drivers) return accepted;
+                    driverPilot?.Close();
+                    return false;
+                },
+                cancel =>
+                {
+                    if (_busy || _batchUpdatesActive || _v269Confirming || !CurrentOffer()) return false;
+                    ownsOperation = true;
+                    _busy = true;
+                    _programList.ActionsEnabled = false;
+                    UpdateBulkButtons();
+                    progress = new(V269PanelKind.Progress, title, "Preparando atualização WUA.", CancelFlow: cancel);
+                    _nav.PresentPanel(progress);
+                    return true;
+                },
+                ReportProgress,
+                (message, verified) =>
+                {
+                    ownsOperation = false;
+                    _busy = false;
+                    if (!IsDisposed && !Disposing)
+                    {
+                        _programList.ActionsEnabled = !_batchUpdatesActive;
+                        UpdateBulkButtons();
+                        if (!root.IsDisposed && ReferenceEquals(_nav.RightPane.Current, progress))
+                            PublishDriverResult(title, message, verified);
+                        driverPilot?.Close();
+                        ExitAfterCurrentOperation();
+                    }
+                });
+            var review = DriverUpdatePilotDialog.Create(inventory, official, requested, CurrentOffer,
+                DriverG31Wiring.NewProductionBackend(), DriverG31Wiring.NewProductionJournalFactory(), hooks);
+            driverPilot = review;
+            review.Disposed += (_, _) =>
+            {
+                if (!ReferenceEquals(driverPilot, review)) return;
+                driverPilot = null;
+                if (IsDisposed || Disposing || root.IsDisposed) return;
+                refresh.Enabled = !uninstallBusy;
+                SyncDriverActions();
+                if (ReferenceEquals(_nav.RightPane.Current?.DriverReview, review))
+                {
+                    _nav.PresentPanel(null);
+                    PresentDetails(false);
+                }
+            };
+            refresh.Enabled = false;
+            SyncDriverActions();
+            _nav.PresentPanel(new(V269PanelKind.DriverReview, title, "", DriverReview: review));
         }
 
         // Um handler por operação. O clique virtual entrega o mesmo objeto que
@@ -682,7 +758,7 @@ internal sealed partial class MainForm
         }
         list.ActionRequested += (item, action) =>
         {
-            if (!ReferenceEquals(list.SelectedItem, item) || uninstallBusy ||
+            if (!ReferenceEquals(list.SelectedItem, item) || uninstallBusy || driverPilot is not null ||
                 readForTest is not null || publishedSnapshotGeneration != inventoryGeneration ||
                 lastResult is null)
                 return;
@@ -820,6 +896,7 @@ internal sealed partial class MainForm
                 SetDriverStatus("Cancelamento solicitado; pesquisa WUA pode continuar encerrando.");
                 return;
             }
+            if (driverPilot is not null) return;
             if (uninstallBusy)
             {
                 SetDriverStatus("Desinstalação em andamento: consulta bloqueada até a verificação.");
@@ -1084,16 +1161,7 @@ internal sealed partial class MainForm
                     {
                         if (ReferenceEquals(_nav.RightPane.Current, verificationPanel))
                         {
-                            var entry = new V269AppPreviousResult(Guid.NewGuid(), "Verificar drivers",
-                                state.Text, verificationComplete);
-                            driverResults.Insert(0, entry);
-                            if (driverResults.Count > 4) driverResults.RemoveAt(4);
-                            _nav.PresentPanel(new(V269PanelKind.Result, entry.Title, entry.Description,
-                                FlowResult: new(V269Page.Drivers, verificationComplete, () =>
-                                {
-                                    _nav.PresentPanel(null);
-                                    PresentDetails(false);
-                                }, entry.Id)));
+                            PublishDriverResult("Verificar drivers", state.Text, verificationComplete);
                         }
                         verificationPanel = null;
                     }

@@ -142,13 +142,13 @@ internal static class V269IntegrationTests
             shell.RightPane.Current?.Description == "Resultado preservado",
             "tema Claro preserva contraste do registro e o resultado publicado");
         VerifySettings(form,shell);
-        VerifyApps(form,shell);
-        VerifyDrivers(form,shell);
+        VerifyApps(form,shell,confirmationContext);
+        VerifyDrivers(form,shell,confirmationContext);
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
 
-    private static void VerifyDrivers(MainForm form, V269Shell shell)
+    private static void VerifyDrivers(MainForm form, V269Shell shell, WindowsFormsSynchronizationContext confirmationContext)
     {
         var root = shell.PageContent(V269Page.Drivers)!;
         var list = root.Controls.Find("DriverInventoryList", true).OfType<DarkDriverList>().Single();
@@ -223,7 +223,7 @@ internal static class V269IntegrationTests
                     capture.Save($"LayoutCaptures/v269-drivers-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
                 }
             }
-            VerifyInventoryFlowStates(form, shell, V269Page.Drivers);
+            VerifyInventoryFlowStates(form, shell, V269Page.Drivers, confirmationContext);
         }
         finally
         {
@@ -235,7 +235,7 @@ internal static class V269IntegrationTests
         }
     }
 
-    private static void VerifyApps(MainForm form,V269Shell shell)
+    private static void VerifyApps(MainForm form,V269Shell shell,WindowsFormsSynchronizationContext confirmationContext)
     {
         const BindingFlags flags=BindingFlags.NonPublic|BindingFlags.Instance;
         var inventory=(List<ProgramEntry>)typeof(MainForm).GetField("_installed",flags)!.GetValue(form)!;
@@ -560,7 +560,6 @@ internal static class V269IntegrationTests
             // Use um contexto WinForms explícito para esta espera assíncrona,
             // sem alterar o agendamento do motor em produção.
             var previousContext=SynchronizationContext.Current;
-            using var confirmationContext=new WindowsFormsSynchronizationContext();
             SynchronizationContext.SetSynchronizationContext(confirmationContext);
             using var confirmationToken=new CancellationTokenSource();
             Task<bool> confirmTask;
@@ -688,7 +687,7 @@ internal static class V269IntegrationTests
                     shell.PresentPanel(null);
                 }
             }
-            VerifyInventoryFlowStates(form, shell, V269Page.Aplicativos);
+            VerifyInventoryFlowStates(form, shell, V269Page.Aplicativos, confirmationContext);
         }
         finally
         {
@@ -700,7 +699,8 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS Aplicativos V2.6.9: tabela real, pesquisa, ordenação, detalhes, ausência de controles extras e 15 capturas sintéticas.");
     }
 
-    private static void VerifyInventoryFlowStates(MainForm form, V269Shell shell, V269Page page)
+    private static void VerifyInventoryFlowStates(MainForm form, V269Shell shell, V269Page page,
+        WindowsFormsSynchronizationContext confirmationContext)
     {
         var theme = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
         var surface = form.Controls.OfType<TableLayoutPanel>().Single();
@@ -709,11 +709,10 @@ internal static class V269IntegrationTests
         var previous = shell.RightPane.Current;
         string tab = page == V269Page.Drivers ? "drivers" : "aplicativos";
         var oldContext = SynchronizationContext.Current;
-        using var ui = new WindowsFormsSynchronizationContext();
         using var cancellation = new CancellationTokenSource();
         try
         {
-            SynchronizationContext.SetSynchronizationContext(ui);
+            SynchronizationContext.SetSynchronizationContext(confirmationContext);
             shell.SelectPage(page);
             surface.Size = new Size(1200, 659);
             Control Find(string name) => shell.RightPane.Controls.Find(name, true).Single();
@@ -722,6 +721,29 @@ internal static class V269IntegrationTests
                 using var image = new Bitmap(surface.Width, surface.Height);
                 surface.DrawToBitmap(image, new Rectangle(Point.Empty, surface.Size));
                 image.Save($"LayoutCaptures/v269-{tab}-PAINEL-{stage}-{palette}-1200x659.png");
+            }
+            if (page == V269Page.Drivers)
+            {
+                using var review = new Form { TopLevel = false, Dock = DockStyle.Fill, FormBorderStyle = FormBorderStyle.None };
+                review.Controls.Add(new Label { Text = "Revisão de oferta de teste", Dock = DockStyle.Fill });
+                shell.PresentPanel(new(V269PanelKind.DriverReview, "Revisar driver de teste", "", DriverReview: review));
+                surface.PerformLayout();
+                Application.DoEvents();
+                Require(review.Visible && !review.TopLevel && review.Parent == Find("V269DriverReviewHost"),
+                    "a revisão WUA usa a área do painel");
+                var authorization = shell.RightPane.ConfirmAsync("Confirmar instalação física de driver",
+                    "Alvo sintético. Nenhum executor é chamado.", cancellation.Token);
+                Application.DoEvents();
+                Require(!review.Visible && Find("V269AcceptConfirmation").Visible,
+                    "a confirmação lateral substitui temporariamente a revisão");
+                shell.RightPane.ResolveConfirmation(false);
+                Pump(authorization);
+                Require(!authorization.Result && review.Visible && ReferenceEquals(shell.RightPane.Current?.DriverReview, review),
+                    "recusar restaura a mesma revisão lateral");
+                shell.SelectPage(V269Page.Aplicativos);
+                Require(review.IsDisposed && shell.RightPane.Current?.DriverReview is null,
+                    "trocar de aba encerra a revisão sem operação");
+                shell.SelectPage(page);
             }
             foreach (V269Theme palette in Enum.GetValues<V269Theme>())
             {
@@ -737,7 +759,10 @@ internal static class V269IntegrationTests
                 Pump(confirmation);
                 Require(!confirmation.Result, "a captura não confirma uma ação");
 
-                shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "7 de 25 itens consultados.", 28));
+                bool cancelled = false;
+                Action? cancel = page == V269Page.Drivers ? () => cancelled = true : null;
+                shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "7 de 25 itens consultados.",
+                    28, CancelFlow: cancel));
                 surface.PerformLayout();
                 Application.DoEvents();
                 var meter = Find("V269FlowPercentMeter");
@@ -746,6 +771,13 @@ internal static class V269IntegrationTests
                     meter.PointToScreen(Point.Empty).Y < note.PointToScreen(Point.Empty).Y,
                     "progresso comprovado aparece antes do aviso");
                 Capture("ANDAMENTO", palette);
+                if (cancel is not null)
+                {
+                    var cancelAction = (Button)Find("V269CancelOwnedFlow");
+                    Require(cancelAction.Visible, "cancelamento segue acessível no painel de Drivers");
+                    cancelAction.PerformClick();
+                    Require(cancelled, "cancelamento usa a ação da operação");
+                }
 
                 foreach (bool complete in new[] { true, false })
                 {

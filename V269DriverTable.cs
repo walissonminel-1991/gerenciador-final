@@ -261,7 +261,7 @@ internal sealed partial class DarkDriverList
             using var bold = new Font(font, FontStyle.Bold);
             using var small = new Font("Segoe UI", 8.25f * _tableOptions.TextPercent / 100f);
             V269AppTable.DrawHeader(graphics, new Rectangle(-_horizontal.Value, 0, tableWidth, y),
-                _tableOptions, font, DeviceDpi, _compactTable, drivers: true);
+                _tableOptions, bold, DeviceDpi, _compactTable, drivers: true);
             graphics.Restore(saved);
             saved = graphics.Save();
             graphics.SetClip(new Rectangle(0, y, ContentWidth, RowsHeight), CombineMode.Intersect);

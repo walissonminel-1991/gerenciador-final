@@ -36,7 +36,8 @@ internal enum V269PanelKind
     Confirmation,
     Progress,
     Result,
-    History
+    History,
+    DriverReview
 }
 
 /// <summary>
@@ -48,7 +49,7 @@ internal sealed record V269FlowResult(V269Page Page, bool Complete, Action Dismi
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
     V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null,
-    V269FlowResult? FlowResult = null);
+    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -72,6 +73,15 @@ internal sealed class V269RightPane : UserControl
     private readonly ProgressBar _progress;
     private readonly V269AppFlowMeter _flowMeter = new();
     private readonly V269AppFlowNote _flowNote = new();
+    private readonly V269AppFlowButton _cancelFlow = new(false)
+    {
+        Name = "V269CancelOwnedFlow", Text = "Cancelar espera", AutoSize = true, Visible = false
+    };
+    private readonly Panel _driverReviewHost = new()
+    {
+        Name = "V269DriverReviewHost", Dock = DockStyle.Fill, Visible = false
+    };
+    private Form? _driverReview;
     private readonly V269AppFlowButton _dismissFlowResult = new(false, true)
     {
         Name = "V269DismissFlowResult", Text = "Dispensar resultado", AutoSize = true, Visible = false
@@ -162,6 +172,7 @@ internal sealed class V269RightPane : UserControl
         _descriptionHost.Controls.Add(_flowMeter);
         _descriptionHost.Controls.Add(_flowNote);
         _descriptionHost.Controls.Add(_applicationDetails);
+        _descriptionHost.Controls.Add(_driverReviewHost);
         _descriptionHost.SizeChanged+=(_,_)=>FitOperationHistory();
         _layout.Controls.Add(_descriptionHost,0,2);
         _choices = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false, Visible = false };
@@ -177,6 +188,8 @@ internal sealed class V269RightPane : UserControl
         }
         _dismissFlowResult.Click += (_, _) => Current?.FlowResult?.Dismiss();
         _choices.Controls.Add(_dismissFlowResult);
+        _cancelFlow.Click += (_, _) => Current?.CancelFlow?.Invoke();
+        _choices.Controls.Add(_cancelFlow);
         _operationContent = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         _layout.Controls.Add(_choices, 0, 3);
         _layout.Controls.Add(_operationContent, 0, 4);
@@ -249,8 +262,9 @@ internal sealed class V269RightPane : UserControl
     {
         bool result = Current is { Kind: V269PanelKind.Result, FlowResult: { } flow } &&
             (flow.Page == V269Page.Aplicativos && _appHistoryPage || flow.Page == V269Page.Drivers && _driversPage);
-        bool active = result || (_appHistoryPage || _driversPage) &&
-            Current?.Kind is (V269PanelKind.Confirmation or V269PanelKind.Progress);
+        bool active = result || Current is { Kind: V269PanelKind.Progress, CancelFlow: not null } ||
+            (_appHistoryPage || _driversPage) &&
+                Current?.Kind is (V269PanelKind.Confirmation or V269PanelKind.Progress);
         bool changed=active!=_appFlow;_appFlow=active;
         _appFlowHeading.Text = Current?.Kind switch
         {
@@ -260,15 +274,20 @@ internal sealed class V269RightPane : UserControl
         };
         _appFlowHeading.Visible=active;_appFlowState.Visible=active;
         bool pending = _confirmation is not null && Current?.Kind == V269PanelKind.Confirmation;
+        bool operationCancel = active && Current is { Kind: V269PanelKind.Progress, CancelFlow: not null };
         foreach (Control choice in _choices.Controls)
-            choice.Visible = ReferenceEquals(choice, _dismissFlowResult) ? result : pending;
-        _choices.Visible = pending || result;
+            choice.Visible = ReferenceEquals(choice, _dismissFlowResult) ? result :
+                ReferenceEquals(choice, _cancelFlow) ? operationCancel : pending;
+        _choices.Visible = pending || result || operationCancel;
         int choiceHeight = V269AppTable.Scale(active ? 44 : 38, _appInterfacePercent, DeviceDpi);
-        _layout.RowStyles[3].Height = _choices.Visible || pending || result ? choiceHeight : 0;
+        _layout.RowStyles[3].Height = pending || result || operationCancel ? choiceHeight : 0;
         _flowNote.SetContent(active, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
         _flowMeter.SetProgress(active && Current?.Kind == V269PanelKind.Progress ? Current.ProgressPercent : null,
             _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
-        _description.Visible = !_structuredApp && !result;
+        bool driverReview = _driversPage && Current is { Kind: V269PanelKind.DriverReview };
+        _driverReviewHost.Visible = driverReview;
+        if (driverReview) _driverReviewHost.BringToFront();
+        _description.Visible = !_structuredApp && !result && !driverReview;
         bool legacyProgress = !active && Current is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
         _progress.Visible = legacyProgress;
         _layout.RowStyles[1].Height = legacyProgress ? 34 : 0;
@@ -281,7 +300,8 @@ internal sealed class V269RightPane : UserControl
     internal void RefreshAppOperationHistory()
     {
         if(IsDisposed||Disposing)return;
-        var provider = _appHistoryPage ? _appHistoryProvider : _driversPage ? _driverHistoryProvider : null;
+        var provider = _appHistoryPage && Current?.CancelFlow is null ? _appHistoryProvider :
+            _driversPage ? _driverHistoryProvider : null;
         var dismiss = _appHistoryPage ? _appHistoryDismiss : _driverHistoryDismiss;
         var currentId = Current?.FlowResult?.HistoryId;
         V269AppPreviousResult[] results = _appFlow
@@ -369,6 +389,17 @@ internal sealed class V269RightPane : UserControl
                 presentation=presentation with {Application=app with {PreviousResults=latest}};
         }
         Current = presentation;
+        if (presentation?.DriverReview is { IsDisposed: false } driverReview &&
+            !ReferenceEquals(driverReview, _driverReview))
+        {
+            _driverReview = driverReview;
+            _driverReviewHost.Controls.Add(driverReview);
+            driverReview.Disposed += (_, _) =>
+            {
+                if (ReferenceEquals(_driverReview, driverReview)) _driverReview = null;
+            };
+            driverReview.Show();
+        }
         _title.Text = presentation?.Title ?? "Detalhes";
         _description.Text = presentation?.Description ?? string.Empty;
         var detail = presentation?.Kind == V269PanelKind.Details ? presentation.Application ?? presentation.Driver : null;
@@ -392,7 +423,8 @@ internal sealed class V269RightPane : UserControl
     {
         // A autorização de Aplicativos não exibe o status/log de uma execução anterior.
         // Os controles reais permanecem intactos e voltam durante o progresso.
-        bool show=!_driversPage&&!_structuredApp&&(!_appFlow||Current?.Kind==V269PanelKind.Progress);
+        bool show=!_driversPage&&!_structuredApp&&Current?.CancelFlow is null &&
+            Current?.Kind != V269PanelKind.DriverReview && (!_appFlow||Current?.Kind==V269PanelKind.Progress);
         _operationContent.Visible=show;
         bool reserve=show&&_hasOperationContent;
         _layout.RowStyles[2].SizeType=_appFlow?SizeType.Absolute:SizeType.Percent;
@@ -407,7 +439,8 @@ internal sealed class V269RightPane : UserControl
         else FitOperationHistory();
     }
 
-    internal bool AppProgressChromeActive=>_appHistoryPage&&_appFlow&&Current?.Kind==V269PanelKind.Progress;
+    internal bool AppProgressChromeActive=>_appHistoryPage&&_appFlow&&
+        Current is {Kind:V269PanelKind.Progress, CancelFlow:null};
 
     private void PaintAppFlowHeading(object? sender,PaintEventArgs e)
     {
@@ -416,8 +449,11 @@ internal sealed class V269RightPane : UserControl
         int n=S(20),x=S(2),y=Math.Max(0,(_appFlowHeading.Height-S(9)-n)/2);
         bool confirmation=Current?.Kind==V269PanelKind.Confirmation;
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
-        string color=confirmation?(_appPaneTheme==V269Theme.Claro?"#28884d":"#74bb77"):
-            (_appPaneTheme==V269Theme.Claro?"#14649e":"#54b8e2");
+        string color=confirmation || Current?.FlowResult?.Complete==true
+            ? (_appPaneTheme==V269Theme.Claro?"#087660":"#70c6a3")
+            : Current?.FlowResult is { Complete: false }
+                ? (_appPaneTheme==V269Theme.Claro?"#966117":"#e4bb79")
+                : (_appPaneTheme==V269Theme.Claro?"#14649e":"#54b8e2");
         using var pen=new Pen(V269AppTable.H(color),Math.Max(1f,S(2)))
             {StartCap=LineCap.Round,EndCap=LineCap.Round,LineJoin=LineJoin.Round};
         if(confirmation)
@@ -457,7 +493,8 @@ internal sealed class V269RightPane : UserControl
     }
     private void ApplyPaneSurface()
     {
-        var palette=(_structuredApp||_appFlow)?V269AppDetailStyle.Palette(_appPaneTheme):_basePanePalette;
+        bool styled = _structuredApp || _appFlow || Current?.Kind == V269PanelKind.DriverReview;
+        var palette=styled?V269AppDetailStyle.Palette(_appPaneTheme):_basePanePalette;
         BackColor = palette.RightPanel;
         _titleHost.BackColor=palette.RightPanel;_appFlowHeading.ForeColor=palette.Text;
         foreach(var button in _choices.Controls.OfType<V269AppFlowButton>())
@@ -475,12 +512,23 @@ internal sealed class V269RightPane : UserControl
         _descriptionHost.BackColor=palette.RightPanel;
         _description.ForeColor = palette.SecondaryText;
         _applicationDetails.ApplyPalette(V269AppDetailStyle.Palette(_appPaneTheme),_appPaneTheme);
+        if (_driverReview is { IsDisposed: false } review)
+        {
+            var reviewPalette = V269AppDetailStyle.Palette(_appPaneTheme);
+            void ColorReview(Control control)
+            {
+                control.BackColor = control is TextBoxBase or ListBox or Button ? reviewPalette.Card : reviewPalette.RightPanel;
+                control.ForeColor = reviewPalette.Text;
+                foreach (Control child in control.Controls) ColorReview(child);
+            }
+            ColorReview(review);
+        }
         _operationHistory?.ApplyAppearance(_appPaneTheme,_appInterfacePercent,_applicationDetails.Font);
-        Padding=(_structuredApp||_appFlow)?new Padding(V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
+        Padding=styled?new Padding(V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(13,_appInterfacePercent,DeviceDpi),
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi)):new Padding(13);
-        _title.Font=(_structuredApp||_appFlow?_appTitleFont:_normalTitleFont)??_title.Font;
+        _title.Font=(styled?_appTitleFont:_normalTitleFont)??_title.Font;
         ApplyAppTitleMetrics();
         _title.Invalidate();Invalidate();
     }
@@ -526,7 +574,7 @@ internal sealed class V269RightPane : UserControl
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        if((!_structuredApp&&!_appFlow)||Width<3||Height<3)return;
+        if((!_structuredApp&&!_appFlow&&Current?.Kind!=V269PanelKind.DriverReview)||Width<3||Height<3)return;
         var state=e.Graphics.Save();
         try
         {
@@ -762,7 +810,7 @@ internal sealed class V269Shell : UserControl
         _rightPane.PresentationChanged += (_, _) =>
         {
             if (_rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress
-                or V269PanelKind.Result or V269PanelKind.History)
+                or V269PanelKind.Result or V269PanelKind.History or V269PanelKind.DriverReview)
             {
                 _compactPaneOpen = true;
                 _dashboardPaneOpen = null;
@@ -800,6 +848,13 @@ internal sealed class V269Shell : UserControl
         if (!Enum.IsDefined(page)) throw new ArgumentOutOfRangeException(nameof(page));
         bool changed = SelectedPage != page;
         if (changed) _dashboardPaneOpen = null;
+        if (changed && SelectedPage == V269Page.Drivers &&
+            _rightPane.Current is { Kind: V269PanelKind.DriverReview, DriverReview: { IsDisposed: false } review })
+        {
+            review.Close();
+            if (review.IsDisposed && ReferenceEquals(_rightPane.Current?.DriverReview, review))
+                _rightPane.Present(null);
+        }
         if (changed && ((SelectedPage == V269Page.Aplicativos && _rightPane.Current?.Application is not null) ||
             (SelectedPage == V269Page.Drivers && _rightPane.Current?.Driver is not null)))
             _rightPane.Present(null);
@@ -937,7 +992,7 @@ internal sealed class V269Shell : UserControl
         // desaparecer, e o resultado/histórico continua acessível entre abas.
         bool dashboard = SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
         bool mandatory = _rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress;
-        bool retained = _rightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History;
+        bool retained = _rightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History or V269PanelKind.DriverReview;
         bool showRight = !dashboard || mandatory || retained;
         if (_paneToggle is { } toggle)
         {

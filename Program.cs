@@ -2469,7 +2469,7 @@ internal sealed partial class MainForm : Form
         }
         _operationResult = text;
         _status.Text = text;
-        if (_busy && _nav.RightPane.Current is not { Kind: V269PanelKind.Result })
+        if (_busy && _nav.RightPane.Current is not ({ Kind: V269PanelKind.Result } or { CancelFlow: not null }))
             _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text));
         _toolTips.SetToolTip(_status, text);
     }

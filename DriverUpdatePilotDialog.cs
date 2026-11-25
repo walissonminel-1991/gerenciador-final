@@ -7,6 +7,12 @@ namespace GerenciadorAplicativos;
 // backup exportado e conferido, diário válido e revalidação transacional.
 // A consulta G3.1 continua somente leitura; fixtures não usam WUA real.
 // Fixtures sinteticas mantem o contrato historico do piloto completo.
+internal sealed record DriverPilotPaneHooks(
+    Func<string, string, Task<bool>> Authorize,
+    Func<Action, bool> TryBegin,
+    Action<string> Publish,
+    Action<string, bool> Finish);
+
 internal static class DriverUpdatePilotDialog
 {
     private sealed record ChoiceRow(DriverUpdatePilotChoice Choice)
@@ -20,7 +26,8 @@ internal static class DriverUpdatePilotDialog
         DriverInventoryResult inventory, DriverOfficialResult official,
         DriverInventoryEntry selected, Func<bool> isCurrent,
         IDriverUpdatePilotBackend? backendForTest = null,
-        Func<IDriverUpdatePilotJournal>? journalForTest = null)
+        Func<IDriverUpdatePilotJournal>? journalForTest = null,
+        DriverPilotPaneHooks? pane = null)
     {
         var available = official.Matches
             .Where(m => string.Equals(m.DeviceId, selected.DeviceId,
@@ -111,7 +118,7 @@ internal static class DriverUpdatePilotDialog
             AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
             AccessibleName = "Estado da atualização piloto WUA"
         };
-        var nonOwningHint = new ToolTip();
+        var nonOwningHint = new ToolTip { Active = pane is null };
         form.Disposed += (_, _) => nonOwningHint.Dispose();
         var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
@@ -157,13 +164,18 @@ internal static class DriverUpdatePilotDialog
         root.Controls.Add(actions, 0, 7);
         form.Controls.Add(root);
 
+        bool physicalPaneRunning = false;
+        bool physicalVerified = false;
+        string lastStatus = "";
         // ToolTip não participa da identidade do snapshot.
         void SetStatus(string message)
         {
             if (form.IsDisposed) return;
+            lastStatus = message;
             status.Text = message;
             status.AccessibleDescription = message;
             nonOwningHint.SetToolTip(status, message);
+            if (physicalPaneRunning) pane?.Publish(message);
         }
         bool CanReview()
         {
@@ -171,6 +183,7 @@ internal static class DriverUpdatePilotDialog
             catch (Exception ex) when (ex is not OutOfMemoryException) { return false; }
         }
         CancellationTokenSource? active = null;
+        form.Disposed += (_, _) => active?.Cancel();
         bool busy = false;
         bool invalidated = false;
         void UpdateEligibility()
@@ -437,18 +450,25 @@ internal static class DriverUpdatePilotDialog
                     ? DriverG32RecoveryTicket.CanOffer(inventory, selected, row.Choice)
                     : DriverG31Wiring.CanExecutePilot(backendForTest, journalForTest)) ||
                 !CanReview() || !available.Contains(row)) return;
-            if (nativeWua && MessageBox.Show(form,
-                "Autoriza instalar UMA oferta de driver pelo Windows Update neste computador?" +
-                Environment.NewLine + "UpdateID: " + row.Choice.UpdateId +
-                " / revisão: " + row.Choice.Revision +
-                Environment.NewLine + "Dispositivo: " + row.Choice.DeviceId +
-                Environment.NewLine + "Classe: " + row.Choice.DriverClass +
-                Environment.NewLine + "Um backup OEM verificado será obrigatório antes do download." +
-                Environment.NewLine + "O Windows pode afetar outros dispositivos compatíveis." +
-                Environment.NewLine + "Não há rollback automático; pode ser necessário reiniciar.",
-                "Confirmar instalação física de driver", MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
-                return;
+            if (nativeWua)
+            {
+                const string title = "Confirmar instalação física de driver";
+                string question = "Autoriza instalar UMA oferta de driver pelo Windows Update neste computador?" +
+                    Environment.NewLine + "UpdateID: " + row.Choice.UpdateId +
+                    " / revisão: " + row.Choice.Revision +
+                    Environment.NewLine + "Dispositivo: " + row.Choice.DeviceId +
+                    Environment.NewLine + "Classe: " + row.Choice.DriverClass +
+                    Environment.NewLine + "Um backup OEM verificado será obrigatório antes do download." +
+                    Environment.NewLine + "O Windows pode afetar outros dispositivos compatíveis." +
+                    Environment.NewLine + "Não há rollback automático; pode ser necessário reiniciar.";
+                bool accepted = pane is null
+                    ? MessageBox.Show(form, question, title, MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes
+                    : await pane.Authorize(title, question);
+                if (!accepted || form.IsDisposed) return;
+                UpdateEligibility();
+                if (!start.Enabled || !CanReview() || !ReferenceEquals(choices.SelectedItem, row)) return;
+            }
 
             bool gateHeld = false;
             IDriverUpdatePilotJournal? journal = null;
@@ -456,6 +476,24 @@ internal static class DriverUpdatePilotDialog
             busy = true;
             active = new CancellationTokenSource();
             var operation = active;
+            physicalVerified = false;
+            if (nativeWua && pane is not null)
+            {
+                if (!pane.TryBegin(() =>
+                    {
+                        operation.Cancel();
+                        SetStatus("Cancelamento solicitado. WUA e backup podem continuar; confira o diário antes de repetir.");
+                    }))
+                {
+                    active = null;
+                    operation.Dispose();
+                    busy = false;
+                    SetStatus("Outra operação está em andamento.");
+                    UpdateEligibility();
+                    return;
+                }
+                physicalPaneRunning = true;
+            }
             bool CurrentChoice() => !form.IsDisposed && !invalidated &&
                 CanReview() && Equals(choices.SelectedItem, row) &&
                 available.Contains(row);
@@ -511,12 +549,16 @@ internal static class DriverUpdatePilotDialog
                         try
                         {
                             if (form.InvokeRequired)
-                                form.BeginInvoke((Action)(() => SetStatus(message)));
-                            else SetStatus(message);
+                                form.BeginInvoke((Action)(() =>
+                                {
+                                    if (ReferenceEquals(active, operation)) SetStatus(message);
+                                }));
+                            else if (ReferenceEquals(active, operation)) SetStatus(message);
                         }
                         catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException) { }
                     },
                     recovery: recovery);
+                physicalVerified = result.State == DriverUpdatePilotState.Verified;
                 if (!form.IsDisposed)
                     SetStatus("Resultado " + result.State + ": " + result.Reason +
                         (recovery is null ? "" :
@@ -531,6 +573,9 @@ internal static class DriverUpdatePilotDialog
             }
             finally
             {
+                string terminalStatus = lastStatus;
+                bool publishTerminal = physicalPaneRunning;
+                physicalPaneRunning = false;
                 if (journal is IDisposable resource) resource.Dispose();
                 if (gateHeld) DriverG32RecoveryTicket.EndOperation();
                 operation.Dispose();
@@ -544,6 +589,8 @@ internal static class DriverUpdatePilotDialog
                     isolated.Checked = false;
                     UpdateEligibility();
                 }
+                if (publishTerminal)
+                    pane?.Finish(terminalStatus, physicalVerified);
             }
         };
         cancel.Click += (_, _) =>
@@ -558,7 +605,33 @@ internal static class DriverUpdatePilotDialog
             else form.Close();
         };
         form.FormClosing += (_, _) => active?.Cancel();
+        if (pane is not null)
+        {
+            form.TopLevel = false;
+            form.FormBorderStyle = FormBorderStyle.None;
+            form.Dock = DockStyle.Fill;
+            form.MinimumSize = Size.Empty;
+            root.Padding = Padding.Empty;
+            root.Dock = DockStyle.Top;
+            root.Height = 368;
+            form.AutoScroll = true;
+            form.ClientSizeChanged += (_, _) => root.Height = Math.Max(368, form.ClientSize.Height);
+            // A revisão lateral recebe uma oferta exata. Os dois aceites
+            // explícitos continuam visíveis e são reaplicados antes da execução.
+            headline.Visible = false;
+            search.Visible = false;
+            root.RowStyles[0].Height = root.RowStyles[1].Height = 0;
+            root.RowStyles[2].SizeType = SizeType.Absolute;
+            root.RowStyles[2].Height = 31;
+            root.RowStyles[4].Height = 50;
+            root.RowStyles[5].Height = 60;
+            root.RowStyles[7].Height = 56;
+            root.ColumnStyles[0].Width = 100;
+            start.Text = "Instalar com backup";
+            simulate.Text = "Revalidar";
+        }
         Filter();
+        if (pane is not null && available.Length==1) choices.SelectedIndex=0;
         SetStatus(available.Length == 0
             ? "Não há oferta WUA com identidade única e classe permitida nesta fotografia."
             : nativeWua
