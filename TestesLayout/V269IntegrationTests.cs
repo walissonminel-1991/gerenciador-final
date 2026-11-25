@@ -1502,11 +1502,15 @@ internal static class V269IntegrationTests
     private static void VerifyLocalDiagnosticExport()
     {
         var report=new LocalDiagnosticReport();
+        report.RecordPerformance(new PerformanceSample(PerformanceStage.Startup,500,10,null,null,null,0,0,null));
+        report.RecordPerformance(new PerformanceSample(PerformanceStage.InitialInventoryLoad,800,10,null,null,null,0,0,null));
         for(int i=0;i<130;i++)
-            report.RecordPerformance(new PerformanceSample(PerformanceStage.Startup,i,10,null,null,null,0,0,null));
+            report.RecordPerformance(new PerformanceSample(PerformanceStage.Inventory,i,10,null,null,null,0,0,null));
         string bounded=report.Format();
         Require(bounded.Contains("128 retidas de 130")&&!bounded.Contains("duracao_ms=0.00 ")&&
-            bounded.Contains("duracao_ms=129.00 "),"diagnóstico mantém histórico limitado e últimas etapas");
+            bounded.Contains("duracao_ms=129.00 ")&&bounded.Contains("etapa=Startup duracao_ms=500.00")&&
+            bounded.Contains("etapa=InitialInventoryLoad duracao_ms=800.00"),
+            "diagnóstico mantém histórico limitado e referências de abertura durante toda a sessão");
         using(report.MeasureUi(DiagnosticUiStage.Navigation,V269Page.Inicio)) { }
         report.RecordFailure(@"C:\USUARIO_TESTE\arquivo.txt",new IOException("CONTEUDO_PRIVADO_TESTE"));
         report.RecordFailure("FIXTURE.FALHA",new IOException("CONTEUDO_PRIVADO_TESTE"));
