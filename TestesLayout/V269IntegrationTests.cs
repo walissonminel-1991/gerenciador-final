@@ -1521,11 +1521,14 @@ internal static class V269IntegrationTests
         string[] removedFields = ["_updateAllButton","_bulkUninstallButton","_selectManyButton",
             "_clearSelectionButton","_allFilterButton","_selectedFilterButton","_hardwareGrid",
             "_exportHardwareButton","_hardwareGroups","_multiSelectMode","_checkedApps",
-            "_batchUpdatesActive","_batchStopRequested","_batchLastAttempt"];
+            "_batchUpdatesActive","_batchStopRequested","_batchLastAttempt","_rowInfo"];
         foreach (string name in removedFields)
             Require(typeof(MainForm).GetField(name, fields) is null, "campo legado não deve retornar: " + name);
         string[] removedMethods = ["UpdateAllApprovedAsync","ToggleMultiSelection","ClearMultiSelection",
-            "UninstallCheckedAsync","UpdateBulkButtons","ApplyFilterAppearance","ExportHardwareImage","ShowHardwareCompact"];
+            "UninstallCheckedAsync","UpdateBulkButtons","ApplyFilterAppearance","ExportHardwareImage","ShowHardwareCompact",
+            "ShowHiddenAppsReviewAsync","DrawV269RowAction","DrawUpdateOperation","DrawRowButton","AddTools",
+            "ToolCaption","CreateToolsFlow","AddAction","InvalidarAtualizacoes","UninstallSelectedAsync",
+            "AddIntegratedAction","FitSystemActionsHeight","ShowIntegratedSnapshot","BuildInfoCard"];
         foreach (string name in removedMethods)
             Require(typeof(MainForm).GetMethod(name, fields) is null, "entrada legada não deve retornar: " + name);
         Require(typeof(DarkProgramList).GetProperty("MultiSelectMode", fields) is null &&

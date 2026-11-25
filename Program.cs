@@ -740,7 +740,6 @@ internal sealed partial class MainForm : Form
     private string _appFilter = "Todos";
     private Button? _checkUpdatesButton;
     private string _operationResult = "Pronto";
-    private readonly Font _rowInfo = new("Segoe UI", 8.8F);
 
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -1337,78 +1336,6 @@ internal sealed partial class MainForm : Form
     }
 
 
-    private async Task ShowHiddenAppsReviewAsync()
-    {
-        var scan = await Task.Run(AppServices.ScanHiddenWindowsProgramsForReview);
-        if (IsDisposed || _betaClose.IsClosing) return;
-
-        using var dialog = new Form
-        {
-            Text = "Aplicativos ocultos — consulta",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 710,
-            Height = 475,
-            MinimumSize = new Size(480, 310),
-            BackColor = PanelBackground,
-            ForeColor = Ink,
-            ShowInTaskbar = false
-        };
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(12),
-            BackColor = PanelBackground
-        };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
-        var info = new Label
-        {
-            Dock = DockStyle.Fill,
-            ForeColor = Muted,
-            Font = new Font("Segoe UI", 9F),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Text = $"{scan.Items.Count} entrada(s) marcadas como ocultas no Registro. " +
-                "Não são necessariamente aplicativos removíveis. Nenhuma ação é oferecida." +
-                (scan.ReadFailures > 0
-                    ? $" ATENÇÃO: {scan.ReadFailures} falha(s) de leitura; resultado parcial."
-                    : "")
-        };
-        layout.Controls.Add(info, 0, 0);
-        static string DisplayValue(string value) =>
-            new string((value ?? "").Where(c => !char.IsControl(c)).Take(160).ToArray());
-        string[] entries = scan.Items.OrderBy(item => item.Name,
-            StringComparer.CurrentCultureIgnoreCase)
-            .Select(item => $"{DisplayValue(item.Name)}  |  Versão: {DisplayValue(item.Version)}  |  " +
-                $"Editor: {DisplayValue(item.Publisher)}")
-            .ToArray();
-        var result = new TextBox
-        {
-            Dock = DockStyle.Fill,
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
-            WordWrap = true,
-            BorderStyle = BorderStyle.FixedSingle,
-            BackColor = AppServices.Background,
-            ForeColor = Ink,
-            Font = new Font("Consolas", 9F),
-            Text = entries.Length > 0
-                ? string.Join(Environment.NewLine + Environment.NewLine, entries)
-                : "Nenhum componente oculto identificado nesta consulta."
-        };
-        layout.Controls.Add(result, 0, 1);
-        var close = CreateSecondaryButton("Fechar");
-        close.Dock = DockStyle.Right;
-        close.Width = 105;
-        close.Click += (_, _) => dialog.Close();
-        layout.Controls.Add(close, 0, 2);
-        dialog.Controls.Add(layout);
-        dialog.ShowDialog(this);
-    }
-
     private async Task CheckUpdatesFromButtonAsync()
     {
         if (_installerDownloadCts is not null)
@@ -1613,53 +1540,6 @@ internal sealed partial class MainForm : Form
             ControlPaint.DrawFocusRectangle(g,new Rectangle(bounds.X+S(4),bounds.Y+1,Math.Max(1,bounds.Width-S(5)),Math.Max(1,bounds.Height-2)));
     }
 
-    private void DrawV269RowAction(Graphics graphics, Rectangle area, string label, V269ActionKind kind,
-        bool allowed, (bool Hovered, bool Pressed, float Pulse) visual)
-    {
-        var theme = _v269Appearance.Theme;
-        var foreground = V269VisualTokens.ActionColor(theme, kind, allowed);
-        if (theme == V269Theme.Claro) foreground = allowed ? Color.White : V269Palette.SecondaryText;
-        DrawRowButton(graphics, area, label, V269VisualTokens.ActionBackground(theme, kind, allowed),
-            allowed ? visual : default, foreground, V269VisualTokens.ActionBorder(theme, kind, allowed));
-    }
-
-    private void DrawUpdateOperation(Graphics graphics, Rectangle area, UpdateOperationSnapshot state)
-    {
-        Color color = state.Progress.Stage switch
-        {
-            UpdateStage.Confirmed => Color.FromArgb(120, 222, 165),
-            UpdateStage.Failed => Color.FromArgb(255, 133, 143),
-            UpdateStage.Pending or UpdateStage.Blocked or UpdateStage.AuthorizationDeclined => Color.FromArgb(245, 204, 103),
-            UpdateStage.Cancelled => Muted,
-            _ => Color.FromArgb(114, 196, 255)
-        };
-        string label = state.Text;
-        // Preservar o número e o resultado essencial mesmo no DPI mais alto.
-        if (TextRenderer.MeasureText(graphics, label, _rowInfo).Width > area.Width)
-            label = state.Progress.Stage switch
-            {
-                UpdateStage.Downloading => state.Progress.Percent is int p ? $"Baixando — {p}%" : "Baixando...",
-                UpdateStage.Confirmed => state.RestartRequired ? "✓ 100% · Reinicie" : "✓ 100% · Concluída",
-                UpdateStage.Failed => "Falha · veja detalhes",
-                UpdateStage.Pending => "Resultado pendente",
-                UpdateStage.Blocked => "Atualização bloqueada",
-                UpdateStage.AuthorizationDeclined => "UAC recusado",
-                UpdateStage.Cancelled => "Cancelada",
-                UpdateStage.VerifyingIntegrity => "Conferindo integridade...",
-                UpdateStage.ValidatingIdentity => "Conferindo pacote...",
-                UpdateStage.ValidatingSignature => "Conferindo assinatura...",
-                UpdateStage.Confirming => "Conferindo versão...",
-                _ => state.Progress.Stage == UpdateStage.Installing ? "Instalando..." : "Preparando..."
-            };
-        TextRenderer.DrawText(graphics, label, _rowInfo,
-            new Rectangle(area.X, area.Y - 2, area.Width, area.Height - 4), color,
-            TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        var track = new Rectangle(area.X + 1, area.Bottom - 5, area.Width - 2, 4);
-        if (track.Width < 4) return;
-        DrawOperationMeter(graphics, track, GfUniversalMeter.Update(state.Progress, _v269Appearance.Theme),
-            V269Palette.Border);
-    }
-
     private void DrawOperationMeter(Graphics graphics, Rectangle track, GfMeterFrame frame, Color trackColor)
     {
         if (track.Width <= 0 || track.Height <= 0) return;
@@ -1681,43 +1561,6 @@ internal sealed partial class MainForm : Form
     private static string DisplayAppVersion(string version)
         => string.IsNullOrWhiteSpace(version) || version.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
             ? "não informada" : version;
-
-    private static void DrawRowButton(Graphics graphics, Rectangle rect, string text, Color color,
-        (bool Hovered, bool Pressed, float Pulse) visual, Color? textColor = null, Color? border = null)
-    {
-        if (rect.Width <= 0 || rect.Height <= 0) return;
-        // O relevo de 2 px e a mudança de tonalidade representam um clique real.
-        // A animação dura 160 ms e termina antes de qualquer janela externa abrir.
-        var drawRect = rect;
-        if (visual.Pressed) { drawRect.Offset(0, 2); drawRect.Height = Math.Max(12, drawRect.Height - 2); }
-        static Color Mix(Color a, Color b, float amount)
-        {
-            int Blend(int x, int y) => Math.Clamp((int)Math.Round(x + (y - x) * amount), 0, 255);
-            return Color.FromArgb(Blend(a.R, b.R), Blend(a.G, b.G), Blend(a.B, b.B));
-        }
-        Color fill = color;
-        if (visual.Pressed) fill = Mix(fill, Color.Black, 0.18F);
-        else if (visual.Hovered) fill = Mix(fill, Color.White, 0.10F);
-        float pulse = MathF.Sin(MathF.PI * visual.Pulse);
-        if (pulse > 0) fill = Mix(fill, Color.White, pulse * 0.08F);
-        using var path = ModernButton.RoundRect(drawRect, 7);
-        using (var bg = new SolidBrush(fill)) graphics.FillPath(bg, path);
-        if (border is Color borderColor)
-        {
-            using var outline = new Pen(borderColor);
-            graphics.DrawPath(outline, path);
-        }
-        if (visual.Hovered || visual.Pulse > 0)
-        {
-            using var outline = new Pen(Color.FromArgb(
-                65 + (int)(60 * pulse), 213, 233, 255), 1.1F);
-            graphics.DrawPath(outline, path);
-        }
-        using var font = new Font("Segoe UI", 8.4F, FontStyle.Bold);
-        TextRenderer.DrawText(graphics, text, font, drawRect,
-            textColor ?? Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-            TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-    }
 
     private void AddToolsPages()
     {
@@ -1793,14 +1636,6 @@ internal sealed partial class MainForm : Form
     private sealed record ToolInfo(string Name, string Description, Color Color, Func<Task> Action);
     private static ToolInfo Tool(string name, string details, Color color, Func<Task> action) =>
         new(name, details, color, action);
-
-    private void AddTools(Panel page, IEnumerable<ToolInfo> tools)
-        => page.Controls.Add(CreateToolsFlow(tools));
-
-    private static string ToolCaption(string name, bool compact) =>
-        compact && name == "Limpeza de Disco automática"
-            ? "Limpeza de Disco\nautomática"
-            : name;
 
     // Apresentação exclusiva de Limpeza; os seis manipuladores reais permanecem intactos.
     private Control CreateV269CleanupTools(IEnumerable<ToolInfo> tools)
@@ -1884,166 +1719,6 @@ internal sealed partial class MainForm : Form
         host.SizeChanged += (_, _) => Fit();
         host.DpiChangedAfterParent += (_, _) => Fit();
         Fit();
-        return host;
-    }
-
-    private Control CreateToolsFlow(IEnumerable<ToolInfo> tools, bool compact = false)
-    {
-        var host = new DarkScrollableFlow
-        {
-            Dock = DockStyle.Fill, Margin = Padding.Empty,
-            EmbeddedInPage = true, BackColor = AppServices.Background
-        };
-        var flow = host.Content;
-        var measuredCards = new List<(Panel Card, Label Description)>();
-        flow.Padding = new Padding(7);
-        flow.BackColor = AppServices.Background;
-        foreach (ToolInfo tool in tools)
-        {
-            var card = new Panel
-            {
-                Size = new Size(244, 90),
-                BackColor = PanelBackground,
-                Margin = new Padding(3, 3, 5, 6),
-                Padding = new Padding(6)
-            };
-
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 2,
-                BackColor = PanelBackground,
-                Margin = Padding.Empty,
-                Padding = Padding.Empty
-            };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-            var button = CreateButton(tool.Name, tool.Color, Color.White);
-            if (button is ModernButton modernButton)
-                modernButton.AllowMultilineText = false;
-            // Um titulo curto nao precisa ocupar todo o cartao.
-            // Largura proporcional ao texto, mantendo espaco clicavel.
-            int preferredButtonWidth = TextRenderer.MeasureText(
-                tool.Name, button.Font, new Size(int.MaxValue, 33),
-                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 30;
-            button.Dock = DockStyle.None;
-            button.Anchor = AnchorStyles.Left | AnchorStyles.Top;
-            // Cartoes de reparo largos podem acomodar o titulo completo:
-            // limitar artificialmente a 215px fazia ModernButton diminuir
-            // a fonte de alguns botoes, apesar do espaco livre.
-            button.Size = new Size(compact
-                ? Math.Clamp(preferredButtonWidth, 112, 215)
-                : Math.Max(112, preferredButtonWidth), 30);
-            button.Margin = Padding.Empty;
-            button.MinimumSize = new Size(0, 29);
-            button.AccessibleName = tool.Name;
-            button.AccessibleDescription = tool.Description;
-            _toolTips.SetToolTip(button, tool.Description);
-            _actionControls.Add(button);
-            if (tool.Name == "Reparar rede")
-            {
-                _repairNetworkButton = button;
-                button.Enabled = false; // A correção depende de um diagnóstico anterior.
-            }
-            if (tool.Name == "Reparar Windows")
-            {
-                _repairWindowsButton = button;
-                button.Enabled = false;
-            }
-            button.Click += async (_, _) =>
-            {
-                if (_busy || _betaClose.IsClosing) return;
-                try { await tool.Action(); }
-                catch (Exception ex) { ReportError(ex); }
-            };
-
-            var description = new Label
-            {
-                Dock = DockStyle.Fill,
-                AutoEllipsis = false,
-                ForeColor = Muted,
-                Font = new Font("Segoe UI", compact ? 8.5F : 8.6F),
-                Text = tool.Description,
-                Padding = new Padding(2, 2, 2, 0),
-                TextAlign = ContentAlignment.TopLeft
-            };
-
-            _toolTips.SetToolTip(description, tool.Description);
-            layout.Controls.Add(button, 0, 0);
-            layout.Controls.Add(description, 0, 1);
-            card.Controls.Add(layout);
-            flow.Controls.Add(card);
-            measuredCards.Add((card, description));
-        }
-        // Tipografia e botoes mantem o mesmo tamanho de desenho em monitores
-        // grandes; apenas a quantidade de colunas e a largura se adaptam.
-        bool fittingCards = false;
-        void FitCards()
-        {
-            if (fittingCards || host.IsDisposed || host.ClientSize.Width <= 0) return;
-            fittingCards = true;
-            try
-            {
-                double scale = Math.Max(1d, host.DeviceDpi / 96d);
-                int viewport = Math.Max(1, host.ClientSize.Width - (int)Math.Ceiling(16 * scale));
-                int usable = Math.Max(1, viewport - flow.Padding.Horizontal);
-                int desired = (int)Math.Ceiling((compact ? 216 : 244) * scale);
-                int margin = (int)Math.Ceiling(8 * scale);
-                // Seis ferramentas de limpeza e os comandos de reparo usam
-                // ate tres colunas, preenchendo a largura sem espacos de cards removidos.
-                int columns = Math.Clamp(usable / Math.Max(1, desired + margin), 1, 3);
-                if (compact && usable < (int)Math.Ceiling(520 * scale)) columns = 1;
-                int inset = (int)Math.Ceiling(7 * scale);
-                int cardWidth = Math.Max(1, (viewport - 2 * inset - columns * margin) / columns);
-                Padding balanced = new Padding(inset, 7, inset, 7);
-                if (flow.Padding != balanced) flow.Padding = balanced;
-                // A altura depende do texto real e da largura atual.
-                // Um card com duas linhas nao pode reservar a altura de
-                // outro com quatro linhas, e nenhum texto deve ser cortado.
-                int buttonRow = (int)Math.Ceiling(33 * scale);
-                int minHeight = (int)Math.Ceiling(78 * scale);
-                int maxHeight = (int)Math.Ceiling(160 * scale);
-                int cardHeight = minHeight;
-                foreach (var (card, description) in measuredCards)
-                {
-                    if (card.Width != cardWidth) card.Width = cardWidth;
-                    // A largura inicial do botao podia ultrapassar o card
-                    // em viewports estreitos (reproducao real na CI 800x600).
-                    var cardButton = card.Controls.OfType<TableLayoutPanel>()
-                        .SelectMany(layout => layout.Controls.OfType<Button>()).FirstOrDefault();
-                    if (cardButton is not null)
-                    {
-                        int measured = TextRenderer.MeasureText(
-                            cardButton.Text, cardButton.Font, new Size(int.MaxValue, 33),
-                            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 30;
-                        int ideal = compact ? Math.Clamp(measured, 112, 215)
-                            : Math.Max(112, measured);
-                        int fit = Math.Min(ideal, Math.Max(90,
-                            cardWidth - card.Padding.Horizontal - 6));
-                        if (cardButton.Width != fit) cardButton.Width = fit;
-                    }
-                    int labelWidth = Math.Max(90,
-                        cardWidth - card.Padding.Horizontal - description.Padding.Horizontal - 4);
-                    int textHeight = TextRenderer.MeasureText(description.Text,
-                        description.Font, new Size(labelWidth, 1000),
-                        TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
-                    int required = buttonRow + card.Padding.Vertical +
-                        description.Padding.Vertical + textHeight +
-                        (int)Math.Ceiling(5 * scale);
-                    cardHeight = Math.Max(cardHeight, required);
-                }
-                cardHeight = Math.Clamp(cardHeight, minHeight, maxHeight);
-                foreach (var (card, _) in measuredCards)
-                    if (card.Height != cardHeight) card.Height = cardHeight;
-                host.Reflow();
-            }
-            finally { fittingCards = false; }
-        }
-        host.SizeChanged += (_, _) => FitCards();
-        host.DpiChangedAfterParent += (_, _) => FitCards();
-        FitCards();
         return host;
     }
 
@@ -2478,21 +2153,6 @@ internal sealed partial class MainForm : Form
         Cursor = Cursors.Hand,
         CornerRadius = 10
     };
-
-    private void AddAction(TableLayoutPanel layout, int row, string text, Color color, Func<Task> action)
-    {
-        var button = CreateButton(text, color, Color.White);
-        button.Dock = DockStyle.Fill;
-        button.Margin = new Padding(0, 3, 0, 10);
-        _actionControls.Add(button);
-        button.Click += async (_, _) =>
-        {
-            if (_busy || _betaClose.IsClosing) return;
-            try { await action(); }
-            catch (Exception ex) { ReportError(ex); }
-        };
-        layout.Controls.Add(button, 0, row);
-    }
 
     public void Log(string message)
     {
@@ -3012,24 +2672,6 @@ internal sealed partial class MainForm : Form
             item.Source = item.IsUpdate ? match.Provider : "";
             // A correspondencia remota jamais autoriza instalar pacotes.
         }
-    }
-
-    private void InvalidarAtualizacoes()
-    {
-        _catalogoVerificado = false;
-        _available.Clear();
-        foreach (var entry in _installed)
-        {
-            entry.IsUpdate = false;
-            entry.UpdateRequiresReview = false;
-            entry.UpdateEvidence = "";
-            entry.ComparisonState = MatchState.Unmatched;
-            entry.AvailableVersion = "";
-            entry.PackageId = "";
-            entry.Source = "";
-        }
-        if (_appFilter == "Com atualização") _appFilter = "Todos";
-        RenderPrograms();
     }
 
     private void RenderPrograms()
@@ -3746,13 +3388,6 @@ internal sealed partial class MainForm : Form
                 }
             }
         }, quietStartup: false);
-    }
-
-    private async Task UninstallSelectedAsync()
-    {
-        if (_programList.SelectedItem is ProgramEntry entry)
-            await UninstallEntriesAsync(new[] { entry });
-        else Status("Nenhum aplicativo selecionado");
     }
 
     private CancellationTokenSource? _uninstallCts;

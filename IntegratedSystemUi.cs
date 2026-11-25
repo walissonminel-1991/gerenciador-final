@@ -234,92 +234,6 @@ internal sealed partial class MainForm
         (view == "startup" ? _nav.SelectedPage == V269Page.Inicializacao :
             _nav.SelectedPage == V269Page.Sistema && _activeSystemView == view);
 
-    private void AddIntegratedAction(TableLayoutPanel parent, int column, string caption, string description,
-        Color color, Func<Task> action)
-    {
-        var card = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 2, Margin = new Padding(2, 1, 3, 2),
-            Padding = new Padding(4, 2, 4, 2)
-        };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var button = CreateButton(caption, color, Color.White);
-        button.AccessibleDescription = description;
-        button.Dock = DockStyle.Fill;
-        button.Margin = Padding.Empty;
-        _actionControls.Add(button);
-        _toolTips.SetToolTip(button, description);
-        button.Click += async (_, _) =>
-        {
-            if (_busy) return;
-            SetSystemView(caption switch
-            {
-                "Memória RAM" => "memory", "Energia" => "energy", "Windows Update" => "update", _ => "hardware"
-            });
-            try { await action(); } catch (Exception ex) { ReportError(ex); }
-        };
-        card.Controls.Add(button, 0, 0);
-        card.Controls.Add(new Label
-        {
-            Name = "SystemActionDescription" + column,
-            Text = description,
-            Dock = DockStyle.Fill, ForeColor = Muted,
-            AutoEllipsis = false,
-            Font = new Font("Segoe UI", 9F),
-            TextAlign = ContentAlignment.TopLeft,
-            Padding = new Padding(1, 2, 1, 0),
-            AccessibleDescription = description
-        }, 0, 1);
-        parent.Controls.Add(card, column, 0);
-    }
-
-    private void FitSystemActionsHeight(TableLayoutPanel root, TableLayoutPanel actions)
-    {
-        if (root.IsDisposed || actions.IsDisposed || root.ClientSize.Width < 1) return;
-        double dpi = Math.Max(1d, DeviceDpi / 96d);
-        int available = root.ClientSize.Width - root.Padding.Horizontal;
-        int columns = available < Math.Ceiling(480 * dpi) ? 2 : 4;
-        var cards = actions.Controls.OfType<TableLayoutPanel>().ToArray();
-        int rows = (cards.Length + columns - 1) / columns;
-        if (actions.ColumnCount != columns)
-        {
-            actions.SuspendLayout();
-            try
-            {
-                actions.ColumnCount = columns;
-                actions.RowCount = rows;
-                actions.ColumnStyles.Clear();
-                actions.RowStyles.Clear();
-                for (int column = 0; column < columns; column++)
-                    actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columns));
-                for (int row = 0; row < rows; row++)
-                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / rows));
-                for (int i = 0; i < cards.Length; i++)
-                    actions.SetCellPosition(cards[i], new TableLayoutPanelCellPosition(i % columns, i / columns));
-            }
-            finally { actions.ResumeLayout(true); }
-        }
-        int width = Math.Max(24, available / columns - 23);
-        int minHeight = (int)Math.Ceiling(82d * dpi);
-        int height = minHeight;
-        foreach (var card in cards)
-        {
-            var label = card.Controls.OfType<Label>().FirstOrDefault();
-            if (label is null) continue;
-            int measured = TextRenderer.MeasureText(label.Text, label.Font,
-                new Size(width, 800),
-                TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
-            int required = (int)card.RowStyles[0].Height + measured +
-                card.Margin.Vertical + card.Padding.Vertical + label.Padding.Vertical + 3;
-            height = Math.Max(height, required);
-        }
-        int totalHeight = height * rows;
-        if (Math.Abs(root.RowStyles[0].Height - totalHeight) >= 1)
-            root.RowStyles[0].Height = totalHeight;
-    }
-
     private void FitSystemSummaryHeight() => _relayoutSystem?.Invoke();
 
     private void ReplaceSystemCards(IEnumerable<Control> cards, bool startup = false)
@@ -348,44 +262,6 @@ internal sealed partial class MainForm
             ResizeV269StartupCards(); PresentV269StartupDetails();
         }
         else { ResizeIntegratedCards(); _relayoutSystem?.Invoke(); }
-    }
-
-    private void ShowIntegratedSnapshot(SystemInfoSnapshot snapshot)
-    {
-        if (_systemPanelCards is null || IsDisposed) return;
-        _systemPanelTitle.Text = snapshot.Heading;
-        _systemPanelSummary.Text = snapshot.Summary;
-        ReplaceSystemCards(snapshot.Entries.Select(BuildInfoCard).ToArray());
-    }
-
-    private Control BuildInfoCard(SystemInfoEntry entry)
-    {
-        var panel = new TableLayoutPanel
-        {
-            Width = 390, Height = 104, RowCount = 2, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
-            Padding = new Padding(9, 5, 9, 4)
-        };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var title = new Label
-        {
-            Text = entry.Title, Dock = DockStyle.Fill,
-            ForeColor = Ink, Font = new Font("Segoe UI", 9.6F, FontStyle.Bold),
-            AutoEllipsis = false, TextAlign = ContentAlignment.MiddleLeft
-        };
-        var detail = new Label
-        {
-            Text = entry.Description, Dock = DockStyle.Fill,
-            ForeColor = Muted, Font = new Font("Segoe UI", 8.7F),
-            AutoEllipsis = false, TextAlign = ContentAlignment.TopLeft,
-            Padding = new Padding(0, 4, 0, 0)
-        };
-        _toolTips.SetToolTip(title, entry.Title);
-        _toolTips.SetToolTip(detail, entry.Description);
-        panel.Controls.Add(title, 0, 0);
-        panel.Controls.Add(detail, 0, 1);
-        return panel;
     }
 
     private void ResizeIntegratedCards()
