@@ -134,13 +134,16 @@ internal static class V269ShellTests
             "Em andamento", "Sem conclusão presumida.", 37);
         shell.PresentPanel(progress);
         var bar = shell.Controls.Find("V269PanelProgress", true)
-            .OfType<ProgressBar>().Single();
+            .OfType<GfDynamicProgressBar>().Single();
         var percent = shell.RightPane.Controls.Find("V269FlowPercentMeter", true).Single();
-        Check(percent.Visible && percent.AccessibleDescription == "37%" && !bar.Visible,
+        var chromatic = percent.Controls.OfType<GfDynamicProgressBar>().Single();
+        Check(percent.Visible && percent.AccessibleDescription == "37%" && !bar.Visible &&
+            chromatic.CurrentFrame.State==GfMeterState.Running && chromatic.CurrentFrame.Fraction==.37,
             "Aplicativos usa a barra temática com a porcentagem medida.");
         shell.SelectPage(V269Page.Configuracoes);
         Check(ReferenceEquals(shell.RightPane.Current, progress) && shell.RightPane.Visible &&
-            dashboardColumns.ColumnStyles[2].Width > 0 && bar.Visible && bar.Value == 37 && !percent.Visible,
+            dashboardColumns.ColumnStyles[2].Width > 0 && bar.Visible && bar.CurrentFrame.State==GfMeterState.Running &&
+            bar.CurrentFrame.Fraction==.37 && !percent.Visible,
             "O painel não pode perder nem ocultar o progresso ao trocar de aba.");
 
         shell.ApplyAppearance(V269Theme.Claro, 90, 90);
@@ -161,8 +164,10 @@ internal static class V269ShellTests
         Check(selectedNav.ForeColor == Color.FromArgb(242, 247, 251) &&
             otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Dark).Text,
             "Aba ativa do Dark deve conservar contraste sem brancura excessiva.");
+        Check(bar.CurrentFrame.Color==GfMeterScale.Colors(V269Theme.Dark).Blue,
+            "tema da barra compartilhada acompanha o shell");
         shell.PresentPanel(null);
-        Check(shell.RightPane.Current is null && !bar.Visible &&
+        Check(shell.RightPane.Current is null && !bar.Visible && bar.CurrentFrame.State==GfMeterState.Unavailable &&
             !shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
             "Ao dispensar a operação, Configurações deve recuperar a largura sem simular sucesso.");
 

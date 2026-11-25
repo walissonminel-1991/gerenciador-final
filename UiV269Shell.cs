@@ -458,6 +458,7 @@ internal sealed class V269RightPane : UserControl
         var value=Current?.ProgressPercent;
         var frame=GfUniversalMeter.Operation(value,Current?.Kind==V269PanelKind.Progress ?
             GfMeterState.Running : GfMeterState.Unavailable,false,_appPaneTheme);
+        _progress.BackColor=BackColor;
         _progress.Configure(_appPaneTheme,false);
         _progress.Present(frame,frame.Fraction is double fraction ? $"{fraction*100:0}%" : "Progresso não informado");
     }
@@ -578,6 +579,7 @@ internal sealed class V269RightPane : UserControl
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi)):new Padding(13);
         _title.Font=(styled?_appTitleFont:_normalTitleFont)??_title.Font;
         ApplyAppTitleMetrics();
+        UpdateLegacyMeter();
         _title.Invalidate();Invalidate();
     }
     private void ApplyAppTitleMetrics()

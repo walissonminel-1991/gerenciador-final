@@ -254,6 +254,7 @@ internal sealed class V269AppFlowMeter : Control
         AccessibleDescription = _value is int p ? p + "%" : "";
         Height = _value.HasValue ? Font.Height + S(21) : 0;
         Visible = _value.HasValue;
+        _meter.BackColor=V269AppDetailStyle.Palette(theme).RightPanel;
         _meter.Configure(theme,false); // manter geometria estática já aprovada
         _meter.Present(GfUniversalMeter.Operation(_value,GfMeterState.Running,false,theme),AccessibleDescription);
         ArrangeMeter();
