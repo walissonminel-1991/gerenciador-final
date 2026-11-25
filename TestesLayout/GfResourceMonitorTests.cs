@@ -300,8 +300,44 @@ internal static class GfResourceMonitorTests
         Console.WriteLine("OK Monitor GF: escala efetiva, recuperação de posição e preferência preservada.");
     }
 
+    private static void VerifyMultiGpuPresentation()
+    {
+        const string name="GPU dedicada — adaptador de teste com nome comercial extenso";
+        foreach(var theme in Enum.GetValues<V269Theme>())
+        {
+            using var form=new GfResourceMonitorForm();
+            form.Configure(theme,false);form.Show();Application.DoEvents();
+            var now=DateTimeOffset.UtcNow;
+            form.Present(new GfResourceMonitorSnapshot(now,14,92,42,50,48,61,
+                GpuIdentity:"fixture GPU dedicada",GpuDisplayName:name));
+            foreach(bool expanded in new[]{false,true})
+            {
+                form.SetExpanded(expanded);Application.DoEvents();
+                var labels=All(form).OfType<Label>().Where(x=>x.Visible).ToArray();
+                if(expanded)
+                {
+                    var title=labels.Single(x=>x.Text=="Monitor GF · "+name);
+                    Require(title.AutoEllipsis&&title.Width>0&&title.Height>=title.Font.Height,
+                        "cabeçalho multi-GPU com elipse e altura legível");
+                }
+                else
+                {
+                    var gpu=labels.Single(x=>x.Name=="MonitorCompactMetric1");
+                    Require(gpu.Text=="GPU 92%"&&gpu.AccessibleDescription?.Contains(name)==true&&
+                        gpu is GfMonitorCompactLabel compact&&compact.Fits(gpu.Text),
+                        "compacto preserva métrica e identidade acessível");
+                }
+                Require(labels.Any(x=>x.AccessibleDescription?.Contains(name)==true),
+                    "identidade acessível permanece no modo ativo");
+                VerifyRoundedRegions(form);
+            }
+            form.Close();
+        }
+    }
+
     internal static void Run()
     {
+        VerifyMultiGpuPresentation();
         VerifyScale();
         VerifyPlacementRecovery();
         foreach (V269Theme theme in Enum.GetValues<V269Theme>())

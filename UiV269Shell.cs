@@ -72,7 +72,7 @@ internal sealed class V269RightPane : UserControl
     private readonly Panel _flowTitleGap = new() { Dock = DockStyle.Top, Visible = false, Margin = Padding.Empty };
     private readonly V269AppFlowState _appFlowState=new();
     private readonly TextBox _description;
-    private readonly ProgressBar _progress;
+    private readonly GfDynamicProgressBar _progress;
     private readonly V269AppFlowMeter _flowMeter = new();
     private readonly V269AppFlowNote _flowNote = new();
     private readonly V269AppFlowButton _cancelFlow = new(false)
@@ -150,12 +150,10 @@ internal sealed class V269RightPane : UserControl
             TextAlign = ContentAlignment.MiddleLeft,
             Margin = Padding.Empty
         };
-        _progress = new ProgressBar
+        _progress = new GfDynamicProgressBar
         {
             Name = "V269PanelProgress", AccessibleName = "Progresso da operação", Dock = DockStyle.Fill,
-            Minimum = 0, Maximum = 100, Visible = false,
-            Margin = new Padding(0, 3, 0, 10),
-            Style = ProgressBarStyle.Continuous
+            Visible = false, Margin = new Padding(0, 3, 0, 10)
         };
         _description = new TextBox
         {
@@ -316,6 +314,7 @@ internal sealed class V269RightPane : UserControl
         _description.Visible = !_structuredApp && !result && !driverReview;
         bool legacyProgress = !active && Current is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
         _progress.Visible = legacyProgress;
+        UpdateLegacyMeter();
         _layout.RowStyles[1].Height = legacyProgress ? 34 : 0;
         // A operação pode já fornecer o mesmo título do estado.
         _title.Visible=!active||!string.Equals(Current?.Title,_appFlowHeading.Text,StringComparison.Ordinal);
@@ -448,11 +447,20 @@ internal sealed class V269RightPane : UserControl
         bool inProgress = presentation is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
         _progress.Visible = inProgress && !_appFlow;
         _layout.RowStyles[1].Height = inProgress && !_appFlow ? 34 : 0;
-        _progress.Value = Math.Clamp(presentation?.ProgressPercent ?? 0, 0, 100);
-        _progress.AccessibleDescription = inProgress ? _progress.Value + "%" : string.Empty;
+        UpdateLegacyMeter();
         AccessibleDescription = presentation?.Title ?? "";
         RefreshAppOperationHistory();FitOperationHistory();
         PresentationChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void UpdateLegacyMeter()
+    {
+        var value=Current?.ProgressPercent;
+        var frame=GfUniversalMeter.Operation(value,Current?.Kind==V269PanelKind.Progress ?
+            GfMeterState.Running : GfMeterState.Unavailable,false,_appPaneTheme);
+        _progress.BackColor=BackColor;
+        _progress.Configure(_appPaneTheme,false);
+        _progress.Present(frame,frame.Fraction is double fraction ? $"{fraction*100:0}%" : "Progresso não informado");
     }
 
     private void UpdateOperationContentLayout()
@@ -571,6 +579,7 @@ internal sealed class V269RightPane : UserControl
             V269AppTable.Scale(12,_appInterfacePercent,DeviceDpi)):new Padding(13);
         _title.Font=(styled?_appTitleFont:_normalTitleFont)??_title.Font;
         ApplyAppTitleMetrics();
+        UpdateLegacyMeter();
         _title.Invalidate();Invalidate();
     }
     private void ApplyAppTitleMetrics()
