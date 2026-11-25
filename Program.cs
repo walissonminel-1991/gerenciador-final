@@ -2250,7 +2250,7 @@ internal sealed partial class MainForm : Form
         string name = string.IsNullOrWhiteSpace(disk.Label) ? "Disco local" : disk.Label;
         var card = new V269CleanupDiskCard($"{name} ({letter})",
             usage, valid ? $"{disk.FileSystem} · {DisplayGigabytes(disk.FreeBytes)} livres" : disk.FileSystem,
-            valid ? (ulong)used : null, valid ? (ulong)disk.TotalBytes : null);
+            valid ? (ulong)used : null, valid ? (ulong)disk.TotalBytes : null) { Tag = disk };
         string? task = SingleVolumeOptimization.TaskForRoot(disk.Root);
         var optimize = card.Command;
         optimize.Name = "OptimizeVolume" + letter.TrimEnd(':');
@@ -2295,9 +2295,19 @@ internal sealed partial class MainForm : Form
         _diskCards.Reflow();
     }
 
+    internal static bool V269DiskCardsMatch(Control.ControlCollection cards, IReadOnlyList<DiskUsageInfo> volumes)
+    {
+        if (cards.Count != volumes.Count) return false;
+        for (int i = 0; i < volumes.Count; i++)
+            if (cards[i] is not V269CleanupDiskCard { IsDisposed: false, Tag: DiskUsageInfo observed } || observed != volumes[i])
+                return false;
+        return true;
+    }
+
     private async Task RefreshDiskUsageAsync()
     {
         if (_refreshingDisks || IsDisposed) return;
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.DiskUsage);
         _refreshingDisks = true;
         if (_refreshDisksButton is { IsDisposed: false }) _refreshDisksButton.Enabled = false;
         _diskSummary.Text = "Consultando espaço das unidades...";
@@ -2305,24 +2315,29 @@ internal sealed partial class MainForm : Form
         {
             var volumes = await Task.Run(AppServices.GetLocalDiskUsage);
             if (IsDisposed || _diskCards.IsDisposed) return;
-            _diskCards.Content.SuspendLayout();
-            try
+            // A leitura continua sendo real a cada solicitação. Se todos os
+            // dados forem idênticos, não destruir cartões, fontes e seleção.
+            if (!V269DiskCardsMatch(_diskCards.Content.Controls, volumes))
             {
-                var oldCards = _diskCards.Content.Controls.Cast<Control>().ToArray();
-                _diskCards.Content.Controls.Clear();
-                foreach (Control oldCard in oldCards) oldCard.Dispose();
-                _actionControls.RemoveAll(control => control.IsDisposed);
-                foreach (DiskUsageInfo volume in volumes)
-                    _diskCards.Content.Controls.Add(CreateDiskCard(volume));
-                _diskSummary.Text = volumes.Count switch
+                _diskCards.Content.SuspendLayout();
+                try
                 {
-                    0 => "Nenhuma unidade local disponível para consulta.",
-                    1 => "1 unidade local — consulta somente de leitura.",
-                    _ => $"{volumes.Count} unidades locais — consulta somente de leitura."
-                };
-                ResizeDiskCards();
+                    var oldCards = _diskCards.Content.Controls.Cast<Control>().ToArray();
+                    _diskCards.Content.Controls.Clear();
+                    foreach (Control oldCard in oldCards) oldCard.Dispose();
+                    _actionControls.RemoveAll(control => control.IsDisposed);
+                    foreach (DiskUsageInfo volume in volumes)
+                        _diskCards.Content.Controls.Add(CreateDiskCard(volume));
+                    ResizeDiskCards();
+                }
+                finally { _diskCards.Content.ResumeLayout(true); }
             }
-            finally { _diskCards.Content.ResumeLayout(true); }
+            _diskSummary.Text = volumes.Count switch
+            {
+                0 => "Nenhuma unidade local disponível para consulta.",
+                1 => "1 unidade local — consulta somente de leitura.",
+                _ => $"{volumes.Count} unidades locais — consulta somente de leitura."
+            };
             _relayoutCleaning?.Invoke();
             if(_v269CleanupSelected?.IsDisposed==true)PresentV269CleanupSelection();
         }
