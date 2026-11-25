@@ -304,14 +304,20 @@ internal sealed partial class MainForm
                     PublishV269Monitor(publish);
             }
         };
+        void ReleaseLiveTimer()
+        {
+            if (_v269LiveTimer is null) return;
+            _v269LiveQuery?.Cancel();
+            _v269LiveTimer.Stop();
+            _v269LiveTimer.Dispose();
+            _v269LiveTimer = null;
+        }
         FormClosed += (_, _) =>
         {
-            _v269LiveQuery?.Cancel();
-            _v269LiveTimer?.Stop();
-            _v269LiveTimer?.Dispose();
-            _v269LiveTimer = null;
+            ReleaseLiveTimer();
             StopV269Monitor();
         };
+        Disposed += (_, _) => ReleaseLiveTimer();
         _v269LiveTimer.Start();
     }
 

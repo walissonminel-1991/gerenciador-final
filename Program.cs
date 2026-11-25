@@ -757,6 +757,7 @@ internal sealed partial class MainForm : Form
     }
 
     private readonly Action? _startupOnlineProbe;
+    private Action? _releaseDisplayWatcher;
 
     public MainForm(bool startServices = true, bool startInTray = false, Action? startupOnlineProbe = null)
     {
@@ -764,6 +765,7 @@ internal sealed partial class MainForm : Form
         _updateOperations = new(DiagnosticTrace.Write, _reliability.RecordUpdate);
         _uninstallOperations = new(_reliability.RecordUninstall);
         FormClosed += (_, _) => _reliability.Dispose();
+        Disposed += (_, _) => _reliability.Dispose();
         Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel +
             (BetaRuntimePolicy.IsLocalBeta ? " BETA LOCAL TESTE — NÃO HOMOLOGADA" : " BETA");
         Font = new Font("Segoe UI", 9.5F);
@@ -927,33 +929,43 @@ internal sealed partial class MainForm : Form
         // Alteracoes de resolucao podem enviar varios eventos consecutivos.
         // Consolidar para nao redesenhar a arvore da janela repetidamente.
         var displayUpdate = new System.Windows.Forms.Timer { Interval = 170 };
+        int displayWatcherReleased = 0;
         displayUpdate.Tick += (_, _) =>
         {
+            if (Volatile.Read(ref displayWatcherReleased) != 0 || IsDisposed || Disposing) return;
             displayUpdate.Stop();
-            if (IsDisposed) return;
             RestoreWithinMonitor(recomputeForDisplay: true);
             FitWorkspace();
         };
         EventHandler monitorChanged = (_, _) =>
         {
-            if (!IsHandleCreated || IsDisposed) return;
+            if (Volatile.Read(ref displayWatcherReleased) != 0 || !IsHandleCreated || IsDisposed || Disposing) return;
             try
             {
                 BeginInvoke((Action)(() =>
                 {
-                    if (IsDisposed) return;
+                    if (Volatile.Read(ref displayWatcherReleased) != 0 || IsDisposed || Disposing) return;
                     displayUpdate.Stop();
                     displayUpdate.Start();
                 }));
             }
             catch (InvalidOperationException) { /* Janela ja encerrada. */ }
         };
-        SystemEvents.DisplaySettingsChanged += monitorChanged;
-        FormClosed += (_, _) =>
+        // O evento estático mantém a janela viva se ela for descartada sem
+        // FormClosed (inclusive fixtures). Liberar exatamente uma vez.
+        _releaseDisplayWatcher = () =>
         {
+            if (Interlocked.Exchange(ref displayWatcherReleased, 1) != 0) return;
             SystemEvents.DisplaySettingsChanged -= monitorChanged;
             displayUpdate.Stop();
             displayUpdate.Dispose();
+            _releaseDisplayWatcher = null;
+        };
+        SystemEvents.DisplaySettingsChanged += monitorChanged;
+        Disposed += (_, _) => _releaseDisplayWatcher?.Invoke();
+        FormClosed += (_, _) =>
+        {
+            _releaseDisplayWatcher?.Invoke();
             _v269HardwareQuery?.Cancel();
             _nav.RightPane.ResolveConfirmation(false);
             _log.FlushPending();

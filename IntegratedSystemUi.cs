@@ -144,7 +144,16 @@ internal sealed partial class MainForm
                 _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
             await RefreshMemoryRamAsync();
         };
-        FormClosed += (_,_) => _memoryTimer.Dispose();
+        bool memoryTimerReleased = false;
+        void ReleaseMemoryTimer()
+        {
+            if (memoryTimerReleased) return;
+            memoryTimerReleased = true;
+            _memoryTimer.Stop();
+            _memoryTimer.Dispose();
+        }
+        FormClosed += (_,_) => ReleaseMemoryTimer();
+        Disposed += (_,_) => ReleaseMemoryTimer();
         return root;
     }
 

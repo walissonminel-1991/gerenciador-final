@@ -7,6 +7,7 @@ internal static class V269IntegrationTests
 {
     internal static void Run(bool includeMaintenanceVisual = true)
     {
+        VerifyDirectDisposeLifetime();
         using var form = new MainForm(startServices: false);
         form.Show();
         Application.DoEvents();
@@ -1514,6 +1515,26 @@ internal static class V269IntegrationTests
         }
     }
 
+    private static void VerifyDirectDisposeLifetime()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        using var fixture = new MainForm(startServices: false);
+        var watcher = typeof(MainForm).GetField("_releaseDisplayWatcher", flags)!;
+        var timer = (System.Windows.Forms.Timer)typeof(MainForm).GetField("_memoryTimer", flags)!.GetValue(fixture)!;
+        var reliability = typeof(MainForm).GetField("_reliability", flags)!.GetValue(fixture)!;
+        var reliabilityDisposed = reliability.GetType().GetField("disposed", flags)!;
+        bool timerReleased = false;
+        timer.Disposed += (_, _) => timerReleased = true;
+        Require(watcher.GetValue(fixture) is Action && !(bool)reliabilityDisposed.GetValue(reliability)!,
+            "recursos registrados antes do descarte direto");
+        fixture.Dispose();
+        Require(watcher.GetValue(fixture) is null && timerReleased &&
+            (bool)reliabilityDisposed.GetValue(reliability)!,
+            "descarte direto libera evento de tela, timer RAM e histórico sem FormClosed");
+        fixture.Dispose(); // A liberação deve ser idempotente.
+        Console.WriteLine("PASS V2.6.9: ciclo de vida do descarte direto.");
+    }
+
     private static void VerifyNoLegacyControls()
     {
         const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.Instance |
@@ -1534,6 +1555,12 @@ internal static class V269IntegrationTests
         Require(typeof(DarkProgramList).GetProperty("MultiSelectMode", fields) is null &&
             typeof(DarkProgramList).GetEvent("ItemCheckboxClicked", fields) is null,
             "controle de lista conserva ações individuais sem seleção múltipla legada");
+        foreach (string type in new[] { "AppBatchUpdateCandidate", "AppBatchUpdatePolicy",
+            "AppBatchUpdateStepResult", "AppBatchUpdateSummary", "AppBatchUpdateRun" })
+            Require(typeof(MainForm).Assembly.GetType("GerenciadorAplicativos." + type, false) is null,
+                "motor legado de lote deve existir apenas nos testes: " + type);
+        Require(typeof(AppBatchUpdatePolicy).Assembly == typeof(V269IntegrationTests).Assembly,
+            "fixtures de lote conservadas no projeto de testes");
         Console.WriteLine("PASS V2.6.9: controles e entradas legadas ausentes; ações individuais preservadas pelas regressões.");
     }
 
