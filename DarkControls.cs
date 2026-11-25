@@ -1032,8 +1032,24 @@ internal sealed class DarkScrollableFlow : UserControl
     internal bool EmbeddedInPage { get; set; }
 
     // Evita o scroll fantasma de 3 px da folga utilizada pelos cartoes.
+    private bool _isPageViewport;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    internal bool IsPageViewport { get; set; }
+    internal bool IsPageViewport
+    {
+        get => _isPageViewport;
+        set
+        {
+            if (_isPageViewport == value) return;
+            _isPageViewport = value;
+            // Dock é calculado de trás para frente. Na página externa,
+            // Right precisa reservar a barra antes de Fill medir o viewport.
+            // Caso contrário, ScrollablePage mede W, W-12, W em cada entrada.
+            // Não alterar a ordem dos hosts legados/embutidos.
+            if (value) _viewport.BringToFront();
+            else _scroll.BringToFront();
+            Reflow();
+        }
+    }
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal bool HasVerticalScrollbar => _scroll.Visible;

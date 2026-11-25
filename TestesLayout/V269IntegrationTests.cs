@@ -19,6 +19,7 @@ internal static class V269IntegrationTests
             "oito instâncias nativas com Início ativo");
         Timed("Navegação sequencial nativa", () => VerifySequentialNavigation(form, shell));
         Timed("Medição de viewports ao ocultar", () => VerifyViewportVisibilityMeasurements(form,shell));
+        Timed("Dock do viewport externo", VerifyPageViewportDock);
         Timed("Feedback independente", VerifyIndependentFeedback);
         Timed("Barras universais", VerifyUniversalMeterPainting);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
@@ -357,14 +358,68 @@ internal static class V269IntegrationTests
                     "AUT-UX-01: ocultar viewport não deve medir novamente "+page);
                 viewport.Show();
                 Application.DoEvents();
-                Require(viewport.PageMeasurementCount>before &&
+                long passes = viewport.PageMeasurementCount - before;
+                Require(passes > 0 &&
                     content.Width==viewport.CleanupViewportWidth &&
                     content.Height>=viewport.CleanupViewportHeight,
                     "reexibir deve reconciliar geometria efetiva e conteúdo "+page);
-                Console.WriteLine($"V269-VIEWPORT-MEASURE page={page} hide=0 show={viewport.PageMeasurementCount-before}");
+                // Medir os controles nativos, não apenas comparar largura
+                // do conteúdo e do viewport (ambos podiam estar errados).
+                var bar = viewport.Controls.OfType<DarkVScrollBar>().Single();
+                var physicalViewport = viewport.Controls.OfType<Panel>().Single();
+                Require(bar.Visible == (bar.MaximumValue > 0) &&
+                    physicalViewport.Width == viewport.ClientSize.Width - (bar.Visible ? bar.Width : 0) &&
+                    (!bar.Visible || !physicalViewport.Bounds.IntersectsWith(bar.Bounds)),
+                    $"REC-UX-04 barra não pode cobrir viewport: {page} outer={viewport.ClientSize.Width} effective={physicalViewport.Width} bar={bar.Width} visible={bar.Visible}");
+                Require(passes <= 2,
+                    $"REC-UX-04 reexibição estável não pode repetir W, W-barra, W: {page} passes={passes}");
+                Console.WriteLine($"V269-VIEWPORT-MEASURE page={page} hide=0 show={passes}");
+                Console.WriteLine($"V269-UX-DOCK page={page} outer={viewport.ClientSize.Width} effective={physicalViewport.Width} bar={bar.Width} visible={bar.Visible} passes={passes}");
             }
         }
         finally { shell.SelectPage(original); Application.DoEvents(); }
+    }
+
+    // Exercita o mesmo DarkScrollableFlow em uma janela real, com um
+    // único conteúdo sintético que alterna entre overflow e espaço livre.
+    // A ordem antiga falha na interseção/consumo da largura, sem depender de ms.
+    private static void VerifyPageViewportDock()
+    {
+        using var window = new Form { ClientSize = new Size(420,240), ShowInTaskbar = false };
+        using var host = new DarkScrollableFlow { Dock = DockStyle.Fill, IsPageViewport = true };
+        host.Content.Padding = Padding.Empty;
+        host.Content.WrapContents = false;
+        var content = new Panel { Size = new Size(200,480), Margin = Padding.Empty };
+        host.Content.Controls.Add(content);
+        window.Controls.Add(host);
+        window.Show();
+        Application.DoEvents();
+        var viewport = host.Controls.OfType<Panel>().Single();
+        var bar = host.Controls.OfType<DarkVScrollBar>().Single();
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            host.ApplyCleanupSurface(theme);
+            foreach (var size in new[] { new Size(420,240), new Size(300,180) })
+            {
+                window.ClientSize=size;
+                content.Height=480;
+                host.Reflow();Application.DoEvents();host.Reflow();
+                Require(bar.Visible && bar.MaximumValue>0 &&
+                    viewport.Width==host.ClientSize.Width-bar.Width &&
+                    !viewport.Bounds.IntersectsWith(bar.Bounds),
+                    "REC-UX-04 controle real reserva a barra sem sobreposição");
+                bar.Value=bar.MaximumValue;
+                Require(host.Content.Top==-bar.Value && host.Content.Bottom==viewport.ClientSize.Height,
+                    "REC-UX-04 alcança o fim da página");
+                content.Height=40;
+                host.Reflow();Application.DoEvents();host.Reflow();
+                Require(!bar.Visible && bar.MaximumValue==0 &&
+                    viewport.Width==host.ClientSize.Width && host.Content.Top==0,
+                    "REC-UX-04 página curta recupera toda a largura e posição");
+            }
+        }
+        window.Close();
+        Console.WriteLine("PASS REC-UX-04 Dock do viewport: overflow, retorno, largura e rolagem em três temas.");
     }
 
     private static void VerifyThemedTextScroll()
