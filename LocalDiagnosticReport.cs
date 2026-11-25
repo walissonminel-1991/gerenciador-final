@@ -158,7 +158,98 @@ internal sealed class LocalDiagnosticReport
         lock (_gate) Append(_events, line.ToString(), ref _eventTotal);
     }
     private long _lastTick;
+    private long _lastHardwareTick;
     private double? _lastCpu;
+    private readonly Queue<string> _hardware = new();
+    private long _hardwareTotal;
+
+    internal void RecordOperation(V269Page page, string state, bool? complete = null)
+    {
+        // Estados fechados; nenhum título de aplicativo, comando ou descrição de usuário.
+        if (state is not ("inicio" or "fim" or "resultado" or "bloqueado" or "cancelado")) return;
+        lock (_gate) Append(_events, FormattableString.Invariant(
+            $"{DateTimeOffset.UtcNow:O} operacao aba={page} estado={state} resultado_confirmado={complete}"),ref _eventTotal);
+    }
+
+    internal void SampleHardware(HardwareSensorPortfolio snapshot)
+    {
+        lock (_gate)
+        {
+            long now=Stopwatch.GetTimestamp();
+            if(_lastHardwareTick!=0&&Stopwatch.GetElapsedTime(_lastHardwareTick,now).TotalSeconds<10)return;
+            _lastHardwareTick=now;
+            var counters=snapshot.WindowsCounters;
+            var sensors=counters.Sensors;
+            string line=FormattableString.Invariant(
+                $"{DateTimeOffset.UtcNow:O} MONITOR amostra_cpu_utc={counters.CapturedAtUtc:O} cpu_pct={Reading(counters.CpuUsagePercent)} cpu_mhz={Reading(counters.CpuFrequencyMhz)} cpu_c={Reading(sensors.CpuTemperatureC)} cpu_w={Reading(sensors.CpuPowerWatts)} cpu_rpm={Reading(sensors.CpuFanRpm)} ram_usada_bytes={counters.Memory?.UsedBytes} ram_total_bytes={counters.Memory?.TotalBytes}");
+            Append(_hardware,line,ref _hardwareTotal);
+            // WDDM e D3DKMT não são combinados por posição. Não registrar LUID,
+            // ID PnP, nomes de dispositivos ou valores NVML como RPM físicos.
+            int i=0;
+            foreach(var gpu in snapshot.D3dKmtGpuSensors?.Adapters??[])
+                Append(_hardware,FormattableString.Invariant(
+                    $"{DateTimeOffset.UtcNow:O} MONITOR fonte=D3DKMT adaptador_na_fotografia={++i} temperatura_c={Reading(gpu.TemperatureC)} rpm={Reading(gpu.FanRpm)} potencia_relativa_pct={Reading(gpu.RelativePowerPercent)} memoria_mhz={Reading(gpu.MemoryFrequencyMhz)}"),ref _hardwareTotal);
+            i=0;
+            foreach(var gpu in snapshot.NvidiaGpus.Devices)
+                Append(_hardware,FormattableString.Invariant(
+                    $"{DateTimeOffset.UtcNow:O} MONITOR fonte=NVML adaptador_na_fotografia={++i} uso_pct={Reading(gpu.UsagePercent)} temperatura_c={Reading(gpu.TemperatureC)} potencia_w={Reading(gpu.PowerWatts)} ventoinha_pct={Reading(gpu.FanPercent)} vram_usada_bytes={Reading(gpu.VramUsedBytes)}"),ref _hardwareTotal);
+        }
+    }
+
+    private static string Reading<T>(MonitorReading<T> reading) where T:struct =>
+        reading.Availability==MonitorAvailability.Available&&reading.Value is T value
+        ? Convert.ToString(value,CultureInfo.InvariantCulture)??"N/D" : reading.Availability.ToString();
+
+    internal static string ModelText(string? value)
+    {
+        // Somente campos fabricante/modelo de fontes de hardware, nunca
+        // FriendlyName customizável, serial, UUID, host, caminho ou DeviceId.
+        string? s=value?.Trim();
+        if(string.IsNullOrWhiteSpace(s)||s.Length>160||
+            s.Any(c=>!(char.IsAsciiLetterOrDigit(c)||c is ' ' or '-' or '_' or '.' or '(' or ')' or '+' or ','))||
+            s.Equals(Environment.MachineName,StringComparison.OrdinalIgnoreCase)||
+            s.Equals(Environment.UserName,StringComparison.OrdinalIgnoreCase)||
+            s.Equals("To Be Filled By O.E.M.",StringComparison.OrdinalIgnoreCase)||
+            s.Equals("Default string",StringComparison.OrdinalIgnoreCase)||
+            s.Equals("Unknown",StringComparison.OrdinalIgnoreCase)||
+            Guid.TryParse(s,out _)||
+            (s.Length>=12&&s.All(char.IsAsciiHexDigit)))return "N/D";
+        return s;
+    }
+
+    internal static string FormatHardware(HardwareSensorPortfolio snapshot)
+    {
+        var text=new StringBuilder();
+        text.AppendLine("=== CONFIGURAÇÃO DE HARDWARE (fontes declaradas, sem identificadores únicos) ===");
+        text.AppendLine($"Fotografia UTC: {snapshot.CapturedAtUtc:O}; valores podem estar desatualizados.");
+        var platform=snapshot.PlatformHardware;
+        int i=0;
+        foreach(var cpu in platform?.CpuSockets??[])
+            text.AppendLine($"CPU {++i}: modelo={ModelText(cpu.ReportedName)}; núcleos={cpu.PhysicalCores}; threads={cpu.LogicalProcessors}; virtualização firmware={cpu.FirmwareVirtualizationEnabled}; frequência reportada MHz={Reading(cpu.ReportedCurrentMhz)}");
+        if(i==0)text.AppendLine("CPU: modelo indisponível.");
+        i=0;
+        foreach(var board in platform?.Motherboards??[])
+            text.AppendLine($"Placa-mãe {++i}: fabricante={ModelText(board.Manufacturer)}; modelo={ModelText(board.Product)}; revisão={ModelText(board.Version)}");
+        if(i==0)text.AppendLine("Placa-mãe: modelo indisponível.");
+        text.AppendLine("BIOS: "+ModelText(platform?.ReportedBiosVersion));
+        i=0;
+        foreach(var ram in platform?.RamModules??[])
+            text.AppendLine($"RAM módulo {++i}: fabricante={ModelText(ram.ReportedManufacturer)}; modelo/part number={ModelText(ram.ReportedPartNumber)}; capacidade bytes={Reading(ram.CapacityBytes)}; clock configurado MHz={Reading(ram.ConfiguredMhz)}; tipo SMBIOS={ram.SmbiosMemoryType}");
+        if(i==0)text.AppendLine("RAM: módulos não identificados.");
+        i=0;
+        foreach(var gpu in snapshot.DxgiAdapters?.Adapters.Where(x=>!x.IsSoftware)??[])
+        {
+            string vendor=gpu.VendorId switch{0x10DE=>"NVIDIA",0x1002=>"AMD",0x8086=>"Intel",_=>"N/D"};
+            text.AppendLine($"GPU {++i}: fabricante chip={vendor}; modelo DXGI={ModelText(gpu.Name)}; VRAM dedicada bytes={gpu.DedicatedVideoMemory}; PCIe/ReBAR: heap CPU visível reportado={gpu.DiscreteGpuUploadHeapSupported}");
+        }
+        if(i==0)text.AppendLine("GPU: modelo DXGI indisponível.");
+        i=0;
+        foreach(var disk in snapshot.Storage.Disks)
+            text.AppendLine($"Disco físico {++i}: fabricante={ModelText(disk.ReportedManufacturer)}; modelo={ModelText(disk.ReportedModel)}; temperatura C={Reading(disk.TemperatureC)}; desgaste reportado pct={Reading(disk.WearPercent)}; horas={Reading(disk.PowerOnHours)}");
+        if(i==0)text.AppendLine("Discos físicos: modelo indisponível.");
+        text.AppendLine("Outros dispositivos: somente cobertura PnP; modelos não incluídos sem fonte específica validada.");
+        return text.ToString();
+    }
 
     private void Append(Queue<string> queue, string line, ref long total)
     {
@@ -265,6 +356,7 @@ internal sealed class LocalDiagnosticReport
             Section("Etapas concluídas", _performance, _performanceTotal);
             Section("Pesquisa, listas e controlador síncrono de navegação", _ui, _uiTotal);
             Section("Amostras do processo", _process, _processTotal);
+            Section("Amostras parciais de sensores (fontes separadas, sem nova consulta)", _hardware, _hardwareTotal);
             Section("Eventos técnicos selecionados (somente códigos e contagens)", _events, _eventTotal);
             Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
             AddJournalTo(text);
