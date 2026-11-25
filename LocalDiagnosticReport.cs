@@ -57,7 +57,7 @@ internal sealed class LocalDiagnosticReport
                 string directory = InstallerFileGuard.ValidateLocalPath(Path.GetDirectoryName(diagnosticPath)!);
                 _journalDirectory = InstallerFileGuard.PinDirectory(directory, allowLeafWrites: true);
                 _journalStream = new FileStream(Path.Combine(directory,"GF-session-"+Guid.NewGuid().ToString("N")+".tmp"),
-                    FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,16384,FileOptions.DeleteOnClose);
+                    FileMode.CreateNew,FileAccess.ReadWrite,FileShare.Read,16384,FileOptions.DeleteOnClose);
                 _journal = new StreamWriter(_journalStream,new UTF8Encoding(false),8192,leaveOpen:true);
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
@@ -442,36 +442,123 @@ internal sealed class LocalDiagnosticReport
         }
     }
 
+    // Captura pequena e coerente feita no instante do clique, sob o mesmo
+    // lock dos produtores. A leitura do prefixo e a exportação acontecem
+    // fora desse lock; eventos posteriores não entram neste relatório.
+    internal sealed class ExportSnapshot(string summary,string recovery,
+        FileStream? journal,long length) : IDisposable
+    {
+        internal void WriteTo(Stream output,string header)
+        {
+            void Write(string value) => output.Write(Encoding.UTF8.GetBytes(value));
+            Write(header+Environment.NewLine+summary);
+            if(journal is not null)
+            {
+                byte[] buffer=System.Buffers.ArrayPool<byte>.Shared.Rent(16*1024);
+                try
+                {
+                    journal.Position=0;
+                    long remaining=length;
+                    while(remaining>0)
+                    {
+                        int read=journal.Read(buffer,0,(int)Math.Min(remaining,buffer.Length));
+                        if(read==0)throw new IOException("Prefixo do diagnóstico incompleto.");
+                        output.Write(buffer,0,read);
+                        remaining-=read;
+                    }
+                }
+                finally{System.Buffers.ArrayPool<byte>.Shared.Return(buffer,clearArray:true);}
+            }
+            Write(Environment.NewLine+recovery+Environment.NewLine+"=== FIM DO RELATÓRIO ==="+Environment.NewLine);
+        }
+
+        internal string FormatForTest(string header)
+        {
+            using var memory=new MemoryStream();
+            WriteTo(memory,header);
+            return Encoding.UTF8.GetString(memory.GetBuffer(),0,checked((int)memory.Length));
+        }
+
+        public void Dispose()=>journal?.Dispose();
+    }
+
+    internal ExportSnapshot CaptureForExport()
+    {
+        lock(_gate)
+        {
+            var text=Summary();
+            text.AppendLine();
+            text.AppendLine("=== CRONOLOGIA DA SESSÃO ATÉ A GERAÇÃO DO RELATÓRIO ===");
+            text.AppendLine($"Início UTC: {_sessionStart:O}; eventos gravados: {_journalWritten}; omitidos: {_journalOmitted}; limite: {JournalLimit} bytes.");
+            FileStream? reader=null;
+            long length=0;
+            if(_journal is not null&&_journalStream is not null&&!_journalFailed)
+            {
+                try
+                {
+                    _journal.Flush();
+                    length=_journalStream.Length;
+                    if(length>JournalLimit)throw new InvalidDataException("Limite da cronologia excedido.");
+                    // A escrita continua exclusiva do GF; o segundo handle
+                    // permite apenas leitura, com identidade do mesmo arquivo.
+                    reader=new FileStream(_journalStream.Name,FileMode.Open,FileAccess.Read,
+                        FileShare.ReadWrite|FileShare.Delete,16384,FileOptions.SequentialScan);
+                    var writerIdentity=InstallerFileGuard.ReadIdentity(_journalStream);
+                    var readerIdentity=InstallerFileGuard.ReadIdentity(reader);
+                    if(writerIdentity.Volume!=readerIdentity.Volume||writerIdentity.Index!=readerIdentity.Index||
+                        writerIdentity.Links!=1||readerIdentity.Links!=1||reader.Length!=length)
+                        throw new InvalidDataException("Identidade da cronologia divergente.");
+                }
+                catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or
+                    ArgumentException or NotSupportedException or System.Security.SecurityException)
+                {
+                    reader?.Dispose();reader=null;length=0;
+                }
+            }
+            if(reader is null)
+                text.AppendLine("AVISO: cronologia integral indisponível; consultar históricos recentes e totais.");
+            if(_journalOmitted>0)
+                text.AppendLine("AVISO: nem todos os eventos couberam no limite da cronologia.");
+            return new ExportSnapshot(text.ToString(),_recovery.FormatPrevious(),reader,length);
+        }
+    }
+
     internal string Format()
     {
-        lock (_gate)
+        lock(_gate)
         {
-            var text = new StringBuilder();
-            text.AppendLine("=== DESEMPENHO DO PROCESSO PRINCIPAL ===");
-            text.AppendLine("Unidades: tempo em ms, memória em bytes, CPU normalizada pelos processadores lógicos disponíveis.");
-            text.AppendLine("CPU por intervalo; primeira amostra sem percentual. Contexto instantâneo, não prova de repouso contínuo.");
-            text.AppendLine("Alocações/CPU do processo incluem atividade concorrente; pico de RAM é da sessão. Alocações da thread UI são separadas; navegação mede apenas o controlador síncrono, não a pintura final.");
-            text.AppendLine();
-            text.AppendLine("Inicialização e primeira carga do inventário (preservadas por toda a sessão):");
-            text.AppendLine(_startup ?? "Abertura: sem amostra concluída.");
-            text.AppendLine(_initialInventory ?? "Primeira carga: sem amostra concluída.");
-            Section("Etapas concluídas", _performance, _performanceTotal);
-            Section("Pesquisa, listas e controlador síncrono de navegação", _ui, _uiTotal);
-            Section("Amostras do processo", _process, _processTotal);
-            Section("Amostras parciais de sensores (fontes separadas, sem nova consulta)", _hardware, _hardwareTotal);
-            Section("Eventos técnicos selecionados (somente códigos e contagens)", _events, _eventTotal);
-            Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
+            var text=Summary();
             AddJournalTo(text);
             text.AppendLine(_recovery.FormatPrevious());
             return text.ToString();
+        }
+    }
 
-            void Section(string title, Queue<string> entries, long total)
-            {
-                text.AppendLine();
-                text.AppendLine($"{title}: {entries.Count} retidas de {total} nesta sessão (limite {Limit}).");
-                if (entries.Count == 0) text.AppendLine("Ainda não há dados observados.");
-                foreach (string line in entries) text.AppendLine(line);
-            }
+    private StringBuilder Summary()
+    {
+        var text = new StringBuilder();
+        text.AppendLine("=== DESEMPENHO DO PROCESSO PRINCIPAL ===");
+        text.AppendLine("Unidades: tempo em ms, memória em bytes, CPU normalizada pelos processadores lógicos disponíveis.");
+        text.AppendLine("CPU por intervalo; primeira amostra sem percentual. Contexto instantâneo, não prova de repouso contínuo.");
+        text.AppendLine("Alocações/CPU do processo incluem atividade concorrente; pico de RAM é da sessão. Alocações da thread UI são separadas; navegação mede apenas o controlador síncrono, não a pintura final.");
+        text.AppendLine();
+        text.AppendLine("Inicialização e primeira carga do inventário (preservadas por toda a sessão):");
+        text.AppendLine(_startup ?? "Abertura: sem amostra concluída.");
+        text.AppendLine(_initialInventory ?? "Primeira carga: sem amostra concluída.");
+        Section("Etapas concluídas", _performance, _performanceTotal);
+        Section("Pesquisa, listas e controlador síncrono de navegação", _ui, _uiTotal);
+        Section("Amostras do processo", _process, _processTotal);
+        Section("Amostras parciais de sensores (fontes separadas, sem nova consulta)", _hardware, _hardwareTotal);
+        Section("Eventos técnicos selecionados (somente códigos e contagens)", _events, _eventTotal);
+        Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
+        return text;
+
+        void Section(string title, Queue<string> entries, long total)
+        {
+            text.AppendLine();
+            text.AppendLine($"{title}: {entries.Count} retidas de {total} nesta sessão (limite {Limit}).");
+            if (entries.Count == 0) text.AppendLine("Ainda não há dados observados.");
+            foreach (string line in entries) text.AppendLine(line);
         }
     }
 
@@ -479,7 +566,17 @@ internal sealed class LocalDiagnosticReport
         SaveToFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments,
             Environment.SpecialFolderOption.DoNotVerify), report);
 
-    internal static string SaveToFolder(string folder, string report)
+    internal static string SaveToDocuments(string header,ExportSnapshot snapshot) =>
+        SaveToFolder(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments,
+            Environment.SpecialFolderOption.DoNotVerify),header,snapshot);
+
+    internal static string SaveToFolder(string folder,string header,ExportSnapshot snapshot) =>
+        SaveToFolderCore(folder,stream=>snapshot.WriteTo(stream,header));
+
+    internal static string SaveToFolder(string folder, string report) =>
+        SaveToFolderCore(folder,stream=>stream.Write(Encoding.UTF8.GetBytes(report)));
+
+    private static string SaveToFolderCore(string folder,Action<Stream> write)
     {
         if (string.IsNullOrWhiteSpace(folder))
             throw new IOException("Pasta Documentos indisponível.");
@@ -491,11 +588,7 @@ internal sealed class LocalDiagnosticReport
         string name = $"GF-Diagnostico-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}-{Guid.NewGuid():N}.txt";
         string path = Path.Combine(directory, name);
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        using (var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, leaveOpen: true))
-        {
-            writer.Write(report);
-            writer.Flush();
-        }
+        write(stream);
         stream.Flush(flushToDisk: true);
         return path;
     }
