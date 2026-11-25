@@ -1498,6 +1498,7 @@ internal sealed partial class MainForm : Form
     private void RecordV269AppResult(string title,string description,V269PanelPresentation? owned=null)
     {
         if(IsDisposed||Disposing)return;
+        LocalDiagnosticReport.Session.RecordOperation(V269Page.Aplicativos,"resultado",owned?.FlowResult?.Complete);
         var entry = new V269AppPreviousResult(Guid.NewGuid(), title, description, owned?.FlowResult?.Complete);
         _v269AppPreviousResults.Insert(0,entry);
         // O HTML exibe os quatro últimos; este limite não alcança o
@@ -2564,6 +2565,8 @@ internal sealed partial class MainForm : Form
     {
         if (!AppBatchUpdateRun.MayExecute(_busy, _batchUpdatesActive,
             allowDuringBatch) || _v269Confirming || _betaClose.IsClosing) return;
+        var diagnosticPage = _nav.SelectedPage;
+        LocalDiagnosticReport.Session.RecordOperation(diagnosticPage,"inicio");
         var repairTool = quietStartup ? null : _v269RepairCommand;
         bool repairExecution = repairTool is not null;
         bool appExecution=!quietStartup&&!repairExecution&&_nav.SelectedPage==V269Page.Aplicativos;
@@ -2597,6 +2600,7 @@ internal sealed partial class MainForm : Form
         catch (Exception ex) { if (!IsDisposed && !Disposing && !_betaClose.IsShutdown) ReportError(ex); }
         finally
         {
+            LocalDiagnosticReport.Session.RecordOperation(diagnosticPage,"fim");
             _busy = false;
             if(appExecution)_v269AppExecutionActive=false;
             if(cleanupExecution)_v269CleanupExecutionActive=false;
