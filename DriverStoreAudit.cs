@@ -32,8 +32,11 @@ internal static class DriverStoreAudit
 {
     internal enum AuditPhase { Inventory, Store, Published, History, Correlation, Binding }
 
+    internal static DriverInventoryResult CaptureWithPackages(CancellationToken token) =>
+        CaptureWithPackages(token,null);
+
     internal static DriverInventoryResult CaptureWithPackages(CancellationToken token,
-        Action<AuditPhase,bool,long>? observe = null)
+        Action<AuditPhase,bool,long>? observe)
     {
         var inventory = Phase(AuditPhase.Inventory, () => DriverInventory.Capture(token));
         var store = Phase(AuditPhase.Store, () => Capture(inventory, token));
