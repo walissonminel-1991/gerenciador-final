@@ -844,6 +844,8 @@ internal sealed partial class MainForm : Form
         _nav.RightPane.ConfigureModuleHistory(V269ModuleHistory,DismissV269ModuleResult);
         _nav.NavigationChanged += async (_, e) =>
         {
+            using (LocalDiagnosticReport.Session.MeasureUi(DiagnosticUiStage.Navigation,e.Page))
+            {
             ApplyHomeChrome();
             ApplyV269AppOperationChrome();
             if(e.Page==V269Page.Aplicativos&&_programList.SelectedItem is {} app)PresentV269AppDetails(app);
@@ -854,6 +856,7 @@ internal sealed partial class MainForm : Form
             ++_systemViewGeneration;
             UpdateProcessSamplingCadence();
             if (e.Page != V269Page.Inicio) _v269HardwareQuery?.Cancel();
+            }
             if (!startServices || _v269Confirming) return;
             if (e.Page == V269Page.Limpeza) await RefreshDiskUsageAsync();
             if (e.Page == V269Page.Inicializacao) await RefreshStartupEntriesAsync();
@@ -3058,6 +3061,8 @@ internal sealed partial class MainForm : Form
     private void RenderPrograms()
     {
         string query = _search.Text.Trim();
+        using var measurement = LocalDiagnosticReport.Session.MeasureUi(
+            query.Length == 0 ? DiagnosticUiStage.AppListRender : DiagnosticUiStage.AppSearch);
         IEnumerable<ProgramEntry> filtered = _installed.Where(entry =>
             ActionableInventory.ShouldShowInMainList(entry, _appFilter) && (query.Length == 0 ||
             string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion,
