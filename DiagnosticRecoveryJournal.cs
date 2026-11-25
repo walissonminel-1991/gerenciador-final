@@ -9,7 +9,8 @@ namespace GerenciadorAplicativos;
 internal enum DiagnosticRecoveryKind : int
 {
     Navigation=1, OperationBegin=2, OperationEnd=3, OperationResult=4,
-    Failure=5, ProcessSample=6, UiDelay=7, NormalEnd=8
+    Failure=5, ProcessSample=6, UiDelay=7, NormalEnd=8,
+    ConfirmationAccepted=9, ConfirmationCanceled=10, OutcomeMissing=11, OperationBlocked=12
 }
 internal sealed class DiagnosticRecoveryJournal
 {
@@ -146,7 +147,9 @@ internal sealed class DiagnosticRecoveryJournal
                 string details=entry.Kind switch
                 {
                     DiagnosticRecoveryKind.Navigation=>$"aba={page} duracao_ms={entry.B}",
-                    DiagnosticRecoveryKind.OperationBegin or DiagnosticRecoveryKind.OperationEnd=>$"aba={page}",
+                    DiagnosticRecoveryKind.OperationBegin or DiagnosticRecoveryKind.OperationEnd or
+                    DiagnosticRecoveryKind.ConfirmationAccepted or DiagnosticRecoveryKind.ConfirmationCanceled or
+                    DiagnosticRecoveryKind.OutcomeMissing or DiagnosticRecoveryKind.OperationBlocked=>$"aba={page}",
                     DiagnosticRecoveryKind.OperationResult=>$"aba={page} resultado={(entry.B==1?"confirmado":entry.B==0?"não confirmado":"indeterminado")}",
                     DiagnosticRecoveryKind.Failure=>$"hresult=0x{unchecked((uint)entry.A):X8}",
                     DiagnosticRecoveryKind.ProcessSample=>$"cpu_acumulada_ms={entry.A} ram_residente_bytes={entry.B} ram_privada_bytes={entry.C}",
