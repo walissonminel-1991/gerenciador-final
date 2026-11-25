@@ -1543,6 +1543,31 @@ internal static class V269IntegrationTests
             try { LocalDiagnosticReport.SaveToFolder(@"\\servidor-invalido\documentos",text); }
             catch(InvalidDataException) { refused=true; }
             Require(refused,"caminho UNC recusado antes de consultar o destino");
+            var chronological=new LocalDiagnosticReport();
+            chronological.StartJournal(Path.Combine(folder,"fixture.log"));
+            try
+            {
+                for(int i=1;i<=150;i++)
+                    chronological.RecordEvent("REGISTRO_PROGRAMAS.LIDO quantidade="+i+" nome=PRIVADO");
+                string firstSnapshot=chronological.Format();
+                Require(firstSnapshot.Contains("128 retidas de 150")&&
+                    firstSnapshot.Contains("eventos gravados: 150; omitidos: 0")&&
+                    firstSnapshot.Contains("REGISTRO_PROGRAMAS.LIDO quantidade=1"+Environment.NewLine)&&
+                    !firstSnapshot.Contains("PRIVADO"),"cronologia conserva registros anteriores ao limite de RAM");
+                chronological.RecordOperation(V269Page.Reparo,"resultado",false);
+                string secondSnapshot=chronological.Format();
+                Require(secondSnapshot.Contains("eventos gravados: 151; omitidos: 0")&&
+                    secondSnapshot.Contains("operacao aba=Reparo estado=resultado resultado_confirmado=False"),
+                    "segunda exportação conserva cronologia e resultado não confirmado");
+            }
+            finally{chronological.CloseJournal();}
+            Require(Directory.GetFiles(folder,"GF-session-*.tmp").Length==0,
+                "arquivo temporário da sessão removido ao fechar");
+            Require(LocalDiagnosticReport.ModelText("Samsung MZ-V8P1T0")== "Samsung MZ-V8P1T0"&&
+                LocalDiagnosticReport.ModelText(@"PCI\VEN_1234")== "N/D"&&
+                LocalDiagnosticReport.ModelText("1234567890ABCDEF")== "N/D"&&
+                LocalDiagnosticReport.ModelText("teste@exemplo.local")== "N/D",
+                "modelo técnico aceito; identificadores e caminhos recusados");
         }
         finally{Directory.Delete(folder,true);}
         Console.WriteLine("PASS Diagnóstico GF: métricas limitadas, privacidade e exportação TXT única em diretório descartável.");
