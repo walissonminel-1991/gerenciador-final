@@ -52,6 +52,7 @@ internal sealed partial class MainForm
     private void RecordV269CleanupResult(string title,string description,bool complete)
     {
         if(IsDisposed||Disposing)return;
+        LocalDiagnosticReport.Session.RecordOperation(V269Page.Limpeza,"resultado",complete);
         var entry=new V269AppPreviousResult(Guid.NewGuid(),title,description,complete);
         _v269CleanupPreviousResults.Insert(0,entry);
         if(_v269CleanupPreviousResults.Count>4)_v269CleanupPreviousResults.RemoveAt(4);
