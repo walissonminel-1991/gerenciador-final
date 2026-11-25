@@ -863,19 +863,64 @@ internal sealed partial class MainForm
             (BetaRuntimePolicy.IsLocalBeta?BetaRuntimePolicy.LocalNotice:TelemetryConsentPolicy.RemoteNotice)+
             Environment.NewLine+Environment.NewLine+
             PrivacyConsentPresentation.Explanation(AnonymousTelemetryContext.Current?.Consent??TelemetryConsent.NotAsked));
-        view.General.Diagnostic.Click+=(_,_)=>
+        bool exportingDiagnostic=false;
+        view.General.Diagnostic.AccessibleDescription="Cria um novo relatório TXT em Documentos; nenhum envio pelo GF.";
+        view.General.Diagnostic.Click+=async(_,_) =>
         {
-            if(_busy||_v269Confirming||_betaClose.IsClosing)return;
-            var report="GERENCIADOR FINAL — diagnóstico local"+Environment.NewLine+
-                "Versão: "+DiagnosticTrace.VersionLabel+Environment.NewLine+
-                "Windows: "+Environment.OSVersion.Version+Environment.NewLine+
-                "Arquitetura: "+System.Runtime.InteropServices.RuntimeInformation.OSArchitecture+Environment.NewLine+
-                "Privilégios: "+(V269SessionIsAdministrator() switch {true=>"elevados",false=>"comuns",null=>"não verificados"})+Environment.NewLine+
-                Environment.NewLine+_reliability.Report(_installed,_inventoryIncomplete);
-            if(_v269LastSnapshot is{} snapshot)
-                report+=Environment.NewLine+Environment.NewLine+"Última consulta de hardware (não é uma leitura nova):"+
-                    Environment.NewLine+HardwareMonitoringDiagnosticReport.Format(snapshot);
-            PresentV269SettingsInformation("Diagnóstico local",report);
+            if(_busy||_v269Confirming||_betaClose.IsClosing||exportingDiagnostic)return;
+            exportingDiagnostic=true;
+            view.General.Diagnostic.Enabled=false;
+            try
+            {
+                var report="GERENCIADOR FINAL — diagnóstico local"+Environment.NewLine+
+                    "Formato: GF-DIAG-1"+Environment.NewLine+
+                    "Gerado (UTC): "+DateTimeOffset.UtcNow.ToString("O")+Environment.NewLine+
+                    "Versão: "+DiagnosticTrace.VersionLabel+Environment.NewLine+
+                    "Windows: "+Environment.OSVersion.Version+Environment.NewLine+
+                    "Arquitetura: "+System.Runtime.InteropServices.RuntimeInformation.OSArchitecture+Environment.NewLine+
+                    "Runtime: "+Environment.Version+Environment.NewLine+
+                    "Processadores lógicos disponíveis: "+Environment.ProcessorCount+Environment.NewLine+
+                    "Privilégios: "+(V269SessionIsAdministrator() switch {true=>"elevados",false=>"comuns",null=>"não verificados"})+Environment.NewLine+
+                    $"Interface: {_v269Appearance.Theme}; escala {_v269Appearance.InterfacePercent}%; texto {_v269Appearance.TextPercent}%; DPI {DeviceDpi}"+Environment.NewLine+
+                    "Relatório manual; o GF não envia este arquivo. Revise antes de compartilhar."+Environment.NewLine+
+                    Environment.NewLine+_reliability.Report(_installed,_inventoryIncomplete);
+                report+=Environment.NewLine+Environment.NewLine+(_v269LastSnapshot is{} snapshot
+                    ? "Última consulta de hardware (não é uma leitura nova):"+Environment.NewLine+HardwareMonitoringDiagnosticReport.Format(snapshot)
+                    : "Hardware: nenhuma fotografia disponível nesta sessão.");
+                if(!loadPreferences)
+                {
+                    // View sintética não grava na pasta real do usuário.
+                    PresentV269SettingsInformation("Diagnóstico local",report);
+                    return;
+                }
+                LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
+                    _busy || _v269Confirming || _batchUpdatesActive || _windowsUpdateInstalling ||
+                    _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
+                report+=Environment.NewLine+Environment.NewLine+LocalDiagnosticReport.Session.Format();
+                view.SetNotice("Gerando relatório local em Documentos…");
+                string path=await Task.Run(()=>LocalDiagnosticReport.SaveToDocuments(report));
+                if(!view.IsDisposed&&!IsDisposed&&!Disposing)
+                {
+                    view.SetNotice("Relatório criado em Documentos: "+path+" — pronto para leitura e envio manual.");
+                    Status("Relatório de diagnóstico criado em Documentos.");
+                }
+                DiagnosticTrace.Write("DIAGNOSTICO.EXPORTACAO_OK");
+            }
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or
+                NotSupportedException or System.Security.SecurityException)
+            {
+                DiagnosticTrace.Failure("DIAGNOSTICO.EXPORTACAO_FALHA",ex);
+                if(!view.IsDisposed&&!IsDisposed&&!Disposing)
+                {
+                    view.SetNotice("Não foi possível concluir o relatório em Documentos. Confira a pasta e suas permissões; nenhum envio realizado. ("+ex.GetType().Name+")");
+                    Status("Relatório de diagnóstico não concluído.");
+                }
+            }
+            finally
+            {
+                exportingDiagnostic=false;
+                if(!view.IsDisposed&&!view.General.Diagnostic.IsDisposed)view.General.Diagnostic.Enabled=true;
+            }
         };
         view.General.History.Click+=(_,_)=>
         {
