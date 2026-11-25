@@ -63,6 +63,7 @@ internal sealed partial class MainForm
                 int width = Math.Max(1, host.ClientSize.Width - (themedTools ? 0 : scrollbar));
                 int MeasureAt(int available)
                 {
+                    host.RecordPageMeasurement();
                     if(content.Width!=available)content.Width=available;
                     content.PerformLayout();
                     return minimumHeight(available);
@@ -107,7 +108,7 @@ internal sealed partial class MainForm
             };
         host.VisibleChanged += (_, _) =>
         {
-            if (IsTrayTransitioning) return;
+            if (IsTrayTransitioning || !host.Visible) return;
             Arrange();
         };
         host.DpiChangedAfterParent += (_, _) => Arrange();

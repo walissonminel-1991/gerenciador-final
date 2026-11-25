@@ -121,3 +121,20 @@ Revisão estática dos 18 blobs diferentes contra os HEADs de origem, usando as 
 - **Oráculos antigos:** verificar o SHA recuperado 244ad72d e gate AUT-OP-01; a candidata de cor preserva testes de âncoras e contraste, mas ainda não executada. Contraste de seleção Dark/Claro é conflito com referência, não aprovação por log.
 
 Resultado: revisão estática dos 18 arquivos concluída no escopo das diferenças observadas; execução por método, auditoria de arquivos compartilhados e eliminação segura de rotas substituídas continuam abertas. Nenhum motor alterado.
+
+
+## 6. Estado corrente — 25/11/2026, HEAD 056bfbd3
+
+| Requisito | Evidência válida para 056bfbd3 | Estado / pendência |
+|---|---|---|
+| REC-CI-01 | Windows 45709772103, regressões 139540870303 50/50 SUCCESS, compilação x64 139546339816 SUCCESS; integridade 45709772039 SUCCESS | Gate técnico recuperado; não equivale a homologação física |
+| AUT-OP-01 / AUT-METER-01 | PASS AUT-OP-01; barras universais, RGB e distinção texto/preenchimento; Monitor Configurações 3 temas e 2 resoluções | VALIDADO-SINTÉTICO; contraste entre preenchimento/trilha e uso físico pendentes |
+| AUT-COLOR-01 | V269-COLOR-AUDIT Azul 5.603 PASS, Dark 4.186 REFERENCE_CONFLICT, Claro 3.075 REFERENCE_CONFLICT | Tokens corrigidos; contraste de seleção Dark/Claro permanece bloqueio da referência aprovada. Não declarar aceite integral |
+| AUT-SCROLL-01 | V269-END Rolagem temática de texto 32ms; regressões e Lote4 aprovados | VALIDADO-SINTÉTICO no cenário; rotas modais ainda abertas |
+| AUT-UX-01 | 57 cliques, despacho p50 19.11 / p95 250.82 / max 567.22 ms, STA p50 18.63 / p95 26.99 / max 27.41 ms; sessão 16 passos p95/max 871.86 ms (viewport compacto) | Seleção única e feedback independente aprovados; fluidez ainda não comprovada |
+| AUT-SAFE-01 diagnóstico | V269-PERF diagnostico_captura_ui: 8000 registros, 5 repetições, bytes 19086928→307424, mediana 0.986→0.050 ms | Benchmark sintético aprovado, não execução física |
+
+### Incremento causal AUT-UX-01 / REC-UX-02
+Origem: job 139540870303, V269-UX-PAGE e V269-UX-TRANSITION. Picos de despacho: Sistema 567.22, Limpeza 308.04, Reparo 250.82 ms; a fila STA tem max 27.41 ms. A causa de todo atraso ainda não foi isolada. Causa parcial comprovada no código: ResponsiveLayout.ScrollablePage reage a VisibleChanged inclusive quando Limpeza/Reparo ficam ocultos, executando MeasureAt (PerformLayout e ajuste de largura); DarkScrollableFlow também executa Reflow ao ocultar. A medição é necessária ao reexibir ou mudar conteúdo/dimensões, não ao simplesmente ocultar. 
+Escopo: suprimir exclusivamente o trabalho acionado pelo evento de ocultação; preservar SizeChanged, DPI, reexibição e callbacks explícitos de conteúdo. Sem mudar geometria, motores, autorização, temas, Monitor, animação, limites ou testes existentes. Instrumentar contagem de MeasureAt e verificar ocultação sem medição, reexibição com largura/altura coerentes, e registrar deltas por transição. 
+Teste positivo/negativo: VerifyViewportVisibilityMeasurements nos três viewports de ferramentas e VerifySequentialNavigation existente; exigir nenhum MeasureAt ao ocultar diretamente, novo cálculo na reexibição e geometria válida. Comparar V269-UX-MEASURE, V269-UX-PAGE e V269-SESSION-LATENCY após CI própria. Sem atribuir ganho de tempo antes de medir. Se falhar, investigar causa; não ampliar prazos. Bloqueio REC-UX-02 permanece aberto até evidência da execução e posterior homologação física.

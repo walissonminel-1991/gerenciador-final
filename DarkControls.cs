@@ -1071,7 +1071,7 @@ internal sealed class DarkScrollableFlow : UserControl
         Resize += (_, _) => Reflow();
         VisibleChanged += (_, _) =>
         {
-            if (FindForm() is MainForm form && form.IsTrayTransitioning) return;
+            if (!Visible || FindForm() is MainForm form && form.IsTrayTransitioning) return;
             Reflow();
         };
         DpiChangedAfterParent += (_, _) => Reflow();
@@ -1079,6 +1079,10 @@ internal sealed class DarkScrollableFlow : UserControl
 
     // Superfície das ferramentas V2.6.9: preserva o gradiente do shell
     // entre os cartões e após o último item.
+    // Contador local monotônico para provar custo de medição, sem I/O,
+    // cronômetros por controle, amostragem ou telemetria.
+    internal long PageMeasurementCount { get; private set; }
+    internal void RecordPageMeasurement() => PageMeasurementCount++;
     internal int CleanupScrollbarWidth => _scroll.Width;
     internal int CleanupViewportWidth => _viewport.ClientSize.Width;
     internal int CleanupViewportHeight => _viewport.ClientSize.Height;

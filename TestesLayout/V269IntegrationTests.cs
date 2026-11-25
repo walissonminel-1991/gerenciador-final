@@ -18,6 +18,7 @@ internal static class V269IntegrationTests
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
         Timed("Navegação sequencial nativa", () => VerifySequentialNavigation(form, shell));
+        Timed("Medição de viewports ao ocultar", () => VerifyViewportVisibilityMeasurements(form,shell));
         Timed("Feedback independente", VerifyIndependentFeedback);
         Timed("Barras universais", VerifyUniversalMeterPainting);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
@@ -313,6 +314,37 @@ internal static class V269IntegrationTests
         }
     }
 
+    private static void VerifyViewportVisibilityMeasurements(MainForm form,V269Shell shell)
+    {
+        var original=shell.SelectedPage;
+        try
+        {
+            foreach(var (page,name) in new[]{
+                (V269Page.Limpeza,"V269CleanupViewport"),
+                (V269Page.Reparo,"V269RepairViewport"),
+                (V269Page.Sistema,"V269SystemViewport")})
+            {
+                shell.SelectPage(page);
+                Application.DoEvents();
+                var viewport=form.Controls.Find(name,true).OfType<DarkScrollableFlow>().Single();
+                Require(viewport.Visible,"viewport ativo "+page);
+                var content=viewport.Content.Controls.Cast<Control>().Single();
+                long before=viewport.PageMeasurementCount;
+                viewport.Hide();
+                Require(viewport.PageMeasurementCount==before,
+                    "AUT-UX-01: ocultar viewport não deve medir novamente "+page);
+                viewport.Show();
+                Application.DoEvents();
+                Require(viewport.PageMeasurementCount>before &&
+                    content.Width==viewport.CleanupViewportWidth &&
+                    content.Height>=viewport.CleanupViewportHeight,
+                    "reexibir deve reconciliar geometria efetiva e conteúdo "+page);
+                Console.WriteLine($"V269-VIEWPORT-MEASURE page={page} hide=0 show={viewport.PageMeasurementCount-before}");
+            }
+        }
+        finally { shell.SelectPage(original); Application.DoEvents(); }
+    }
+
     private static void VerifyThemedTextScroll()
     {
         using var window = new Form { ClientSize = new Size(300,140), ShowInTaskbar = false };
@@ -512,6 +544,9 @@ internal static class V269IntegrationTests
         var dispatch = new List<double>();
         var settle = new List<double>();
         var transitions = new List<(V269Page From, V269Page To, V269Theme Theme, bool Pump, double Dispatch, double? Drain)>();
+        var measuredViewports=new[]{"V269CleanupViewport","V269RepairViewport","V269SystemViewport"}
+            .Select(name=>form.Controls.Find(name,true).OfType<DarkScrollableFlow>().Single()).ToArray();
+        var measurementDeltas=new List<(V269Page From,V269Page To,long Cleanup,long Repair,long System)>();
         void Changed(object? sender, V269NavigationEventArgs e)
         {
             notifications++;
@@ -525,6 +560,7 @@ internal static class V269IntegrationTests
             var palette = shell.Theme;
             bool changed = from != page;
             int count = notifications;
+            var beforeMeasurements=measuredViewports.Select(v=>v.PageMeasurementCount).ToArray();
             var clock = System.Diagnostics.Stopwatch.StartNew();
             var button = buttons[page];
             Require(button.Visible && button.Enabled && button.CanSelect,
@@ -549,6 +585,9 @@ internal static class V269IntegrationTests
                     "fila STA restaurou uma aba antiga: " + page);
             }
             transitions.Add((from, page, palette, pump, dispatchMs, drainMs));
+            measurementDeltas.Add((from,page,measuredViewports[0].PageMeasurementCount-beforeMeasurements[0],
+                measuredViewports[1].PageMeasurementCount-beforeMeasurements[1],
+                measuredViewports[2].PageMeasurementCount-beforeMeasurements[2]));
         }
         shell.NavigationChanged += Changed;
         try
@@ -583,6 +622,8 @@ internal static class V269IntegrationTests
                 Console.WriteLine(FormattableString.Invariant(
                     $"V269-UX-TRANSITION from={sample.From} to={sample.To} theme={sample.Theme} pump={sample.Pump} dispatch_ms={sample.Dispatch:F2} drain_ms={drain}"));
             }
+            foreach(var sample in measurementDeltas)
+                Console.WriteLine($"V269-UX-MEASURE from={sample.From} to={sample.To} limpeza={sample.Cleanup} reparo={sample.Repair} sistema={sample.System}");
             foreach (var group in transitions.GroupBy(s => s.To))
             {
                 var sorted = group.Select(s => s.Dispatch).OrderBy(x => x).ToArray();
