@@ -2,6 +2,21 @@
 
 Snapshot auditado: PR #113 `2407d42dbdba711932bf2bad8d63d292a5aa1695`. As evidências abaixo pertencem a esse SHA ou, quando indicado, a um SHA anterior. O presente documento não declara o produto aprovado. Fonte de autoridade: [GF-AUTORIDADE-PRODUTO-V269.md](GF-AUTORIDADE-PRODUTO-V269.md).
 
+## 0. Leitura correta do snapshot e dos bloqueios
+
+O snapshot `2407d42d` abaixo é histórico: não representa automaticamente o HEAD de integração. Cada requisito deve ter a última evidência válida ligada ao SHA **executado**, à execução/artefato, ao ambiente e aos caminhos/dependências relevantes. Mudança posterior não apaga evidência histórica; exige revalidar o que ela afeta. Os gates na seção 4 descrevem o plano daquele snapshot e não devem ser seguidos cegamente após mudança de HEAD.
+
+**Consulta em 25/11/2026:** PR #113 em `b590902963cb8cec6be849eb1c60c45fae63e589`. Integridade `45703806387`: SUCCESS. CI Windows `45703806256`: FAILURE, job `139520450250`; a execução parou no bloco `Monitor_GF`, com `GfMonitorWindowBindingTests.VerifyThermalBinding` falhando na asserção de aviso térmico na janela real. A causa técnica ainda não foi demonstrada. Compilação x64 e demais etapas posteriores foram ignoradas; Drivers somente leitura 2022/2025 e política passaram. Essas observações são do SHA citado e não homologam HEAD posterior.
+
+| Bloqueio | Impacto e evidência | Próxima ação segura | Condição objetiva de saída |
+|---|---|---|---|
+| REC-CI-01 | `b5909029`: falha no oráculo que comparava texto com cor de preenchimento; Windows `45703806256`, job `139520450250`. `b5571681`: tentativa intermediária falhou ao procurar a barra expandida na árvore do modo compacto; Windows `45707204630`, job `139532113938`. | Resolvido em `0ff41d10`: texto compacto confrontado com paleta de leitura, barra inspecionada na árvore do modo expandido, oráculo do host corrigido com a mesma distinção. Não houve mudança de motor nem de PR #114. | Windows `45707664615` SUCCESS integral (regressões e x64); integridade `45707664519` SUCCESS no SHA `0ff41d10e00b6640ac818cc14beb06fdfec20cba`. Pendente homologação física do produto. |
+| REC-RAST-01 | Matriz principal contém provas de `2407d42d` e outros SHAs anteriores; ausência de verificação atual não equivale a regressão demonstrada. | Atualizar linha por linha apenas para funções alteradas, com contrato, caminho ativo, SHA, teste e pendência física. | Cada função promovida de estado possui evidência verificável no SHA correspondente, sem contar presença de código como conclusão. |
+
+**Fechamento causal do gate:** a asserção antiga misturava `GfMeterScale.Colors` (preenchimento) com `GfMeterScale.InkColors` (texto). Uma primeira correção testou a barra fora da árvore visual do modo compacto e foi reprovada; o teste seguinte exercitou compacto e expandido no controle real. Essa sequência registra também a falha de nossa própria correção, sem apagá-la nem contá-la como função concluída. A aprovação de `0ff41d10` vale para esse código e ambientes de CI, não para operação física nos PCs autorizados. A revisão documental posterior requer validação de seu próprio SHA, sem promoção automática da evidência anterior.
+
+**Formato mínimo para próximas linhas:** `ID | decisão/contrato | caminho ativo e substituído | estado | SHA da implementação | SHA testado | execução/artefato/ambiente | positivo/negativo | pendência/bloqueio | próxima prova`. O campo de estado distingue PRESENTE, CONECTADO, VALIDADO-SINTÉTICO, VALIDADO-FÍSICO e CONCLUÍDO; BLOQUEADO/NO-GO registra impedimentos. A contagem oficial só inclui funções reais funcionando com todos os critérios aplicáveis cumpridos. Indicadores de duração e recorrência servem apenas para avaliar o método.
+
 ## 1. Proveniência dos componentes (comparação por blob Git, não só nome)
 | PR | Origem congelada | Relação com #113 | Arquivos examinados, iguais / diferentes |
 |---|---|---|---|
