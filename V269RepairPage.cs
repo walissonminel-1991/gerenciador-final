@@ -159,6 +159,7 @@ internal sealed partial class MainForm
         _v269RepairSelected.Card.SetSelected(true);
         RefreshV269RepairCommands();
         bool fitting = false;
+        (int Width, int Gap, int Columns, int Dpi, V269AppearanceOptions Options)? fitted = null;
         void Fit()
         {
             if (fitting || host.IsDisposed || host.ClientSize.Width <= 0) return;
@@ -170,20 +171,30 @@ internal sealed partial class MainForm
                 int width = Math.Max(1, host.ClientSize.Width - Math.Max(4, S(4)));
                 int columns = _nav.LayoutWindowWidth <= 850 || width < S(540) ? 2 : 3;
                 if (width < S(330)) columns = 1;
+                var key = (width, gap, columns, host.DeviceDpi, _v269Appearance.Normalize());
+                if (fitted == key) return; // alteração apenas de altura não invalida os cartões.
                 int cardWidth = Math.Max(1, (width - gap * (columns - 1)) / columns);
-                for (int row = 0; row < _v269RepairItems.Count; row += columns)
+                flow.SuspendLayout();
+                try
                 {
-                    var cards = _v269RepairItems.Skip(row).Take(columns).Select(item => item.Card).ToArray();
-                    foreach (var card in cards) card.ApplyOptions(_v269Appearance);
-                    int height = cards.Max(card => card.HeightForWidth(cardWidth));
-                    for (int column = 0; column < cards.Length; column++)
+                    for (int row = 0; row < _v269RepairItems.Count; row += columns)
                     {
-                        var card = cards[column];
-                        card.Margin = new Padding(0, 0, column == columns - 1 ? 0 : gap, gap);
-                        card.Size = new Size(cardWidth, height);
+                        var cards = _v269RepairItems.Skip(row).Take(columns).Select(item => item.Card).ToArray();
+                        foreach (var card in cards) card.ApplyOptions(key.Item5);
+                        int height = cards.Max(card => card.HeightForWidth(cardWidth));
+                        for (int column = 0; column < cards.Length; column++)
+                        {
+                            var card = cards[column];
+                            var margin = new Padding(0, 0, column == columns - 1 ? 0 : gap, gap);
+                            var size = new Size(cardWidth, height);
+                            if (card.Margin != margin) card.Margin = margin;
+                            if (card.Size != size) card.Size = size;
+                        }
                     }
                 }
+                finally { flow.ResumeLayout(false); }
                 host.Reflow();
+                fitted = key;
             }
             finally { fitting = false; }
         }
@@ -238,6 +249,14 @@ internal sealed partial class MainForm
         string state = evidence is null ? "Aguardando execução" : evidence.Complete ? "Concluído" : "Requer atenção";
         if (tool.Glyph is V269RepairGlyph.Wrench or V269RepairGlyph.Refresh && !selected.Card.Command.Enabled)
             state = "Verificação necessária";
+        // Enter do cartão/comando e NavigationChanged podem solicitar o mesmo
+        // detalhe consecutivamente. Não reconstruir a árvore do painel sem mudança.
+        if (_nav.RightPane.Current is { Kind: V269PanelKind.Details, Repair: { } current } &&
+            current.Name == tool.Title && current.RepairGlyph == tool.Glyph &&
+            current.Fields.SequenceEqual(new[] { ("Estado", state) }) &&
+            current.RepairReport == evidence?.Description &&
+            (current.PreviousResults ?? []).SequenceEqual(_v269RepairPreviousResults))
+            return;
         var model = new V269AppDetailModel(tool.Title, tool.Category, [("Estado", state)],
             "Reparos orientados exigem uma verificação anterior. Operações sensíveis pedem confirmação e podem alterar o Windows.",
             Description: tool.Description, PreviousResults: _v269RepairPreviousResults.ToArray(),

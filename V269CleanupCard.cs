@@ -15,6 +15,8 @@ internal class V269ToolCard : Panel
     private bool _selected;
     private V269AppearanceOptions _options = V269AppearanceOptions.Default;
     private Font? _titleFont;
+    private int _optionsDpi;
+    private (int Width, int Dpi, int Scale, Font Font, int Height)? _titleMeasurement;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal Button Command => _command;
 
@@ -56,11 +58,15 @@ internal class V269ToolCard : Panel
     }
     internal void ApplyOptions(V269AppearanceOptions options)
     {
-        _options = options.Normalize();
+        options = options.Normalize();
+        if (_titleFont is not null && options == _options && _optionsDpi == DeviceDpi) return;
+        _options = options;
+        _optionsDpi = DeviceDpi;
         float size = 9.75f * _options.TextPercent / 100f;
         if (_titleFont is null || Math.Abs(_titleFont.Size - size) > .01f)
         {
             var old = _titleFont;
+            _titleMeasurement = null;
             _titleFont = new Font("Segoe UI", size, FontStyle.Bold);
             _title.Font = _titleFont;
             old?.Dispose();
@@ -81,9 +87,14 @@ internal class V269ToolCard : Panel
     private int TitleHeight(int width)
     {
         if (!_repairGlyph.HasValue) return Math.Max(S(30), _title.Font.Height * 2 + S(2));
-        return Math.Max(S(30), TextRenderer.MeasureText(_title.Text, _title.Font,
+        if (_titleMeasurement is { } cached && cached.Width == width && cached.Dpi == DeviceDpi &&
+            cached.Scale == _options.InterfacePercent && ReferenceEquals(cached.Font, _title.Font))
+            return cached.Height;
+        int height = Math.Max(S(30), TextRenderer.MeasureText(_title.Text, _title.Font,
             new Size(Math.Max(1, width - S(55)), int.MaxValue),
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding).Height + S(2));
+        _titleMeasurement = (width, DeviceDpi, _options.InterfacePercent, _title.Font, height);
+        return height;
     }
     internal int HeightForWidth(int width) => Math.Max(S(114),
         S(12) * 2 + TitleHeight(width) + S(8) + Math.Max(S(30), _command.Font.Height + S(8)));

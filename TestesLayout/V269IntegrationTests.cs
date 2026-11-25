@@ -143,9 +143,16 @@ internal static class V269IntegrationTests
             "tema Claro preserva contraste do registro e o resultado publicado");
         VerifySettings(form,shell);
         VerifyApps(form,shell,confirmationContext);
-        VerifyDrivers(form,shell);
-        VerifyCleanup(form,shell);
-        VerifyRepair(form,shell);
+        void Timed(string name, Action test)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            Console.WriteLine("V269-BEGIN " + name);
+            test();
+            Console.WriteLine($"V269-END {name} ms={clock.ElapsedMilliseconds}");
+        }
+        Timed("Drivers", () => VerifyDrivers(form,shell));
+        Timed("Limpeza", () => VerifyCleanup(form,shell));
+        Timed("Reparo", () => VerifyRepair(form,shell));
         form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
@@ -886,6 +893,26 @@ internal static class V269IntegrationTests
                     model.Fields.Single() == ("Estado", "Aguardando execução") &&
                     shell.RightPane.Controls.Find("V269AppDescriptionHeading", true).Single().Text == "Função",
                     "identidade, função e estado ficam no painel lateral");
+                // Repetir a solicitação sem mudança de entradas não pode
+                // reconstruir os detalhes ou alterar a geometria medida.
+                var retained = shell.RightPane.Current;
+                var repairHost = page.Controls.Find("RepairActions", true).OfType<DarkScrollableFlow>().Single();
+                var bounds = cards.Select(card => card.Bounds).ToArray();
+                var margins = cards.Select(card => card.Margin).ToArray();
+                int layouts = 0;
+                void CountLayout(object? sender, LayoutEventArgs args) => layouts++;
+                repairHost.Content.Layout += CountLayout;
+                try
+                {
+                    for (int repeat = 0; repeat < 3; repeat++) ((Action)repairHost.Tag!)();
+                    Require(layouts == 0 && bounds.SequenceEqual(cards.Select(card => card.Bounds)) &&
+                        margins.SequenceEqual(cards.Select(card => card.Margin)),
+                        "Fit repetido não remede nem relayouta cartões estáveis");
+                }
+                finally { repairHost.Content.Layout -= CountLayout; }
+                Select(0);
+                Require(ReferenceEquals(retained, shell.RightPane.Current),
+                    "seleção repetida conserva a mesma apresentação de detalhes");
                 var rows = cards.GroupBy(card => card.Top).ToArray();
                 Require(rows.All(row => row.Count() <= 3) && (size.Width < 1844 || rows.Length == 4) &&
                     cards.All(card => card.Command.Right <= card.ClientSize.Width && card.Command.Bottom <= card.ClientSize.Height),
