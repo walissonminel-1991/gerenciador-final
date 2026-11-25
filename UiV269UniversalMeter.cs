@@ -11,6 +11,32 @@ internal static class GfUniversalMeter
         return GfMeterScale.Frame(GfMeterKind.Usage, percent, theme);
     }
 
+    internal static GfMeterFrame Update(UpdateProgress progress, V269Theme theme)
+    {
+        var state = progress.Stage switch
+        {
+            UpdateStage.Confirmed => GfMeterState.Success,
+            UpdateStage.Failed => GfMeterState.Failed,
+            UpdateStage.Cancelled or UpdateStage.AuthorizationDeclined => GfMeterState.Cancelled,
+            UpdateStage.Pending or UpdateStage.Blocked => GfMeterState.Unavailable,
+            _ => GfMeterState.Running
+        };
+        return Operation(progress.Percent, state, false, theme);
+    }
+
+    internal static GfMeterFrame Uninstall(UninstallStage stage, V269Theme theme)
+    {
+        var state = stage switch
+        {
+            UninstallStage.Finished => GfMeterState.Success,
+            UninstallStage.Failed => GfMeterState.Failed,
+            UninstallStage.Cancelled => GfMeterState.Cancelled,
+            UninstallStage.Partial or UninstallStage.Pending => GfMeterState.Unavailable,
+            _ => GfMeterState.Indeterminate
+        };
+        return Operation(null, state, false, theme);
+    }
+
     internal static GfMeterFrame Operation(double? reportedPercent, GfMeterState state, bool inverted, V269Theme theme)
     {
         var kind = inverted ? GfMeterKind.InvertedProgress : GfMeterKind.Progress;
