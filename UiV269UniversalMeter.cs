@@ -21,7 +21,7 @@ internal static class GfUniversalMeter
             UpdateStage.Pending or UpdateStage.Blocked => GfMeterState.Unavailable,
             _ => GfMeterState.Running
         };
-        return Operation(progress.Percent, state, false, theme);
+        return Operation(progress.Percent, state, true, theme);
     }
 
     internal static GfMeterFrame Uninstall(UninstallStage stage, V269Theme theme)
@@ -34,7 +34,7 @@ internal static class GfUniversalMeter
             UninstallStage.Partial or UninstallStage.Pending => GfMeterState.Unavailable,
             _ => GfMeterState.Indeterminate
         };
-        return Operation(null, state, false, theme);
+        return Operation(null, state, true, theme);
     }
 
     internal static GfMeterFrame Operation(double? reportedPercent, GfMeterState state, bool inverted, V269Theme theme)

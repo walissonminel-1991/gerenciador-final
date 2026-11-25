@@ -39,6 +39,21 @@ internal static class GfMonitorPreferencesAndProgressTests
 
         foreach (var theme in Enum.GetValues<V269Theme>())
         {
+            var colors = GfMeterScale.Colors(theme);
+            foreach (var (percent, color) in new[] { (0, colors.Red), (35, colors.Yellow), (100, colors.Blue) })
+            {
+                var operation = GfUniversalMeter.Operation(percent, GfMeterState.Running, true, theme);
+                Require(operation.Color == color && operation.ScaleKind == GfMeterKind.InvertedProgress &&
+                    operation.Fraction == percent / 100d && operation.State == GfMeterState.Running,
+                    "progresso de operação usa a escala invertida e o percentual real");
+            }
+            var initial = GfUniversalMeter.Update(new(UpdateStage.Downloading, 10, 100), theme);
+            Require(initial.ScaleKind == GfMeterKind.InvertedProgress &&
+                initial.Color == GfMeterScale.ScaleColor(GfMeterKind.InvertedProgress,10,theme),
+                "download inicia na faixa vermelha, não na azul");
+            var success = GfUniversalMeter.Operation(null,GfMeterState.Success,true,theme);
+            Require(success.Color == colors.Green && success.Fraction == 1 && success.Immediate,
+                "verde somente após confirmação do motor");
             var downloading = GfUniversalMeter.Update(new(UpdateStage.Downloading, 100, 100), theme);
             Require(downloading.Fraction == 1 && downloading.State == GfMeterState.Running &&
                 downloading.Color == GfMeterScale.Colors(theme).Blue, "100% dos bytes não confirma instalação");

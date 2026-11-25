@@ -2089,7 +2089,7 @@ internal sealed partial class MainForm : Form
     private void RefreshLegacyOperationMeter()
     {
         _progress.Configure(_v269Appearance.Theme, CanAnimateV269);
-        var frame = GfUniversalMeter.Operation(_legacyOperationPercent, _legacyOperationState, false, _v269Appearance.Theme);
+        var frame = GfUniversalMeter.Operation(_legacyOperationPercent, _legacyOperationState, true, _v269Appearance.Theme);
         _progress.Present(frame, frame.Fraction is double value ? $"{value * 100:0}%" :
             frame.State == GfMeterState.Indeterminate ? "Progresso não informado" : "");
     }

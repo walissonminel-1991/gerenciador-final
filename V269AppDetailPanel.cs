@@ -266,7 +266,7 @@ internal sealed class V269AppFlowMeter : Control
         _meter.BackColor=V269AppDetailStyle.Palette(theme).RightPanel;
         _meter.Configure(theme, FindForm() is MainForm main && main.V269CanAnimateButtons);
         var frame = GfUniversalMeter.Operation(_value,
-            _value.HasValue ? GfMeterState.Running : GfMeterState.Unavailable, false, theme);
+            _value.HasValue ? GfMeterState.Running : GfMeterState.Unavailable, true, theme);
         _meter.Present(frame, AccessibleDescription);
         ArrangeMeter();
         Invalidate();

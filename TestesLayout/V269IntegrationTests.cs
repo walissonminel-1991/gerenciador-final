@@ -1717,7 +1717,7 @@ internal static class V269IntegrationTests
                         meter.PointToScreen(Point.Empty).Y < note.PointToScreen(Point.Empty).Y,
                         "progresso comprovado aparece antes do aviso");
                     var chromatic = meter.Controls.Find("V269FlowChromaticBar",true).OfType<GfDynamicProgressBar>().Single();
-                    Require(chromatic.CurrentFrame == GfUniversalMeter.Operation(28,GfMeterState.Running,false,palette),
+                    Require(chromatic.CurrentFrame == GfUniversalMeter.Operation(28,GfMeterState.Running,true,palette),
                         "progresso usa a escala universal também no Dark, sem cor substituta");
                     Capture("ANDAMENTO", palette);
                     if (cancel is not null)

@@ -580,7 +580,7 @@ internal sealed class V269RightPane : UserControl
     {
         var value=Current?.ProgressPercent;
         var frame=GfUniversalMeter.Operation(value,Current?.Kind==V269PanelKind.Progress ?
-            GfMeterState.Running : GfMeterState.Unavailable,false,_appPaneTheme);
+            GfMeterState.Running : GfMeterState.Unavailable,true,_appPaneTheme);
         _progress.BackColor=BackColor;
         _progress.Configure(_appPaneTheme, FindForm() is MainForm main && main.V269CanAnimateButtons);
         _progress.Present(frame,frame.Fraction is double fraction ? $"{fraction*100:0}%" : "Progresso não informado");
