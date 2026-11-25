@@ -686,6 +686,9 @@ internal sealed class V269RightPane : UserControl
             {
                 control.BackColor = control is TextBoxBase or ListBox or Button ? reviewPalette.Card : reviewPalette.RightPanel;
                 control.ForeColor = reviewPalette.Text;
+                if (control is V269ReviewScrollHost viewport) viewport.Configure(_appPaneTheme);
+                if (control is V269TextScrollHost textViewport) textViewport.Configure(_appPaneTheme);
+                if (control is DarkVScrollBar scrollbar) scrollbar.ApplyAppScrollTheme(_appPaneTheme);
                 foreach (Control child in control.Controls) ColorReview(child);
             }
             ColorReview(review);

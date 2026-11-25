@@ -1189,6 +1189,7 @@ internal sealed partial class MainForm
         if(root is V269StartupCard startupCard){startupCard.ApplyOptions(_v269Appearance);return;}
         if(root is V269SystemUpdateRow updateRow){updateRow.ApplyOptions(_v269Appearance);return;}
         if(root is V269SystemSwitch systemSwitch){systemSwitch.ApplyOptions(_v269Appearance);return;}
+        if(root is DarkLogView logView) logView.ApplyScrollTheme(_v269Appearance.Theme);
         if(root is MemoryRamChart ramChart){ramChart.ApplyOptions(_v269Appearance);return;}
         if(ReferenceEquals(root,_v269RamMeter)){RefreshV269RamMeter(appearanceChanged:true);return;}
         if(root is V269ToolCard toolCard){toolCard.ApplyOptions(_v269Appearance);return;}

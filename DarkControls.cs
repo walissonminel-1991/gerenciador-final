@@ -899,6 +899,8 @@ internal sealed class DarkLogView : UserControl
     internal static string NormalizeWindowsLineBreaks(string? value) =>
         (value ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Replace("\n", "\r\n");
 
+    internal void ApplyScrollTheme(V269Theme theme) { _scroll.ApplyAppScrollTheme(theme); SyncMetrics(); }
+
     // Somente para textos explicativos, nunca muda fonte do registro tecnico.
     internal void UseReadableFont(Font font)
     {
@@ -1115,6 +1117,78 @@ internal sealed class V269TextScrollHost : Panel
             }));
         }
         catch (InvalidOperationException) { _scheduled = false; }
+    }
+}
+
+// Viewport de revisão WUA: conteúdo de altura mínima e controles
+// originais, com rolagem externa somente se a janela não comportar tudo.
+internal sealed class V269ReviewScrollHost : Panel
+{
+    private readonly Panel _viewport = new() { Dock = DockStyle.Fill, AutoScroll = false };
+    private readonly DarkVScrollBar _scroll = new() { Name = "V269ReviewScroll", Dock = DockStyle.Right, Visible = false, AccessibleName = "Rolagem da revisão" };
+    private readonly Control _content;
+    private readonly int _minimumHeight;
+    private readonly WheelDeltaAccumulator _wheel = new();
+    private bool _arranging;
+
+    internal V269ReviewScrollHost(Control content, int minimumHeight)
+    {
+        _content = content;
+        _minimumHeight = minimumHeight;
+        Dock = DockStyle.Fill;
+        AutoScroll = false;
+        _content.Dock = DockStyle.None;
+        _viewport.Controls.Add(_content);
+        Controls.Add(_viewport);
+        Controls.Add(_scroll);
+        _scroll.BringToFront();
+        _scroll.ApplyAppScrollTheme(V269Theme.AzulGf);
+        _scroll.ValueChanged += (_, _) => _content.Top = -_scroll.Value;
+        SizeChanged += (_, _) => Reflow();
+        DpiChangedAfterParent += (_, _) => Reflow();
+        VisibleChanged += (_, _) => Reflow();
+        _viewport.SizeChanged += (_, _) => Reflow();
+        void Track(Control control)
+        {
+            // TextBox tem seu próprio teclado/cópia e roda nativa de linhas.
+            // Não propagar seu movimento para o viewport de autorização.
+            if (control is not (TextBoxBase or ListBox or V269TextScrollHost or DarkVScrollBar))
+                control.MouseWheel += (_, e) =>
+                {
+                    int notches = _wheel.Consume(e.Delta);
+                    if (notches != 0) _scroll.Value = (int)Math.Clamp((long)_scroll.Value-85L*notches,0,_scroll.MaximumValue);
+                };
+            if (control is Button or CheckBox or ListBox or TextBoxBase)
+                control.Enter += (_, _) =>
+                {
+                    if (!control.Visible || !control.IsHandleCreated) return;
+                    var bounds = _content.RectangleToClient(control.RectangleToScreen(control.ClientRectangle));
+                    if (bounds.Top < _scroll.Value) _scroll.Value = bounds.Top;
+                    else if (bounds.Bottom > _scroll.Value + _viewport.ClientSize.Height)
+                        _scroll.Value = bounds.Bottom - _viewport.ClientSize.Height;
+                };
+            foreach (Control child in control.Controls) Track(child);
+            control.ControlAdded += (_, e) => { if (e.Control is { } child) Track(child); };
+        }
+        Track(_viewport);
+        Reflow();
+    }
+
+    internal void Configure(V269Theme theme) { _scroll.ApplyAppScrollTheme(theme); Reflow(); }
+
+    private void Reflow()
+    {
+        if (_arranging || IsDisposed || Disposing) return;
+        _arranging = true;
+        try
+        {
+            int height = Math.Max(1, ClientSize.Height);
+            int required = Math.Max(height,(int)Math.Ceiling(_minimumHeight * DeviceDpi / 96d));
+            _scroll.SetMetrics(required,height);
+            int width = Math.Max(1,ClientSize.Width - (required > height ? _scroll.Width : 0));
+            _content.Bounds = new Rectangle(0,-_scroll.Value,width,required);
+        }
+        finally { _arranging = false; }
     }
 }
 

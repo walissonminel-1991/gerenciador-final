@@ -609,10 +609,10 @@ internal static class DriverUpdatePilotDialog
             form.Dock = DockStyle.Fill;
             form.MinimumSize = Size.Empty;
             root.Padding = Padding.Empty;
-            root.Dock = DockStyle.Top;
-            root.Height = 368;
-            form.AutoScroll = true;
-            form.ClientSizeChanged += (_, _) => root.Height = Math.Max(368, form.ClientSize.Height);
+            form.AutoScroll = false;
+            form.Controls.Remove(root);
+            var reviewViewport = new V269ReviewScrollHost(root,368);
+            form.Controls.Add(reviewViewport);
             // A revisão lateral recebe uma oferta exata. Os dois aceites
             // explícitos continuam visíveis e são reaplicados antes da execução.
             headline.Visible = false;

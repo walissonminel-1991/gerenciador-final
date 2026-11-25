@@ -342,6 +342,32 @@ internal static class V269IntegrationTests
             host.Configure(theme, true);
         }
         window.Close();
+        using var reviewWindow = new Form { ClientSize = new Size(300,160), ShowInTaskbar = false };
+        var reviewContent = new Panel();
+        var confirm = new CheckBox { Text = "Autorização sintética", Bounds = new Rectangle(5,290,210,24) };
+        reviewContent.Controls.Add(confirm);
+        using var review = new V269ReviewScrollHost(reviewContent,368);
+        reviewWindow.Controls.Add(review);
+        reviewWindow.Show();
+        Application.DoEvents();
+        var reviewBar = review.Controls.OfType<DarkVScrollBar>().Single();
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            review.Configure(theme);
+            Require(reviewBar.Visible && !review.AutoScroll && !reviewWindow.AutoScroll,
+                "revisão compacta usa barra temática externa");
+            reviewBar.Value = reviewBar.MaximumValue;
+            Require(reviewContent.Top == -reviewBar.Value &&
+                reviewContent.Top + confirm.Bottom <= review.ClientSize.Height,
+                "aceite permanece alcançável na revisão compacta");
+            reviewWindow.ClientSize = new Size(300,500);
+            Application.DoEvents();
+            Require(!reviewBar.Visible && reviewContent.Top == 0,
+                "revisão com espaço suficiente não exibe barra");
+            reviewWindow.ClientSize = new Size(300,160);
+            Application.DoEvents();
+        }
+        reviewWindow.Close();
     }
 
     private static void VerifyUniversalMeterPainting()
