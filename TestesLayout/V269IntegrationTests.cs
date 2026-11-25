@@ -235,6 +235,13 @@ internal static class V269IntegrationTests
                     "gradiente aprovado permanece visível entre cartões e discos");
                 Require(cards.Content.Controls.Cast<Control>().Max(c=>c.Right)>=cards.Content.Width-3,
                     "cartões ocupam a largura útil, sem faixa vazia lateral");
+                var cleanupPage=form.Controls.Find("V269CleanupPage",true).Single();
+                Require(cleanupPage.Width==cleanupViewport.CleanupViewportWidth,
+                    "Limpeza usa a largura efetiva do viewport, sem reservar barra inexistente");
+                int cardPad=V269AppTable.Scale(shell.LayoutWindowWidth<=1250?9:12,100,first.DeviceDpi);
+                Require(first.Command.Right==first.ClientSize.Width-cardPad &&
+                    first.Command.Bottom==first.ClientSize.Height-cardPad,
+                    "cartão de Limpeza usa padding do breakpoint do HTML");
                 Require(report.RowStyles.Cast<RowStyle>().All(row=>row.Height>=V269AppTable.Scale(28,100,report.DeviceDpi)),
                     "estimativas preservam o espaçamento mínimo do HTML");
                 var stableRows=report.RowStyles.Cast<RowStyle>().ToArray();

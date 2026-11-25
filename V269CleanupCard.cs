@@ -13,6 +13,7 @@ internal class V269ToolCard : Panel
     private readonly int _kind;
     private readonly V269RepairGlyph? _repairGlyph;
     private bool _selected;
+    private bool _compactCleanup;
     private V269AppearanceOptions _options = V269AppearanceOptions.Default;
     private Font? _titleFont;
     private int _optionsDpi;
@@ -50,6 +51,14 @@ internal class V269ToolCard : Panel
     }
     private int S(int n) => V269AppTable.Scale(n, _options.InterfacePercent, DeviceDpi);
     private static Color H(string s) => V269AppTable.H(s);
+    private int CardPad => S(_compactCleanup ? 9 : 12);
+    internal void ApplyCleanupLayout(bool compact)
+    {
+        if(_repairGlyph.HasValue || _compactCleanup==compact)return;
+        _compactCleanup=compact;
+        Arrange();
+        Invalidate(true);
+    }
     internal void SetSelected(bool selected)
     {
         if (_selected == selected) return;
@@ -100,7 +109,7 @@ internal class V269ToolCard : Panel
         S(12) * 2 + TitleHeight(width) + S(8) + Math.Max(S(30), _command.Font.Height + S(8)));
     private void Arrange()
     {
-        int pad = S(12), left = pad + S(31);
+        int pad = CardPad, left = pad + S(31);
         int height = TitleHeight(Width);
         _title.Bounds = new Rectangle(left, pad, Math.Max(1, Width - left - pad), height);
         int required=TextRenderer.MeasureText(_command.Text,_command.Font,Size.Empty,TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding).Width+S(32);
@@ -141,13 +150,13 @@ internal class V269ToolCard : Panel
         }
         var save = g.Save();
         float unit = S(21) / 24f;
-        g.TranslateTransform(S(12), S(12) + Math.Max(0, (_title.Height - S(21)) / 2));
+        g.TranslateTransform(CardPad, CardPad + Math.Max(0, (_title.Height - S(21)) / 2));
         g.ScaleTransform(unit, unit);
         string blue = _options.Theme == V269Theme.Claro ? "#167bbb" : _options.Theme == V269Theme.Dark ? "#65b8ef" : "#75c4ed";
         string teal = _options.Theme == V269Theme.Claro ? "#087d82" : _options.Theme == V269Theme.Dark ? "#55cbb5" : "#6bd6b2";
         string rose = _options.Theme == V269Theme.Claro ? "#ba4a5e" : _options.Theme == V269Theme.Dark ? "#eb8293" : "#d8919f";
         string orange = _options.Theme == V269Theme.Claro ? "#bc592b" : _options.Theme == V269Theme.Dark ? "#ee9d68" : "#e8a784";
-        using var p = new Pen(H(_kind == 3 ? rose : _kind == 4 ? teal : _kind == 5 ? orange : blue), 2.05f)
+        using var p = new Pen(H(_kind == 0 && _options.Theme == V269Theme.Dark ? "#c6cdd3" : _kind == 3 ? rose : _kind == 4 ? teal : _kind == 5 ? orange : blue), 2.05f)
             { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         switch (_kind)
         {

@@ -1116,6 +1116,9 @@ internal sealed class DarkScrollableFlow : UserControl
 
     // Opt-in exclusivo da aba Limpeza: o gradiente do shell permanece
     // visível nos espaços entre cartões e após a última unidade.
+    internal int CleanupScrollbarWidth => _scroll.Width;
+    internal int CleanupViewportWidth => _viewport.ClientSize.Width;
+
     internal void ApplyCleanupSurface(V269Theme theme)
     {
         SetStyle(ControlStyles.SupportsTransparentBackColor,true);

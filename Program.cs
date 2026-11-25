@@ -1845,7 +1845,7 @@ internal sealed partial class MainForm : Form
         }
         _v269CleanupDefault?.Invoke();
         bool fitting = false;
-        (int Width, int Gap, int Columns, int Dpi, V269AppearanceOptions Options)? fitted = null;
+        (int Width, int Gap, int Columns, int Dpi, V269AppearanceOptions Options, bool Compact)? fitted = null;
         void Fit()
         {
             if (fitting || host.IsDisposed || host.ClientSize.Width <= 0) return;
@@ -1857,7 +1857,7 @@ internal sealed partial class MainForm : Form
                 int width = Math.Max(1, host.ClientSize.Width);
                 int columns = _nav.LayoutWindowWidth <= 850 || width < S(540) ? 2 : 3;
                 if (width < S(330)) columns = 1;
-                var key = (width, gap, columns, host.DeviceDpi, _v269Appearance.Normalize());
+                var key = (width, gap, columns, host.DeviceDpi, _v269Appearance.Normalize(), _nav.LayoutWindowWidth <= 1250);
                 if (fitted == key) return;
                 int cardWidth = Math.Max(1, (width - gap * (columns - 1)) / columns);
                 flow.SuspendLayout();
@@ -1871,6 +1871,7 @@ internal sealed partial class MainForm : Form
                         if (card.Margin != margin) card.Margin = margin;
                         if (card.Size != size) card.Size = size;
                         card.ApplyOptions(key.Item5);
+                        card.ApplyCleanupLayout(key.Item6);
                     }
                 }
                 finally { flow.ResumeLayout(false); }

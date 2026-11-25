@@ -118,7 +118,7 @@ internal sealed class V269CleanupButton : Button
                 new(left + icon - S(3), y + icon / 2), new(left + S(4), y + icon - S(3)) });
         }
         else if(Enabled) V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme,
-            _primary && _glyph=="search" && Text=="Analisar limpeza" ? H(text) : null);
+            _primary && _glyph=="search" && Text=="Analisar limpeza" && _options.Theme!=V269Theme.Dark ? H(text) : null);
         else
         {
             using var muted = new Pen(V269VisualTokens.ForTheme(_options.Theme).SecondaryText);

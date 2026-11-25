@@ -59,13 +59,25 @@ internal sealed partial class MainForm
                 // 3 px de margem tecnica. A largura usa o espaco efetivo,
                 // mas nao desativa a rolagem quando o conteudo ultrapassa.
                 int scrollbar = (int)Math.Ceiling(14d * host.DeviceDpi / 96d);
-                int width = Math.Max(1, host.ClientSize.Width - scrollbar);
-                // O conteúdo redimensiona os cartões e recalcula a quebra
-                // das descrições ao receber a nova largura. Medir depois.
-                content.Width = width;
-                content.PerformLayout();
-                content.Height = Math.Max(host.ClientSize.Height, minimumHeight(width));
+                int width = Math.Max(1, host.ClientSize.Width - (trackCleaning ? 0 : scrollbar));
+                int MeasureAt(int available)
+                {
+                    if(content.Width!=available)content.Width=available;
+                    content.PerformLayout();
+                    return minimumHeight(available);
+                }
+                int required=MeasureAt(width);
+                if(trackCleaning && required>host.ClientSize.Height)
+                {
+                    // Só reservar a largura real da barra quando existe overflow.
+                    width=Math.Max(1,host.ClientSize.Width-host.CleanupScrollbarWidth);
+                    required=MeasureAt(width);
+                }
+                int targetHeight=Math.Max(host.ClientSize.Height,required);
+                if(content.Height!=targetHeight)content.Height=targetHeight;
+                int oldViewportWidth=host.CleanupViewportWidth;
                 host.Reflow();
+                if(trackCleaning && host.CleanupViewportWidth!=oldViewportWidth)host.Reflow();
             }
             finally { arranging = false; }
         }
