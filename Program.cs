@@ -39,7 +39,11 @@ internal static class Program
         V269AdminLaunchTicket? reopenAdministrator = null;
         try
         {
-            LocalPerformanceMetrics.Sink = sample => DiagnosticTrace.Write(sample.Format());
+            LocalPerformanceMetrics.Sink = sample =>
+            {
+                LocalDiagnosticReport.Session.RecordPerformance(sample);
+                DiagnosticTrace.Write(sample.Format());
+            };
             LocalPerformanceMetrics.BeginStartup();
             // Telemetria voluntaria jamais pode impedir a abertura do programa.
             try { AnonymousTelemetryContext.Current = new AnonymousTelemetry(); }
