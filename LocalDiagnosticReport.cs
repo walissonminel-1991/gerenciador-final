@@ -15,6 +15,9 @@ internal sealed class LocalDiagnosticReport
     private const int Limit = 128;
     private readonly object _gate = new();
     private readonly Queue<string> _performance = new();
+    private readonly Queue<string> _ui = new();
+    private string? _startup, _initialInventory;
+    private long _uiTotal;
     private readonly Queue<string> _process = new();
     private readonly Queue<string> _failures = new();
     private readonly Queue<string> _events = new();
@@ -77,9 +80,14 @@ internal sealed class LocalDiagnosticReport
 
     internal void RecordPerformance(PerformanceSample sample)
     {
+        string line = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture) + " " + sample.Format();
         lock (_gate)
-            Append(_performance, DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture)
-                + " " + sample.Format(), ref _performanceTotal);
+        {
+            // As duas referências de abertura sobrevivem a uma sessão longa.
+            if (sample.Stage == PerformanceStage.Startup) _startup ??= line;
+            else if (sample.Stage == PerformanceStage.InitialInventoryLoad) _initialInventory ??= line;
+            else Append(_performance, line, ref _performanceTotal);
+        }
     }
 
     // Instrumentação leve de trechos síncronos de UI: não mede o tempo
@@ -100,9 +108,9 @@ internal sealed class LocalDiagnosticReport
             long? bytes = _thread == Environment.CurrentManagedThreadId
                 ? GC.GetAllocatedBytesForCurrentThread() - _allocated : null;
             lock (owner._gate)
-                Append(owner._performance, FormattableString.Invariant(
+                Append(owner._ui, FormattableString.Invariant(
                     $"{DateTimeOffset.UtcNow:O} etapa={stage} aba={page} duracao_ms={elapsed:F3} alocacoes_thread_ui_bytes={bytes}"),
-                    ref owner._performanceTotal);
+                    ref owner._uiTotal);
         }
     }
 
@@ -160,7 +168,12 @@ internal sealed class LocalDiagnosticReport
             text.AppendLine("Unidades: tempo em ms, memória em bytes, CPU normalizada pelos processadores lógicos disponíveis.");
             text.AppendLine("CPU por intervalo; primeira amostra sem percentual. Contexto instantâneo, não prova de repouso contínuo.");
             text.AppendLine("Alocações/CPU do processo incluem atividade concorrente; pico de RAM é da sessão. Alocações da thread UI são separadas; navegação mede apenas o controlador síncrono, não a pintura final.");
+            text.AppendLine();
+            text.AppendLine("Inicialização e primeira carga do inventário (preservadas por toda a sessão):");
+            text.AppendLine(_startup ?? "Abertura: sem amostra concluída.");
+            text.AppendLine(_initialInventory ?? "Primeira carga: sem amostra concluída.");
             Section("Etapas concluídas", _performance, _performanceTotal);
+            Section("Pesquisa, listas e controlador síncrono de navegação", _ui, _uiTotal);
             Section("Amostras do processo", _process, _processTotal);
             Section("Eventos técnicos selecionados (somente códigos e contagens)", _events, _eventTotal);
             Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
