@@ -1588,6 +1588,20 @@ internal static class V269IntegrationTests
                     "recuperação mantém no máximo dois slots");
             }
             finally{third.Close(true);}
+            string invalidFolder=Path.Combine(folder,"invalid-recovery");
+            Directory.CreateDirectory(invalidFolder);
+            string invalidPath=Path.Combine(invalidFolder,"GF-recovery-v1-0.bin");
+            byte[] unknown=[1,2,3,4];
+            File.WriteAllBytes(invalidPath,unknown);
+            var invalid=new DiagnosticRecoveryJournal();
+            invalid.Start(invalidFolder);
+            try
+            {
+                Require(invalid.FormatPrevious().Contains("checkpoint local indisponível")&&
+                    File.ReadAllBytes(invalidPath).SequenceEqual(unknown),
+                    "checkpoint desconhecido é recusado sem sobrescrita");
+            }
+            finally{invalid.Close(false);}
             Require(LocalDiagnosticReport.ModelText("Samsung MZ-V8P1T0")== "Samsung MZ-V8P1T0"&&
                 LocalDiagnosticReport.ModelText(@"PCI\VEN_1234")== "N/D"&&
                 LocalDiagnosticReport.ModelText("1234567890ABCDEF")== "N/D"&&
