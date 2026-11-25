@@ -20,7 +20,13 @@ internal static class LayoutTests
         GfMonitorPreferencesAndProgressTests.Run();
         GfMonitorHostTests.Run();
         GfMonitorSettingsTests.Run();
-        if (args.Contains("--monitor-gf")) { GfResourceMonitorTests.Run(); return; }
+        if (args.Contains("--monitor-settings-visual")) { GfMonitorSettingsTests.RunMainFormVisual(); return; }
+        if (args.Contains("--monitor-gf"))
+        {
+            D3dKmtGpuSensorProviderTests.Run(); // ABI e fixtures, sem sonda física.
+            GfResourceMonitorTests.Run();
+            return;
+        }
         GfResourceMonitorTests.Run(); // somente fixtures e janela consultiva; sem coleta ou manutenção.
         BundlewareReviewTests.Run(); // política ARP: nenhum comando de desinstalação é iniciado.
         if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
@@ -117,11 +123,13 @@ internal static class LayoutTests
         if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); D3dKmtGpuSensorProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); StorageReliabilityCounterMapperTests.Run(); WindowsPlatformHardwareProviderTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
-        if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
+        if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); GfMonitorSettingsTests.RunMainFormVisual(); return; }
         if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
         if (args.Contains("--work18"))
         {
+            // Este percurso encerra antes da suíte nativa completa.
+            D3dKmtGpuSensorProviderTests.Run();
             Work18UpdateUiTests.Run();
             Stage3UpdateQueryTests.Run();
             UninstallCleanupTests.VerifyTrayConfirmation();

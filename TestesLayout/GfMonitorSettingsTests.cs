@@ -114,6 +114,102 @@ internal static class GfMonitorSettingsTests
             "retornar a Geral preserva os controles originais");
     }
 
+    // Janela principal nativa, sem serviços, com dados sintéticos.
+    // Executado fora de WORK18, no contrato BETA LOCAL já existente.
+    internal static void RunMainFormVisual()
+    {
+        using var form = new MainForm(startServices: false);
+        form.Show();
+        Application.DoEvents();
+        var shell = form.Controls.Find("V269Shell", true).OfType<V269Shell>().Single();
+        shell.SelectPage(V269Page.Configuracoes);
+        var page = (V269SettingsPage)shell.PageContent(V269Page.Configuracoes)!;
+        var appearance = page.Appearance;
+        var options = MainForm.MountV269MonitorOptions(page);
+        var general = page.Controls.Find("V269GeneralTab", true).OfType<V269SettingsTab>().Single();
+        var monitor = page.Controls.Find("V269MonitorTab", true).OfType<V269SettingsTab>().Single();
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        var themeChoice = appearance.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+        var inputs = All(options).Where(c => c is CheckBox or TrackBar or ComboBox).ToArray();
+        Require(inputs.Length == 7 && inputs.All(c => c.TabStop), "sete opções da janela principal");
+        var fixture = GfResourceMonitorPreferences.Default with
+        { Enabled = true, ScalePercent = 125, OpacityPercent = 75, MonitorTheme = V269Theme.Claro };
+        options.LoadObserved(fixture, null);
+        var startup = options.Controls.Find("V269MonitorStartup", true).OfType<CheckBox>().Single();
+        Require(!startup.Enabled, "startup desconhecido não é habilitado");
+        options.LoadObserved(fixture, false);
+        Directory.CreateDirectory("LayoutCaptures");
+        // Resolução da superfície em pixels, sem mudar a resolução física do runner.
+        foreach (var size in new[] { new System.Drawing.Size(1440, 900), new System.Drawing.Size(2560, 1440) })
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            surface.Size = size;
+            themeChoice.SelectedIndex = (int)theme;
+            page.ApplyAppearance(new V269AppearanceOptions(theme, 100, 100, true));
+            general.AccessibilityObject.DoDefaultAction();
+            Require(general.Selected && !options.Visible && page.General.Tray.Visible &&
+                ReferenceEquals(appearance, page.Appearance), "Geral e Aparência preservados");
+            monitor.AccessibilityObject.DoDefaultAction();
+            page.ScrollTo(0);
+            surface.PerformLayout(); page.PerformLayout(); Application.DoEvents();
+            Require(surface.Size == size && monitor.Selected && !general.Selected && options.Visible &&
+                !page.General.Tray.Visible && appearance.Visible && appearance.Top > page.General.Bottom &&
+                !shell.RightPane.Visible, "geometria da janela, seleção e Aparência preservadas");
+            var rows = Enumerable.Range(0, 7).Select(i =>
+                options.Controls.Find("V269MonitorLabel" + i, true).OfType<Label>().Single()).ToArray();
+            Require(rows.All(label => label.Visible && options.ClientRectangle.Contains(label.Bounds)) &&
+                inputs.All(input => input.Visible && input.Enabled && options.ClientRectangle.Contains(input.Bounds)),
+                "sete linhas sem recorte");
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var label = rows[i];
+                var input = inputs[i];
+                var required = TextRenderer.MeasureText(label.Text, label.Font,
+                    new System.Drawing.Size(label.Width, int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+                Require(required.Height <= label.Height && label.Right <= input.Left &&
+                    input.Top >= label.Top && input.Bottom <= label.Bottom &&
+                    (i == 0 || rows[i-1].Bottom <= label.Top), "alinhamento e texto integral: " + label.Text);
+                var backgrounds = theme switch
+                {
+                    V269Theme.Dark => new[] { "#303438", "#282c30" },
+                    V269Theme.Claro => new[] { "#eef8ff", "#dceefa" },
+                    _ => new[] { "#0d3047", "#0b2237" }
+                };
+                Require(backgrounds.All(hex => Contrast(label.ForeColor,
+                    System.Drawing.ColorTranslator.FromHtml(hex)) >= 4.5), "contraste do texto: " + label.Text);
+                Require(input.Focus(), "foco por teclado: " + input.AccessibleName);
+                Application.DoEvents();
+                Require(LayoutTests.FullyVisible(input), "foco revela opção: " + input.AccessibleName);
+            }
+            Require(Contrast(themeChoice.ForeColor, themeChoice.BackColor) >= 4.5,
+                "contraste do seletor Aparência");
+            var monitorTheme = options.Controls.Find("V269MonitorTheme", true).OfType<ComboBox>().Single();
+            Require(monitorTheme.SelectedIndex == 1 && monitorTheme.Items.Count == 3 &&
+                Contrast(monitorTheme.ForeColor, monitorTheme.BackColor) >= 4.5, "tema independente e contraste");
+            Require(!Application.OpenForms.OfType<GfResourceMonitorForm>().Any(), "nenhum Monitor real iniciado");
+            monitor.Focus();
+            page.ScrollTo(0); Application.DoEvents();
+            using var capture = new System.Drawing.Bitmap(size.Width, size.Height);
+            surface.DrawToBitmap(capture, new System.Drawing.Rectangle(System.Drawing.Point.Empty, size));
+            capture.Save($"LayoutCaptures/v269-configuracoes-monitor-SINTETICO-{theme}-{size.Width}x{size.Height}.png");
+            Console.WriteLine($"PASS Monitor Configurações {theme} {size.Width}x{size.Height}: sete opções, contraste, alinhamento, foco e Aparência.");
+        }
+        general.AccessibilityObject.DoDefaultAction();
+        Require(!options.Visible && page.General.Tray.Visible && appearance.Visible, "retorno a Geral");
+        form.Close();
+
+        static double Contrast(System.Drawing.Color a, System.Drawing.Color b)
+        {
+            static double L(System.Drawing.Color c)
+            {
+                static double C(byte x) { double v = x / 255d; return v <= .04045 ? v / 12.92 : Math.Pow((v + .055) / 1.055, 2.4); }
+                return .2126 * C(c.R) + .7152 * C(c.G) + .0722 * C(c.B);
+            }
+            double x = L(a), y = L(b);
+            return (Math.Max(x,y) + .05) / (Math.Min(x,y) + .05);
+        }
+    }
+
     private static void VerifySessionOwnership()
     {
         const string path = @"C:\GF Teste\GerenciadorFinal.exe";

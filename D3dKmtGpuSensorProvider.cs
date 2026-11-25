@@ -10,14 +10,15 @@ internal sealed record D3dKmtAdapterRaw(
     ulong MemoryFrequencyHz, uint FanRpm, uint PowerTenthsPercent,
     uint TemperatureTenthsC, uint MaxFanRpm, uint TemperatureMaxTenthsC,
     bool HasPerformanceData, bool HasCapabilities,
-    bool IsPoweredOn = true);
+    bool IsPoweredOn = true, uint TemperatureWarningTenthsC = 0);
 
 internal sealed record D3dKmtGpuReading(
     WddmGpuKey Key,
     MonitorReading<double> TemperatureC,
     MonitorReading<double> FanRpm,
     MonitorReading<double> RelativePowerPercent,
-    MonitorReading<double> MemoryFrequencyMhz);
+    MonitorReading<double> MemoryFrequencyMhz,
+    uint? TemperatureWarningTenthsC = null, uint? TemperatureMaxTenthsC = null);
 
 internal sealed record D3dKmtGpuSnapshot(
     DateTimeOffset CapturedAtUtc, HardwareDiscoveryState State,
@@ -157,9 +158,14 @@ internal static class D3dKmtGpuSensorProvider
             bool capTemperature = row.HasCapabilities &&
                 row.TemperatureMaxTenthsC is >= 200 and <= 2_000;
             bool capFan = row.HasCapabilities && row.MaxFanRpm is >= 300 and <= 40_000;
+            // O máximo operacional não é um teto de validade da medição.
+            // Preservar amostra crítica dentro do envelope aceito do sensor.
             bool temperatureOk = active && capTemperature &&
-                row.TemperatureTenthsC is >= 100 and <= 1_500 &&
-                row.TemperatureTenthsC <= row.TemperatureMaxTenthsC;
+                row.TemperatureTenthsC is >= 100 and <= 1_500;
+            bool thermalPairOk = temperatureOk &&
+                row.TemperatureWarningTenthsC is >= 300 and <= 1500 &&
+                row.TemperatureMaxTenthsC is >= 500 and <= 1500 &&
+                row.TemperatureWarningTenthsC < row.TemperatureMaxTenthsC;
             bool fanOk = active && capFan &&
                 row.FanRpm <= row.MaxFanRpm;
             // Power não informa watts: é percentagem relativa (décimos).
@@ -185,7 +191,9 @@ internal static class D3dKmtGpuSensorProvider
                 clockOk
                     ? MonitorReading<double>.Available(row.MemoryFrequencyHz / 1_000_000d,
                         Source + ".MemoryFrequency (MHz)")
-                    : unavailableClock));
+                    : unavailableClock,
+                thermalPairOk ? row.TemperatureWarningTenthsC : null,
+                thermalPairOk ? row.TemperatureMaxTenthsC : null));
         }
         return new(DateTimeOffset.UtcNow,
             result.Count == 0 ? HardwareDiscoveryState.Unavailable :
@@ -247,7 +255,8 @@ internal static class D3dKmtGpuSensorProvider
                     result.Add(new(new WddmGpuKey(gpu.LuidHigh, gpu.LuidLow, i),
                         perf.MemoryFrequency, perf.FanRpm, perf.Power, perf.Temperature,
                         caps.MaxFanRpm, caps.TemperatureMax,
-                        perfOk, capOk, perfOk && perf.PowerStateOverride == 1));
+                        perfOk, capOk, perfOk && perf.PowerStateOverride == 1,
+                        caps.TemperatureWarning));
                 }
             }
             catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or
@@ -273,5 +282,7 @@ internal static class D3dKmtGpuSensorProvider
         Marshal.SizeOf<AdapterPerf>() == 64 &&
         Marshal.OffsetOf<AdapterPerf>(nameof(AdapterPerf.Temperature)).ToInt32() == 56 &&
         Marshal.SizeOf<AdapterCaps>() == 40 &&
+        Marshal.OffsetOf<AdapterCaps>(nameof(AdapterCaps.TemperatureMax)).ToInt32() == 28 &&
+        Marshal.OffsetOf<AdapterCaps>(nameof(AdapterCaps.TemperatureWarning)).ToInt32() == 32 &&
         Marshal.SizeOf<QueryAdapter>() == (IntPtr.Size == 8 ? 24 : 16);
 }

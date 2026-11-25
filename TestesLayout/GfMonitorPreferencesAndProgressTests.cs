@@ -37,6 +37,26 @@ internal static class GfMonitorPreferencesAndProgressTests
         }
         finally { dir.Delete(recursive: true); }
 
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            var downloading = GfUniversalMeter.Update(new(UpdateStage.Downloading, 100, 100), theme);
+            Require(downloading.Fraction == 1 && downloading.State == GfMeterState.Running &&
+                downloading.Color == GfMeterScale.Colors(theme).Blue, "100% dos bytes não confirma instalação");
+            Require(GfUniversalMeter.Update(new(UpdateStage.Confirmed), theme).State == GfMeterState.Success,
+                "sucesso somente após confirmação");
+            foreach (var stage in new[] { UpdateStage.Pending, UpdateStage.Blocked, UpdateStage.Failed,
+                UpdateStage.Cancelled, UpdateStage.AuthorizationDeclined })
+                Require(GfUniversalMeter.Update(new(stage), theme).Fraction is null,
+                    "estado terminal não confirmado sem progresso fictício: " + stage);
+            Require(GfUniversalMeter.Uninstall(UninstallStage.Cleaning, theme).State == GfMeterState.Indeterminate,
+                "limpeza de resíduos não informa percentual inventado");
+            Require(GfUniversalMeter.Uninstall(UninstallStage.Finished, theme).State == GfMeterState.Success,
+                "desinstalação finalizada tem estado explícito");
+            foreach (var stage in new[] { UninstallStage.Partial, UninstallStage.Pending, UninstallStage.Failed, UninstallStage.Cancelled })
+                Require(GfUniversalMeter.Uninstall(stage, theme).Fraction is null,
+                    "desinstalação incompleta nunca equivale a 100%: " + stage);
+        }
+
         using var host = new Form();
         using var bar = new GfDynamicProgressBar { Width = 180, Height = 10 };
         host.Controls.Add(bar); host.Show(); Application.DoEvents();
