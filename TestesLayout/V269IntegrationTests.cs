@@ -208,6 +208,18 @@ internal static class V269IntegrationTests
             Directory.CreateDirectory("LayoutCaptures");
             disks.Content.Controls.Clear();
             foreach(var fixture in fixtures)disks.Content.Controls.Add(fixture);
+            var observedDisks = new[]
+            {
+                new DiskUsageInfo(@"C:\","Disco local",1024000000000L,558700000000L,"NTFS"),
+                new DiskUsageInfo(@"D:\","Dados",931500000000L,652900000000L,"NTFS")
+            };
+            Require(MainForm.V269DiskCardsMatch(disks.Content.Controls, observedDisks),
+                "discos idênticos preservam cartões e seleção");
+            Require(!MainForm.V269DiskCardsMatch(disks.Content.Controls,
+                [observedDisks[0] with { FreeBytes = observedDisks[0].FreeBytes - 1 }, observedDisks[1]]) &&
+                !MainForm.V269DiskCardsMatch(disks.Content.Controls,[observedDisks[1],observedDisks[0]]) &&
+                !MainForm.V269DiskCardsMatch(disks.Content.Controls,[observedDisks[0]]),
+                "mudança de espaço, ordem ou volumes exige reconstrução");
             string[] estimates=["1,1 GB","2,4 GB","820 MB","440 MB","720 MB"];
             for(int i=0;i<estimates.Length;i++)set.Invoke(form,[CleanupTarget.All[i],estimates[i]]);
             history.Clear();
@@ -1764,8 +1776,38 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS Configurações V2.6.9: preferências descartáveis, estados observados, três temas, rolagem, botões consultivos e capturas.");
     }
 
+    private static void VerifyHomeHeightCache()
+    {
+        using var card = new V269HomeCard("cpu");
+        var model = new V269HomeModel("cpu","Processador","Fixture",
+            [new V269HomeRow("Núcleos","8")],[new V269HomeRow("Uso","10%")]);
+        card.SetModel(model);
+        int height = card.PreferredCardHeight(420,1200,true);
+        int count = card.PreferredHeightMeasurements;
+        var metrics = new List<PerformanceSample>();
+        using (LocalPerformanceMetrics.Measure(PerformanceStage.HardwareInventory, metrics.Add))
+            for (int i = 0; i < 20; i++)
+                Require(card.PreferredCardHeight(420,1200,true)==height,"altura idêntica em cache");
+        Require(card.PreferredHeightMeasurements==count && metrics.Count==1,
+            "vinte medidas repetidas não repetem a renderização de geometria");
+        card.SetModel(model with { Sensors = [new V269HomeRow("Uso","20%")] });
+        card.PreferredCardHeight(420,1200,true);
+        Require(card.PreferredHeightMeasurements==++count,"mudança de leitura invalida a altura");
+        card.PreferredCardHeight(400,1200,true);
+        Require(card.PreferredHeightMeasurements==++count,"mudança da largura invalida a altura");
+        card.PreferredCardHeight(400,1440,true);
+        Require(card.PreferredHeightMeasurements==++count,"mudança de breakpoint invalida a altura");
+        card.PreferredCardHeight(400,1440,false);
+        Require(card.PreferredHeightMeasurements==++count,"mudança de altura compacta invalida o cache");
+        card.ApplyAppearance(V269AppearanceOptions.Default with { TextPercent = 110 },Color.Transparent);
+        card.PreferredCardHeight(400,1440,false);
+        Require(card.PreferredHeightMeasurements==++count,"mudança de escala de texto invalida a altura");
+        Console.WriteLine("PASS Início V2.6.9: cache de geometria com invalidação por modelo e escala.");
+    }
+
     private static HardwareSensorPortfolio VerifyHome(MainForm form, Control view)
     {
+        VerifyHomeHeightCache();
         Require(V269HomeMetrics.HeaderHeight(992, 768) == 69 &&
             V269HomeMetrics.HeaderHeight(760, 810) == 69 &&
             V269HomeMetrics.HeaderHeight(760, 811) == 70 &&
