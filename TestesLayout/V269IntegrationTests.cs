@@ -193,26 +193,51 @@ internal static class V269IntegrationTests
                     var bounds = form.RectangleToScreen(form.ClientRectangle);
                     Require(Screen.FromControl(form).Bounds.Contains(bounds),
                         "captura real exige janela inteira visível no desktop");
-                    using var shot = new Bitmap(bounds.Width, bounds.Height);
-                    using (var graphics = Graphics.FromImage(shot))
-                        graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
-                    string path = $"LayoutCaptures/v269-DESKTOP-{theme}-{page}-{bounds.Width}x{bounds.Height}.png";
-                    shot.Save(path);
-                    Color rail = theme == V269Theme.Dark ? ColorTranslator.FromHtml("#c8d0d7") : Color.White;
-                    int Distance(Color a, Color b) => Math.Abs(a.R-b.R)+Math.Abs(a.G-b.G)+Math.Abs(a.B-b.B);
-                    foreach (var (key, button) in buttons)
+                    void Capture(string phase)
                     {
-                        var point = button.PointToScreen(new Point(2, button.Height/2));
-                        point.Offset(-bounds.X, -bounds.Y);
-                        Require(new Rectangle(Point.Empty, shot.Size).Contains(point),
-                            "botão de navegação fora do desktop: " + key);
-                        bool hasRail = Distance(shot.GetPixel(point.X, point.Y), rail) < 75;
-                        Require(hasRail == (key == page),
-                            $"WM_PAINT: trilho de seleção incorreto em {theme}/{page}/{key}; evidência {path}");
+                        using var shot = new Bitmap(bounds.Width, bounds.Height);
+                        using (var graphics = Graphics.FromImage(shot))
+                            graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
+                        string path = $"LayoutCaptures/v269-DESKTOP-{theme}-{page}-{phase}-{bounds.Width}x{bounds.Height}.png";
+                        shot.Save(path);
+                        Color rail = theme == V269Theme.Dark ? ColorTranslator.FromHtml("#c8d0d7") : Color.White;
+                        int Distance(Color a, Color b) => Math.Abs(a.R-b.R)+Math.Abs(a.G-b.G)+Math.Abs(a.B-b.B);
+                        foreach (var (key, button) in buttons)
+                        {
+                            var point = button.PointToScreen(new Point(2, button.Height/2));
+                            point.Offset(-bounds.X, -bounds.Y);
+                            Require(new Rectangle(Point.Empty, shot.Size).Contains(point),
+                                "botão de navegação fora do desktop: " + key);
+                            bool hasRail = Distance(shot.GetPixel(point.X, point.Y), rail) < 30;
+                            Require(hasRail == (key == page),
+                                $"WM_PAINT: trilho de seleção incorreto em {theme}/{page}/{key}; evidência {path}");
+                        }
+                    }
+                    Capture("inicio");
+                    IEnumerable<Control> Children(Control control)
+                    {
+                        foreach (Control child in control.Controls)
+                        {
+                            yield return child;
+                            foreach (var descendant in Children(child)) yield return descendant;
+                        }
+                    }
+                    var scroll = Children(shell.PageContent(page)!).OfType<DarkVScrollBar>()
+                        .FirstOrDefault(bar => bar.Visible && bar.MaximumValue > 0);
+                    if (scroll is not null)
+                    {
+                        int saved = scroll.Value;
+                        try
+                        {
+                            scroll.Value = scroll.MaximumValue;
+                            Application.DoEvents();
+                            Capture("rolagem");
+                        }
+                        finally { scroll.Value = saved; Application.DoEvents(); }
                     }
                 }
             }
-            Console.WriteLine("PASS V2.6.9: 24 capturas reais do desktop; trilho único de seleção nos três temas.");
+            Console.WriteLine("PASS V2.6.9: 24 estados reais do desktop e rolagem quando disponível; trilho único de seleção nos três temas.");
         }
         finally
         {
