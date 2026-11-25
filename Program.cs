@@ -27,6 +27,8 @@ internal static class Program
         if (args.Length == 1 && args[0] == StartupTrayRegistration.MonitorArgument)
             return GfMonitorStandalone.Run();
 
+        DiagnosticTrace.LocalEventSink = LocalDiagnosticReport.Session.RecordEvent;
+        DiagnosticTrace.LocalFailureSink = LocalDiagnosticReport.Session.RecordFailure;
         if (!DiagnosticTrace.Start() || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
         {
             MessageBox.Show(
