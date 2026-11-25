@@ -15,6 +15,21 @@
 5. Homologar o fluxo como parte do produto único, não como componente isolado: comportamento, estado, integração, segurança, acessibilidade, desempenho, temas e viewport quando aplicáveis. Diferenciar sintético de físico. WORK é responsável pela homologação física nos PCs autorizados.
 6. Atualizar a matriz com evidências no SHA exato. Relatar resultados consolidados, bloqueios reais e próximo objetivo, não apenas tarefas executadas.
 
+## Incrementos pequenos dentro de ciclos longos
+- Cada ciclo pode abranger investigação, implementação, CI, correção e homologação sem pedir continuidade a cada etapa. Dividir a publicação em incrementos causais pequenos, cada um associado a um requisito, caminho ativo, testes e evidência próprios; evitar um lote grande de mudanças não relacionadas que dificulte localizar regressões.
+- Antes de começar um incremento, registrar objetivo funcional, escopo, dependências, critérios positivos e negativos, efeito esperado na interface e no motor, e condição para encerrá-lo. Se a base falhar, manter mudanças independentes em HOLD e tratar apenas a causa comprovada da falha.
+- Reavaliar somente as validações afetadas por mudanças no código, contratos, dependências ou ambiente. Preservar evidências anteriores com seu SHA e suas condições, sem promovê-las automaticamente para o HEAD novo.
+
+## Evidências, bloqueios e retomada
+- Cada linha relevante da matriz deve apontar requisito e decisão vigente, origem/versão do contrato, caminho de produção, estado da função, SHA do código testado, execução ou artefato, ambiente, resultado positivo/negativo e pendência física. Data de edição do documento não substitui SHA de execução.
+- Indicar explicitamente quando uma evidência vale só para um SHA antigo ou quando mudanças em dependências exigem nova verificação. Atualizar o registro de estado corrente sem reescrever resultados históricos nem tratar documentação como homologação.
+- Para cada bloqueio, registrar ID, falha reproduzível, impacto, causa demonstrada ou hipótese identificada como tal, responsável/área, candidata preservada, próximo teste seguro e condição objetiva de desbloqueio. Se a causa não for conhecida, a próxima ação é investigá-la; não inventar correção ou prazo.
+- Acompanhar tempo até uma função comprovada, recorrência de falhas e tempo de recuperação apenas como indicadores para ajustar o processo. Eles não substituem a métrica oficial de funções reais funcionando nem justificam baixar os critérios de aceite.
+
+## Prova de interação real
+- Para fluxos WinForms, quando houver infraestrutura apropriada, testar controles e eventos na janela real (inclusive automação de interface/acessibilidade), sequências de navegação e teclado, confirmação/cancelamento, troca de tema e retenção de estado. Registrar o que foi apenas sintético e o que foi observado fisicamente; capturas estáticas e chamadas diretas de método não provam interação.
+- Proteger dados e máquinas: automação de interface não autoriza instalação, remoção, reparo, elevação ou manutenção real. A homologação física permanece exclusiva do WORK nos computadores autorizados.
+
 ## Regra de continuidade
 - Não encerrar porque um commit foi criado, uma etapa de CI passou, uma consulta terminou ou uma candidata foi preparada. Não exigir novo clique ou comando para cada microetapa.
 - Dar atualizações breves quando úteis, sem transformar cada atualização em pausa. Botões de continuidade deixam de ser padrão: só quando necessários para retomar um bloqueio real, uma decisão indispensável ou um limite efetivo de execução; nunca substituir trabalho que ainda pode ser realizado na interação atual.

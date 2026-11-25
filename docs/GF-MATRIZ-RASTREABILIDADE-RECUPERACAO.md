@@ -2,6 +2,19 @@
 
 Snapshot auditado: PR #113 `2407d42dbdba711932bf2bad8d63d292a5aa1695`. As evidências abaixo pertencem a esse SHA ou, quando indicado, a um SHA anterior. O presente documento não declara o produto aprovado. Fonte de autoridade: [GF-AUTORIDADE-PRODUTO-V269.md](GF-AUTORIDADE-PRODUTO-V269.md).
 
+## 0. Leitura correta do snapshot e dos bloqueios
+
+O snapshot `2407d42d` abaixo é histórico: não representa automaticamente o HEAD de integração. Cada requisito deve ter a última evidência válida ligada ao SHA **executado**, à execução/artefato, ao ambiente e aos caminhos/dependências relevantes. Mudança posterior não apaga evidência histórica; exige revalidar o que ela afeta. Os gates na seção 4 descrevem o plano daquele snapshot e não devem ser seguidos cegamente após mudança de HEAD.
+
+**Consulta em 25/11/2026:** PR #113 em `b590902963cb8cec6be849eb1c60c45fae63e589`. Integridade `45703806387`: SUCCESS. CI Windows `45703806256`: FAILURE, job `139520450250`; a execução parou no bloco `Monitor_GF`, com `GfMonitorWindowBindingTests.VerifyThermalBinding` falhando na asserção de aviso térmico na janela real. A causa técnica ainda não foi demonstrada. Compilação x64 e demais etapas posteriores foram ignoradas; Drivers somente leitura 2022/2025 e política passaram. Essas observações são do SHA citado e não homologam HEAD posterior.
+
+| Bloqueio | Impacto e evidência | Próxima ação segura | Condição objetiva de saída |
+|---|---|---|---|
+| REC-CI-01 | CI Windows do `b5909029` falhou no teste de binding térmico do Monitor; job `139520450250`. Não inferir causa da mensagem da asserção. | Investigar caminho produção/teste e logs, corrigir causalmente sem reduzir asserções nem tocar PR #114; preservar alterações independentes em HOLD. | Teste dirigido e CI Windows integral aprovados no mesmo SHA efetivo, com integridade também aprovada; registrar o SHA e a execução. |
+| REC-RAST-01 | Matriz principal contém provas de `2407d42d` e outros SHAs anteriores; ausência de verificação atual não equivale a regressão demonstrada. | Atualizar linha por linha apenas para funções alteradas, com contrato, caminho ativo, SHA, teste e pendência física. | Cada função promovida de estado possui evidência verificável no SHA correspondente, sem contar presença de código como conclusão. |
+
+**Formato mínimo para próximas linhas:** `ID | decisão/contrato | caminho ativo e substituído | estado | SHA da implementação | SHA testado | execução/artefato/ambiente | positivo/negativo | pendência/bloqueio | próxima prova`. O campo de estado distingue PRESENTE, CONECTADO, VALIDADO-SINTÉTICO, VALIDADO-FÍSICO e CONCLUÍDO; BLOQUEADO/NO-GO registra impedimentos. A contagem oficial só inclui funções reais funcionando com todos os critérios aplicáveis cumpridos. Indicadores de duração e recorrência servem apenas para avaliar o método.
+
 ## 1. Proveniência dos componentes (comparação por blob Git, não só nome)
 | PR | Origem congelada | Relação com #113 | Arquivos examinados, iguais / diferentes |
 |---|---|---|---|

@@ -44,6 +44,11 @@ O [protocolo transversal AGENTS.md](../AGENTS.md) é obrigatório em todas as fr
 - Separar estados: PRESENTE (código), CONECTADO (chamada/handler de produção), VALIDADO-SINTÉTICO (cenário de controle real com dados sintéticos), VALIDADO-FÍSICO (EXE no PC autorizado), BLOQUEADO/NO-GO. CI por domínio é evidência complementar, não transição automática para concluído.
 - Concluir somente quando a implementação substituída não tiver rota de produção indevida, fluxos de ponta a ponta preservarem autorizações, contrato visual for validado em pixels e durante interação, e o pacote único for homologado pelo WORK nos dois PCs.
 - Para desempenho: medir p50/p95/máximo por ação, estado, tema, viewport e máquina; diferenciar medição de despacho, renderização e tarefa de domínio. Não declarar fluidez por mediana isolada. Limites quantitativos finais ainda não aprovados; não inventar SLA.
+- Um ciclo longo deve conter incrementos pequenos, causais e auditáveis; a validação e a publicação de cada incremento têm SHA e evidência próprios. Isso não exige pausa entre incrementos, nem transforma a recuperação em um lote único difícil de reverter.
+- Para cada bloqueio: ID, reprodução, impacto, causa comprovada ou hipótese, área responsável, candidata preservada, próxima verificação e condição objetiva de saída. A ausência de uma causa comprovada mantém a investigação aberta, sem refatoração especulativa.
+- Na matriz, distinguir snapshot histórico de estado corrente. Vincular evidência ao SHA executado, ambiente, execução/artefato e requisitos afetados; invalidar ou revalidar apenas as provas atingidas por mudança de código, contrato ou dependência. Não transferir automaticamente SUCCESS anterior para HEAD posterior.
+- Exercitar a janela nativa por sequência de usuário e, quando viável, automação de interface; conservar a distinção entre teste sintético, interação no runner e validação física pelo WORK. Sem operação real implícita.
+- Usar duração do ciclo, recorrência e tempo de recuperação como sinais auxiliares de eficácia do processo; a única métrica oficial de progresso continua sendo funções reais funcionando.
 - Sem automações agendadas. Nenhuma release ou manutenção real neste processo. Homologação física exclusivamente pelo WORK.
 
 ## 4. Gate imediato de recuperação
