@@ -70,3 +70,39 @@ Legenda: C = conexão constatada no código ativo; S = evidência sintética em 
 4. Executar sequência única do EXE nativo: Início → Aplicativos (consulta/pesquisa/scroll/detalhes) → Drivers (consulta, revisão sem instalar) → Limpeza (prévia/cancelar) → Reparo (consulta) → Sistema (busca manual) → Inicialização (somente leitura) → Configurações (temas, escala e Monitor). Durante operações sintéticas, alternar abas, cancelar, tema, foco/teclado, fechar/reabrir e validar resultados. Não executar manutenção real sem autorização específica.
 5. Verificar aparência em três temas, pixels reais de cores e estados, rolagem e DPI; medir navegação, latência, uso CPU/RAM, GDI/USER e ausência de reconstrução indevida. Comparar com referência congelada, não com uma captura anterior reprovada.
 6. WORK homologar fisicamente no PC FORTE 2560×1440 e PC FRACO 1440×900. Não contar estado consultivo/sintético como operação real comprovada. Nenhum percentual de conclusão global nesta amostra.
+
+
+## 5. Revisão de diferenças por contrato — rodada seguinte
+
+Revisão estática dos 18 blobs diferentes contra os HEADs de origem, usando as versões de produção de 244ad72d. Diferenças de linhas e chamadas foram examinadas; não constituem execução de cada ramo. Não restaurar os blobs antigos.
+
+| Arquivo | Mudança observada na integração | Resultado preliminar |
+|---|---|---|
+| LocalMsixInventory.cs | Metadados declarados de data, arquitetura, local e descrição, normalização e distinção de recurso não resolvido; identidades de pacote preservadas | Preservar; validar inventário real e elegibilidade |
+| DriverRecoveryVault.cs | Verificação explícita de OriginalInf não nulo antes de hash e seleção | Preservar; a existência do motor não comprova conexão UI |
+| HardwareSensorPortfolio.cs | TPM via TBS consultivo, sobrecarga optativa para capacidade DXGI | Preservar ausência honesta e consulta sob demanda |
+| D3dKmtGpuSensorProvider.cs | Par warning/max nativo e manutenção de leitura crítica acima do máximo reportado, sem converter potência relativa em watts | Preservar; revisar evidência por chave/instante |
+| DxgiGpuIdentityProvider.cs | Capacidade D3D12 upload heap opcional, identidade do adaptador e distinção de ReBAR | Preservar; não promover capacidade a confirmação de ReBAR |
+| NvidiaNvmlSensorProvider.cs | Identidade PCI, versão, link, BAR1, arquitetura e RPM alvo explicitamente rotulado | Preservar; verificar ausência/ambiguidade e não confundir RPM alvo com medido |
+| WindowsPlatformHardwareProvider.cs | ISA, cache, firmware, socket, módulos de RAM, BIOS, frequência e canais reportados | Preservar; não inferir dados não fornecidos |
+| NativeHardwareDiscovery.cs | DEVPKEY_DriverVersion e link PCIe do devnode; validação de tipo/tamanho e formato | Preservar; verificar fonte/identidade |
+| WindowsStorageSensorProvider.cs | Fabricante/modelo associados ao mesmo disco | Preservar identidade por associação |
+| WindowsIntegrityAssessment.cs | InterpretSfcVerification, estados inconclusivos e pós-verificação WINREPAIR mantida | Preservar; a duplicação da interpretação em Assess merece teste de consistência, não alteração do motor nesta rodada |
+| SafetyDiagnosticsUi.cs | Substitui painel antigo por resultado V269 retido, cancelamento e diagnóstico por alvo; confirma e revalida a mesma fotografia, reconsulta DNS e mantém Winsock pendente de reboot | Preservar gates e resultados; teste completo da interface ainda necessário |
+| UiV269MonitorHost.cs | Evidência térmica a partir do portfólio, mesma geração, recusa watermark antigo/futuro, evita save desnecessário | Preservar; teste físico de handoff/fechamento |
+| UiV269MonitorMetricTimes.cs | Limpa nome de GPU quando identidade expira | Preservar |
+| UiV269ResourceMonitor.cs | Nome da GPU quando múltiplas, indisponibilidade CPU explícita, limpa identidade vencida | Preservar; verificar largura/truncamento no Monitor |
+| UiV269ResourceMonitorAdapter.cs | Nome somente com múltiplas GPUs na projeção de identidade confirmada | Preservar |
+| UiV269ThermalEvidence.cs | FromPortfolio com DXGI completo e fresco, chave única não software, D3DKMT fresco, capacidades associadas | Preservar; verificar tempo/geração no runner e hardware real |
+| UiV269DynamicMeter.cs | PaintFrame reutilizável, clip intersectado e restaurado, sem HWND por linha | Preservar; testar RGB e região virtualizada |
+| UiV269UniversalMeter.cs | Adaptadores Update/Uninstall, estado do motor e escala inversa | Preservar; AUT-OP-01 deve provar o caminho ativo |
+
+### Lacunas e riscos concretos de integração
+
+- **Cofre OEM independente:** DriverRecoveryVault.cs possui CanExport, ExportAsync, BrowseBackups, Review, StageAsync e ReconcileReadOnly. DriverUpdatePilotDialog.cs:275 consome apenas CaptureOverviewReadOnly; as rotas examinadas Program.cs, DriversPlaceholder.cs, DriverReadOnlyDialog.cs, DriverUpdatePilotDialog.cs e UiV269MainForm.cs não chamam ExportAsync/StageAsync/Review do cofre. Há backup vinculado a WUA/remoção, que não equivale à função independente. Classificar exportação/revisão/staging independente como PRESENTE, conexão de UI não comprovada, sem contabilizar como concluído. Staging não instala dispositivo; preserve DeviceRestored=false, classes protegidas, autorização, revalidação, assinatura/hash e marcador durável. O lugar da revisão no fluxo V269 precisa ser resolvido sem novos botões arbitrários.
+- **Monitor:** produção monta exatamente sete controles em UiV269MonitorOptions.cs e BindV269Monitor; Program.Main tem rota autônoma antes de trace. Verificada existência de lease/coordenação e de Publish com geração. Não equivale a prova de passagem de mouse, overlay/jogo, Win+D, transferência entre processos ou consumo real. Não modificar PR #114.
+- **Fallbacks modais:** três chamadas reais já registradas na seção 3. VerifyHome em TestesLayout/V269IntegrationTests.cs:102–140 procura a janela de detalhes e confirma preservação do resultado; esse teste expressa um objetivo legítimo (resultado retido), mas usa um caminho visual que o proprietário rejeitou. Ao substituir o modal, preservar o objetivo com teste da rota no painel, sem apenas apagar a asserção. Lote4 deve continuar detectando clipping real.
+- **Teste contínuo existente:** 16 passos (fd37b7f1, logs 139488174272), inventários injetados e chamadas de controles reais, com startServices=false. Step verifica seleção e identidade depois de Application.DoEvents; não prova ausência de sobreposição transitória durante o paint nem execução real de serviço. Reparo/Limpeza são visitados, não executados. Drivers recebe SetItems fixture, não é consulta WUA. Cancelamento é de token sintético. Medida p95 879,94 ms e máximo 879,94 ms, passo viewport-compacto aproximadamente 880 ms. Não declarar fluidez nem todos os motores homologados.
+- **Oráculos antigos:** verificar o SHA recuperado 244ad72d e gate AUT-OP-01; a candidata de cor preserva testes de âncoras e contraste, mas ainda não executada. Contraste de seleção Dark/Claro é conflito com referência, não aprovação por log.
+
+Resultado: revisão estática dos 18 arquivos concluída no escopo das diferenças observadas; execução por método, auditoria de arquivos compartilhados e eliminação segura de rotas substituídas continuam abertas. Nenhum motor alterado.
