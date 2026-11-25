@@ -17,7 +17,54 @@ internal sealed class LocalDiagnosticReport
     private readonly Queue<string> _performance = new();
     private readonly Queue<string> _process = new();
     private readonly Queue<string> _failures = new();
-    private long _performanceTotal, _processTotal, _failureTotal;
+    private readonly Queue<string> _events = new();
+    private long _performanceTotal, _processTotal, _failureTotal, _eventTotal;
+
+    // Somente eventos técnicos conhecidos e campos agregados com tipos fechados.
+    private static readonly HashSet<string> EventCodes = new(StringComparer.Ordinal)
+    {
+        "APP.INICIALIZACAO_INICIO", "JANELA.HANDLE_CRIADO", "INICIALIZACAO.BANDEJA_AUTO",
+        "REGISTRO_PROGRAMAS.INICIO", "REGISTRO_PROGRAMAS.LIDO", "REGISTRO_PROGRAMAS.RENDER_INICIO",
+        "REGISTRO_PROGRAMAS.RENDER_FIM", "MSIX.LEITURA", "JOGOS.LEITURA", "APLICATIVOS.ACOES",
+        "MULTIFONTES.CONSULTA_INICIO", "MULTIFONTES.CONSULTA_OK", "MULTIFONTES.CONSULTA_CANCELADA",
+        "DRIVERS.INVENTARIO", "DRIVERS.HISTORICO", "DRIVERS.VINCULOS", "DRIVERS.CONSULTA_CANCELADA",
+        "DRIVERS.CANCELAMENTO_SOLICITADO", "WINDOWS_UPDATE.CONSULTA_OK",
+        "INSTALACAO_OFICIAL.PREFLIGHT_INICIO", "INSTALACAO_OFICIAL.PREFLIGHT_BLOQUEADO",
+        "INSTALACAO_OFICIAL.PREFLIGHT_APROVADO", "INSTALACAO_OFICIAL.EXECUCAO_FIM",
+        "INSTALACAO_OFICIAL.VERSAO_CONFIRMADA", "INSTALACAO_OFICIAL.VERSAO_NAO_CONFIRMADA",
+        "DIAGNOSTICO.EXPORTACAO_OK", "DIAGNOSTICO.EXPORTACAO_FALHA"
+    };
+    private static readonly HashSet<string> AggregateFields = new(StringComparer.Ordinal)
+    {
+        "quantidade","examinados","ocultos","updates_arp","erros","duplicados","enumerados",
+        "aplicativos","adicionados","filtrados","falhas","retidos","repeticao","steam","epic",
+        "parciais","inventario","desinstalaveis","ocultos_sem_acao","instalados","candidatos",
+        "parcial","infs","compartilhados","versoes_divergentes","assinaturas_conflitantes",
+        "salvo","base","novos","nao_observados","alterados","retorno"
+    };
+
+    internal void RecordEvent(string evt)
+    {
+        int separator = evt.IndexOf(' ');
+        string code = separator < 0 ? evt : evt[..separator];
+        if (!EventCodes.Contains(code)) return;
+        var line = new StringBuilder(DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture))
+            .Append(' ').Append(code);
+        if (separator >= 0)
+        {
+            foreach (string token in evt[(separator+1)..].Split(' ', 48, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int equal = token.IndexOf('=');
+                if (equal <= 0 || !AggregateFields.Contains(token[..equal])) continue;
+                string value = token[(equal+1)..];
+                if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long number))
+                    line.Append(' ').Append(token[..equal]).Append('=').Append(number.ToString(CultureInfo.InvariantCulture));
+                else if (bool.TryParse(value, out bool flag))
+                    line.Append(' ').Append(token[..equal]).Append('=').Append(flag ? "true" : "false");
+            }
+        }
+        lock (_gate) Append(_events, line.ToString(), ref _eventTotal);
+    }
     private long _lastTick;
     private double? _lastCpu;
 
@@ -115,6 +162,7 @@ internal sealed class LocalDiagnosticReport
             text.AppendLine("Alocações/CPU do processo incluem atividade concorrente; pico de RAM é da sessão. Alocações da thread UI são separadas; navegação mede apenas o controlador síncrono, não a pintura final.");
             Section("Etapas concluídas", _performance, _performanceTotal);
             Section("Amostras do processo", _process, _processTotal);
+            Section("Eventos técnicos selecionados (somente códigos e contagens)", _events, _eventTotal);
             Section("Falhas técnicas (sem mensagens ou caminhos)", _failures, _failureTotal);
             return text.ToString();
 
