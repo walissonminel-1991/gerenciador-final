@@ -154,6 +154,7 @@ internal static class DiagnosticTrace
                 AnonymousTelemetryContext.Current?.Record(evt);
                 writer.Flush();
                 stream.Flush(flushToDisk: true);
+                LocalDiagnosticReport.Session.RecordEvent(evt);
                 return true;
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or
