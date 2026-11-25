@@ -879,12 +879,14 @@ internal sealed partial class MainForm
                     "Gerado (UTC): "+DateTimeOffset.UtcNow.ToString("O")+Environment.NewLine+
                     "Versão: "+DiagnosticTrace.VersionLabel+Environment.NewLine+
                     "Windows: "+Environment.OSVersion.Version+Environment.NewLine+
-                    "Arquitetura: "+System.Runtime.InteropServices.RuntimeInformation.OSArchitecture+Environment.NewLine+
+                    "Arquitetura do sistema: "+System.Runtime.InteropServices.RuntimeInformation.OSArchitecture+Environment.NewLine+
+                    "Arquitetura do processo: "+System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture+Environment.NewLine+
                     "Runtime: "+Environment.Version+Environment.NewLine+
                     "Processadores lógicos disponíveis: "+Environment.ProcessorCount+Environment.NewLine+
                     "Privilégios: "+(V269SessionIsAdministrator() switch {true=>"elevados",false=>"comuns",null=>"não verificados"})+Environment.NewLine+
                     $"Interface: {_v269Appearance.Theme}; escala {_v269Appearance.InterfacePercent}%; texto {_v269Appearance.TextPercent}%; DPI {DeviceDpi}"+Environment.NewLine+
-                    "Relatório manual; o GF não envia este arquivo. Revise antes de compartilhar."+Environment.NewLine+
+                    $"Tela atual: {Screen.FromControl(this).Bounds.Width}x{Screen.FromControl(this).Bounds.Height}"+Environment.NewLine+
+                    "Relatório da sessão atual; o GF não envia este arquivo. Revise antes de compartilhar."+Environment.NewLine+
                     Environment.NewLine+_reliability.Report(_installed,_inventoryIncomplete);
                 report+=Environment.NewLine+Environment.NewLine+(_v269LastSnapshot is{} snapshot
                     ? "Última consulta de hardware (não é uma leitura nova):"+Environment.NewLine+HardwareMonitoringDiagnosticReport.Format(snapshot)
@@ -899,13 +901,13 @@ internal sealed partial class MainForm
                 LocalDiagnosticReport.Session.SampleProcess(IsInTray || !Visible,
                     _busy || _v269Confirming || _batchUpdatesActive || _windowsUpdateInstalling ||
                     _windowsUpdateScanning || _v269LiveSampling || _consultaCatalogoCts is not null);
-                report+=Environment.NewLine+Environment.NewLine+LocalDiagnosticReport.Session.Format();
+                report+=Environment.NewLine+Environment.NewLine+LocalDiagnosticReport.Session.Format()+
+                    Environment.NewLine+"=== FIM DO RELATÓRIO ==="+Environment.NewLine;
                 view.SetNotice("Gerando relatório local em Documentos…");
                 string path=await Task.Run(()=>testExport is null?LocalDiagnosticReport.SaveToDocuments(report):testExport(report));
                 if(!view.IsDisposed&&!IsDisposed&&!Disposing)
                 {
                     view.SetNotice("Relatório criado em Documentos: "+path+" — pronto para leitura e envio manual.");
-                    Status("Relatório de diagnóstico criado em Documentos.");
                 }
                 DiagnosticTrace.Write("DIAGNOSTICO.EXPORTACAO_OK");
             }
@@ -916,7 +918,6 @@ internal sealed partial class MainForm
                 if(!view.IsDisposed&&!IsDisposed&&!Disposing)
                 {
                     view.SetNotice("Não foi possível concluir o relatório em Documentos. Confira a pasta e suas permissões; nenhum envio realizado. ("+ex.GetType().Name+")");
-                    Status("Relatório de diagnóstico não concluído.");
                 }
             }
             finally
