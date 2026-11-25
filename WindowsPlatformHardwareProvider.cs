@@ -16,7 +16,8 @@ internal sealed record WmiRamModuleRaw(
     string? BankLabel, string? DeviceLocator, object? Capacity,
     object? ConfiguredClockSpeed, object? SMBIOSMemoryType,
     object? ConfiguredVoltage = null,
-    object? MinVoltage = null, object? MaxVoltage = null);
+    object? MinVoltage = null, object? MaxVoltage = null,
+    string? Manufacturer = null, string? PartNumber = null);
 internal sealed record WmiMotherboardRaw(
     string? Tag, string? Manufacturer, string? Product, string? Version);
 internal sealed record WmiLogicalCpuRaw(string? Name, object? PercentProcessorTime);
@@ -36,6 +37,8 @@ internal sealed record WindowsRamModule(
     MonitorReading<ulong> CapacityBytes,
     MonitorReading<double> ConfiguredMhz, uint? SmbiosMemoryType)
 {
+    internal string? ReportedManufacturer { get; init; }
+    internal string? ReportedPartNumber { get; init; }
     // SMBIOS configurado, NÃO leitura elétrica instantânea nem sensor VRM.
     internal MonitorReading<double> ConfiguredMilliVolts { get; init; } =
         MonitorReading<double>.Unavailable("Windows WMI Win32_PhysicalMemory.ConfiguredVoltage");
@@ -224,6 +227,8 @@ internal static class WindowsPlatformHardwareProvider
                 memoryType is > 0 and <= ushort.MaxValue
                     ? (uint)memoryType.Value : null)
             {
+                ReportedManufacturer = Identity(raw.Manufacturer),
+                ReportedPartNumber = Identity(raw.PartNumber),
                 ConfiguredMilliVolts = voltageValid
                     ? MonitorReading<double>.Available(millivolts!.Value,
                         Source + " Win32_PhysicalMemory.ConfiguredVoltage (mV SMBIOS reportados, não medidos)")
@@ -375,12 +380,14 @@ internal static class WindowsPlatformHardwareProvider
                     Convert.ToString(get("SocketDesignation"), CultureInfo.InvariantCulture))));
             bool ramOk = Query("SELECT BankLabel, DeviceLocator, Capacity, " +
                 "ConfiguredClockSpeed, SMBIOSMemoryType, ConfiguredVoltage, " +
-                "MinVoltage, MaxVoltage FROM Win32_PhysicalMemory",
+                "MinVoltage, MaxVoltage, Manufacturer, PartNumber FROM Win32_PhysicalMemory",
                 get => ram.Add(new(
                     Convert.ToString(get("BankLabel"), CultureInfo.InvariantCulture),
                     Convert.ToString(get("DeviceLocator"), CultureInfo.InvariantCulture),
                     get("Capacity"), get("ConfiguredClockSpeed"), get("SMBIOSMemoryType"),
-                    get("ConfiguredVoltage"), get("MinVoltage"), get("MaxVoltage"))));
+                    get("ConfiguredVoltage"), get("MinVoltage"), get("MaxVoltage"),
+                    Convert.ToString(get("Manufacturer"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("PartNumber"), CultureInfo.InvariantCulture))));
             bool boardOk = Query("SELECT Tag, Manufacturer, Product, Version FROM Win32_BaseBoard",
                 get => boards.Add(new(
                     Convert.ToString(get("Tag"), CultureInfo.InvariantCulture),
