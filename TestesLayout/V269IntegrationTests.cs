@@ -1094,6 +1094,129 @@ internal static class V269IntegrationTests
         finally { motion.Checked = savedMotion; }
     }
 
+    // REC-FIS-02-PAINT-FORWARD: no retorno físico, o sentido Início→
+    // Aplicativos expôs cabeçalho/trilho antigos e conteúdo novo. Não
+    // confundir o oráculo de retorno ao Início com prova do sentido inverso.
+    private static void VerifyForwardAppPaint(MainForm form, V269Shell shell,
+        IReadOnlyDictionary<V269Page, Button> buttons, V269Theme theme)
+    {
+        var home = shell.PageContent(V269Page.Inicio)!;
+        var apps = shell.PageContent(V269Page.Aplicativos)!;
+        var title = form.Controls.Find("V269PageTitle", true).Single();
+        var subtitle = form.Controls.Find("V269PageSubtitle", true).Single();
+        var list = (DarkProgramList)typeof(MainForm).GetField("_programList",
+            BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form)!;
+        var motion = form.Controls.Find("V269Animations", true).OfType<CheckBox>().Single();
+        bool savedMotion = motion.Checked;
+        var savedPage = shell.SelectedPage;
+        var trace = new List<string>();
+        void Observe(string stage) => trace.Add(
+            $"{stage} selected={shell.SelectedPage} home={home.Visible} apps={apps.Visible} " +
+            $"title={title.Text} transition={shell.IsPageLayoutTransition} list={list.Bounds}");
+        void Visibility(object? sender, EventArgs e) => Observe(sender == home ? "home-visible" : "apps-visible");
+        void Committed(object? sender, EventArgs e) => Observe("layout-committed");
+        void Navigated(object? sender, V269NavigationEventArgs e) => Observe("navigation-changed");
+        try
+        {
+            motion.Checked = false;
+            buttons[V269Page.Inicio].PerformClick();
+            Application.DoEvents();
+            buttons[V269Page.Aplicativos].PerformClick();
+            Application.DoEvents();
+            Require(apps.Visible && list.Visible && title.Text == "Aplicativos",
+                "REC-FIS-02-PAINT-FORWARD: referência Aplicativos ativa");
+            var bounds = form.RectangleToScreen(form.ClientRectangle);
+            Require(Screen.FromControl(form).Bounds.Contains(bounds),
+                "REC-FIS-02-PAINT-FORWARD: janela dentro do desktop");
+            Rectangle Relative(Rectangle screen)
+            {
+                screen.Offset(-bounds.X, -bounds.Y);
+                return screen;
+            }
+            (string Name, Rectangle Area)[] Regions() =>
+            [
+                ("title", Relative(title.RectangleToScreen(title.ClientRectangle))),
+                ("subtitle", Relative(subtitle.RectangleToScreen(subtitle.ClientRectangle))),
+                ("home-rail", Relative(buttons[V269Page.Inicio].RectangleToScreen(
+                    new Rectangle(1, buttons[V269Page.Inicio].Height / 2 - 4, 5, 8)))),
+                ("apps-rail", Relative(buttons[V269Page.Aplicativos].RectangleToScreen(
+                    new Rectangle(1, buttons[V269Page.Aplicativos].Height / 2 - 4, 5, 8)))),
+                ("table-header", Relative(list.RectangleToScreen(new Rectangle(0, 0,
+                    list.ClientSize.Width, Math.Min(list.ClientSize.Height, list.TableHeaderHeight)))))
+            ];
+            var regions = Regions();
+            Require(regions.All(r => r.Area.Width > 0 && r.Area.Height > 0 &&
+                new Rectangle(Point.Empty, bounds.Size).Contains(r.Area)),
+                "REC-FIS-02-PAINT-FORWARD: regiões completas");
+            Bitmap Shot()
+            {
+                var shot = new Bitmap(bounds.Width, bounds.Height);
+                using var graphics = Graphics.FromImage(shot);
+                graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size,
+                    CopyPixelOperation.SourceCopy);
+                return shot;
+            }
+            int[] Differences(Bitmap expected, Bitmap actual) => regions.Select(region =>
+            {
+                int changed = 0;
+                for (int y = region.Area.Top; y < region.Area.Bottom; y++)
+                    for (int x = region.Area.Left; x < region.Area.Right; x++)
+                        if (expected.GetPixel(x,y).ToArgb() != actual.GetPixel(x,y).ToArgb()) changed++;
+                return changed;
+            }).ToArray();
+            string Describe(int[] changes) => string.Join(" ", regions.Select((region,i) =>
+                $"{region.Name}={changes[i]}"));
+            using var reference = Shot();
+            using (var repeated = Shot())
+                Require(Differences(reference, repeated).All(n => n == 0),
+                    "REC-FIS-02-PAINT-FORWARD: referência instável");
+            buttons[V269Page.Inicio].PerformClick();
+            Application.DoEvents();
+            using (var negative = Shot())
+            {
+                var changed = Differences(reference, negative);
+                Require(changed[0] > 0 && changed[4] > 0,
+                    "REC-FIS-02-PAINT-FORWARD: controle negativo distingue título e tabela");
+            }
+            home.VisibleChanged += Visibility;
+            apps.VisibleChanged += Visibility;
+            shell.PageLayoutCommitted += Committed;
+            shell.NavigationChanged += Navigated;
+            buttons[V269Page.Aplicativos].PerformClick();
+            using var immediate = Shot();
+            Application.DoEvents();
+            Require(apps.Visible && !home.Visible && shell.SelectedPage == V269Page.Aplicativos &&
+                title.Text == "Aplicativos" && form.RectangleToScreen(form.ClientRectangle) == bounds &&
+                Regions().SequenceEqual(regions),
+                "REC-FIS-02-PAINT-FORWARD: estado e geometria restaurados");
+            using var drained = Shot();
+            var immediateDiff = Differences(reference, immediate);
+            var drainedDiff = Differences(reference, drained);
+            foreach (var item in trace)
+                Console.WriteLine($"REC-FIS-02-PAINT-FORWARD event theme={theme} {item}");
+            Console.WriteLine($"REC-FIS-02-PAINT-FORWARD immediate theme={theme} {Describe(immediateDiff)}");
+            Console.WriteLine($"REC-FIS-02-PAINT-FORWARD drained theme={theme} {Describe(drainedDiff)}");
+            if (immediateDiff.Any(n => n != 0) || drainedDiff.Any(n => n != 0))
+            {
+                reference.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-reference.png");
+                immediate.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-immediate.png");
+                drained.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-drained.png");
+            }
+            Require(drainedDiff.All(n => n == 0),
+                $"REC-FIS-02-PAINT-FORWARD: resíduos após drenagem {theme}: {Describe(drainedDiff)}");
+        }
+        finally
+        {
+            home.VisibleChanged -= Visibility;
+            apps.VisibleChanged -= Visibility;
+            shell.PageLayoutCommitted -= Committed;
+            shell.NavigationChanged -= Navigated;
+            motion.Checked = savedMotion;
+            shell.SelectPage(savedPage);
+            Application.DoEvents();
+        }
+    }
+
     // Captura do desktop real (WM_PAINT), não WM_PRINT/DrawToBitmap.
     // A barra de seleção do HTML só pode existir no botão ativo.
     private static void VerifyLiveWindowPaint(MainForm form, V269Shell shell)
@@ -1163,6 +1286,7 @@ internal static class V269IntegrationTests
                     }
                 }
                 VerifyHomeReturnPixels(form, shell, buttons, theme);
+                VerifyForwardAppPaint(form, shell, buttons, theme);
             }
             Console.WriteLine("PASS REC-FIS-02-PAINT: retorno ao Início comparado no desktop real nos três temas.");
             Console.WriteLine("PASS V2.6.9: 24 estados reais do desktop e rolagem quando disponível; trilho único de seleção nos três temas.");
