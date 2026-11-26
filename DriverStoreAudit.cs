@@ -30,7 +30,7 @@ internal sealed record DriverStoreAuditResult(IReadOnlyList<DriverStoreEvidence>
 // leitura de conteúdo, elevação, download ou qualquer operação de manutenção.
 internal static class DriverStoreAudit
 {
-    internal enum AuditPhase { Inventory, WmiConnect, WmiPnp, WmiSigned, Store, Published, History, Correlation, Binding, Metadata }
+    internal enum AuditPhase { Inventory, WmiConnect, WmiPnp, WmiSigned, Store, Published, History, Correlation, Binding, Metadata, PublishedListSize, PublishedListRead, PublishedResolve }
     internal static readonly TimeSpan InteractiveTimeout = TimeSpan.FromSeconds(20);
 
     // Mesma rota consultiva utilizada pelo GF e pela prova nativa da CI.
@@ -50,7 +50,7 @@ internal static class DriverStoreAudit
     {
         var inventory = Phase(AuditPhase.Inventory, () => DriverInventory.Capture(token, observe));
         var store = Phase(AuditPhase.Store, () => Capture(inventory, token));
-        var published = Phase(AuditPhase.Published, () => DriverPublishedPackages.Capture(inventory, token));
+        var published = Phase(AuditPhase.Published, () => DriverPublishedPackages.Capture(inventory, token, observe: observe));
         var history = Phase(AuditPhase.History, () => DriverWindowsHistory.Capture(token));
         var audited = Phase(AuditPhase.Correlation, () =>
         {
