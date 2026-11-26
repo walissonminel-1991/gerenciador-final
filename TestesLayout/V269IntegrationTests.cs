@@ -1097,6 +1097,57 @@ internal static class V269IntegrationTests
     // REC-FIS-02-PAINT-FORWARD: no retorno físico, o sentido Início→
     // Aplicativos expôs cabeçalho/trilho antigos e conteúdo novo. Não
     // confundir o oráculo de retorno ao Início com prova do sentido inverso.
+    // Sonda passiva: não intercepta resultados, não cria HWNDs,
+    // não envia mensagens e não força pintura.
+    private sealed class NativeTransitionPaintProbe : NativeWindow, IDisposable
+    {
+        private readonly string _name;
+        private readonly Action<string> _record;
+        internal NativeTransitionPaintProbe(Control control, string name, Action<string> record)
+        {
+            if (!control.IsHandleCreated) throw new InvalidOperationException("HWND ausente: " + name);
+            _name = name;
+            _record = record;
+            AssignHandle(control.Handle);
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", ExactSpelling = true)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        private static extern bool GetUpdateRect(IntPtr hwnd, IntPtr rect,
+            [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)] bool erase);
+
+        internal void ObservePending(string stage)
+        {
+            if (Handle != IntPtr.Zero)
+                _record($"{stage} target={_name} update-region={GetUpdateRect(Handle, IntPtr.Zero, false)}");
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            string? name = m.Msg switch
+            {
+                0x0003 => "WM_MOVE",
+                0x0005 => "WM_SIZE",
+                0x000F => "WM_PAINT",
+                0x0014 => "WM_ERASEBKGND",
+                0x0018 => "WM_SHOWWINDOW",
+                0x0047 => "WM_WINDOWPOSCHANGED",
+                0x0085 => "WM_NCPAINT",
+                0x0088 => "WM_SYNCPAINT",
+                _ => null
+            };
+            if (name is null) { base.WndProc(ref m); return; }
+            _record($"native target={_name} message={name} enter");
+            try { base.WndProc(ref m); }
+            finally { _record($"native target={_name} message={name} exit"); }
+        }
+
+        public void Dispose()
+        {
+            if (Handle != IntPtr.Zero) ReleaseHandle();
+        }
+    }
+
     private static void VerifyForwardAppPaint(MainForm form, V269Shell shell,
         IReadOnlyDictionary<V269Page, Button> buttons, V269Theme theme)
     {
@@ -1111,10 +1162,20 @@ internal static class V269IntegrationTests
         bool savedMotion = motion.Checked;
         var savedPage = shell.SelectedPage;
         var trace = new List<string>();
-        void Observe(string stage) => trace.Add(
+        var nativeTrace = new List<string>(512);
+        var probes = new List<NativeTransitionPaintProbe>();
+        long traceStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        string tracePhase = "setup";
+        void RecordNative(string detail) => nativeTrace.Add(
+            FormattableString.Invariant($"seq={nativeTrace.Count} elapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(traceStart).TotalMilliseconds:F3} phase={tracePhase} {detail}"));
+        void Observe(string stage)
+        {
+            RecordNative("event " + stage);
+            trace.Add(
             $"{stage} selected={shell.SelectedPage} home={home.Visible} apps={apps.Visible} " +
             $"title={title.Text} transition={shell.IsPageLayoutTransition} list={list.Bounds} " +
             $"glyph={glyph.Page} railHome={buttons[V269Page.Inicio].AccessibleDescription} railApps={buttons[V269Page.Aplicativos].AccessibleDescription}");
+        }
         void Visibility(object? sender, EventArgs e)
         {
             Observe(sender == home ? "home-visible" : "apps-visible");
@@ -1188,19 +1249,51 @@ internal static class V269IntegrationTests
                 var changed = Differences(reference, negative);
                 Require(changed[0] > 0 && changed[4] > 0,
                     "REC-FIS-02-PAINT-FORWARD: controle negativo distingue título e tabela");
+                negative.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-source.png");
             }
+            var body = form.Controls.Find("V269BodyHost", true).Single();
+            var observed = new (string Name, Control Control)[]
+            {
+                ("form",form), ("shell",shell), ("body",body), ("home",home),
+                ("apps",apps), ("list",list), ("title",title), ("subtitle",subtitle),
+                ("glyph",glyph), ("home-rail",buttons[V269Page.Inicio]),
+                ("apps-rail",buttons[V269Page.Aplicativos])
+            };
+            foreach (var item in observed)
+            {
+                if (item.Control.IsHandleCreated)
+                    probes.Add(new NativeTransitionPaintProbe(item.Control,item.Name,RecordNative));
+                else RecordNative("missing-hwnd target=" + item.Name);
+            }
+            Require(body.IsHandleCreated && apps.IsHandleCreated && list.IsHandleCreated &&
+                title.IsHandleCreated && buttons[V269Page.Aplicativos].IsHandleCreated,
+                "REC-FIS-02-PAINT-NATIVE: controles essenciais já possuem HWND");
+            traceStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            tracePhase = "before-click";
+            foreach (var probe in probes) probe.ObservePending("before-click");
             home.VisibleChanged += Visibility;
             apps.VisibleChanged += Visibility;
             shell.PageLayoutCommitted += Committed;
             shell.NavigationChanged += Navigated;
+            tracePhase = "click";
+            RecordNative("click-enter");
             buttons[V269Page.Aplicativos].PerformClick();
+            RecordNative("click-return");
+            tracePhase = "immediate";
+            foreach (var probe in probes) probe.ObservePending("before-immediate");
             using var immediate = Shot();
+            RecordNative("immediate-captured");
+            tracePhase = "drain";
             Application.DoEvents();
+            RecordNative("drain-return");
+            tracePhase = "drained";
+            foreach (var probe in probes) probe.ObservePending("after-drain");
             Require(apps.Visible && !home.Visible && shell.SelectedPage == V269Page.Aplicativos &&
                 title.Text == "Aplicativos" && form.RectangleToScreen(form.ClientRectangle) == bounds &&
                 Regions().SequenceEqual(regions),
                 "REC-FIS-02-PAINT-FORWARD: estado e geometria restaurados");
             using var drained = Shot();
+            RecordNative("drained-captured");
             var immediateDiff = Differences(reference, immediate);
             var drainedDiff = Differences(reference, drained);
             foreach (var item in trace)
@@ -1222,6 +1315,9 @@ internal static class V269IntegrationTests
             apps.VisibleChanged -= Visibility;
             shell.PageLayoutCommitted -= Committed;
             shell.NavigationChanged -= Navigated;
+            foreach (var probe in probes) probe.Dispose();
+            foreach (var line in nativeTrace)
+                Console.WriteLine($"REC-FIS-02-PAINT-NATIVE theme={theme} {line}");
             motion.Checked = savedMotion;
             shell.SelectPage(savedPage);
             Application.DoEvents();
