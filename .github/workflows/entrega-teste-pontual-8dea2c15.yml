@@ -1,0 +1,83 @@
+name: Entrega pontual de teste 8dea2c15 (nao homologada)
+on:
+  push:
+    branches: [entrega/teste-pontual-8dea2c15-20261125]
+permissions:
+  contents: read
+jobs:
+  gate:
+    name: Aguardar e verificar gate original sem repetir testes
+    if: ${{ github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/entrega/teste-pontual-8dea2c15-20261125' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: '8dea2c15710fbc3929286dfa487ce2d7489c2332'
+    steps:
+      - name: Exigir Windows e integridade SUCCESS no SHA exato
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo='walissonminel-1991/gerenciador-final'
+          for attempt in $(seq 1 40); do
+            ready=true
+            for id in 45728618455 45728618386; do
+              run=$(gh api "repos/$repo/actions/runs/$id")
+              test "$(jq -r .head_sha <<< "$run")" = "$SOURCE_SHA"
+              status=$(jq -r .status <<< "$run")
+              conclusion=$(jq -r .conclusion <<< "$run")
+              echo "Run $id: $status / $conclusion"
+              if [ "$status" = completed ]; then
+                test "$conclusion" = success || { echo 'Gate original reprovado; nenhum ZIP autorizado'; exit 1; }
+              else
+                ready=false
+              fi
+            done
+            if [ "$ready" = true ]; then
+              jobs=$(gh api "repos/$repo/actions/runs/45728618455/jobs?filter=latest&per_page=100")
+              jq -e 'any(.jobs[]; .name == "Compilação Windows x64" and .conclusion == "success")' <<< "$jobs"
+              jq -e 'any(.jobs[]; (.name | endswith("Regressões Windows")) and .conclusion == "success")' <<< "$jobs"
+              echo 'Gate integral aprovado; SHA original confirmado.'
+              exit 0
+            fi
+            sleep 30
+          done
+          echo 'Gate ainda nao concluido; nenhum ZIP autorizado.'
+          exit 1
+  package:
+    name: Compilar pacote de teste x64 a partir da fonte imutavel
+    needs: gate
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout do SHA original aprovado
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: '8dea2c15710fbc3929286dfa487ce2d7489c2332'
+          persist-credentials: false
+      - name: SDK .NET fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: 10.0.402
+      - name: Executar script existente com BETA local, verificar ZIP e hash
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/Compilar-Portatil-Privado.ps1 -ExpectedSourceCommit 8dea2c15710fbc3929286dfa487ce2d7489c2332 -OutputDirectory (Join-Path $env:RUNNER_TEMP 'gf-entrega-8dea2c15')
+          if (-not $?) { throw 'Compilacao privada reprovada' }
+      # Excecao pontual autorizada pelo proprietario: artefato de Actions
+      # em repositorio publico, nao privado, nao assinado, sem release.
+      - name: Disponibilizar exclusivamente ZIP de teste e SHA256 por um dia
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: GerenciadorFinal-v5.13.11.66-8dea2c15-TESTE-NAO-HOMOLOGADO-win-x64
+          path: |
+            ${{ runner.temp }}/gf-entrega-8dea2c15/GerenciadorFinal-v5.13.11.66-8dea2c15-TESTE-PRIVADO-win-x64.zip
+            ${{ runner.temp }}/gf-entrega-8dea2c15/GerenciadorFinal-v5.13.11.66-8dea2c15-TESTE-PRIVADO-win-x64.zip.sha256
+          retention-days: 1
+          if-no-files-found: error
