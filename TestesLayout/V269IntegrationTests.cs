@@ -269,9 +269,11 @@ internal static class V269IntegrationTests
             var appBar = apps.Controls.Find("V269AppsVerticalScroll", false).OfType<DarkVScrollBar>().Single();
             int appOffset = appBar.Value;
             Require(appOffset > 0, "roda não rolou aplicativos");
+            ProbeNativeWheel(form, apps, appBar, "Aplicativos", snapshot);
             Step("drivers-inventario", () => { Go(V269Page.Drivers); drivers.SetItems(fixture); drivers.Focus(); Wheel(drivers, -240); });
             var driverBar = drivers.Controls.Find("V269DriversVerticalScroll", true).OfType<DarkVScrollBar>().Single();
             Require(driverBar.Value > 0 && !drivers.ActionsCurrent, "drivers sem autoridade ou rolagem inválida");
+            ProbeNativeWheel(form, drivers, driverBar, "Drivers", snapshot);
             Step("hardware", () => { Go(V269Page.Inicio); home.SetModels(MainForm.V269HomeModels(snapshot)); });
             Step("retorno-apps", () => Go(V269Page.Aplicativos));
             Require(appBar.Value == appOffset && apps.Items.Count == 90, "voltar perdeu rolagem de aplicativos");
@@ -335,6 +337,96 @@ internal static class V269IntegrationTests
             SynchronizationContext.SetSynchronizationContext(savedContext);
             Application.DoEvents();
         }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr SendWheelMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    // O observador existe apenas no teste e mede a passagem efetiva por
+    // WM_PAINT do HWND, inclusive código de desenho do controle.
+    private sealed class ScrollPaintProbe : NativeWindow, IDisposable
+    {
+        internal int Count { get; private set; }
+        internal double Milliseconds { get; private set; }
+        internal ScrollPaintProbe(Control control) => AssignHandle(control.Handle);
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg != 0x000F) { base.WndProc(ref m); return; }
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            try { base.WndProc(ref m); }
+            finally
+            {
+                Count++;
+                Milliseconds += System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            }
+        }
+        public void Dispose() { if (Handle != IntPtr.Zero) ReleaseHandle(); }
+    }
+
+    private static void ProbeNativeWheel(MainForm form, Control target, DarkVScrollBar bar,
+        string page, HardwareSensorPortfolio snapshot)
+    {
+        Require(target.Visible && target.IsHandleCreated && bar.MaximumValue > 200,
+            "sonda exige lista visível com overflow");
+        int saved = bar.Value;
+        var models = MainForm.V269HomeModels(snapshot);
+        using var paint = new ScrollPaintProbe(target);
+        static string Stats(List<double> values)
+        {
+            var sorted = values.OrderBy(x => x).ToArray();
+            return FormattableString.Invariant(
+                $"n={sorted.Length} p50={sorted[(int)Math.Ceiling(sorted.Length*.50)-1]:F3} p95={sorted[(int)Math.Ceiling(sorted.Length*.95)-1]:F3} max={sorted[^1]:F3}");
+        }
+        try
+        {
+            foreach (bool queueModel in new[] { false, true })
+            {
+                bar.Value = bar.MaximumValue / 2;
+                Application.DoEvents();
+                var dispatch = new List<double>();
+                var drain = new List<double>();
+                var paints = new List<double>();
+                var modelCost = new List<double>();
+                int paintCount = 0;
+                for (int i = 0; i < 8; i++)
+                {
+                    bool modelDone = !queueModel;
+                    double modelMs = 0;
+                    if (queueModel)
+                    {
+                        form.BeginInvoke((Action)(() =>
+                        {
+                            long began = System.Diagnostics.Stopwatch.GetTimestamp();
+                            models = MainForm.UpdateV269LiveRows(models, snapshot.WindowsCounters);
+                            modelMs = System.Diagnostics.Stopwatch.GetElapsedTime(began).TotalMilliseconds;
+                            modelDone = true;
+                        }));
+                    }
+                    int delta = i % 2 == 0 ? -30 : 30;
+                    int prior = bar.Value;
+                    var point = target.PointToScreen(new Point(20, Math.Min(target.Height-1, target.Height/2)));
+                    int packedPoint = unchecked((int)((uint)(ushort)point.X | ((uint)(ushort)point.Y << 16)));
+                    int beforePaints = paint.Count;
+                    double beforePaintMs = paint.Milliseconds;
+                    long start = System.Diagnostics.Stopwatch.GetTimestamp();
+                    _ = SendWheelMessage(target.Handle, 0x020A, new IntPtr(delta << 16), new IntPtr(packedPoint));
+                    dispatch.Add(System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+                    Require(delta < 0 ? bar.Value > prior : bar.Value < prior,
+                        "WM_MOUSEWHEEL fracionado deve deslocar a lista na própria chamada: " + page);
+                    start = System.Diagnostics.Stopwatch.GetTimestamp();
+                    Application.DoEvents();
+                    drain.Add(System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+                    Require(modelDone, "callback sintético de modelo deve concluir na fila STA");
+                    modelCost.Add(modelMs);
+                    paints.Add(paint.Milliseconds-beforePaintMs);
+                    paintCount += paint.Count-beforePaints;
+                }
+                Require(paintCount > 0, "sonda deve observar WM_PAINT reais: " + page);
+                string scenario = queueModel ? "modelo-cpu-ram-sintetico" : "sem-callback";
+                Console.WriteLine($"V269-WHEEL page={page} scenario={scenario} paints={paintCount} dispatch_ms [{Stats(dispatch)}] drain_ms [{Stats(drain)}] paint_ms [{Stats(paints)}] model_ms [{Stats(modelCost)}]");
+            }
+        }
+        finally { bar.Value = saved; Application.DoEvents(); }
     }
 
     private static void VerifyViewportVisibilityMeasurements(MainForm form,V269Shell shell)
