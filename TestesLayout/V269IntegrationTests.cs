@@ -22,6 +22,7 @@ internal static class V269IntegrationTests
         Timed("Dock do viewport externo", VerifyPageViewportDock);
         Timed("Feedback independente", VerifyIndependentFeedback);
         Timed("Barras universais", VerifyUniversalMeterPainting);
+        Timed("REC-FIS-PAINT recorte parcial de slider", VerifySettingsRangePaintClip);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
@@ -585,6 +586,28 @@ internal static class V269IntegrationTests
             Application.DoEvents();
         }
         reviewWindow.Close();
+    }
+
+    private static void VerifySettingsRangePaintClip()
+    {
+        using var range = new V269SettingsRange { AutoSize=false, Size=new Size(180,26), Minimum=0, Maximum=100, Value=80 };
+        var paint=typeof(V269SettingsRange).GetMethod("OnPaint",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        foreach(var theme in Enum.GetValues<V269Theme>())
+        {
+            range.ApplyOptions(V269AppearanceOptions.Default with { Theme=theme });
+            using var image=new Bitmap(range.Width,range.Height);
+            using var g=Graphics.FromImage(image);
+            g.Clear(Color.Magenta);
+            var dirty=new Rectangle(70,0,20,range.Height);
+            g.SetClip(dirty);
+            using var args=new PaintEventArgs(g,dirty);
+            paint.Invoke(range,[args]);
+            Require(g.ClipBounds==new RectangleF(dirty.X,dirty.Y,dirty.Width,dirty.Height),"slider preserva clip recebido");
+            Require(image.GetPixel(80,range.Height/2).ToArgb()!=Color.Magenta.ToArgb(),"slider pinta dentro da região suja");
+            for(int y=0;y<image.Height;y++)for(int x=0;x<image.Width;x++)
+                if(!dirty.Contains(x,y))Require(image.GetPixel(x,y).ToArgb()==Color.Magenta.ToArgb(),"slider não pode pintar fora do clip parcial: "+theme);
+        }
+        Console.WriteLine("PASS REC-FIS-PAINT-CLIP: sliders preservam região suja nos três temas.");
     }
 
     private static void VerifyUniversalMeterPainting()

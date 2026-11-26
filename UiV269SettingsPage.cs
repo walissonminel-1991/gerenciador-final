@@ -187,7 +187,7 @@ internal sealed class V269SettingsRange : TrackBar
         double ratio=(Value-Minimum)/(double)Math.Max(1,Maximum-Minimum);
         int cx=half+(int)Math.Round(Math.Max(0,Width-thumb)*ratio);
         var saved=g.Save();
-        try{g.SetClip(path);using var active=new SolidBrush(accent);g.FillRectangle(active,0,y,Math.Max(1,cx),railHeight);}
+        try{g.SetClip(path,CombineMode.Intersect);using var active=new SolidBrush(accent);g.FillRectangle(active,0,y,Math.Max(1,cx),railHeight);}
         finally{g.Restore(saved);}
         g.DrawPath(line,path);
         var rect=new Rectangle(cx-half,(Height-thumb)/2,Math.Max(1,thumb-1),Math.Max(1,thumb-1));
