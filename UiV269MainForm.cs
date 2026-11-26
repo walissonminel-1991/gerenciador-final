@@ -736,7 +736,12 @@ internal sealed partial class MainForm
                 int S(int n)=>V269AppTable.Scale(n,_v269Appearance.InterfacePercent,_v269StartupCards.DeviceDpi);
                 int columns=width>=S(540)?3:width>=S(330)?2:1,gap=S(9);
                 var cards=flow.Controls.OfType<V269StartupCard>().ToArray();
-                int w=Math.Max(1,(width-gap*(columns-1)-1)/columns);
+                int required=cards.Select(c=>c.RequiredSingleLineWidth).DefaultIfEmpty(0).Max();
+                int CardWidth(int count)=>Math.Max(1,(width-gap*(count-1)-1)/count);
+                // Preservar a grade quando cabe; só reduzir colunas se o
+                // comando inteiro não cabe. Em uma coluna, pode quebrar linha.
+                while(columns>1&&CardWidth(columns)<required)columns--;
+                int w=CardWidth(columns);
                 flow.SuspendLayout();
                 try
                 {

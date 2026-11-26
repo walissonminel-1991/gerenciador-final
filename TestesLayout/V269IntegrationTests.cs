@@ -26,6 +26,7 @@ internal static class V269IntegrationTests
         Timed("REC-FIS-GLYPH comandos indisponíveis", VerifyDisabledCommandGlyph);
         Timed("REC-FIS-PAINT texto recortado e transladado", VerifyTranslatedTextPaint);
         Timed("REC-FIS-PAINT arte de Início com recorte parcial", VerifyHomeArtPaintClip);
+        Timed("REC-FIS-STARTUP texto de comandos", VerifyStartupCaptionLayout);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
@@ -3306,6 +3307,39 @@ internal static class V269IntegrationTests
             shell.PresentPanel(originalPanel);surface.PerformLayout();Application.DoEvents();
         }
         Console.WriteLine("PASS Configurações V2.6.9: preferências descartáveis, estados observados, três temas, rolagem, botões consultivos e capturas.");
+    }
+
+    private static void VerifyStartupCaptionLayout()
+    {
+        using var card=new V269StartupCard("Aplicativo com nome extenso de inicialização","Todos os usuários",
+            "document","Desativar na inicialização",false,null,null);
+        foreach(var theme in Enum.GetValues<V269Theme>())
+        foreach(int scale in new[]{100,120})
+        {
+            card.ApplyOptions(V269AppearanceOptions.Default with{Theme=theme,TextPercent=scale});
+            int S(int n)=>V269AppTable.Scale(n,100,card.DeviceDpi);
+            int natural=TextRenderer.MeasureText(card.Command.Text,card.Command.Font,Size.Empty,
+                TextFormatFlags.NoPadding|TextFormatFlags.NoPrefix).Width;
+            foreach(int width in new[]{S(150),Math.Max(S(320),card.RequiredSingleLineWidth)})
+            {
+                card.Size=new Size(width,card.HeightForWidth(width));
+                var command=card.Command;
+                int left=Math.Max(S(5),(command.Width-S(15)-S(6)-natural)/2);
+                int available=Math.Max(1,command.Width-left-S(15)-S(6)-S(3));
+                bool wraps=natural>available;
+                int textHeight=wraps?TextRenderer.MeasureText(command.Text,command.Font,
+                    new Size(available,1000),TextFormatFlags.NoPadding|TextFormatFlags.NoPrefix|
+                    TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl).Height:command.Font.Height;
+                var labels=card.Controls.OfType<Label>().OrderBy(label=>label.Top).ToArray();
+                Require(labels.Length==2&&labels.All(label=>card.ClientRectangle.Contains(label.Bounds))&&
+                    labels[0].Bottom<labels[1].Top&&labels[1].Bottom<command.Top&&
+                    card.ClientRectangle.Contains(command.Bounds)&&command.Height>=textHeight+S(8),
+                    "REC-FIS-STARTUP-TEXT: texto e comandos sem recorte nem sobreposição "+theme+"/"+scale+"/"+width);
+                Require(wraps==(width==S(150))&&!command.Enabled&&
+                    command.Text=="Desativar na inicialização","REC-FIS-STARTUP-TEXT: quebra real preserva comando bloqueado");
+            }
+        }
+        Console.WriteLine("PASS REC-FIS-STARTUP-TEXT: comandos inteiros, quebra responsiva e bloqueio nos três temas.");
     }
 
     private static void VerifyHomeArtPaintClip()

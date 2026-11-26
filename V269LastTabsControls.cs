@@ -90,7 +90,7 @@ internal sealed class V269StartupCard : Panel
         _title=new Label{Text=name,UseMnemonic=false,BackColor=Color.Transparent,TextAlign=ContentAlignment.MiddleLeft};
         _hint=new Label{Text=hint,UseMnemonic=false,BackColor=Color.Transparent,TextAlign=ContentAlignment.MiddleLeft};
         _title.Click+=(_,_)=>OnClick(EventArgs.Empty);_hint.Click+=(_,_)=>OnClick(EventArgs.Empty);
-        Command=new V269CleanupButton(command,allowed?"power":"lock")
+        Command=new V269CleanupButton(command,allowed?"power":"lock",wrapCaption:true)
         {Enabled=allowed,AccessibleName=command+": "+name,Margin=Padding.Empty};
         Controls.Add(_title);Controls.Add(_hint);Controls.Add(Command);
         Size=new Size(240,114);ApplyOptions(_options);
@@ -112,15 +112,22 @@ internal sealed class V269StartupCard : Panel
     }
     internal void SetSelected(bool selected){if(_selected!=selected){_selected=selected;Invalidate(true);}}
     private int TitleHeight(int width)=>Math.Max(S(25),TextRenderer.MeasureText(_title.Text,_title.Font,
-        new Size(Math.Max(1,width-S(55)),1000),TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height);
-    internal int HeightForWidth(int width)=>Math.Max(S(114),S(30)+TitleHeight(width)+_hint.Font.Height+Math.Max(S(30),Command.Font.Height+S(8)));
+        new Size(Math.Max(1,width-S(12)*2-S(29)),1000),TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height);
+    private int HintHeight(int width)=>Math.Max(_hint.Font.Height,TextRenderer.MeasureText(_hint.Text,_hint.Font,
+        new Size(Math.Max(1,width-S(12)*2),1000),TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix).Height)+S(3);
+    private int DesiredCommandWidth=>Math.Max(((V269CleanupButton)Command).RequiredCaptionWidth,
+        TextRenderer.MeasureText(Command.Text,Command.Font).Width+S(30));
+    internal int RequiredSingleLineWidth=>2*S(12)+DesiredCommandWidth;
+    private int CommandWidth(int width)=>Math.Min(Math.Max(1,width-2*S(12)),DesiredCommandWidth);
+    internal int HeightForWidth(int width)=>Math.Max(S(114),2*S(12)+2*S(3)+TitleHeight(width)+HintHeight(width)+
+        ((V269CleanupButton)Command).CaptionHeightForWidth(CommandWidth(width)));
     private void Arrange()
     {
         if(_title is null||_hint is null||Command is null)return;
-        int pad=S(12),left=pad+S(29),h=TitleHeight(Width),bh=Math.Max(S(30),Command.Font.Height+S(8));
+        int pad=S(12),left=pad+S(29),h=TitleHeight(Width),bw=CommandWidth(Width);
+        int bh=((V269CleanupButton)Command).CaptionHeightForWidth(bw);
         _title.Bounds=new Rectangle(left,pad,Math.Max(1,Width-left-pad),h);
-        _hint.Bounds=new Rectangle(pad,pad+h+S(3),Math.Max(1,Width-pad*2),_hint.Font.Height+S(3));
-        int bw=Math.Min(Math.Max(1,Width-2*pad),TextRenderer.MeasureText(Command.Text,Command.Font).Width+S(30));
+        _hint.Bounds=new Rectangle(pad,pad+h+S(3),Math.Max(1,Width-pad*2),HintHeight(Width));
         Command.Bounds=new Rectangle(Math.Max(0,Width-pad-bw),Math.Max(pad,Height-pad-bh),bw,bh);
     }
     protected override void OnResize(EventArgs e){base.OnResize(e);Arrange();}

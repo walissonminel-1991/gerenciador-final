@@ -89,12 +89,12 @@ internal static class V269CleanupGlyph
 internal sealed class V269CleanupButton : Button
 {
     private readonly string _glyph;
-    private readonly bool _primary;
+    private readonly bool _primary, _wrapCaption;
     private V269AppearanceOptions _options = V269AppearanceOptions.Default;
     private Font? _font;
-    internal V269CleanupButton(string caption, string glyph, bool primary = false)
+    internal V269CleanupButton(string caption, string glyph, bool primary = false, bool wrapCaption = false)
     {
-        _glyph = glyph; _primary = primary; Text = caption; AccessibleName = caption;
+        _glyph = glyph; _primary = primary; _wrapCaption = wrapCaption; Text = caption; AccessibleName = caption;
         FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; UseVisualStyleBackColor = false;
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
             ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
@@ -115,6 +115,21 @@ internal sealed class V269CleanupButton : Button
         }
         Invalidate();
     }
+    private const TextFormatFlags CaptionFlags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+    private int NaturalCaptionWidth => TextRenderer.MeasureText(Text, Font, Size.Empty, CaptionFlags).Width;
+    internal int RequiredCaptionWidth => NaturalCaptionWidth + S(5) + S(15) + S(6) + S(3);
+    private int CaptionLeft(int width, int measured) => Math.Max(S(5), (width-S(15)-S(6)-measured)/2);
+    private int CaptionAvailableWidth(int width, int measured) =>
+        Math.Max(1, width-CaptionLeft(width,measured)-S(15)-S(6)-S(3));
+    internal int CaptionHeightForWidth(int width)
+    {
+        int natural=NaturalCaptionWidth, available=CaptionAvailableWidth(width,natural);
+        int textHeight=_wrapCaption && natural>available
+            ? TextRenderer.MeasureText(Text,Font,new Size(available,1000),
+                CaptionFlags|TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl).Height
+            : Font.Height;
+        return Math.Max(S(30),textHeight+S(8));
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
         if (Width < 3 || Height < 3) return;
@@ -127,8 +142,8 @@ internal sealed class V269CleanupButton : Button
         using var outline = new Pen(H(border));
         g.FillPath(fill,shape);g.DrawPath(outline,shape);
         int icon = S(15);
-        int measured = TextRenderer.MeasureText(Text,Font,Size.Empty,TextFormatFlags.NoPadding|TextFormatFlags.NoPrefix).Width;
-        int left = Math.Max(S(5),(Width-icon-S(6)-measured)/2);
+        int measured = NaturalCaptionWidth;
+        int left = CaptionLeft(Width,measured);
         if (_glyph == "play")
         {
             Color ink = !Enabled ? V269VisualTokens.ForTheme(_options.Theme).SecondaryText :
@@ -141,11 +156,21 @@ internal sealed class V269CleanupButton : Button
         else V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme,
             !Enabled ? V269VisualTokens.ForTheme(_options.Theme).SecondaryText :
             _primary && _glyph=="search" && Text=="Analisar limpeza" && _options.Theme!=V269Theme.Dark ? H(text) : null);
-        int x=left+icon+S(6);
-        TextRenderer.DrawText(g,Text,Font,new Rectangle(x,0,Math.Max(1,Width-x-S(3)),Height),
-            Enabled?H(text):V269VisualTokens.ForTheme(_options.Theme).SecondaryText,
-            TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|
-            TextFormatFlags.PreserveGraphicsClipping|TextFormatFlags.PreserveGraphicsTranslateTransform);
+        int x=left+icon+S(6), available=CaptionAvailableWidth(Width,measured);
+        bool wrap=_wrapCaption&&measured>available;
+        var textBounds=new Rectangle(x,0,available,Height);
+        var textFlags=CaptionFlags|TextFormatFlags.PreserveGraphicsClipping|TextFormatFlags.PreserveGraphicsTranslateTransform;
+        if(wrap)
+        {
+            textFlags|=TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl;
+            int textHeight=TextRenderer.MeasureText(Text,Font,new Size(available,1000),
+                CaptionFlags|TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl).Height;
+            textBounds.Y=Math.Max(0,(Height-textHeight)/2);
+            textBounds.Height=Math.Max(1,Math.Min(textHeight,Height-textBounds.Y));
+        }
+        else textFlags|=TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis;
+        TextRenderer.DrawText(g,Text,Font,textBounds,
+            Enabled?H(text):V269VisualTokens.ForTheme(_options.Theme).SecondaryText,textFlags);
         if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,new Rectangle(3,3,Math.Max(1,Width-6),Math.Max(1,Height-6)));
     }
     protected override void Dispose(bool disposing){if(disposing)_font?.Dispose();base.Dispose(disposing);}
