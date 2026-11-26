@@ -1249,8 +1249,12 @@ internal sealed class V269Shell : UserControl
                 var descriptor = Pages[(int)page];
                 _pageTitle.Text = descriptor.Title;
                 _pageSubtitle.Text = descriptor.Subtitle;
-                RefreshVisiblePage();
+                // Publicar a identidade lógica do destino antes de expor
+                // seus HWNDs; VisibleChanged não pode observar trilho/ícone
+                // da página anterior. Não forçar WM_PAINT nem bombear a fila.
                 ApplyNavigationSelection(V269VisualTokens.ForTheme(Theme));
+                ApplyPageHeadingGlyph(true);
+                RefreshVisiblePage();
             }
             finally { _selectingPage = false; }
             ApplyDimensions();
@@ -1384,6 +1388,19 @@ internal sealed class V269Shell : UserControl
         }
     }
 
+    private void ApplyPageHeadingGlyph(bool home)
+    {
+        _homeGlyph.Visible = home;
+        _homeGlyph.Page = SelectedPage;
+        _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269DriverVisuals.GlyphInk(V269DriverGlyph.Chip, Theme) :
+            SelectedPage == V269Page.Reparo ? V269RepairVisuals.WrenchInk(Theme) : SelectedPage == V269Page.Limpeza ? ColorTranslator.FromHtml(Theme switch { V269Theme.Claro=>"#087d82",V269Theme.Dark=>"#55cbb5",_=>"#6bd6b2" }) : Theme switch {
+            V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
+            V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
+            _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };
+        if(SelectedPage==V269Page.Inicializacao) _homeGlyph.ForeColor=Theme==V269Theme.Claro?ColorTranslator.FromHtml("#ad690d"):ColorTranslator.FromHtml("#f2c477");
+        _homeGlyph.Invalidate();
+    }
+
     private void ApplyDimensionsCore()
     {
         int width = Math.Max(1, ClientSize.Width);
@@ -1403,15 +1420,9 @@ internal sealed class V269Shell : UserControl
         }
         ApplyFonts();
         ApplyHomeSurfaces(home);
-        _homeGlyph.Visible = home;
-        _homeGlyph.Page = SelectedPage;
-        _homeGlyph.ForeColor = SelectedPage == V269Page.Drivers ? V269DriverVisuals.GlyphInk(V269DriverGlyph.Chip, Theme) :
-            repair ? V269RepairVisuals.WrenchInk(Theme) : cleanup ? ColorTranslator.FromHtml(Theme switch { V269Theme.Claro=>"#087d82",V269Theme.Dark=>"#55cbb5",_=>"#6bd6b2" }) : Theme switch {
-            V269Theme.Dark => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b998f2" : "#65b8ef"),
-            V269Theme.Claro => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#7046c1" : "#2577a8"),
-            _ => ColorTranslator.FromHtml(SelectedPage is V269Page.Configuracoes or V269Page.Aplicativos ? "#b7a5f5" : "#69bfe0") };
-        if(SelectedPage==V269Page.Inicializacao) _homeGlyph.ForeColor=Theme==V269Theme.Claro?ColorTranslator.FromHtml("#ad690d"):ColorTranslator.FromHtml("#f2c477");
-        _homeGlyph.Invalidate();
+        // SelectPage já preparou a identidade do destino antes de
+        // revelar a view; resize/tema fora da transição mantêm o percurso.
+        if (!IsPageLayoutTransition) ApplyPageHeadingGlyph(home);
         _headingLayout.ColumnStyles[0].Width = home ? S(57) : 0;
         _centralLayout.RowStyles[0].Height = home ? S(windowWidth <= 1040 ? 57 : 68) : 70;
         _headingLayout.Margin = home ? new Padding(0, 0, 0, S(3)) : Padding.Empty;

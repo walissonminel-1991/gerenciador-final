@@ -1104,6 +1104,7 @@ internal static class V269IntegrationTests
         var apps = shell.PageContent(V269Page.Aplicativos)!;
         var title = form.Controls.Find("V269PageTitle", true).Single();
         var subtitle = form.Controls.Find("V269PageSubtitle", true).Single();
+        var glyph = form.Controls.Find("V269HomeHeadingIcon", true).OfType<V269HomeHeadingIcon>().Single();
         var list = (DarkProgramList)typeof(MainForm).GetField("_programList",
             BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form)!;
         var motion = form.Controls.Find("V269Animations", true).OfType<CheckBox>().Single();
@@ -1112,8 +1113,18 @@ internal static class V269IntegrationTests
         var trace = new List<string>();
         void Observe(string stage) => trace.Add(
             $"{stage} selected={shell.SelectedPage} home={home.Visible} apps={apps.Visible} " +
-            $"title={title.Text} transition={shell.IsPageLayoutTransition} list={list.Bounds}");
-        void Visibility(object? sender, EventArgs e) => Observe(sender == home ? "home-visible" : "apps-visible");
+            $"title={title.Text} transition={shell.IsPageLayoutTransition} list={list.Bounds} " +
+            $"glyph={glyph.Page} railHome={buttons[V269Page.Inicio].AccessibleDescription} railApps={buttons[V269Page.Aplicativos].AccessibleDescription}");
+        void Visibility(object? sender, EventArgs e)
+        {
+            Observe(sender == home ? "home-visible" : "apps-visible");
+            if (sender == apps && apps.Visible)
+                Require(shell.SelectedPage == V269Page.Aplicativos && !home.Visible &&
+                    title.Text == "Aplicativos" && glyph.Page == V269Page.Aplicativos &&
+                    buttons.All(pair => pair.Value.AccessibleDescription ==
+                        (pair.Key == V269Page.Aplicativos ? "Aba atual" : "Abrir aba")),
+                    "REC-FIS-02-PAINT-IDENTITY: view revelada antes de trilho/cabeçalho coerentes");
+        }
         void Committed(object? sender, EventArgs e) => Observe("layout-committed");
         void Navigated(object? sender, V269NavigationEventArgs e) => Observe("navigation-changed");
         try
