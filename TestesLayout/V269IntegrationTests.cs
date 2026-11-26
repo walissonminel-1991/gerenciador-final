@@ -1149,7 +1149,7 @@ internal static class V269IntegrationTests
     }
 
     private static void VerifyForwardAppPaint(MainForm form, V269Shell shell,
-        IReadOnlyDictionary<V269Page, Button> buttons, V269Theme theme)
+        IReadOnlyDictionary<V269Page, Button> buttons, V269Theme theme, bool captureImmediate = true)
     {
         var home = shell.PageContent(V269Page.Inicio)!;
         var apps = shell.PageContent(V269Page.Aplicativos)!;
@@ -1161,6 +1161,10 @@ internal static class V269IntegrationTests
         var motion = form.Controls.Find("V269Animations", true).OfType<CheckBox>().Single();
         bool savedMotion = motion.Checked;
         var savedPage = shell.SelectedPage;
+        // Controle experimental: mesma transição, mesmos HWNDs e referências,
+        // removendo somente CopyFromScreen entre o retorno do clique e DoEvents.
+        string capturePrefix = captureImmediate ? "REC-FIS-02-FORWARD" : "REC-FIS-02-NOBLOCK";
+        string tracePrefix = captureImmediate ? "REC-FIS-02-PAINT-NATIVE" : "REC-FIS-02-PAINT-NOBLOCK";
         var trace = new List<string>();
         var nativeTrace = new List<string>(512);
         var probes = new List<NativeTransitionPaintProbe>();
@@ -1249,7 +1253,7 @@ internal static class V269IntegrationTests
                 var changed = Differences(reference, negative);
                 Require(changed[0] > 0 && changed[4] > 0,
                     "REC-FIS-02-PAINT-FORWARD: controle negativo distingue título e tabela");
-                negative.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-source.png");
+                negative.Save($"LayoutCaptures/{capturePrefix}-{theme}-source.png");
             }
             var body = form.Controls.Find("V269BodyHost", true).Single();
             var observed = new (string Name, Control Control)[]
@@ -1281,8 +1285,8 @@ internal static class V269IntegrationTests
             RecordNative("click-return");
             tracePhase = "immediate";
             foreach (var probe in probes) probe.ObservePending("before-immediate");
-            using var immediate = Shot();
-            RecordNative("immediate-captured");
+            using var immediate = captureImmediate ? Shot() : null;
+            RecordNative(captureImmediate ? "immediate-captured" : "immediate-skipped");
             tracePhase = "drain";
             Application.DoEvents();
             RecordNative("drain-return");
@@ -1294,17 +1298,21 @@ internal static class V269IntegrationTests
                 "REC-FIS-02-PAINT-FORWARD: estado e geometria restaurados");
             using var drained = Shot();
             RecordNative("drained-captured");
-            var immediateDiff = Differences(reference, immediate);
+            var immediateDiff = immediate is null ? null : Differences(reference, immediate);
             var drainedDiff = Differences(reference, drained);
             foreach (var item in trace)
-                Console.WriteLine($"REC-FIS-02-PAINT-FORWARD event theme={theme} {item}");
-            Console.WriteLine($"REC-FIS-02-PAINT-FORWARD immediate theme={theme} {Describe(immediateDiff)}");
-            Console.WriteLine($"REC-FIS-02-PAINT-FORWARD drained theme={theme} {Describe(drainedDiff)}");
-            if (immediateDiff.Any(n => n != 0) || drainedDiff.Any(n => n != 0))
+                Console.WriteLine($"REC-FIS-02-PAINT-{(captureImmediate ? "FORWARD" : "NOBLOCK")} event theme={theme} {item}");
+            if (captureImmediate)
             {
-                reference.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-reference.png");
-                immediate.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-immediate.png");
-                drained.Save($"LayoutCaptures/REC-FIS-02-FORWARD-{theme}-drained.png");
+                Console.WriteLine($"REC-FIS-02-PAINT-FORWARD immediate theme={theme} {Describe(immediateDiff!)}");
+                Console.WriteLine($"REC-FIS-02-PAINT-FORWARD drained theme={theme} {Describe(drainedDiff)}");
+            }
+            else Console.WriteLine($"REC-FIS-02-PAINT-NOBLOCK drained theme={theme} {Describe(drainedDiff)}");
+            if (!captureImmediate || immediateDiff!.Any(n => n != 0) || drainedDiff.Any(n => n != 0))
+            {
+                reference.Save($"LayoutCaptures/{capturePrefix}-{theme}-reference.png");
+                immediate?.Save($"LayoutCaptures/{capturePrefix}-{theme}-immediate.png");
+                drained.Save($"LayoutCaptures/{capturePrefix}-{theme}-drained.png");
             }
             Require(drainedDiff.All(n => n == 0),
                 $"REC-FIS-02-PAINT-FORWARD: resíduos após drenagem {theme}: {Describe(drainedDiff)}");
@@ -1317,7 +1325,7 @@ internal static class V269IntegrationTests
             shell.NavigationChanged -= Navigated;
             foreach (var probe in probes) probe.Dispose();
             foreach (var line in nativeTrace)
-                Console.WriteLine($"REC-FIS-02-PAINT-NATIVE theme={theme} {line}");
+                Console.WriteLine($"{tracePrefix} theme={theme} {line}");
             motion.Checked = savedMotion;
             shell.SelectPage(savedPage);
             Application.DoEvents();
@@ -1394,6 +1402,7 @@ internal static class V269IntegrationTests
                 }
                 VerifyHomeReturnPixels(form, shell, buttons, theme);
                 VerifyForwardAppPaint(form, shell, buttons, theme);
+                VerifyForwardAppPaint(form, shell, buttons, theme, captureImmediate: false);
             }
             Console.WriteLine("PASS REC-FIS-02-PAINT: retorno ao Início comparado no desktop real nos três temas.");
             Console.WriteLine("PASS V2.6.9: 24 estados reais do desktop e rolagem quando disponível; trilho único de seleção nos três temas.");
