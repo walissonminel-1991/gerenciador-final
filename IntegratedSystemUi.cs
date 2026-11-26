@@ -518,7 +518,7 @@ internal sealed partial class MainForm
         }
 
         _windowsUpdateScanning = true;
-        if(WindowsUpdateViewActive) _nav.PresentPanel(new(V269PanelKind.Progress,"Verificar atualizações","Consultando ofertas oficiais de software…",FlowPage:V269Page.Sistema));
+        if(WindowsUpdateViewActive) _nav.PresentPanel(new(V269PanelKind.Progress,"Verificar atualizações","Consultando ofertas oficiais de software…",FlowPage:V269Page.Sistema,BackgroundQuery:true));
         _updateSelection.Clear();
         RenderTitle();
         if (WindowsUpdateViewActive) DrawWindowsUpdates();

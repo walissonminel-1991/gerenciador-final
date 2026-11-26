@@ -61,14 +61,14 @@ internal sealed partial class MainForm
                     "V269HardwareDetailsText", details))
                 {
                     if (!_nav.RightPane.Visible)
-                        _nav.Controls.Find("V269PaneToggle", true).OfType<Button>().Single().PerformClick();
+                        _nav.EnsureDashboardPane();
                     _nav.RightPane.FocusReadOnly();
                 }
                 return;
             }
             PresentV269Details("Leituras detalhadas do hardware", description);
             if (!_nav.RightPane.Visible)
-                _nav.Controls.Find("V269PaneToggle", true).OfType<Button>().Single().PerformClick();
+                _nav.EnsureDashboardPane();
         };
         _v269HardwareStatus.Text = "Aguardando consulta local.";
         _v269HardwareStatus.TextChanged += (_, _) =>
@@ -1035,13 +1035,13 @@ internal sealed partial class MainForm
         {
             if(!_nav.RightPane.TryShowReadOnly(title,description,"V269SettingsInformationText",origin))return;
             if(!_nav.RightPane.Visible)
-                _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
+                _nav.EnsureDashboardPane();
             _nav.RightPane.FocusReadOnly();
             return;
         }
         PresentV269Details(title,description);
         if(!_nav.RightPane.Visible)
-            _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
+            _nav.EnsureDashboardPane();
     }
 
     private void MinimizeByV269Preference()

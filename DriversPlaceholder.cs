@@ -336,7 +336,8 @@ internal sealed partial class MainForm
                 (V269PanelKind.Confirmation or V269PanelKind.Progress) ||
                 ReferenceEquals(_nav.RightPane.Current, verificationPanel)))
             {
-                verificationPanel = new(V269PanelKind.Progress, "Verificar drivers", message);
+                verificationPanel = new(V269PanelKind.Progress, "Verificar drivers", message,
+                    FlowPage:V269Page.Drivers, BackgroundQuery:true);
                 _nav.PresentPanel(verificationPanel);
             }
             else PresentDetails(false);

@@ -49,7 +49,7 @@ internal sealed record V269FlowResult(V269Page Page, bool Complete, Action Dismi
 internal sealed record V269PanelPresentation(
     V269PanelKind Kind, string Title, string Description, int? ProgressPercent = null,
     V269AppDetailModel? Application = null, V269AppDetailModel? Driver = null,
-    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269AppDetailModel? Cleanup = null, V269Page? FlowPage = null, string? CancelLabel = null, V269AppDetailModel? Repair = null, V269AppDetailModel? Module = null);
+    V269FlowResult? FlowResult = null, Form? DriverReview = null, Action? CancelFlow = null, V269AppDetailModel? Cleanup = null, V269Page? FlowPage = null, string? CancelLabel = null, V269AppDetailModel? Repair = null, V269AppDetailModel? Module = null, bool BackgroundQuery = false);
 
 internal sealed class V269NavigationEventArgs(V269Page page) : EventArgs
 {
@@ -129,6 +129,7 @@ internal sealed class V269RightPane : UserControl
     internal bool ReadOnlyViewActive => _readOnlyView is not null;
 
     internal event EventHandler? PresentationChanged;
+    internal event EventHandler? ReadOnlyClosedByUser;
     internal V269PanelPresentation? Current { get; private set; }
 
     internal V269RightPane()
@@ -352,6 +353,7 @@ internal sealed class V269RightPane : UserControl
         }
         finally { ResumeLayout(true); }
         FitOperationHistory();
+        if (restoreFocus) ReadOnlyClosedByUser?.Invoke(this, EventArgs.Empty);
         if (restoreFocus && origin is { IsDisposed: false, CanSelect: true }) origin.Focus();
         return true;
     }
@@ -983,9 +985,13 @@ internal sealed class V269Shell : UserControl
     private (V269Page Page, bool Mandatory, bool Retained, bool CompactOpen,
         bool? DashboardOpen, bool? AppOpen)? _lastPaneLayout;
 
+    private bool DashboardPage => SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
+    private bool MandatoryPane => _rightPane.Current?.Kind == V269PanelKind.Confirmation ||
+        (_rightPane.Current is {Kind:V269PanelKind.Progress} progress &&
+            !(DashboardPage && progress.BackgroundQuery && progress.FlowPage is not null && progress.FlowPage != SelectedPage));
     private (V269Page Page, bool Mandatory, bool Retained, bool CompactOpen,
         bool? DashboardOpen, bool? AppOpen) PaneLayoutState() =>
-        (SelectedPage, _rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress,
+        (SelectedPage, MandatoryPane,
             _rightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History or V269PanelKind.DriverReview,
             _compactPaneOpen, _dashboardPaneOpen, _appPaneOpen);
 
@@ -1169,6 +1175,10 @@ internal sealed class V269Shell : UserControl
             // da janela quando a necessidade de espaço do painel é a mesma.
             if (_lastPaneLayout != PaneLayoutState()) ApplyDimensions();
         };
+        _rightPane.ReadOnlyClosedByUser += (_, _) =>
+        {
+            if (DashboardPage) { _dashboardPaneOpen = null; ApplyDimensions(); }
+        };
         SizeChanged += (_, _) => ApplyDimensions();
         ApplyAppearance(V269Theme.AzulGf, 100, 100);
         SelectPage(V269Page.Inicio);
@@ -1271,6 +1281,13 @@ internal sealed class V269Shell : UserControl
         if (_compactPaneOpen && _rightPane.Visible) return;
         _compactPaneOpen = true;
         ApplyDimensions();
+    }
+
+    // Comandos consultivos explícitos, não um botão genérico permanente.
+    internal void EnsureDashboardPane()
+    {
+        if (!DashboardPage) return;
+        _dashboardPaneOpen = true; ApplyDimensions();
     }
 
     internal void PresentPanel(V269PanelPresentation? presentation) =>
@@ -1405,8 +1422,8 @@ internal sealed class V269Shell : UserControl
         // O HTML aprovado reserva toda a área útil a Início e Configurações.
         // A exceção é um fluxo de operação: confirmação/progresso não podem
         // desaparecer, e o resultado/histórico continua acessível entre abas.
-        bool dashboard = SelectedPage is V269Page.Inicio or V269Page.Configuracoes;
-        bool mandatory = _rightPane.Current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress;
+        bool dashboard = DashboardPage;
+        bool mandatory = MandatoryPane;
         bool retained = _rightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History or V269PanelKind.DriverReview;
         bool showRight = !dashboard || mandatory || retained;
         if (_paneToggle is { } toggle)
@@ -1439,17 +1456,21 @@ internal sealed class V269Shell : UserControl
             bool compact = split ? windowWidth<=1040 : width < 1060;
             // O painel é fechado por padrão no dashboard, mas o histórico
             // e a exportação local continuam acessíveis por comando explícito.
-            toggle.Visible = !apps && (compact || dashboard);
+            toggle.Visible = !apps && (dashboard
+                ? _dashboardPaneOpen == true && !mandatory && !_rightPane.ReadOnlyViewActive
+                : compact);
             var palette = V269VisualTokens.ForTheme(Theme);
             toggle.BackColor = palette.Sidebar;
             toggle.ForeColor = palette.Text;
             toggle.Enabled = !mandatory;
             showRight = mandatory || (dashboard
-                ? _dashboardPaneOpen ?? (retained && (!compact || _compactPaneOpen))
+                ? _dashboardPaneOpen == true
                 : !compact || _compactPaneOpen);
             toggle.Text = showRight ? "Fechar painel" : "Abrir painel";
             if (compact) sidebar = V269VisualTokens.Scale(136, InterfaceScalePercent);
         }
+        // Mesmo no shell sem conteúdo legado, dashboards não abrem por retenção.
+        if(dashboard) showRight=mandatory || _dashboardPaneOpen==true || _rightPane.ReadOnlyViewActive;
         if(apps)
         {
             bool compact=windowWidth<=1040;

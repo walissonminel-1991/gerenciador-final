@@ -2123,7 +2123,7 @@ internal sealed partial class MainForm : Form
         }
         if (!_nav.RightPane.TryShowReliabilityReport(report, origin, Save)) return;
         if (!_nav.RightPane.Visible)
-            _nav.Controls.Find("V269PaneToggle",true).OfType<Button>().Single().PerformClick();
+            _nav.EnsureDashboardPane();
         _nav.RightPane.FocusReadOnly();
     }
 
@@ -2413,7 +2413,7 @@ internal sealed partial class MainForm : Form
                 verification is not null && !ReferenceEquals(_nav.RightPane.Current, verification)) return;
             verification = new(V269PanelKind.Progress, "Verificar aplicativos", message, percent,
                 CancelFlow: () => { if (ReferenceEquals(_consultaCatalogoCts, cancellation)) cancellation.Cancel(); },
-                FlowPage: V269Page.Aplicativos, CancelLabel: "Cancelar consulta");
+                FlowPage: V269Page.Aplicativos, CancelLabel: "Cancelar consulta", BackgroundQuery:true);
             _nav.PresentPanel(verification);
         }
         int totalSources = Math.Max(1, OfficialReleaseSources.ApplicableSourceCount(installed) + 2);

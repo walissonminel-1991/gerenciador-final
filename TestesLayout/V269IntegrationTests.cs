@@ -40,17 +40,10 @@ internal static class V269IntegrationTests
         var paneToggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
         Require(paneToggle.Parent?.Name == "V269HomeFooter",
             "controle adicional não altera o menu do HTML aprovado");
-        Require(!shell.RightPane.Visible && paneToggle.Visible && paneToggle.Enabled,
-            "Início usa toda a largura, mas mantém acesso explícito ao painel");
-        paneToggle.PerformClick();
-        Application.DoEvents();
-        Require(shell.RightPane.Visible &&
+        Require(!shell.RightPane.Visible && !paneToggle.Visible &&
             form.Controls.Find("V269LocalHistory", true).Length == 0 &&
             form.Controls.Find("LocalReliabilityReportButton", true).Length == 0,
-            "painel compartilhado sem atalhos duplicados de histórico; registro acessível em Configurações");
-        paneToggle.PerformClick();
-        Application.DoEvents();
-        Require(!shell.RightPane.Visible, "fechar painel restaura o dashboard");
+            "REC-FIS-PANE: Início sem painel nem comando genérico; histórico acessível por Configurações");
         // A suíte bombeia mensagens com DoEvents sem Application.Run.
         // Fixar o contexto neste trecho para entregar as duas continuações ao STA.
         var previousContext = SynchronizationContext.Current;
@@ -88,6 +81,8 @@ internal static class V269IntegrationTests
             Require(ReferenceEquals(shell.PageContent(page), views[(int)page]) &&
                 shell.RightPane.Current?.Description == "Resultado preservado",
                 "identidade e resultado preservados durante navegação");
+            if(page is V269Page.Inicio or V269Page.Configuracoes)
+                Require(!shell.RightPane.Visible && !paneToggle.Visible,"resultado alheio retido sem painel ordinário");
         }
         // A consulta de hardware não pode tornar um resultado anterior inacessível.
         // Usar somente a fotografia sintética já validada, sem chamar provedores reais.
@@ -139,7 +134,8 @@ internal static class V269IntegrationTests
             shell.RightPane.Controls.Find("V269ReadOnlyClose", true).OfType<Button>().Single().PerformClick();
             Application.DoEvents();
             Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, retained) &&
-                detailButton.Focused, "retorno ao mesmo resultado e foco original");
+                detailButton.Focused && !shell.RightPane.Visible && !paneToggle.Visible,
+                "retorno ao mesmo resultado e foco original, sem painel ordinário");
             detailButton.PerformClick();
             Require(shell.RightPane.ReadOnlyViewActive, "reabrir consulta");
             shell.SelectPage(V269Page.Configuracoes);
@@ -308,6 +304,29 @@ internal static class V269IntegrationTests
                 .OfType<Button>().Single().PerformClick());
             Require(cancellation.IsCancellationRequested, "cancelamento não chegou à operação sintética");
             shell.PresentPanel(null);
+            foreach(var owner in new[]{V269Page.Aplicativos,V269Page.Drivers,V269Page.Sistema})
+            {
+                Go(owner);
+                bool cancelled=false;
+                var query=new V269PanelPresentation(V269PanelKind.Progress,"Consulta somente leitura","Fixture",
+                    CancelFlow:()=>cancelled=true,FlowPage:owner,BackgroundQuery:true);
+                shell.PresentPanel(query);Application.DoEvents();
+                Require(shell.RightPane.Visible,"consulta mostra atividade na aba de origem");
+                foreach(var dashboard in new[]{V269Page.Inicio,V269Page.Configuracoes})
+                {
+                    Go(dashboard);Application.DoEvents();
+                    Require(!shell.RightPane.Visible && !form.Controls.Find("V269PaneToggle",true).Single().Visible &&
+                        ReferenceEquals(shell.RightPane.Current,query),"REC-FIS-PANE: consulta retida sem painel em dashboard");
+                    query=query with {Description="Atualização de consulta"};
+                    shell.PresentPanel(query);Application.DoEvents();
+                    Require(!shell.RightPane.Visible && ReferenceEquals(shell.RightPane.Current,query),"publicação incremental não reabre painel indevido");
+                }
+                Go(owner);Application.DoEvents();
+                Require(shell.RightPane.Visible && ReferenceEquals(shell.RightPane.Current,query),"retorno à origem restaura consulta");
+                shell.RightPane.Controls.Find("V269CancelOwnedFlow",true).OfType<Button>().Single().PerformClick();
+                Require(cancelled,"cancelamento permanece acessível na origem");shell.PresentPanel(null);
+            }
+            Console.WriteLine("PASS REC-FIS-PANE: consultas somente leitura retidas, dashboards limpos, cancelamento na origem.");
             Step("inicializacao-consulta", () => Go(V269Page.Inicializacao));
             var pending = new TaskCompletionSource<IReadOnlyList<StartupItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
             var refresh = typeof(MainForm).GetMethod("RefreshStartupEntriesAsync", flags)!;
@@ -3111,7 +3130,8 @@ internal static class V269IntegrationTests
                 shell.RightPane.Controls.Find("V269ReadOnlyClose",true).OfType<Button>().Single().PerformClick();
                 Application.DoEvents();
                 Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current,retainedSettings) &&
-                    action.Focused,"retorno ao resultado e foco de Configurações");
+                    action.Focused && !shell.RightPane.Visible && !form.Controls.Find("V269PaneToggle",true).Single().Visible,
+                    "retorno ao resultado e foco de Configurações sem painel ordinário");
             }
             VerifySettingsReadOnly(general.Privacy,"Privacidade e coleta de dados",
                 BetaRuntimePolicy.IsLocalBeta?BetaRuntimePolicy.LocalNotice:TelemetryConsentPolicy.RemoteNotice);
