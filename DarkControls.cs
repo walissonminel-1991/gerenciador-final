@@ -308,6 +308,7 @@ internal sealed class DarkProgramList : Control
         UpdateMetrics();
     }
     private readonly WheelDeltaAccumulator _wheel = new();
+    private readonly PixelWheelDeltaAccumulator _verticalWheel = new(), _horizontalWheel = new();
     private int _selectedIndex = -1;
     private int _scrollOffset;
     private int _itemHeight = 72;
@@ -773,12 +774,17 @@ internal sealed class DarkProgramList : Control
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        int notches = _wheel.Consume(e.Delta);
-        if(notches!=0&&_tableMode&&(ModifierKeys&Keys.Shift)!=0)
+        if (e is HandledMouseEventArgs { Handled: true }) return;
+        if (_tableMode)
         {
-            _horizontal.Value=Math.Clamp(_horizontal.Value-notches*64,0,_horizontal.MaximumValue);
+            bool horizontal = (ModifierKeys & Keys.Shift) != 0;
+            var bar = horizontal ? _horizontal : _scrollbar;
+            var wheel = horizontal ? _horizontalWheel : _verticalWheel;
+            bar.Value = wheel.Move(bar.Value, bar.MaximumValue, e.Delta, horizontal ? 64 : _itemHeight * 3);
+            if (e is HandledMouseEventArgs handled) handled.Handled = true;
             return;
         }
+        int notches = _wheel.Consume(e.Delta);
         if (notches != 0)
             _scrollbar.Value = (int)Math.Clamp((long)_scrollbar.Value - (long)notches * _itemHeight * 3,
                 0, _scrollbar.MaximumValue);
@@ -1024,6 +1030,7 @@ internal sealed class DarkScrollableFlow : UserControl
     private readonly FlowLayoutPanel _flow;
     private readonly DarkVScrollBar _scroll;
     private readonly WheelDeltaAccumulator _wheel = new();
+    private readonly PixelWheelDeltaAccumulator _pixelWheel = new();
     private bool _arranging;
 
     // Um unico scroll pertence a pagina externa. Componentes embutidos
@@ -1122,6 +1129,14 @@ internal sealed class DarkScrollableFlow : UserControl
 
     private void ScrollFromWheel(MouseEventArgs e)
     {
+        if (e is HandledMouseEventArgs { Handled: true }) return;
+        if (IsPageViewport)
+        {
+            if (_scroll.MaximumValue <= 0) return;
+            _scroll.Value = _pixelWheel.Move(_scroll.Value, _scroll.MaximumValue, e.Delta, 85);
+            if (e is HandledMouseEventArgs handled) handled.Handled = true;
+            return;
+        }
         int notches = _wheel.Consume(e.Delta);
         if (notches != 0)
             _scroll.Value = (int)Math.Clamp((long)_scroll.Value - (long)notches * 85,

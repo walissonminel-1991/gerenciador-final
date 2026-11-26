@@ -75,6 +75,57 @@ internal static class WheelScrollTests
         Check(flowBar.Value == 85, "painel deve acumular -120 e rolar 85 px");
         Wheel(flow.Controls.OfType<Panel>().Single(), 120);
         Check(flowBar.Value == 0, "painel e viewport devem compartilhar o acumulador");
+        // Contrato V2.6.9: frações de entalhe devem mover pixels imediatamente,
+        // sem alterar o curso de um entalhe completo ou o comportamento legado.
+        var pixel = new PixelWheelDeltaAccumulator();
+        int pos = 0;
+        for (int i = 1; i <= 4; i++)
+        {
+            pos = pixel.Move(pos, 1000, -30, 85);
+            Check(pos == (85 * i) / 4, "painel V269 deve avançar por frações de pixel acumuladas");
+        }
+        Check(pixel.Move(pos, 1000, 120, 85) == 0, "pixel deve inverter até o início");
+        Check(pixel.Move(0, 1000, 120, 85) == 0 &&
+              pixel.Move(0, 1000, -30, 85) == 21, "limite não retém pressão invisível");
+        Check(pixel.Move(21, 1000, -int.MaxValue, 85) == 1000 &&
+              pixel.Move(1000, 1000, int.MaxValue, 85) == 0, "limites sem overflow");
+        var horizontalPixel = new PixelWheelDeltaAccumulator();
+        Check(horizontalPixel.Move(0,1000,-30,64)==16 &&
+              pixel.Move(0,1000,-30,85)==21, "eixos independentes");
+
+        list.ApplyV269Table(V269AppearanceOptions.Default);
+        listBar.Value = 0;
+        int appStep = 3 * list.ItemHeight;
+        for (int i=1;i<=4;i++)
+        {
+            Wheel(list,-30);
+            Check(listBar.Value == appStep*i/4, "Aplicativos V269 desloca cada delta parcial");
+        }
+        Wheel(list,120);
+        Check(listBar.Value==0, "Aplicativos V269 inverte entalhe");
+
+        drivers.UseV269Table();
+        drivers.ApplyTableAppearance(V269AppearanceOptions.Default,800);
+        driverBar.Value=0;
+        int driverStep=3*drivers.TableRowHeight;
+        for (int i=1;i<=3;i++)
+        {
+            Wheel(drivers,-40);
+            Check(driverBar.Value==driverStep*i/3, "Drivers V269 desloca cada delta parcial");
+        }
+        Wheel(drivers,120);
+        Check(driverBar.Value==0, "Drivers V269 inverte entalhe");
+
+        flow.IsPageViewport=true;
+        flow.Reflow();
+        flowBar.Value=0;
+        Wheel(flow.Content,-40);
+        Check(flowBar.Value==28, "viewport V269 responde ao primeiro delta parcial");
+        Wheel(flow.Controls.OfType<Panel>().Single(),-80);
+        Check(flowBar.Value==85, "viewport e conteúdo compartilham fração de pixel");
+        Wheel(flow.Content,120);
+        Check(flowBar.Value==0, "viewport V269 retorna ao início");
         Console.WriteLine("OK V5: rolagem proporcional com deltas parciais e inversao nas listas de aplicativos/drivers e paineis.");
+        Console.WriteLine("OK V269: deltas parciais respondem imediatamente, limites e curso total preservados.");
     }
 }

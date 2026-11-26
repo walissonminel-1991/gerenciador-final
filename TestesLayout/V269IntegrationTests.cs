@@ -2726,7 +2726,9 @@ internal static class V269IntegrationTests
                         long measures=page.GeometryArrangeCount;
                         var beforeCards=new[]{page.General.Bounds,page.Appearance.Bounds};
                         int contentHeight=page.ContentHeight;
-                        page.ScrollByWheel(60);page.ScrollByWheel(60);
+                        page.ScrollByWheel(60);
+                        Require(page.ScrollOffset<previousOffset,"Configurações V269 responde ao primeiro delta parcial");
+                        page.ScrollByWheel(60);
                         Require(page.ScrollOffset<previousOffset&&range.Value==previousScale,
                             "roda fracionada rola Configurações sem alterar escala");
                         int dy=previousOffset-page.ScrollOffset;

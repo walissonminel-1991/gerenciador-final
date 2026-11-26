@@ -83,6 +83,7 @@ internal sealed partial class DarkDriverList : Control
     private HashSet<string> _eligibleUpdateDevices = new(StringComparer.OrdinalIgnoreCase);
     private readonly DarkVScrollBar _scrollbar = new();
     private readonly WheelDeltaAccumulator _wheel = new();
+    private readonly PixelWheelDeltaAccumulator _verticalWheel = new(), _horizontalWheel = new();
     private readonly Font _titleFont = new("Segoe UI", 10f, FontStyle.Bold);
     private readonly Font _detailsFont = new("Segoe UI", 8.8f);
     private readonly Font _markFont = new("Segoe UI", 10.5f, FontStyle.Bold);
@@ -490,14 +491,16 @@ internal sealed partial class DarkDriverList : Control
     {
         base.OnMouseWheel(e);
         if (e is HandledMouseEventArgs { Handled: true }) return;
-        int notches = _wheel.Consume(e.Delta);
-        if (TableMode && (ModifierKeys & Keys.Shift) != 0 && _horizontal.MaximumValue > 0)
+        if (TableMode)
         {
-            _horizontal.Value -= notches * Scale(52);
-            if (e is HandledMouseEventArgs horizontal) horizontal.Handled = true;
+            bool horizontal = (ModifierKeys & Keys.Shift) != 0 && _horizontal.MaximumValue > 0;
+            var bar = horizontal ? _horizontal : _scrollbar;
+            var wheel = horizontal ? _horizontalWheel : _verticalWheel;
+            bar.Value = wheel.Move(bar.Value, bar.MaximumValue, e.Delta, horizontal ? Scale(52) : RowHeight * 3);
+            if (e is HandledMouseEventArgs handled) handled.Handled = true;
             return;
         }
-        if (TableMode && e is HandledMouseEventArgs vertical) vertical.Handled = true;
+        int notches = _wheel.Consume(e.Delta);
         if (notches != 0)
             _scrollbar.Value = (int)Math.Clamp((long)_scrollbar.Value - (long)notches * RowHeight * 3,
                 0, _scrollbar.MaximumValue);

@@ -622,7 +622,8 @@ internal sealed class V269SettingsPage : Panel
     private readonly Label _hint = new() {Name="V269SettingsHint", Text=DefaultNotice,BackColor=Color.Transparent};
     private string? _notice, _monitorNotice;
     private V269AppearanceOptions _options=V269AppearanceOptions.Default;
-    private int _scroll,_height,_wheel;
+    private int _scroll,_height;
+    private readonly PixelWheelDeltaAccumulator _wheel = new();
     private bool _arranging;
     private readonly Dictionary<int,Font> _hintFonts=new();
     private Button? _paneToggle;
@@ -732,8 +733,8 @@ internal sealed class V269SettingsPage : Panel
     }
     internal void ScrollByWheel(int delta)
     {
-        _wheel+=delta;int steps=_wheel/120;_wheel%=120;
-        if(steps!=0)ScrollTo(_scroll-steps*Math.Max(24,48*DeviceDpi/96));
+        ScrollTo(_wheel.Move(_scroll,Math.Max(0,_height-ClientSize.Height),delta,
+            Math.Max(24,48*DeviceDpi/96)));
     }
     protected override bool ProcessCmdKey(ref Message m,Keys key)
     {
