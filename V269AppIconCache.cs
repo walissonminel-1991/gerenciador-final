@@ -63,16 +63,26 @@ internal sealed record V269MsixIconSource(string Family,string FullName)
         return new(family,full);
     }
 }
-internal sealed record V269IconRequest(V269LocalIconSource? Local,V269MsixIconSource? Msix);
+internal sealed record V269IconRequest(V269LocalIconSource? Local,V269MsixIconSource? Msix)
+{
+    internal static V269IconRequest? Create(string value,V269MsixIconSource? msix)
+    {
+        var local=msix is null?V269LocalIconSource.Parse(value):null;
+        return local is null&&msix is null?null:new(local,msix);
+    }
+}
 internal sealed class V269AppIconCache : IDisposable
 {
     private readonly Control owner;
     private readonly Func<V269IconRequest,Task<byte[]?>> _read;
+    private readonly Action<V269IconRequest?,V269IconRequest?>? _completed;
 
-    internal V269AppIconCache(Control owner,Func<V269IconRequest,Task<byte[]?>>? read=null)
+    internal V269AppIconCache(Control owner,Func<V269IconRequest,Task<byte[]?>>? read=null,
+        Action<V269IconRequest?,V269IconRequest?>? completed=null)
     {
         this.owner=owner;
         _read=read??ReadAsync;
+        _completed=completed;
         owner.VisibleChanged+=OwnerVisibilityChanged;
     }
 
@@ -98,12 +108,12 @@ internal sealed class V269AppIconCache : IDisposable
     private readonly Queue<V269IconRequest> _order=new(),_queue=new();
     private readonly HashSet<V269IconRequest> _pending=new();
     private bool _running,_disposed;
-    internal Bitmap? Get(string value,V269MsixIconSource? msix=null)
+    internal Bitmap? Get(string value,V269MsixIconSource? msix=null) =>
+        Get(V269IconRequest.Create(value,msix));
+
+    internal Bitmap? Get(V269IconRequest? source)
     {
-        if(_disposed||!owner.IsHandleCreated||!owner.Visible)return null;
-        var local=msix is null?V269LocalIconSource.Parse(value):null;
-        if(local is null&&msix is null)return null;
-        var source=new V269IconRequest(local,msix);
+        if(_disposed||!owner.IsHandleCreated||!owner.Visible||source is null)return null;
         if(_items.TryGetValue(source,out var image))return image;
         if(_pending.Count<24&&_pending.Add(source)){_queue.Enqueue(source);Start();}
         return null;
@@ -133,10 +143,19 @@ internal sealed class V269AppIconCache : IDisposable
             try{using var stream=new MemoryStream(bytes);using var decoded=new Bitmap(stream);image=new Bitmap(decoded);}
             catch(ArgumentException){ }
         }
+        V269IconRequest? evicted=null;
         while(_items.Count>=192&&_order.TryDequeue(out var first))
-            if(_items.Remove(first,out var removed))removed?.Dispose();
+            if(_items.Remove(first,out var removed)&&removed is not null)
+            { removed.Dispose();evicted=first; }
         _items[source]=image;_order.Enqueue(source);
-        if(owner.Visible){owner.Invalidate();Start();}
+        if(owner.Visible)
+        {
+            // O painel de detalhes mantém sua invalidação original. A lista
+            // conhece as identidades e posições atuais, não as da requisição.
+            if(_completed is null)owner.Invalidate();
+            else _completed(image is null?null:source,evicted);
+            Start();
+        }
     }
     // O logotipo vem da API oficial de recursos do pacote instalado no usuário
     // corrente. Um pacote com múltiplas entradas não tem um logotipo único

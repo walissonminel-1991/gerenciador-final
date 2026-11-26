@@ -269,7 +269,32 @@ internal sealed class DarkProgramList : Control
     private V269AppIconCache? _appIcons;
     internal bool LoadLocalAppIcons;
     internal Bitmap? LocalAppIcon(ProgramEntry item)=>LoadLocalAppIcons?
-        (_appIcons??=new V269AppIconCache(this)).Get(item.DisplayIcon,V269MsixIconSource.From(item)):null;
+        (_appIcons??=new V269AppIconCache(this,completed:OnLocalIconCompleted)).Get(item.DisplayIcon,V269MsixIconSource.From(item)):null;
+
+    internal DarkProgramList(Func<V269IconRequest,Task<byte[]?>> iconReader):this()
+    {
+        _appIcons=new V269AppIconCache(this,iconReader,OnLocalIconCompleted);
+    }
+
+    private void OnLocalIconCompleted(V269IconRequest? changed,V269IconRequest? evicted)
+    {
+        if(!LoadLocalAppIcons||IsDisposed||Disposing||!Visible||_appIcons is null)return;
+        var viewport=new Rectangle(0,TableHeaderHeight,ContentWidth,RowsHeight);
+        int first=Math.Max(0,_scrollOffset/_itemHeight);
+        int last=Math.Min(_items.Count-1,(_scrollOffset+RowsHeight-1)/_itemHeight);
+        for(int i=first;i<=last;i++)
+        {
+            var area=Rectangle.Intersect(RowBounds(i),viewport);
+            if(area.Width<=0||area.Height<=0)continue;
+            var item=_items[i];
+            var source=V269IconRequest.Create(item.DisplayIcon,V269MsixIconSource.From(item));
+            if(source is null)continue;
+            // Repõe vagas da fila de 24 mesmo quando a extração termina sem
+            // imagem; não depende de uma repintura total para voltar a pedir.
+            _appIcons.Get(source);
+            if(source==changed||source==evicted)Invalidate(area);
+        }
+    }
     internal bool V269TableMode=>_tableMode;
     internal bool TableCompact {get;private set;}
     internal void SetV269WindowWidth(int logicalWidth)

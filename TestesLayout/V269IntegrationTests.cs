@@ -2156,9 +2156,62 @@ internal static class V269IntegrationTests
         Console.WriteLine("PASS Aplicativos V2.6.9: fila de ícones suspensa fora da aba.");
     }
 
+    private static void VerifyAppIconPartialInvalidation()
+    {
+        using var window=new Form{ClientSize=new Size(800,260),ShowInTaskbar=false};
+        var first=new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second=new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var third=new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int reads=0;
+        using var list=new DarkProgramList(_=>Interlocked.Increment(ref reads) switch
+        {1=>first.Task,2=>second.Task,3=>third.Task,_=>Task.FromResult<byte[]?>(null)})
+        {Dock=DockStyle.Fill,LoadLocalAppIcons=true};
+        list.ApplyV269Table(V269AppearanceOptions.Default);
+        var rows=Enumerable.Range(0,50).Select(i=>new ProgramEntry
+        {Name="Ícone "+i,DisplayIcon=i==0||i==2?@"C:\GF\one.ico":i==1?@"C:\GF\two.ico":i==21?@"C:\GF\three.ico":""}).ToArray();
+        list.SetItems(rows);window.Controls.Add(list);window.Show();Application.DoEvents();
+        var bar=list.Controls.Find("V269AppsVerticalScroll",false).OfType<DarkVScrollBar>().Single();
+        var dirty=new List<Rectangle>();
+        list.Invalidated+=(_,e)=>dirty.Add(e.InvalidRect);
+        void WaitFor(Func<bool> ready,string message)
+        {
+            var watch=System.Diagnostics.Stopwatch.StartNew();
+            while(!ready()&&watch.Elapsed<TimeSpan.FromSeconds(5))
+            {Application.DoEvents();Thread.Sleep(5);}
+            Require(ready(),message);
+        }
+        using var icon=new Bitmap(16,16);
+        using(var graphics=Graphics.FromImage(icon))graphics.Clear(Color.Red);
+        using var bytes=new MemoryStream();icon.Save(bytes,System.Drawing.Imaging.ImageFormat.Png);
+        byte[] png=bytes.ToArray();
+        int header=list.TableHeaderHeight,row=list.ItemHeight;
+        Require(header+3*row<=list.ClientSize.Height,"fixture de ícones exige três linhas inteiras");
+        list.LocalAppIcon(rows[0]);list.LocalAppIcon(rows[1]);
+        WaitFor(()=>Volatile.Read(ref reads)==1,"primeiro ícone em leitura");
+        dirty.Clear();first.SetResult(png);
+        WaitFor(()=>Volatile.Read(ref reads)==2,"segundo ícone em leitura");
+        Require(dirty.Any(r=>r.Top==header&&r.Height==row)&&
+            dirty.Any(r=>r.Top==header+2*row&&r.Height==row)&&
+            dirty.All(r=>r.Top>=header&&r.Height<=row),
+            "ícone compartilhado invalida somente as duas linhas visíveis");
+        bar.Value=20*row;Application.DoEvents();dirty.Clear();
+        second.SetResult(png);
+        WaitFor(()=>Volatile.Read(ref reads)==3,"fila reposta com ícone agora visível");
+        Require(dirty.Count==0,"ícone concluído fora do viewport não repinta a tabela");
+        third.SetResult(null);
+        WaitFor(()=>(int)(typeof(V269AppIconCache).GetProperty("PendingCount",BindingFlags.Instance|BindingFlags.NonPublic)!
+                .GetValue(typeof(DarkProgramList).GetField("_appIcons",BindingFlags.Instance|BindingFlags.NonPublic)!
+                    .GetValue(list))!)==0,"resultado sem imagem encerra fila");
+        Require(dirty.Count==0&&Volatile.Read(ref reads)==3,
+            "falha de extração conserva fallback e não repinta nem repete leitura");
+        window.Close();
+        Console.WriteLine("PASS V269-ICONS: somente linhas atuais, fila reposta, offscreen e fallback sem invalidação total.");
+    }
+
     private static void VerifyAppIconSources()
     {
         VerifyAppIconQueueVisibility();
+        VerifyAppIconPartialInvalidation();
         Require(V269LocalIconSource.Parse("\"C:\\Program Files\\GF\\app.exe\",-12") is {Index:-12}&&
             V269LocalIconSource.Parse("C:\\GF\\app.ico") is {Index:0},"ícones locais com índice documentado");
         foreach(string invalid in new[]{"https://site/app.ico","\\\\server\\share\\a.exe","C:\\GF\\..\\a.exe",
