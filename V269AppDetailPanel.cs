@@ -227,6 +227,7 @@ internal sealed class V269AppFlowNote : Control
 internal sealed class V269AppFlowMeter : Control
 {
     private int? _value;
+    private bool _running;
     private int _scale = 100;
     private V269Theme _theme;
     private readonly GfDynamicProgressBar _meter=new() { Name="V269FlowChromaticBar",TabStop=false };
@@ -242,19 +243,20 @@ internal sealed class V269AppFlowMeter : Control
         Controls.Add(_meter);
     }
 
-    internal void SetProgress(int? value, V269Theme theme, int scale, Font font)
+    internal void SetProgress(bool running, int? value, V269Theme theme, int scale, Font font)
     {
-        _value = value is int n && n>=0 && n<=100 ? n : null;
+        _running = running;
+        _value = running && value is int n && n>=0 && n<=100 ? n : null;
         _theme = theme;
         _scale = scale;
         Font = font;
-        AccessibleDescription = _value is int p ? p + "%" : "";
-        Height = _value.HasValue ? Font.Height + S(21) : 0;
-        Visible = _value.HasValue;
+        AccessibleDescription = !running ? "" : _value is int p ? p + "%" : "Progresso não informado";
+        Height = running ? Font.Height + S(21) : 0;
+        Visible = running;
         _meter.BackColor=V269AppDetailStyle.Palette(theme).RightPanel;
         _meter.Configure(theme, FindForm() is MainForm main && main.V269CanAnimateButtons);
         var frame = GfUniversalMeter.Operation(_value,
-            _value.HasValue ? GfMeterState.Running : GfMeterState.Unavailable, true, theme);
+            running ? GfMeterState.Running : GfMeterState.Unavailable, true, theme);
         _meter.Present(frame, AccessibleDescription);
         ArrangeMeter();
         Invalidate();
@@ -270,13 +272,14 @@ internal sealed class V269AppFlowMeter : Control
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        if (_value is not int value || Width < 3 || Height < S(20)) return;
+        if (!_running || Width < 3 || Height < S(20)) return;
         var graphics = e.Graphics;
         var palette = V269AppDetailStyle.Palette(_theme);
         var label = new Rectangle(0, S(1), Width, Font.Height+S(3));
         const TextFormatFlags options = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
         TextRenderer.DrawText(graphics, "Progresso", Font, label, palette.SecondaryText, options);
-        TextRenderer.DrawText(graphics, value + "%", Font, label, palette.Text, options | TextFormatFlags.Right);
+        if (_value is int value)
+            TextRenderer.DrawText(graphics, value + "%", Font, label, palette.Text, options | TextFormatFlags.Right);
 
     }
 }

@@ -162,6 +162,15 @@ internal static class V269ShellTests
             chromatic.CurrentFrame.State==GfMeterState.Running && chromatic.CurrentFrame.Fraction==.37,
             "Aplicativos usa a barra temática com a porcentagem medida.");
         AssertOperationalFrame(chromatic,shell.Theme,37);
+        var unknown=progress with {ProgressPercent=null};
+        shell.PresentPanel(unknown);
+        Check(percent.Visible && !bar.Visible && chromatic.CurrentFrame.State==GfMeterState.Indeterminate &&
+            chromatic.CurrentFrame.Fraction is null && percent.AccessibleDescription=="Progresso não informado",
+            "REC-FIS-PROGRESS: Aplicativos mantém atividade sem percentual");
+        shell.SelectPage(V269Page.Configuracoes);
+        Check(bar.Visible && !percent.Visible && bar.CurrentFrame.State==GfMeterState.Indeterminate &&
+            bar.CurrentFrame.Fraction is null,"REC-FIS-PROGRESS: fallback único sem percentual inventado");
+        shell.PresentPanel(progress);shell.SelectPage(V269Page.Aplicativos);
         shell.SelectPage(V269Page.Configuracoes);
         Check(ReferenceEquals(shell.RightPane.Current, progress) && shell.RightPane.Visible &&
             dashboardColumns.ColumnStyles[2].Width > 0 && bar.Visible && bar.CurrentFrame.State==GfMeterState.Running &&

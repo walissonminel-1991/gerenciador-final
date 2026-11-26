@@ -518,13 +518,13 @@ internal sealed class V269RightPane : UserControl
         int choiceHeight = V269AppTable.Scale(active ? 44 : 38, _appInterfacePercent, DeviceDpi);
         _layout.RowStyles[3].Height = pending || result || operationCancel ? choiceHeight : 0;
         _flowNote.SetContent(active, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font, CleanupConfirmationChrome);
-        _flowMeter.SetProgress(active && Current?.Kind == V269PanelKind.Progress ? Current.ProgressPercent : null,
+        _flowMeter.SetProgress(active && Current?.Kind == V269PanelKind.Progress, Current?.ProgressPercent,
             _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
         bool driverReview = _driversPage && Current is { Kind: V269PanelKind.DriverReview };
         _driverReviewHost.Visible = driverReview;
         if (driverReview) _driverReviewHost.BringToFront();
         _descriptionScroll.Visible = !_structuredApp && !result && !driverReview;
-        bool legacyProgress = !active && Current is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
+        bool legacyProgress = !active && Current is { Kind: V269PanelKind.Progress };
         _progress.Visible = legacyProgress;
         UpdateLegacyMeter();
         _layout.RowStyles[1].Height = legacyProgress ? 34 : 0;
@@ -715,7 +715,7 @@ internal sealed class V269RightPane : UserControl
         _applicationDetails.Visible=structured;
         if(structured)_applicationDetails.BringToFront();
         UpdateOperationContentLayout();
-        bool inProgress = presentation is { Kind: V269PanelKind.Progress, ProgressPercent: not null };
+        bool inProgress = presentation is { Kind: V269PanelKind.Progress };
         _progress.Visible = inProgress && !_appFlow;
         _layout.RowStyles[1].Height = inProgress && !_appFlow ? 34 : 0;
         UpdateLegacyMeter();
@@ -873,7 +873,7 @@ internal sealed class V269RightPane : UserControl
             _appFlowState.ApplyState(Current?.Kind, Current?.ProgressPercent, Current?.FlowResult?.Complete,
                 _appPaneTheme,_appInterfacePercent);
             _flowNote.SetContent(true, Current, _appPaneTheme, _appInterfacePercent, _applicationDetails.Font, CleanupConfirmationChrome);
-            _flowMeter.SetProgress(Current?.Kind == V269PanelKind.Progress ? Current.ProgressPercent : null,
+            _flowMeter.SetProgress(Current?.Kind == V269PanelKind.Progress, Current?.ProgressPercent,
                 _appPaneTheme, _appInterfacePercent, _applicationDetails.Font);
             int stateHeight=Math.Max(V269AppTable.Scale(36,_appInterfacePercent,DeviceDpi),_appFlowState.Font.Height*2+4);
             _appFlowState.Height=stateHeight;

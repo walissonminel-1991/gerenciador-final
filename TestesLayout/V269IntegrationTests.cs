@@ -1982,6 +1982,14 @@ internal static class V269IntegrationTests
                     "ofertas em duas linhas verticais, inclusive após alternar tema e tamanho");
                 using var image=new Bitmap(surface.Width,surface.Height);surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));
                 image.Save($"LayoutCaptures/v269-sistema-SINTETICO-{palette}-{size.Width}x{size.Height}.png");
+                shell.PresentPanel(new(V269PanelKind.Progress,"Verificar atualizações","Consultando ofertas oficiais.",FlowPage:V269Page.Sistema));
+                surface.PerformLayout();Application.DoEvents();
+                var systemProgress=shell.RightPane.Controls.Find("V269FlowPercentMeter",true).Single();
+                var systemBar=systemProgress.Controls.OfType<GfDynamicProgressBar>().Single();
+                Require(systemProgress.Visible && systemBar.Visible && systemBar.CurrentFrame.State==GfMeterState.Indeterminate &&
+                    systemBar.CurrentFrame.Fraction is null && !shell.RightPane.Controls.Find("V269PanelProgress",true).Single().Visible,
+                    "REC-FIS-PROGRESS: Windows Update indeterminado, sem duplicação");
+                shell.PresentPanel(null);
             }
             shell.PresentPanel(null);setModule.Invoke(form,["update"]);
             var pending=(Task<bool>)confirm.Invoke(form,["Confirmar Windows Update","Fixture consultiva, nenhuma operação.",CancellationToken.None])!;
@@ -2104,6 +2112,14 @@ internal static class V269IntegrationTests
                     Require(chromatic.CurrentFrame == GfUniversalMeter.Operation(28,GfMeterState.Running,true,palette),
                         "progresso usa a escala universal também no Dark, sem cor substituta");
                     Capture("ANDAMENTO", palette);
+                    shell.PresentPanel(new(V269PanelKind.Progress, $"Verificar {tab}", "Consulta sem total conhecido.",
+                        CancelFlow:cancel, FlowPage:page));
+                    surface.PerformLayout();Application.DoEvents();
+                    Require(meter.Visible && meter.AccessibleDescription=="Progresso não informado" &&
+                        chromatic.Visible && chromatic.CurrentFrame.State==GfMeterState.Indeterminate &&
+                        chromatic.CurrentFrame.Fraction is null && !Find("V269PanelProgress").Visible,
+                        "REC-FIS-PROGRESS: barra indeterminada única, sem percentual inventado");
+                    Capture("ANDAMENTO-INDETERMINADO",palette);
                     if (cancel is not null)
                     {
                         var cancelAction = (Button)Find("V269CancelOwnedFlow");
