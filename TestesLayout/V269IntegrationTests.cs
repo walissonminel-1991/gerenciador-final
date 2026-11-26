@@ -1337,17 +1337,66 @@ internal static class V269IntegrationTests
     // A barra de seleção do HTML só pode existir no botão ativo.
     // Percurso separado: loop normal da STA, sem DoEvents ou captura síncrona
     // entre o envio do clique e o término da observação. MainForm de fixture.
+    private sealed class FrameLoopContext : SynchronizationContext
+    {
+        private readonly MainForm _owner;
+        private readonly int _staThread;
+        internal FrameLoopContext(MainForm owner)
+        {
+            _owner = owner;
+            _staThread = Environment.CurrentManagedThreadId;
+        }
+
+        public override SynchronizationContext CreateCopy() => this;
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            // O HWND da própria fixture permanece vivo até o fim de todos os
+            // awaits. Não usar o marshalling control oculto de outro contexto.
+            _owner.BeginInvoke(new Action(() =>
+            {
+                if (Environment.CurrentManagedThreadId != _staThread)
+                    throw new InvalidOperationException("FRAMES: despacho fora da STA");
+                var previous = Current;
+                SetSynchronizationContext(this);
+                try { d(state); }
+                finally { SetSynchronizationContext(previous); }
+            }));
+        }
+
+        public override void Send(SendOrPostCallback d, object? state)
+        {
+            if (Environment.CurrentManagedThreadId != _staThread)
+                throw new InvalidOperationException("FRAMES: envio síncrono entre threads proibido");
+            d(state);
+        }
+    }
+
     private static void VerifyFramePaintLoop(MainForm form, V269Shell shell)
     {
         Exception? failure = null;
         bool completed = false;
         var previous = SynchronizationContext.Current;
-        using var context = new WindowsFormsSynchronizationContext();
-        SynchronizationContext.SetSynchronizationContext(context);
+        Require(form.IsHandleCreated && !form.IsDisposed && !form.InvokeRequired,
+            "FRAMES: fixture deve possuir HWND na STA");
+        // Não depender do controle oculto de marshaling do contexto WinForms,
+        // cujo HWND pode ter sido descartado por percursos anteriores da suíte.
+        // Este contexto pertence somente a esta janela e a este loop.
+        var context = new FrameLoopContext(form);
         form.BeginInvoke(new Action(async () =>
         {
+            var loopContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(context);
             try
             {
+                void Checkpoint(string stage)
+                {
+                    Require(ReferenceEquals(SynchronizationContext.Current, context) &&
+                        form.IsHandleCreated && !form.IsDisposed && !form.InvokeRequired,
+                        "FRAMES: continuação fora da STA/loop " + stage);
+                    Console.WriteLine("REC-FIS-02-FRAMES-HARNESS " + stage);
+                }
+                Checkpoint("loop-enter");
                 form.TopMost = true;
                 form.Activate();
                 var themeChoice = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
@@ -1379,18 +1428,21 @@ internal static class V269IntegrationTests
                     shell.SelectPage(V269Page.Aplicativos);
                     destination.Focus();
                     await IdleAsync();
+                    Checkpoint("target-idle " + theme);
                     var bounds = form.RectangleToScreen(form.ClientRectangle);
                     var hwnd = form.Handle;
                     Require(Screen.FromControl(form).Bounds.Contains(bounds),
                         "FRAMES: janela inteira no desktop");
                     var guard = new Func<bool>(() => RecFis02FrameSampler.OwnsDesktop(hwnd, bounds));
                     using var target = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, guard));
+                    Checkpoint("target-reference " + theme);
                     shell.SelectPage(V269Page.Inicio);
                     destination.Focus();
                     await IdleAsync();
                     Require(form.RectangleToScreen(form.ClientRectangle) == bounds && home.Visible && !apps.Visible,
                         "FRAMES: origem e geometria coerentes");
                     using var source = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, guard));
+                    Checkpoint("source-reference " + theme);
                     var events = new List<string>(512);
                     void Mark(string stage) => events.Add(FormattableString.Invariant(
                         $"seq={events.Count} tick={System.Diagnostics.Stopwatch.GetTimestamp()} {stage}"));
@@ -1426,6 +1478,9 @@ internal static class V269IntegrationTests
                         }
                         session = RecFis02FrameSampler.Start(bounds, source, target, guard, stop.Token);
                         await session.Ready;
+                        Require(ReferenceEquals(SynchronizationContext.Current, context) && !form.InvokeRequired,
+                            "FRAMES: ready fora do contexto da fixture");
+                        Mark("sampler-ready");
                         Require(guard() && home.Visible && !apps.Visible && destination.Enabled &&
                             destination.IsHandleCreated && destination.Focused,
                             "FRAMES: origem/foco/permissão antes do clique");
@@ -1435,8 +1490,10 @@ internal static class V269IntegrationTests
                         Require(RecFis02FrameSampler.PostButtonClick(destination.Handle),
                             "FRAMES: postagem nativa falhou");
                         var result = await session.Finished;
+                        // Não escrever no console durante o intervalo observado.
                         Mark("sampler-finished");
                         await IdleAsync();
+                        Checkpoint("sampler-idle " + theme);
                         foreach (var probe in probes) probe.ObservePending("after-idle");
                         Require(guard() && form.RectangleToScreen(form.ClientRectangle) == bounds &&
                             clicks == 1 && apps.Visible && !home.Visible &&
@@ -1444,6 +1501,7 @@ internal static class V269IntegrationTests
                             "FRAMES: clique único, foco/geometria/identidade finais");
                         string prefix = $"LayoutCaptures/REC-FIS-02-FRAMES-{theme}";
                         await Task.Run(() => RecFis02FrameSampler.Export(result, source, target, prefix));
+                        Checkpoint("exported " + theme);
                         Require(result.DestinationObserved, "FRAMES inconclusivo: " + result.StopReason);
                         Console.WriteLine($"PASS REC-FIS-02-PAINT-FRAMES theme={theme} samples={result.Frames.Count} stop={result.StopReason}");
                     }
@@ -1466,7 +1524,13 @@ internal static class V269IntegrationTests
                 completed = true;
             }
             catch (Exception ex) { failure = ex; }
-            finally { form.Close(); }
+            finally
+            {
+                // Todas as continuações da sessão foram observadas antes de
+                // destruir o HWND usado por Post. Não fechar no worker.
+                SynchronizationContext.SetSynchronizationContext(loopContext);
+                form.Close();
+            }
         }));
         try { Application.Run(form); }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
