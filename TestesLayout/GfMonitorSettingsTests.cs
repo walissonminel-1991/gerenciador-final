@@ -1,4 +1,6 @@
 using System.Windows.Forms;
+using System.Drawing;
+using System.Runtime.InteropServices;
 using GerenciadorAplicativos;
 
 internal static class GfMonitorSettingsTests
@@ -129,6 +131,7 @@ internal static class GfMonitorSettingsTests
         var general = page.Controls.Find("V269GeneralTab", true).OfType<V269SettingsTab>().Single();
         var monitor = page.Controls.Find("V269MonitorTab", true).OfType<V269SettingsTab>().Single();
         var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        var nativeSize = surface.Size;
         var themeChoice = appearance.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
         var inputs = All(options).Where(c => c is CheckBox or TrackBar or ComboBox).ToArray();
         Require(inputs.Length == 7 && inputs.All(c => c.TabStop), "sete opções da janela principal");
@@ -197,6 +200,8 @@ internal static class GfMonitorSettingsTests
             capture.Save($"LayoutCaptures/v269-configuracoes-monitor-SINTETICO-{theme}-{size.Width}x{size.Height}.png");
             Console.WriteLine($"PASS Monitor Configurações {theme} {size.Width}x{size.Height}: sete opções, contraste, alinhamento, foco e Aparência.");
         }
+        surface.Size=nativeSize;surface.PerformLayout();Application.DoEvents();
+        VerifyNativeThemeSelection(form,shell,page,options,monitor,themeChoice,fixture);
         general.AccessibilityObject.DoDefaultAction();
         Require(!options.Visible && page.General.Tray.Visible && appearance.Visible, "retorno a Geral");
         form.Close();
@@ -211,6 +216,94 @@ internal static class GfMonitorSettingsTests
             double x = L(a), y = L(b);
             return (Math.Max(x,y) + .05) / (Math.Min(x,y) + .05);
         }
+    }
+
+    // Percurso nativo de ponteiro em janela descartável, sem serviços,
+    // preferências reais, Registro ou coleta. O hit-test antecede cada clique.
+    private static void VerifyNativeThemeSelection(MainForm form,V269Shell shell,V269SettingsPage page,
+        V269MonitorOptions options,V269SettingsTab monitor,ComboBox global,GfResourceMonitorPreferences fixture)
+    {
+        var local=options.Controls.Find("V269MonitorTheme",true).OfType<ComboBox>().Single();
+        var observed=fixture;int edits=0;
+        void Edit(Func<GfResourceMonitorPreferences,GfResourceMonitorPreferences> change)
+        { observed=change(observed);edits++; }
+        options.PreferenceChanged+=Edit;
+        bool oldTop=form.TopMost;Point oldCursor=Cursor.Position;
+        try
+        {
+            form.TopMost=true;form.Activate();
+            global.SelectedIndex=(int)V269Theme.AzulGf;
+            options.LoadObserved(fixture,false);monitor.PerformClick();page.ScrollTo(0);
+            Application.DoEvents();
+            Require(shell.Theme==V269Theme.AzulGf&&local.SelectedIndex==1&&edits==0,
+                "hidratação antes da prova por ponteiro");
+            ChooseNativeItem(local,2);
+            Require(local.SelectedIndex==2&&observed.MonitorTheme==V269Theme.Dark&&edits==1&&
+                global.SelectedIndex==(int)V269Theme.AzulGf&&shell.Theme==V269Theme.AzulGf,
+                "clique no Dark do Monitor não modifica o GF");
+            ChooseNativeItem(global,(int)V269Theme.Claro);
+            Require(shell.Theme==V269Theme.Claro&&global.SelectedIndex==(int)V269Theme.Claro&&
+                local.SelectedIndex==2&&observed.MonitorTheme==V269Theme.Dark&&edits==1,
+                "clique em Claro do GF não modifica Monitor");
+            ChooseNativeItem(local,0);
+            Require(local.SelectedIndex==0&&observed.MonitorTheme==V269Theme.AzulGf&&edits==2&&
+                shell.Theme==V269Theme.Claro,"retorno ao Clássico do Monitor é independente");
+            Console.WriteLine("PASS REC-FIS-MON-INPUT: hit-test nativo, três seleções reais de lista e isolamento recíproco.");
+        }
+        finally
+        {
+            local.DroppedDown=false;global.DroppedDown=false;
+            options.PreferenceChanged-=Edit;
+            Cursor.Position=oldCursor;form.TopMost=oldTop;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect { public int Left,Top,Right,Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ComboInfo
+    {
+        public int Size;public NativeRect Item,Button;public int State;
+        public IntPtr Combo,Edit,List;
+    }
+    [DllImport("user32.dll")] private static extern bool GetComboBoxInfo(IntPtr combo,ref ComboInfo info);
+    [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point point);
+    [DllImport("user32.dll")] private static extern bool IsChild(IntPtr parent,IntPtr child);
+    [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr hwnd,ref Point point);
+    [DllImport("user32.dll",EntryPoint="SendMessageW")]
+    private static extern IntPtr GetListItemRect(IntPtr hwnd,uint message,IntPtr index,ref NativeRect rect);
+    [DllImport("user32.dll")] private static extern void mouse_event(uint flags,uint dx,uint dy,uint data,UIntPtr extra);
+    private static void ChooseNativeItem(ComboBox combo,int index)
+    {
+        Require(combo.Focus(),"foco revela seletor "+combo.Name);Application.DoEvents();
+        Require(LayoutTests.FullyVisible(combo),"seletor nativo totalmente visível "+combo.Name);
+        var info=new ComboInfo{Size=Marshal.SizeOf<ComboInfo>()};
+        Require(GetComboBoxInfo(combo.Handle,ref info),"geometria nativa "+combo.Name);
+        var arrow=combo.PointToScreen(new Point((info.Button.Left+info.Button.Right)/2,
+            (info.Button.Top+info.Button.Bottom)/2));
+        void Click(Point point,IntPtr target)
+        {
+            var hit=WindowFromPoint(point);
+            Require(hit==target||IsChild(target,hit),"hit-test não pertence ao controle esperado "+combo.Name);
+            Cursor.Position=point;
+            mouse_event(0x0002,0,0,0,UIntPtr.Zero);mouse_event(0x0004,0,0,0,UIntPtr.Zero);
+        }
+        void PumpUntil(Func<bool> condition,string message)
+        {
+            var watch=System.Diagnostics.Stopwatch.StartNew();
+            do {Application.DoEvents();if(condition())return;System.Threading.Thread.Sleep(10);}
+            while(watch.ElapsedMilliseconds<1000);
+            Require(condition(),message);
+        }
+        Click(arrow,combo.Handle);
+        PumpUntil(()=>combo.DroppedDown,"clique deve abrir lista "+combo.Name);
+        Require(GetComboBoxInfo(combo.Handle,ref info)&&info.List!=IntPtr.Zero,"HWND da lista "+combo.Name);
+        var rect=new NativeRect();
+        Require(GetListItemRect(info.List,0x0198,(IntPtr)index,ref rect)!=new IntPtr(-1),"retângulo do item");
+        var item=new Point((rect.Left+rect.Right)/2,(rect.Top+rect.Bottom)/2);
+        Require(ClientToScreen(info.List,ref item),"coordenada do item");
+        Click(item,info.List);
+        PumpUntil(()=>!combo.DroppedDown&&combo.SelectedIndex==index,"clique deve escolher o item real "+combo.Name);
     }
 
     private static void VerifySessionOwnership()
