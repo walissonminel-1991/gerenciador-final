@@ -1240,6 +1240,49 @@ internal static class V269IntegrationTests
                     "cartão de Limpeza usa padding do breakpoint do HTML");
                 Require(report.RowStyles.Cast<RowStyle>().All(row=>row.Height>=V269AppTable.Scale(28,100,report.DeviceDpi)),
                     "estimativas preservam o espaçamento mínimo do HTML");
+                if(size.Width==1844 && palette==V269Theme.AzulGf)
+                {
+                    Require(report.ColumnCount==4,"REC-FIS-CLEAN-ESTIMATE: viewport amplo deve apresentar dois pares");
+                    // Dados reais têm estado, contagem e tamanho, ao contrário
+                    // dos valores curtos da captura de referência.
+                    var labels=report.Controls.OfType<Label>()
+                        .Where(label=>report.GetColumn(label)%2==1).ToArray();
+                    var previousTexts=labels.Select(label=>label.Text).ToArray();
+                    int S(int value)=>V269AppTable.Scale(value,100,report.DeviceDpi);
+                    try
+                    {
+                        const string longState="Prévia parcial · 123.456 arquivos · 123,45 GiB (0x80070005)";
+                        foreach(var label in labels)label.Text=longState;
+                        relayout();Application.DoEvents();
+                        int oldHeight=0;
+                        for(int row=0;row<report.RowCount;row++)
+                        {
+                            int rowHeight=0;
+                            for(int col=0;col<report.ColumnCount;col++)
+                            {
+                                if(report.GetControlFromPosition(col,row) is not Label label)continue;
+                                int pairWidth=report.Width/2+(col/2<report.Width%2?1:0);
+                                int titleWidth=(int)(pairWidth*.65);
+                                int width=col%2==0?titleWidth:pairWidth-titleWidth;
+                                int textHeight=TextRenderer.MeasureText(label.Text,label.Font,
+                                    new Size(Math.Max(1,width-S(10)),int.MaxValue),
+                                    TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl|TextFormatFlags.NoPrefix).Height;
+                                rowHeight=Math.Max(rowHeight,Math.Max(S(28),textHeight+S(16)));
+                            }
+                            oldHeight+=rowHeight;
+                        }
+                        int newHeight=(int)report.RowStyles.Cast<RowStyle>().Sum(row=>row.Height);
+                        Require(labels.Length==5 && labels.All(label=>label.Text==longState) &&
+                            report.Controls.Count==10 && newHeight<oldHeight,
+                            $"REC-FIS-CLEAN-ESTIMATE: altura anterior={oldHeight}, atual={newHeight}; manter informação completa");
+                        Console.WriteLine($"PASS REC-FIS-CLEAN-ESTIMATE: anterior={oldHeight} atual={newHeight} categorias={labels.Length}");
+                    }
+                    finally
+                    {
+                        for(int i=0;i<labels.Length;i++)labels[i].Text=previousTexts[i];
+                        relayout();Application.DoEvents();
+                    }
+                }
                 var stableRows=report.RowStyles.Cast<RowStyle>().ToArray();
                 relayout();
                 Require(report.RowStyles.Cast<RowStyle>().SequenceEqual(stableRows),

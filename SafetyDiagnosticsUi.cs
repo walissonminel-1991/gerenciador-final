@@ -403,32 +403,93 @@ internal sealed partial class MainForm
                 report.ColumnCount = pairs * 2;
                 report.RowCount = rows;
                 report.ColumnStyles.Clear();
-                for (int i = 0; i < pairs; i++)
-                {
-                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65f / pairs));
-                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35f / pairs));
-                }
+                for (int i = 0; i < pairs * 2; i++)
+                    report.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
             }
             report.RowStyles.Clear();
-            int[] heights = new int[rows];
-            int titleWidth = Math.Max(1, (int)(usable * .65 / pairs) - S(10));
-            int stateWidth = Math.Max(1, (int)(usable * .35 / pairs) - S(10));
-            for (int i = 0; i < values.Length; i++)
+            // O HTML usa uma célula flexível por categoria, não reserva
+            // sempre 35% para o valor. Estados reais incluem contagem e
+            // tamanho. Comparar a grade histórica com uma divisão baseada
+            // nas larguras de texto; só adotar a que reduz a altura medida.
+            int[] baseline = new int[pairs * 2], flexible = new int[pairs * 2];
+            int Natural(Label label) => TextRenderer.MeasureText(label.Text, label.Font,
+                Size.Empty, TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix).Width + S(10);
+            for (int p = 0; p < pairs; p++)
+            {
+                int available = usable / pairs + (p < usable % pairs ? 1 : 0);
+                int col = p * 2;
+                baseline[col] = (int)(available * .65);
+                baseline[col + 1] = available - baseline[col];
+                var members = values.Where((_, index) => index % pairs == p).ToArray();
+                int title = members.Max(item => Natural(item.Title));
+                int state = members.Max(item => Natural(item.State));
+                int proposed = title + state <= available ? available - state :
+                    (int)Math.Round(available * (double)title / Math.Max(1, title + state));
+                flexible[col] = Math.Clamp(proposed, available >= 2 ? 1 : 0,
+                    available >= 2 ? available - 1 : available);
+                flexible[col + 1] = available - flexible[col];
+            }
+            // Medir cada categoria uma vez por divisão distinta. As
+            // combinações posteriores usam só os inteiros já medidos.
+            int[] baseHeights = new int[values.Length], flexHeights = new int[values.Length];
+            int MeasurePair(int i, int[] widths)
             {
                 var pair = values[i];
-                int row = i / pairs;
                 int col = (i % pairs) * 2;
-                if(rebuild)
+                return Math.Max(S(28),
+                    Math.Max(ReportTextHeight(pair.Title, Math.Max(1, widths[col] - S(10))),
+                        ReportTextHeight(pair.State, Math.Max(1, widths[col + 1] - S(10)))) + S(16));
+            }
+            for (int i = 0; i < values.Length; i++)
+            {
+                int col = (i % pairs) * 2;
+                baseHeights[i] = MeasurePair(i, baseline);
+                flexHeights[i] = baseline[col] == flexible[col] ? baseHeights[i] : MeasurePair(i, flexible);
+            }
+            int[] RowHeights(int mask)
+            {
+                int[] result = new int[rows];
+                for (int i = 0; i < values.Length; i++)
                 {
+                    int row = i / pairs;
+                    int height = (mask & (1 << (i % pairs))) != 0 ? flexHeights[i] : baseHeights[i];
+                    result[row] = Math.Max(result[row], height);
+                }
+                return result;
+            }
+            int[] heights = RowHeights(0);
+            int best = heights.Sum(), bestMask = 0;
+            // Há no máximo duas categorias por linha: quatro combinações.
+            for (int mask = 1; mask < (1 << pairs); mask++)
+            {
+                int[] measured = RowHeights(mask);
+                int totalHeight = measured.Sum();
+                if (totalHeight < best)
+                {
+                    best = totalHeight; bestMask = mask; heights = measured;
+                }
+            }
+            int[] chosen = (int[])baseline.Clone();
+            for (int p = 0; p < pairs; p++)
+                if ((bestMask & (1 << p)) != 0)
+                {
+                    chosen[p * 2] = flexible[p * 2];
+                    chosen[p * 2 + 1] = flexible[p * 2 + 1];
+                }
+            for (int c = 0; c < chosen.Length; c++)
+            {
+                var style = report.ColumnStyles[c];
+                if (style.SizeType != SizeType.Absolute) style.SizeType = SizeType.Absolute;
+                if (style.Width != chosen[c]) style.Width = chosen[c];
+            }
+            if (rebuild)
+                for (int i = 0; i < values.Length; i++)
+                {
+                    var pair = values[i];
+                    int row = i / pairs, col = (i % pairs) * 2;
                     report.Controls.Add(pair.Title, col, row);
                     report.Controls.Add(pair.State, col + 1, row);
                 }
-                // CSS aprovado: padding vertical de 5px, borda de 1px
-                // e espaçamento de 5px entre as células.
-                heights[row] = Math.Max(heights[row], Math.Max(S(28),
-                    Math.Max(ReportTextHeight(pair.Title, titleWidth),
-                    ReportTextHeight(pair.State, stateWidth)) + S(16)));
-            }
             foreach (int height in heights) report.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
             int total = heights.Sum();
             if(_cleanupReportRow.Height!=total)_cleanupReportRow.Height = total;
