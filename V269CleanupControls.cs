@@ -98,6 +98,8 @@ internal sealed class V269CleanupButton : Button
         FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; UseVisualStyleBackColor = false;
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
             ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+        // ButtonBase é Opaque por padrão. Nosso OnPaint não cobre o fundo inteiro.
+        SetStyle(ControlStyles.Opaque, false);
         BackColor = Color.Transparent;
         ApplyOptions(_options);
     }

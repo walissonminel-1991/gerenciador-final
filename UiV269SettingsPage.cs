@@ -135,6 +135,8 @@ internal sealed class V269SettingsSwitch : CheckBox
         BackColor = Color.Transparent; Margin = Padding.Empty;
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
             ControlStyles.SupportsTransparentBackColor | ControlStyles.ResizeRedraw, true);
+        // ButtonBase é Opaque por padrão. Nosso OnPaint não cobre o fundo inteiro.
+        SetStyle(ControlStyles.Opaque, false);
         CheckedChanged += (_, _) => Invalidate();
     }
 
@@ -331,6 +333,8 @@ internal sealed class V269SettingsButton : Button
         TabStop=true;Margin=Padding.Empty;UseVisualStyleBackColor=false;
         SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|
             ControlStyles.SupportsTransparentBackColor|ControlStyles.ResizeRedraw,true);
+        // ButtonBase é Opaque por padrão. Nosso OnPaint não cobre o fundo inteiro.
+        SetStyle(ControlStyles.Opaque, false);
         BackColor=Color.Transparent;
     }
     protected override void OnPaint(PaintEventArgs e)

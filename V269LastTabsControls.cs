@@ -151,6 +151,8 @@ internal sealed class V269SystemSwitch : Button
         Name=name;AccessibleName=caption;Text=caption;BackColor=Color.Transparent;FlatStyle=FlatStyle.Flat;
         FlatAppearance.BorderSize=0;SetStyle(ControlStyles.UserPaint|ControlStyles.SupportsTransparentBackColor|
             ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);
+        // ButtonBase é Opaque por padrão. Nosso OnPaint não cobre o fundo inteiro.
+        SetStyle(ControlStyles.Opaque, false);
     }
     internal void ApplyOptions(V269AppearanceOptions options){_options=options.Normalize();Invalidate();}
     internal void SetState(bool? state){State=state;AccessibleDescription=state is true?"Ativada":state is false?"Desativada":"Indisponível";Invalidate();}

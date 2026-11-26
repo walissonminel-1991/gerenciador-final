@@ -22,6 +22,8 @@ internal sealed class V269SettingsTab : Button
         UseVisualStyleBackColor = false;
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
             ControlStyles.SupportsTransparentBackColor | ControlStyles.ResizeRedraw, true);
+        // ButtonBase é Opaque por padrão. Nosso OnPaint não cobre o fundo inteiro.
+        SetStyle(ControlStyles.Opaque, false);
     }
 
     protected override void OnPaint(PaintEventArgs e)

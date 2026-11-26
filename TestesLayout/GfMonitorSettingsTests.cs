@@ -58,9 +58,50 @@ internal static class GfMonitorSettingsTests
         }
         Require(changes == 6 && panel.ReadPreferences(result).MonitorTheme == V269Theme.Dark,
             "tema da página não altera tema do monitor");
+        VerifyOwnerDrawBackgrounds();
         VerifyShellSettings(preferences);
         VerifySessionOwnership();
         Console.WriteLine("OK Monitor GF: sete configurações, tema independente e inicialização observada.");
+    }
+
+    private static void VerifyOwnerDrawBackgrounds()
+    {
+        // O contrato é do caminho WM_PAINT: ButtonBase não solicita
+        // OnPaintBackground se Opaque estiver ativo. Não basta chamar OnPaint
+        // diretamente sobre um bitmap já limpo.
+        using var form = new Form { ClientSize = new Size(420,220), ShowInTaskbar = false };
+        var host = new Panel { Dock = DockStyle.Fill, BackColor = Color.Fuchsia };
+        form.Controls.Add(host);
+        Control[] controls = [
+            new V269SettingsSwitch("FixtureSwitch","Fixture"),
+            new V269SettingsButton("FixtureButton","Fixture",9),
+            new V269SettingsTab("FixtureTab","Fixture"),
+            new V269CleanupButton("Fixture","search"),
+            new V269SystemSwitch("FixtureSystem","Fixture")
+        ];
+        var getStyle=typeof(Control).GetMethod("GetStyle",System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.NonPublic)!;
+        for(int i=0;i<controls.Length;i++)
+        {
+            var control=controls[i];
+            control.Bounds=new Rectangle(12,12+i*38, i==0||i==4?47:150,26);
+            host.Controls.Add(control);
+        }
+        var neutral=new Button { Text="Fixture",Bounds=new Rectangle(240,12,120,26) };
+        host.Controls.Add(neutral);
+        form.Show();neutral.Focus();Application.DoEvents();
+        Require(neutral.Focused,"fixture de pintura sem retângulo de foco nos controles analisados");
+        foreach(var control in controls)
+        {
+            Require(!(bool)getStyle.Invoke(control,[ControlStyles.Opaque])!,
+                "REC-FIS-OPAQUE: fundo WinForms habilitado em "+control.GetType().Name);
+            using var image=new Bitmap(control.Width,control.Height);
+            control.DrawToBitmap(image,control.ClientRectangle);
+            Require(image.GetPixel(0,0).ToArgb()==host.BackColor.ToArgb(),
+                "REC-FIS-OPAQUE: canto não preenchido pelo desenho recebe fundo do pai em "+control.GetType().Name);
+        }
+        form.Close();
+        Console.WriteLine("PASS REC-FIS-OPAQUE: cinco controles personalizados com fundo do pai e estilo não opaco.");
     }
 
     private static void VerifyShellSettings(GfResourceMonitorPreferences preferences)
