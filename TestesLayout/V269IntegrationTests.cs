@@ -25,6 +25,7 @@ internal static class V269IntegrationTests
         Timed("REC-FIS-PAINT recorte parcial de slider", VerifySettingsRangePaintClip);
         Timed("REC-FIS-GLYPH comandos indisponíveis", VerifyDisabledCommandGlyph);
         Timed("REC-FIS-PAINT texto recortado e transladado", VerifyTranslatedTextPaint);
+        Timed("REC-FIS-PAINT arte de Início com recorte parcial", VerifyHomeArtPaintClip);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
@@ -3305,6 +3306,46 @@ internal static class V269IntegrationTests
             shell.PresentPanel(originalPanel);surface.PerformLayout();Application.DoEvents();
         }
         Console.WriteLine("PASS Configurações V2.6.9: preferências descartáveis, estados observados, três temas, rolagem, botões consultivos e capturas.");
+    }
+
+    private static void VerifyHomeArtPaintClip()
+    {
+        const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
+        using var card=new V269HomeCard("cpu");
+        card.SetModel(new V269HomeModel("cpu","Processador","Fixture",
+            [new V269HomeRow("Núcleos","8")],[new V269HomeRow("Uso","10%")]));
+        card.SetGeometry(1200,true);
+        var art=new Bitmap(120,120);
+        using(var graphics=Graphics.FromImage(art))graphics.Clear(Color.Lime);
+        // Fixture exclusivamente de pintura: sem abrir HWND ou carregar arte assíncrona.
+        typeof(V269HomeCard).GetField("_art",flags)!.SetValue(card,art);
+        foreach(var theme in Enum.GetValues<V269Theme>())
+        {
+            card.ApplyAppearance(V269AppearanceOptions.Default with{Theme=theme},Color.Transparent);
+            card.Size=new Size(420,card.PreferredCardHeight(420,1200,true));
+            using var image=new Bitmap(card.Width,card.Height);
+            using var g=Graphics.FromImage(image);
+            g.Clear(Color.Magenta);
+            int S(int n)=>V269AppTable.Scale(n,100,card.DeviceDpi);
+            var dirty=new Rectangle(S(35),S(65),S(20),S(12));
+            Require(card.ClientRectangle.Contains(dirty),"REC-FIS-HOME-ART: região válida da fixture");
+            g.SetClip(dirty);
+            // Render é a rotina de produção chamada por OnPaint.
+            typeof(V269HomeCard).GetMethod("Render",flags)!.Invoke(card,[g,card.Width,1200,true]);
+            Require(g.ClipBounds==new RectangleF(dirty.X,dirty.Y,dirty.Width,dirty.Height),
+                "REC-FIS-HOME-ART: clip original preservado");
+            int changed=0,artPixels=0;
+            for(int y=0;y<image.Height;y++)for(int x=0;x<image.Width;x++)
+            {
+                Color pixel=image.GetPixel(x,y);
+                if(pixel.ToArgb()==Color.Magenta.ToArgb())continue;
+                Require(dirty.Contains(x,y),"REC-FIS-HOME-ART: desenho fora da região suja "+theme);
+                changed++;
+                if(pixel.G>pixel.R+50&&pixel.G>pixel.B+50)artPixels++;
+            }
+            Require(changed>0&&artPixels>0,"REC-FIS-HOME-ART: arte realmente pintada dentro do clip "+theme);
+        }
+        Console.WriteLine("PASS REC-FIS-HOME-ART: arte e clip parcial preservados nos três temas.");
     }
 
     private static void VerifyHomeHeightCache()

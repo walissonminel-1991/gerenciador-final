@@ -1873,7 +1873,7 @@ internal sealed class V269HomeCard : Control
                 var saved = g.Save();
                 try
                 {
-                    g.SetClip(picShape);
+                    g.SetClip(picShape, System.Drawing.Drawing2D.CombineMode.Intersect);
                     g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                     float scale = model.Key == "windows"
                         ? Math.Min(picture.Width / (float)_art.Width, picture.Height / (float)_art.Height)
