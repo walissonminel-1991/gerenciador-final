@@ -37,16 +37,50 @@ internal static class RecFis02FrameSampler
 
     // Só consultas Win32 sobre HWND e retângulo imutáveis, sem tocar controles na worker.
     // GetClientRect devolve left/top/right/bottom, sempre left=top=0.
-    internal static bool OwnsDesktop(IntPtr hwnd, Rectangle bounds)
+    internal enum GuardFailure { None, Foreground, ClientRect, ClientSize, ClientToScreen, ClientOrigin, HitTestRoot }
+
+    // Diagnóstico somente do primeiro predicado falso. Mesmas chamadas Win32,
+    // ordem e curto-circuito; não consultar GetLastError sem contrato.
+    private static bool Reject(GuardFailure kind, string phase, string detail, out GuardFailure failure)
     {
-        if (GetForegroundWindow() != hwnd || !GetClientRect(hwnd, out var client) ||
-            client.Width != bounds.Width || client.Height != bounds.Height) return false;
+        failure = kind;
+        Console.WriteLine(FormattableString.Invariant(
+            $"REC-FIS-02-FRAMES-GUARD phase={phase} predicate={kind} tick={Stopwatch.GetTimestamp()} thread={Environment.CurrentManagedThreadId} {detail}"));
+        return false;
+    }
+
+    internal static bool OwnsDesktop(IntPtr hwnd, Rectangle bounds, string phase) =>
+        OwnsDesktop(hwnd, bounds, phase, out _, out _);
+
+    internal static bool OwnsDesktop(IntPtr hwnd, Rectangle bounds, string phase, out GuardFailure failure, out Size observedClient)
+    {
+        observedClient = Size.Empty;
+        var foreground = GetForegroundWindow();
+        if (foreground != hwnd)
+            return Reject(GuardFailure.Foreground, phase, $"expected={hwnd} observed={foreground}", out failure);
+        if (!GetClientRect(hwnd, out var client))
+            return Reject(GuardFailure.ClientRect, phase, $"hwnd={hwnd} api=false", out failure);
+        observedClient = client.Size;
+        if (client.Width != bounds.Width || client.Height != bounds.Height)
+            return Reject(GuardFailure.ClientSize, phase, $"hwnd={hwnd} expected={bounds.Size} observed={client.Size}", out failure);
         var origin = Point.Empty;
-        if (!ClientToScreen(hwnd, ref origin) || origin != bounds.Location) return false;
+        if (!ClientToScreen(hwnd, ref origin))
+            return Reject(GuardFailure.ClientToScreen, phase, $"hwnd={hwnd} api=false", out failure);
+        if (origin != bounds.Location)
+            return Reject(GuardFailure.ClientOrigin, phase, $"hwnd={hwnd} expected={bounds.Location} observed={origin}", out failure);
         Point[] points = [bounds.Location, new(bounds.Right-1, bounds.Top),
             new(bounds.Left, bounds.Bottom-1), new(bounds.Right-1, bounds.Bottom-1),
             new(bounds.Left+bounds.Width/2, bounds.Top+bounds.Height/2)];
-        return points.All(p => GetAncestor(WindowFromPoint(p), 2) == hwnd);
+        for (int i = 0; i < points.Length; i++)
+        {
+            var hit = WindowFromPoint(points[i]);
+            var root = GetAncestor(hit, 2);
+            if (root != hwnd)
+                return Reject(GuardFailure.HitTestRoot, phase,
+                    $"index={i} point={points[i]} expected={hwnd} hit={hit} root={root}", out failure);
+        }
+        failure = GuardFailure.None;
+        return true;
     }
 
     internal static Bitmap StableReference(Rectangle bounds, Func<bool> guard)

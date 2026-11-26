@@ -1433,15 +1433,42 @@ internal static class V269IntegrationTests
                     var hwnd = form.Handle;
                     Require(Screen.FromControl(form).Bounds.Contains(bounds),
                         "FRAMES: janela inteira no desktop");
-                    var guard = new Func<bool>(() => RecFis02FrameSampler.OwnsDesktop(hwnd, bounds));
-                    using var target = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, guard));
+                    // Observações STA independentes, fora do intervalo de amostragem.
+                    // Não substituem a guarda worker nem alteram foco/geometria reais.
+                    bool ObserveReference(string phase)
+                    {
+                        long begin = System.Diagnostics.Stopwatch.GetTimestamp();
+                        bool owned = RecFis02FrameSampler.OwnsDesktop(hwnd, bounds, phase);
+                        Console.WriteLine(FormattableString.Invariant(
+                            $"REC-FIS-02-FRAMES-GUARD-STA phase={phase} theme={theme} begin_tick={begin} end_tick={System.Diagnostics.Stopwatch.GetTimestamp()} thread={Environment.CurrentManagedThreadId} owned={owned}"));
+                        return owned;
+                    }
+                    bool negativePassed = false;
+                    if (ObserveReference("target-sta-control"))
+                    {
+                        var wrong = new Rectangle(bounds.Location, new Size(checked(bounds.Width + 1), bounds.Height));
+                        bool accepted = RecFis02FrameSampler.OwnsDesktop(hwnd, wrong, "negative-size", out var rejected, out var observedClient);
+                        negativePassed = !accepted && rejected == RecFis02FrameSampler.GuardFailure.ClientSize &&
+                            observedClient == bounds.Size;
+                    }
+                    bool dispatchOwned = ObserveReference("target-sta-dispatch");
+                    negativePassed = negativePassed && dispatchOwned;
+                    Console.WriteLine($"REC-FIS-02-FRAMES-GUARD-NEGATIVE theme={theme} passed={negativePassed}");
+                    var targetGuard = new Func<bool>(() => RecFis02FrameSampler.OwnsDesktop(hwnd, bounds, "target-worker"));
+                    using var target = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, targetGuard));
+                    // Só exigir o controle após a referência: preservar a falha
+                    // original do worker se a primeira guarda não for válida.
+                    Require(negativePassed, "FRAMES: controle negativo de tamanho inconclusivo ou incorreto");
                     Checkpoint("target-reference " + theme);
                     shell.SelectPage(V269Page.Inicio);
                     destination.Focus();
                     await IdleAsync();
                     Require(form.RectangleToScreen(form.ClientRectangle) == bounds && home.Visible && !apps.Visible,
                         "FRAMES: origem e geometria coerentes");
-                    using var source = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, guard));
+                    ObserveReference("source-sta-dispatch");
+                    var sourceGuard = new Func<bool>(() => RecFis02FrameSampler.OwnsDesktop(hwnd, bounds, "source-worker"));
+                    using var source = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, sourceGuard));
+                    var guard = new Func<bool>(() => RecFis02FrameSampler.OwnsDesktop(hwnd, bounds, "transition-worker"));
                     Checkpoint("source-reference " + theme);
                     var events = new List<string>(512);
                     void Mark(string stage) => events.Add(FormattableString.Invariant(
@@ -1481,7 +1508,7 @@ internal static class V269IntegrationTests
                         Require(ReferenceEquals(SynchronizationContext.Current, context) && !form.InvokeRequired,
                             "FRAMES: ready fora do contexto da fixture");
                         Mark("sampler-ready");
-                        Require(guard() && home.Visible && !apps.Visible && destination.Enabled &&
+                        Require(RecFis02FrameSampler.OwnsDesktop(hwnd, bounds, "pre-click-sta") && home.Visible && !apps.Visible && destination.Enabled &&
                             destination.IsHandleCreated && destination.Focused,
                             "FRAMES: origem/foco/permissão antes do clique");
                         Mark("click-posted");
@@ -1495,7 +1522,7 @@ internal static class V269IntegrationTests
                         await IdleAsync();
                         Checkpoint("sampler-idle " + theme);
                         foreach (var probe in probes) probe.ObservePending("after-idle");
-                        Require(guard() && form.RectangleToScreen(form.ClientRectangle) == bounds &&
+                        Require(RecFis02FrameSampler.OwnsDesktop(hwnd, bounds, "post-idle-sta") && form.RectangleToScreen(form.ClientRectangle) == bounds &&
                             clicks == 1 && apps.Visible && !home.Visible &&
                             shell.SelectedPage == V269Page.Aplicativos && !shell.IsPageLayoutTransition,
                             "FRAMES: clique único, foco/geometria/identidade finais");
