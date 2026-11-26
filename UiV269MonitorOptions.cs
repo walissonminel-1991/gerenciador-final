@@ -28,7 +28,8 @@ internal sealed class V269SettingsTab : Button
     {
         if (Width < 3 || Height < 3) return;
         TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, ForeColor,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix |
+            TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform);
         if (Selected)
         {
             using var underline = new SolidBrush(Accent);

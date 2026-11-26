@@ -24,6 +24,7 @@ internal static class V269IntegrationTests
         Timed("Barras universais", VerifyUniversalMeterPainting);
         Timed("REC-FIS-PAINT recorte parcial de slider", VerifySettingsRangePaintClip);
         Timed("REC-FIS-GLYPH comandos indisponíveis", VerifyDisabledCommandGlyph);
+        Timed("REC-FIS-PAINT texto recortado e transladado", VerifyTranslatedTextPaint);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
@@ -587,6 +588,48 @@ internal static class V269IntegrationTests
             Application.DoEvents();
         }
         reviewWindow.Close();
+    }
+
+    private static void VerifyTranslatedTextPaint()
+    {
+        using var tab=new V269SettingsTab("FixtureTab","Monitor") {Size=new Size(120,32),ForeColor=Color.White};
+        using var action=new V269SettingsButton("FixtureAction","Gerar diagnóstico",5){Size=new Size(180,32)};
+        using var choice=new V269SettingsCombo{Width=180};
+        choice.Items.Add("Tema do Monitor");choice.SelectedIndex=0;
+        using var heading=new V269ModuleHeading("Memória RAM","memory"){Size=new Size(180,32)};
+        foreach(var theme in Enum.GetValues<V269Theme>())
+        {
+            var options=V269AppearanceOptions.Default with{Theme=theme};
+            action.Options=options;choice.ApplyOptions(options);heading.ApplyOptions(options);
+            tab.ForeColor=V269VisualTokens.ForTheme(theme).Text;
+            foreach(var control in new Control[]{tab,action,choice,heading})
+            {
+                using var image=new Bitmap(440,100);
+                using var g=Graphics.FromImage(image);
+                g.Clear(Color.Magenta);
+                var origin=new Point(210,34);
+                g.TranslateTransform(origin.X,origin.Y);
+                var dirty=new Rectangle(8,4,control.Width-16,control.Height-8);
+                g.SetClip(dirty);
+                if(control is V269SettingsCombo)
+                    typeof(V269SettingsCombo).GetMethod("PaintClosedWithinClip",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(control,[g]);
+                else
+                {
+                    using var args=new PaintEventArgs(g,dirty);
+                    control.GetType().GetMethod("OnPaint",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(control,[args]);
+                }
+                var screenDirty=dirty;screenDirty.Offset(origin);
+                int changed=0;
+                for(int y=0;y<image.Height;y++)for(int x=0;x<image.Width;x++)
+                {
+                    if(image.GetPixel(x,y).ToArgb()==Color.Magenta.ToArgb())continue;
+                    Require(screenDirty.Contains(x,y),"REC-FIS-TEXT-CLIP: pixels fora da região transladada "+control.GetType().Name+"/"+theme);
+                    changed++;
+                }
+                Require(changed>0,"REC-FIS-TEXT-CLIP: desenho visível dentro do recorte");
+            }
+        }
+        Console.WriteLine("PASS REC-FIS-TEXT-CLIP: texto GDI respeita recorte e translação nos três temas.");
     }
 
     private static void VerifyDisabledCommandGlyph()

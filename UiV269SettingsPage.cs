@@ -249,7 +249,7 @@ internal sealed class V269SettingsCombo : ComboBox
         Color bg=(e.State&DrawItemState.Selected)!=0?p.Border:p.Top;
         using var fill=new SolidBrush(bg);e.Graphics.FillRectangle(fill,e.Bounds);
         TextRenderer.DrawText(e.Graphics,GetItemText(Items[e.Index]),Font,e.Bounds,p.Ink,
-            TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix);
+            TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping|TextFormatFlags.PreserveGraphicsTranslateTransform);
         if((e.State&DrawItemState.Focus)!=0)e.DrawFocusRectangle();
     }
     // Graphics.FromHdc para WM_PRINT pode não herdar o recorte dos
@@ -290,7 +290,7 @@ internal sealed class V269SettingsCombo : ComboBox
         using var arrow=new Pen(p.Ink,1.5f);
         g.DrawLines(arrow,new Point[]{new(arrowX-S(4),mid-S(2)),new(arrowX,mid+S(2)),new(arrowX+S(4),mid-S(2))});
         TextRenderer.DrawText(g,Text,Font,new Rectangle(S(10),0,Math.Max(1,Width-S(33)),Height),p.Ink,
-            TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding);
+            TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding|TextFormatFlags.PreserveGraphicsClipping|TextFormatFlags.PreserveGraphicsTranslateTransform);
         if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,new Rectangle(3,3,Width-6,Height-6));
     }
     protected override void OnSelectedIndexChanged(EventArgs e){base.OnSelectedIndexChanged(e);Invalidate();}
@@ -347,7 +347,7 @@ internal sealed class V269SettingsButton : Button
         V269SettingsGlyph.Draw(g,new Rectangle(x,(Height-n)/2,n,n),_glyph,ink);
         TextRenderer.DrawText(g,Text,Font,new Rectangle(x+n+S(6),0,
             Math.Max(1,Width-x-n-S(12)),Height),ink,TextFormatFlags.VerticalCenter|
-            TextFormatFlags.NoPrefix|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPadding);
+            TextFormatFlags.NoPrefix|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPadding|TextFormatFlags.PreserveGraphicsClipping|TextFormatFlags.PreserveGraphicsTranslateTransform);
         if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(g,new Rectangle(2,2,Width-4,Height-4));
     }
 }

@@ -196,7 +196,7 @@ internal sealed class V269ModuleHeading : Label
         int n=V269AppTable.Scale(20,_options.InterfacePercent,DeviceDpi),x=V269AppTable.Scale(27,_options.InterfacePercent,DeviceDpi);
         V269CleanupGlyph.Draw(e.Graphics,_glyph,new Rectangle(1,Math.Max(0,(Height-n)/2),n,n),_options.Theme);
         TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(x,0,Math.Max(1,Width-x),Height),ForeColor,
-            TextFormatFlags.NoPrefix|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak);
+            TextFormatFlags.NoPrefix|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak|TextFormatFlags.PreserveGraphicsClipping|TextFormatFlags.PreserveGraphicsTranslateTransform);
     }
     protected override void Dispose(bool disposing){if(disposing)_ownedFont?.Dispose();base.Dispose(disposing);}
 }
