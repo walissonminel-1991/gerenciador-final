@@ -2723,9 +2723,26 @@ internal static class V269IntegrationTests
                     int previousOffset=page.ScrollOffset,previousScale=range.Value;
                     if(previousOffset>0)
                     {
+                        long measures=page.GeometryArrangeCount;
+                        var beforeCards=new[]{page.General.Bounds,page.Appearance.Bounds};
+                        int contentHeight=page.ContentHeight;
                         page.ScrollByWheel(60);page.ScrollByWheel(60);
                         Require(page.ScrollOffset<previousOffset&&range.Value==previousScale,
                             "roda fracionada rola Configurações sem alterar escala");
+                        int dy=previousOffset-page.ScrollOffset;
+                        var afterCards=new[]{page.General.Bounds,page.Appearance.Bounds};
+                        Require(page.GeometryArrangeCount==measures&&page.ContentHeight==contentHeight,
+                            "rolagem pura não deve executar ArrangeCard nem medir o conteúdo");
+                        for(int card=0;card<beforeCards.Length;card++)
+                        {
+                            var expected=beforeCards[card];expected.Offset(0,dy);
+                            Require(afterCards[card]==expected,"rolagem deve transladar cartões sem redimensionar");
+                        }
+                        page.ScrollTo(0);page.ScrollTo(int.MaxValue);
+                        Require(page.GeometryArrangeCount==measures&&page.ScrollOffset==previousOffset&&
+                            page.General.Bounds==beforeCards[0]&&page.Appearance.Bounds==beforeCards[1],
+                            "extremos de rolagem preservam geometria e não medem novamente");
+                        Console.WriteLine($"V269-SCROLL-SETTINGS {theme}/{size}: measures=0 dy={dy}");
                         page.ScrollTo(int.MaxValue);
                         int beforeTheme=themeChoice.SelectedIndex;
                         void WheelOn(Control control)

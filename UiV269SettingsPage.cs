@@ -684,13 +684,33 @@ internal sealed class V269SettingsPage : Panel
         _hint.Text = (General.MonitorSelected ? _monitorNotice : _notice) ?? DefaultNotice;
         Arrange();
     }
+    internal long GeometryArrangeCount {get;private set;}
     internal int ContentHeight=>_height;
     internal int ScrollOffset=>_scroll;
     internal void ScrollTo(int offset)
     {
         int value=Math.Clamp(offset,0,Math.Max(0,_height-ClientSize.Height));
-        if(value==_scroll)return;
-        _scroll=value;Arrange();
+        if(value==_scroll||_arranging)return;
+        // A roda altera somente a origem vertical, nunca a geometria dos
+        // cartões. ArrangeCard mede textos, reposiciona controles e repinta
+        // todos os cartões; isso pertence a mudanças de conteúdo/dimensões.
+        int dy=_scroll-value;
+        _arranging=true;
+        SuspendLayout();
+        try
+        {
+            _scroll=value;
+            General.Top+=dy;
+            Appearance.Top+=dy;
+            _hint.Top+=dy;
+            if(_paneToggle is{} toggle)toggle.Top+=dy;
+        }
+        finally
+        {
+            ResumeLayout(false);
+            _arranging=false;
+        }
+        Invalidate();
     }
     internal void ApplyAppearance(V269AppearanceOptions options)
     {
@@ -734,6 +754,7 @@ internal sealed class V269SettingsPage : Panel
         {
             int S(int n)=>Math.Max(1,(int)Math.Round(n*_options.InterfacePercent*DeviceDpi/9600d));
             int w=Math.Max(1,ClientSize.Width-S(2)),gap=S(7);
+            GeometryArrangeCount++;
             int gh=General.ArrangeCard(w),ah=Appearance.ArrangeCard(w);
             int toggleWidth=_paneToggle is null?0:Math.Min(w,S(120));
             bool sameRow=_paneToggle is not null&&w>=S(330);
