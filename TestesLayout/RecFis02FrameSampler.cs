@@ -16,6 +16,15 @@ internal static class RecFis02FrameSampler
     private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern IntPtr GetActiveWindow();
+    [DllImport("user32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern IntPtr GetFocus();
+    [DllImport("user32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    [DllImport("user32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern IntPtr WindowFromPoint(Point point);
     [DllImport("user32.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -34,6 +43,27 @@ internal static class RecFis02FrameSampler
     private static extern bool ClientToScreen(IntPtr hwnd, ref Point point);
 
     internal static bool PostButtonClick(IntPtr hwnd) => PostMessageW(hwnd, 0x00F5, IntPtr.Zero, IntPtr.Zero);
+
+    // Exclusivamente STA, fora da amostragem. Consultas não atômicas,
+    // sem títulos, nomes de processos, alteração de foco ou captura.
+    internal static void ObserveForeground(IntPtr expected, string phase)
+    {
+        long begin = Stopwatch.GetTimestamp();
+        var foreground = GetForegroundWindow();
+        var active = GetActiveWindow();
+        var focus = GetFocus();
+        uint expectedThread = GetWindowThreadProcessId(expected, out uint expectedProcess);
+        uint observedProcess = 0;
+        uint observedThread = foreground == IntPtr.Zero ? 0 :
+            GetWindowThreadProcessId(foreground, out observedProcess);
+        string relation = foreground == IntPtr.Zero ? "none" :
+            expectedThread == 0 || observedThread == 0 || expectedProcess == 0 || observedProcess == 0 ? "unknown" :
+            expectedProcess != observedProcess ? "other-process" :
+            expectedThread != observedThread ? "same-process-other-thread" : "same-thread";
+        long end = Stopwatch.GetTimestamp();
+        Console.WriteLine(FormattableString.Invariant(
+            $"REC-FIS-02-FRAMES-FOREGROUND phase={phase} begin_tick={begin} end_tick={end} thread={Environment.CurrentManagedThreadId} expected={expected} foreground={foreground} active={active} focus={focus} relation={relation}"));
+    }
 
     // Só consultas Win32 sobre HWND e retângulo imutáveis, sem tocar controles na worker.
     // GetClientRect devolve left/top/right/bottom, sempre left=top=0.

@@ -1397,8 +1397,11 @@ internal static class V269IntegrationTests
                     Console.WriteLine("REC-FIS-02-FRAMES-HARNESS " + stage);
                 }
                 Checkpoint("loop-enter");
+                RecFis02FrameSampler.ObserveForeground(form.Handle, "loop-before-topmost");
                 form.TopMost = true;
+                RecFis02FrameSampler.ObserveForeground(form.Handle, "loop-after-topmost");
                 form.Activate();
+                RecFis02FrameSampler.ObserveForeground(form.Handle, "loop-after-activate");
                 var themeChoice = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
                 var motion = form.Controls.Find("V269Animations", true).OfType<CheckBox>().Single();
                 var buttons = Enum.GetValues<V269Page>().ToDictionary(p => p,
@@ -1426,9 +1429,12 @@ internal static class V269IntegrationTests
                 {
                     themeChoice.SelectedIndex = (int)theme;
                     shell.SelectPage(V269Page.Aplicativos);
+                    RecFis02FrameSampler.ObserveForeground(form.Handle, "target-before-focus-" + theme);
                     destination.Focus();
+                    RecFis02FrameSampler.ObserveForeground(form.Handle, "target-after-focus-" + theme);
                     await IdleAsync();
                     Checkpoint("target-idle " + theme);
+                    RecFis02FrameSampler.ObserveForeground(form.Handle, "target-idle-" + theme);
                     var bounds = form.RectangleToScreen(form.ClientRectangle);
                     var hwnd = form.Handle;
                     Require(Screen.FromControl(form).Bounds.Contains(bounds),
@@ -1559,6 +1565,7 @@ internal static class V269IntegrationTests
                 form.Close();
             }
         }));
+        RecFis02FrameSampler.ObserveForeground(form.Handle, "before-run");
         try { Application.Run(form); }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
         if (failure is not null) throw new InvalidOperationException("REC-FIS-02-PAINT-FRAMES", failure);
