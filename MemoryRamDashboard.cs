@@ -13,6 +13,8 @@ internal sealed class MemoryRamChart : Control
     internal void ApplyOptions(V269AppearanceOptions options){_options=options.Normalize();BackColor=V269AppTable.EmptySurface(_options.Theme);Invalidate();}
     private IReadOnlyList<MemoryRamSample> _samples = Array.Empty<MemoryRamSample>();
     internal int SampleCount => _samples.Count;
+    private int S(int n)=>V269AppTable.Scale(n,_options.InterfacePercent,DeviceDpi);
+    internal Rectangle PlotArea => new(S(9),S(11),Math.Max(1,Width-2*S(9)),Math.Max(1,Height-S(11)-S(12)));
 
     internal MemoryRamChart()
     {
@@ -34,7 +36,7 @@ internal sealed class MemoryRamChart : Control
         base.OnPaint(e);
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        var area = new Rectangle(9, 11, Math.Max(1, Width - 18), Math.Max(1, Height - 23));
+        var area = PlotArea;
         var palette=V269VisualTokens.ForTheme(_options.Theme);
         using var grid = new Pen(palette.Border, 1);
         foreach (int percentage in new[] { 0, 25, 50, 75, 100 })
@@ -107,12 +109,12 @@ internal sealed partial class MainForm
             Margin=new Padding(0,0,0,7),Padding=new Padding(12),BackColor=Color.Transparent
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        foreach(int height in new[]{30,27,10,49,29,38})root.RowStyles.Add(new RowStyle(SizeType.Absolute,height));
+        foreach(int height in new[]{30,27,10,88,29,38})root.RowStyles.Add(new RowStyle(SizeType.Absolute,height));
         var header=new V269ModuleHeading("Memória RAM","memory"){Dock=DockStyle.Fill};
         header.Click+=(_,_)=>SetSystemView("memory");root.Controls.Add(header,0,0);
         var top=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty,BackColor=Color.Transparent};
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,53));top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,47));
-        var text=new Label{Text="Uso da memória física nesta sessão",ForeColor=Muted,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft};
+        var text=new Label{Name="V269RamUsageCaption",Text="Uso da memória física nesta sessão",ForeColor=Muted,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft};
         top.Controls.Add(text,0,0);
         _memoryUsageLabel.Name="MemoryUsed";_memoryUsageLabel.Text="Aguardando leitura";_memoryUsageLabel.ForeColor=Ink;_memoryUsageLabel.Dock=DockStyle.Fill;_memoryUsageLabel.TextAlign=ContentAlignment.MiddleRight;
         top.Controls.Add(_memoryUsageLabel,1,0);root.Controls.Add(top,0,1);
@@ -138,7 +140,8 @@ internal sealed partial class MainForm
         var manual=new V269CleanupButton("Aliviar RAM","brush",true){Name="MemoryManualOptimization",Dock=DockStyle.Fill,Margin=new Padding(2,2,2,2)};
         manual.Click+=async (_,_)=>{SetSystemView("memory");await RunUserMemoryOptimization();};
         _actionControls.Add(manual);commands.Controls.Add(manual,1,0);
-        commands.Controls.Add(new Label{Text="Automático",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,ForeColor=Muted},2,0);
+        var automaticLabel=new Label{Name="V269RamAutomaticCaption",Text="Automático",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,ForeColor=Muted};
+        commands.Controls.Add(automaticLabel,2,0);
         _autoMemoryButton=new V269SystemSwitch("MemoryAutoOptimization","Controle automático da RAM"){Dock=DockStyle.None,Anchor=AnchorStyles.Left,Size=new Size(43,24)};
         ((V269SystemSwitch)_autoMemoryButton).SetState(_memoryCleanupPolicy.AutomaticEnabled);
         _autoMemoryButton.Click+=(_,_)=>{SetSystemView("memory");_memoryCleanupPolicy.AutomaticEnabled=!_memoryCleanupPolicy.AutomaticEnabled;
@@ -150,42 +153,74 @@ internal sealed partial class MainForm
         taskManager.Click+=(_,_)=>{try{Process.Start(new ProcessStartInfo(WindowsSystemTools.Resolve("taskmgr.exe")){UseShellExecute=true});}catch(Exception ex){ReportError(ex);}};
         root.ContextMenuStrip=menu;_memoryChart.ContextMenuStrip=menu;
         root.Disposed+=(_,_)=>menu.Dispose();
-        bool? compact=null;
+        int mode=-1;
         void Fit()
         {
             if(root.Width<=0)return;
             int S(int n)=>V269AppTable.Scale(n,_v269Appearance.InterfacePercent,root.DeviceDpi);
-            bool small=root.ClientSize.Width-root.Padding.Horizontal<S(400);
-            if(compact!=small)
+            int body=Math.Max(1,root.ClientSize.Width-root.Padding.Horizontal);
+            int WidthFor(Control control,string value)=>TextRenderer.MeasureText(value,control.Font,Size.Empty,
+                TextFormatFlags.SingleLine|TextFormatFlags.NoPrefix|TextFormatFlags.NoPadding).Width;
+            int LabelHeight(Label label,int cell,string reserve)
             {
-                compact=small;
-                commands.SuspendLayout();
-                try
-                {
-                    commands.SetCellPosition(_memoryCleanedLabel,new TableLayoutPanelCellPosition(0,0));
-                    var button=manual;
-                    if(small)
-                    {
-                        commands.SetColumnSpan(_memoryCleanedLabel,4);
-                        commands.SetCellPosition(button,new TableLayoutPanelCellPosition(0,1));
-                        commands.SetColumnSpan(button,2);
-                        commands.SetCellPosition(commands.Controls.OfType<Label>().Single(x=>x.Text=="Automático"),new TableLayoutPanelCellPosition(2,1));
-                        commands.SetCellPosition(_autoMemoryButton,new TableLayoutPanelCellPosition(3,1));
-                    }
-                    else
-                    {
-                        commands.SetColumnSpan(_memoryCleanedLabel,1);commands.SetColumnSpan(button,1);
-                        commands.SetCellPosition(button,new TableLayoutPanelCellPosition(1,0));
-                        commands.SetCellPosition(commands.Controls.OfType<Label>().Single(x=>x.Text=="Automático"),new TableLayoutPanelCellPosition(2,0));
-                        commands.SetCellPosition(_autoMemoryButton,new TableLayoutPanelCellPosition(3,0));
-                    }
-                    commands.RowCount=small?2:1;commands.RowStyles.Clear();
-                    for(int i=0;i<commands.RowCount;i++)commands.RowStyles.Add(new RowStyle(SizeType.Percent,100f/commands.RowCount));
-                }
-                finally{commands.ResumeLayout(true);}
+                int width=Math.Max(1,cell-label.Margin.Horizontal-label.Padding.Horizontal);
+                int Measure(string value)=>TextRenderer.MeasureText(value,label.Font,new Size(width,1000),
+                    TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix|TextFormatFlags.TextBoxControl).Height;
+                return Math.Max(Measure(label.Text),Measure(reserve))+label.Margin.Vertical+label.Padding.Vertical+S(4);
             }
-            root.RowStyles[0].Height=S(30);root.RowStyles[1].Height=S(small?42:27);root.RowStyles[2].Height=S(10);
-            root.RowStyles[3].Height=S(49);root.RowStyles[4].Height=S(small?50:29);root.RowStyles[5].Height=S(small?68:38);
+            // Reservar largura e altura para os dados, sem cortar textos nem
+            // recalcular a geometria a cada leitura numérica normal.
+            int manualWidth=Math.Max(S(126),WidthFor(manual,manual.Text)+S(34)+manual.Margin.Horizontal);
+            int automaticWidth=Math.Max(S(78),WidthFor(automaticLabel,automaticLabel.Text)+automaticLabel.Margin.Horizontal+S(4));
+            int switchWidth=S(47);
+            int nextMode=body>=manualWidth+automaticWidth+switchWidth+S(150)?0:
+                body>=manualWidth+automaticWidth+switchWidth?1:2;
+            commands.SuspendLayout();
+            try
+            {
+                if(mode!=nextMode)
+                {
+                    mode=nextMode;
+                    foreach(Control c in commands.Controls)commands.SetColumnSpan(c,1);
+                    commands.RowCount=mode+1;
+                    commands.SetCellPosition(_memoryCleanedLabel,new TableLayoutPanelCellPosition(0,0));
+                    commands.SetColumnSpan(_memoryCleanedLabel,mode==0?1:4);
+                    commands.SetCellPosition(manual,new TableLayoutPanelCellPosition(mode==0?1:0,mode==0?0:1));
+                    commands.SetColumnSpan(manual,mode==0?1:mode==1?2:4);
+                    commands.SetCellPosition(automaticLabel,new TableLayoutPanelCellPosition(mode==2?0:2,mode==0?0:mode));
+                    commands.SetColumnSpan(automaticLabel,mode==2?3:1);
+                    commands.SetCellPosition(_autoMemoryButton,new TableLayoutPanelCellPosition(3,mode==0?0:mode));
+                    commands.RowStyles.Clear();
+                    for(int i=0;i<commands.RowCount;i++)commands.RowStyles.Add(new RowStyle(SizeType.Absolute,1));
+                }
+                void Col(int index,int size){if(commands.ColumnStyles[index].Width!=size)commands.ColumnStyles[index].Width=size;}
+                Col(1,mode==0?manualWidth:0);Col(2,mode==2?0:automaticWidth);Col(3,switchWidth);
+                var switchSize=new Size(S(43),S(24));
+                if(_autoMemoryButton.Size!=switchSize)_autoMemoryButton.Size=switchSize;
+                int statusWidth=mode==0?Math.Max(1,body-manualWidth-automaticWidth-switchWidth):body;
+                int statusHeight=LabelHeight(_memoryCleanedLabel,statusWidth,"Ajustes de RAM: 999 · Cache GF: 999.999 KB");
+                int actionHeight=Math.Max(S(34),Math.Max(manual.Font.Height+manual.Margin.Vertical+S(10),
+                    Math.Max(LabelHeight(automaticLabel,mode==2?Math.Max(1,body-switchWidth):automaticWidth,"Automático"),switchSize.Height+S(4))));
+                int[] rowHeights=mode==0?[Math.Max(statusHeight,actionHeight)]:
+                    mode==1?[statusHeight,actionHeight]:[statusHeight,actionHeight,actionHeight];
+                for(int i=0;i<rowHeights.Length;i++)
+                    if(commands.RowStyles[i].Height!=rowHeights[i])commands.RowStyles[i].Height=rowHeights[i];
+                root.RowStyles[5].Height=rowHeights.Sum();
+            }
+            finally{commands.ResumeLayout(true);}
+            root.RowStyles[0].Height=Math.Max(S(30),header.Font.Height+S(8));
+            int left=body*53/100;
+            root.RowStyles[1].Height=Math.Max(S(27),Math.Max(LabelHeight(text,left,text.Text),
+                LabelHeight(_memoryUsageLabel,body-left,"9.999,99 GB / 9.999,99 GB (100%)")));
+            root.RowStyles[2].Height=S(10);
+            // A altura anterior de 49px deixava apenas 20px de plot a 96 DPI.
+            // Reservar área útil real para as amostras, com margens escaladas.
+            root.RowStyles[3].Height=S(88);
+            _memoryChart.Margin=new Padding(0,S(3),0,S(3));
+            int statsLeft=body*42/100;
+            root.RowStyles[4].Height=Math.Max(S(29),Math.Max(
+                LabelHeight(_memoryReadyLabel,statsLeft,"Disponível: 9.999,99 GB"),
+                LabelHeight(_memoryCandidatesLabel,body-statsLeft,"Detalhes do cache do Windows não disponíveis.")));
         }
         root.SizeChanged+=(_,_)=>Fit();root.Tag=(Action)Fit;Fit();
         FormClosed+=(_,_)=>_memoryPressureSignal.Dispose();_memoryDashboardView=root;return root;

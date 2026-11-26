@@ -2074,6 +2074,25 @@ internal static class V269IntegrationTests
                     .Select(n=>modules.Controls.Find(n,false).Single()).ToArray();
                 Require(sections.All(c=>c.Visible&&c.Right<=modules.ClientSize.Width)&&sections[0].Bottom<=sections[1].Top&&sections[1].Bottom<=sections[2].Top,
                     "Sistema: três seções sequenciais sem sobreposição");
+                var ramSection=(TableLayoutPanel)sections[2];
+                var graph=ramSection.Controls.OfType<MemoryRamChart>().Single();
+                int S(int n)=>V269AppTable.Scale(n,shell.InterfaceScalePercent,graph.DeviceDpi);
+                Require(graph.PlotArea.Height>=S(56) && graph.ClientRectangle.Contains(graph.PlotArea),
+                    "REC-FIS-RAM: altura útil real, não apenas altura do cartão");
+                foreach(string labelName in new[]{"V269RamUsageCaption","MemoryUsed","MemoryAvailable","MemoryCandidates","MemoryCleaned","V269RamAutomaticCaption"})
+                {
+                    var label=ramSection.Controls.Find(labelName,true).OfType<Label>().Single();
+                    int required=TextRenderer.MeasureText(label.Text,label.Font,
+                        new Size(Math.Max(1,label.ClientSize.Width-label.Padding.Horizontal),1000),
+                        TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix|TextFormatFlags.TextBoxControl).Height;
+                    Require(label.Height-label.Padding.Vertical>=required,
+                        "REC-FIS-RAM: texto completo "+labelName+"/"+palette+"/"+size);
+                }
+                var manualRam=ramSection.Controls.Find("MemoryManualOptimization",true).OfType<Button>().Single();
+                var autoRam=ramSection.Controls.Find("MemoryAutoOptimization",true).OfType<Button>().Single();
+                Require(manualRam.Parent!.ClientRectangle.Contains(manualRam.Bounds)&&
+                    autoRam.Parent!.ClientRectangle.Contains(autoRam.Bounds)&&!manualRam.Bounds.IntersectsWith(autoRam.Bounds),
+                    "REC-FIS-RAM: comandos dentro do viewport local sem sobreposição");
                 var updateRows=form.Controls.Find("V269SystemUpdateRow",true).OfType<V269SystemUpdateRow>().ToArray();
                 Require(updateRows.Length==2&&updateRows[1].Top>=updateRows[0].Bottom&&
                     updateRows.All(row=>row.Right<=row.Parent!.ClientSize.Width&&row.Bottom<=row.Parent.ClientSize.Height),
