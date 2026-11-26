@@ -1010,6 +1010,90 @@ internal static class V269IntegrationTests
         }
     }
 
+    // REC-FIS-02-PAINT: a seleção correta não prova que os pixels da
+    // área útil pertencem à view correta. Usar exclusivamente o desktop,
+    // modelos fixos e regiões internas dos cartões (sem rodapé dinâmico).
+    private static void VerifyHomeReturnPixels(MainForm form, V269Shell shell,
+        IReadOnlyDictionary<V269Page, Button> buttons, V269Theme theme)
+    {
+        var home = (V269HomeDashboard)shell.PageContent(V269Page.Inicio)!;
+        var motion = form.Controls.Find("V269Animations", true).OfType<CheckBox>().Single();
+        bool savedMotion = motion.Checked;
+        try
+        {
+            motion.Checked = false;
+            buttons[V269Page.Inicio].PerformClick();
+            Application.DoEvents();
+            Require(home.Visible && home.Cards.All(c => c.ArtReady),
+                "REC-FIS-02-PAINT: cartões e artes prontos para referência");
+            var bounds = home.RectangleToScreen(home.ClientRectangle);
+            Require(Screen.FromControl(form).Bounds.Contains(bounds),
+                "REC-FIS-02-PAINT: viewport dentro do desktop");
+            var regions = home.Cards.Select(c =>
+            {
+                var region = Rectangle.Intersect(home.ClientRectangle, c.Bounds);
+                region.Inflate(-3, -3);
+                return region;
+            }).Where(region => region.Width > 8 && region.Height > 8).ToArray();
+            Require(regions.Length >= 2, "REC-FIS-02-PAINT: regiões visíveis suficientes");
+            Bitmap Shot()
+            {
+                var shot = new Bitmap(bounds.Width, bounds.Height);
+                using var graphics = Graphics.FromImage(shot);
+                graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size,
+                    CopyPixelOperation.SourceCopy);
+                return shot;
+            }
+            // Oráculo RGB amostrado em toda a área interna visível dos
+            // cartões, não só no trilho ou numa cor de fundo. Sem WM_PRINT.
+            int Differences(Bitmap expected, Bitmap actual)
+            {
+                int changed = 0;
+                foreach (var region in regions)
+                    for (int y = region.Top; y < region.Bottom; y += 3)
+                        for (int x = region.Left; x < region.Right; x += 3)
+                            if (expected.GetPixel(x, y).ToArgb() != actual.GetPixel(x, y).ToArgb())
+                                changed++;
+                return changed;
+            }
+            var referenceCards = home.Cards.Select(c => c.Bounds).ToArray();
+            using var reference = Shot();
+            using (var repeated = Shot())
+                Require(Differences(reference, repeated) == 0,
+                    "REC-FIS-02-PAINT: referência instável sem mudança de estado");
+            foreach (var other in new[] { V269Page.Aplicativos, V269Page.Limpeza, V269Page.Configuracoes })
+            {
+                buttons[other].PerformClick();
+                Application.DoEvents();
+                Require(!home.Visible && shell.SelectedPage == other,
+                    "REC-FIS-02-PAINT: origem da transição ativa");
+                using (var wrongPage = Shot())
+                    Require(Differences(reference, wrongPage) > 0,
+                        "REC-FIS-02-PAINT: controle negativo deve distinguir outra aba");
+                buttons[V269Page.Inicio].PerformClick();
+                // Antes de bombear: medir, mas não impor sincronização
+                // artificial do compositor DWM com o despacho do clique.
+                using (var immediate = Shot())
+                    Console.WriteLine($"REC-FIS-02-PAINT immediate theme={theme} from={other} changed={Differences(reference, immediate)}");
+                Application.DoEvents();
+                Require(home.Visible && shell.SelectedPage == V269Page.Inicio &&
+                    home.RectangleToScreen(home.ClientRectangle) == bounds &&
+                    home.Cards.Select(c => c.Bounds).SequenceEqual(referenceCards),
+                    "REC-FIS-02-PAINT: geometria e identidade restauradas");
+                using var returned = Shot();
+                int changed = Differences(reference, returned);
+                Console.WriteLine($"REC-FIS-02-PAINT drained theme={theme} from={other} changed={changed} regions={regions.Length}");
+                if (changed != 0)
+                {
+                    reference.Save($"LayoutCaptures/REC-FIS-02-PAINT-{theme}-{other}-reference.png");
+                    returned.Save($"LayoutCaptures/REC-FIS-02-PAINT-{theme}-{other}-returned.png");
+                }
+                Require(changed == 0, $"REC-FIS-02-PAINT: pixels residuais após retorno {theme}/{other}: {changed}");
+            }
+        }
+        finally { motion.Checked = savedMotion; }
+    }
+
     // Captura do desktop real (WM_PAINT), não WM_PRINT/DrawToBitmap.
     // A barra de seleção do HTML só pode existir no botão ativo.
     private static void VerifyLiveWindowPaint(MainForm form, V269Shell shell)
@@ -1078,7 +1162,9 @@ internal static class V269IntegrationTests
                         finally { scroll.Value = saved; Application.DoEvents(); }
                     }
                 }
+                VerifyHomeReturnPixels(form, shell, buttons, theme);
             }
+            Console.WriteLine("PASS REC-FIS-02-PAINT: retorno ao Início comparado no desktop real nos três temas.");
             Console.WriteLine("PASS V2.6.9: 24 estados reais do desktop e rolagem quando disponível; trilho único de seleção nos três temas.");
         }
         finally
