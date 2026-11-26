@@ -747,6 +747,7 @@ internal sealed partial class MainForm : Form
     private Button? _refreshDisksButton;
     private bool _refreshingDisks;
     private bool _busy;
+    private bool _quietStartupExecution;
     private readonly BetaCloseCoordinator _betaClose = new();
     private Button? _repairWindowsButton;
     private bool _windowsRepairable;
@@ -2166,6 +2167,10 @@ internal sealed partial class MainForm : Form
         }
         _operationResult = text;
         _status.Text = text;
+        _status.AccessibleDescription = text;
+        // A carga silenciosa também chama Status. _busy sozinho não
+        // autoriza publicar uma operação no painel nem deixar progresso órfão.
+        if (_quietStartupExecution) return;
         if (_v269RepairExecutionActive)
             PresentV269RepairProgress(text);
         else if (_v269CleanupExecutionActive && _cleanupCancellation is { } && _nav.SelectedPage==V269Page.Limpeza &&
@@ -2173,7 +2178,6 @@ internal sealed partial class MainForm : Form
             _nav.PresentPanel(new(V269PanelKind.Progress,"Operação em andamento",text,CancelFlow:RequestCleanupCancellation,FlowPage:V269Page.Limpeza,CancelLabel:"Cancelar limpeza"));
         else if (_busy && _nav.RightPane.Current is not ({ Kind: V269PanelKind.Result } or { CancelFlow: not null }))
             _nav.PresentPanel(new(V269PanelKind.Progress, "Operação em andamento", text, FlowPage:_nav.RightPane.Current?.FlowPage));
-        _status.AccessibleDescription = text;
     }
 
     // Ações individuais preservam o contrato de três argumentos, inclusive
@@ -2197,6 +2201,7 @@ internal sealed partial class MainForm : Form
         if(cleanupExecution){_v269CleanupExecutionActive=true;_v269CleanupOutcome=null;}
         if(appExecution){_v269AppExecutionActive=true;_v269AppExecutionResult=null;}
         _busy = true;
+        _quietStartupExecution = quietStartup;
         RefreshV269RepairCommands();
         if (!quietStartup)
         {
@@ -2219,6 +2224,7 @@ internal sealed partial class MainForm : Form
             LocalDiagnosticReport.Session.RecordOperation(diagnosticPage,"fim");
             if(_operationResult==description)
                 LocalDiagnosticReport.Session.RecordOperation(diagnosticPage,"sem_desfecho");
+            _quietStartupExecution = false;
             _busy = false;
             if(appExecution)_v269AppExecutionActive=false;
             if(cleanupExecution)_v269CleanupExecutionActive=false;
