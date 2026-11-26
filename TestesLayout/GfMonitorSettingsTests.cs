@@ -202,6 +202,7 @@ internal static class GfMonitorSettingsTests
         }
         surface.Size=nativeSize;surface.PerformLayout();Application.DoEvents();
         VerifyNativeThemeSelection(form,shell,page,options,monitor,themeChoice,fixture);
+        VerifyNativeSettingsPaint(form,page,general,monitor,themeChoice);
         general.AccessibilityObject.DoDefaultAction();
         Require(!options.Visible && page.General.Tray.Visible && appearance.Visible, "retorno a Geral");
         form.Close();
@@ -304,6 +305,78 @@ internal static class GfMonitorSettingsTests
         Require(ClientToScreen(info.List,ref item),"coordenada do item");
         Click(item,info.List);
         PumpUntil(()=>!combo.DroppedDown&&combo.SelectedIndex==index,"clique deve escolher o item real "+combo.Name);
+    }
+
+    // Depois de navegação/rolagem reais, comparar pintura incremental do
+    // desktop com o mesmo estado após invalidação completa. Sem DrawToBitmap,
+    // sem captura de dados reais, sem usar a captura como prova física.
+    private static void VerifyNativeSettingsPaint(MainForm form,V269SettingsPage page,
+        V269SettingsTab general,V269SettingsTab monitor,ComboBox themeChoice)
+    {
+        bool oldTop=form.TopMost;Point oldCursor=Cursor.Position;
+        int oldTheme=themeChoice.SelectedIndex;
+        try
+        {
+            form.TopMost=true;form.Activate();
+            Cursor.Position=form.PointToScreen(new Point(12,12));
+            foreach(var theme in Enum.GetValues<V269Theme>())
+            {
+                themeChoice.SelectedIndex=(int)theme;Application.DoEvents();
+                foreach(var (tab,other) in new[]{(general,monitor),(monitor,general)})
+                {
+                    tab.PerformClick();tab.Focus();page.ScrollTo(0);Application.DoEvents();
+                    var dispatch=new List<double>();var drain=new List<double>();
+                    for(int i=0;i<4;i++)
+                    {
+                        long started=System.Diagnostics.Stopwatch.GetTimestamp();
+                        page.ScrollTo(int.MaxValue);page.ScrollTo(0);
+                        other.PerformClick();tab.PerformClick();tab.Focus();page.ScrollTo(0);
+                        dispatch.Add(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        Application.DoEvents();form.Update();
+                        drain.Add(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    }
+                    var bounds=page.RectangleToScreen(page.ClientRectangle);
+                    Require(bounds.Width>0&&bounds.Height>0&&Screen.FromControl(form).Bounds.Contains(bounds),
+                        "pintura nativa exige viewport inteiro no desktop");
+                    byte[] ReadPixels(string phase)
+                    {
+                        using var image=new Bitmap(bounds.Width,bounds.Height,System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                        using(var g=Graphics.FromImage(image))
+                            g.CopyFromScreen(bounds.Location,Point.Empty,bounds.Size,CopyPixelOperation.SourceCopy);
+                        image.Save($"LayoutCaptures/v269-settings-DESKTOP-{theme}-{tab.Name}-{phase}.png");
+                        var bits=image.LockBits(new Rectangle(Point.Empty,image.Size),System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                        try
+                        {
+                            var bytes=new byte[checked(bounds.Width*bounds.Height*4)];
+                            for(int row=0;row<bounds.Height;row++)
+                                Marshal.Copy(IntPtr.Add(bits.Scan0,row*bits.Stride),bytes,row*bounds.Width*4,bounds.Width*4);
+                            return bytes;
+                        }
+                        finally{image.UnlockBits(bits);}
+                    }
+                    byte[] incremental=ReadPixels("incremental");
+                    form.Invalidate(true);form.Update();Application.DoEvents();
+                    Require(page.RectangleToScreen(page.ClientRectangle)==bounds,"mesmo viewport na referência");
+                    byte[] reference=ReadPixels("completa");
+                    int changed=0;
+                    for(int i=0;i<incremental.Length;i+=4)
+                        if(incremental[i]!=reference[i]||incremental[i+1]!=reference[i+1]||incremental[i+2]!=reference[i+2])changed++;
+                    string Stats(List<double> values)
+                    {
+                        values.Sort();return FormattableString.Invariant($"p50={(values[1]+values[2])/2:0.000} p95={values[^1]:0.000} max={values[^1]:0.000}");
+                    }
+                    Console.WriteLine($"REC-FIS-SETTINGS-LIVE theme={theme} section={tab.Name} viewport={bounds.Size} dpi={page.DeviceDpi} changed={changed} dispatch_ms={Stats(dispatch)} drain_ms={Stats(drain)}");
+                    Require(changed==0,"REC-FIS-SETTINGS-LIVE: pintura incremental difere de referência no mesmo estado "+theme+"/"+tab.Name);
+                }
+            }
+            Console.WriteLine("PASS REC-FIS-SETTINGS-LIVE: seis estados nativos e pixels estáveis após navegação/rolagem.");
+        }
+        finally
+        {
+            themeChoice.SelectedIndex=oldTheme;general.PerformClick();page.ScrollTo(0);
+            Cursor.Position=oldCursor;form.TopMost=oldTop;
+        }
     }
 
     private static void VerifySessionOwnership()
