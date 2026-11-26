@@ -162,7 +162,8 @@ internal static class V269IntegrationTests
         Timed("REC-FIS-PANE inicialização silenciosa", () => VerifyQuietStartupPane(form,shell));
         Timed("Sessão contínua V269", () => VerifyContinuousSession(form, shell, homeSnapshot));
         Timed("Pintura real V269", () => VerifyLiveWindowPaint(form, shell));
-        form.Close();
+        Timed("REC-FIS-02-PAINT-FRAMES", () => VerifyFramePaintLoop(form, shell));
+        if (!form.IsDisposed) form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
     }
 
@@ -1334,6 +1335,145 @@ internal static class V269IntegrationTests
 
     // Captura do desktop real (WM_PAINT), não WM_PRINT/DrawToBitmap.
     // A barra de seleção do HTML só pode existir no botão ativo.
+    // Percurso separado: loop normal da STA, sem DoEvents ou captura síncrona
+    // entre o envio do clique e o término da observação. MainForm de fixture.
+    private static void VerifyFramePaintLoop(MainForm form, V269Shell shell)
+    {
+        Exception? failure = null;
+        bool completed = false;
+        var previous = SynchronizationContext.Current;
+        using var context = new WindowsFormsSynchronizationContext();
+        SynchronizationContext.SetSynchronizationContext(context);
+        form.BeginInvoke(new Action(async () =>
+        {
+            try
+            {
+                form.TopMost = true;
+                form.Activate();
+                var themeChoice = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
+                var motion = form.Controls.Find("V269Animations", true).OfType<CheckBox>().Single();
+                var buttons = Enum.GetValues<V269Page>().ToDictionary(p => p,
+                    p => form.Controls.Find("V269Nav" + p, true).OfType<Button>().Single());
+                var home = shell.PageContent(V269Page.Inicio)!;
+                var apps = shell.PageContent(V269Page.Aplicativos)!;
+                var title = form.Controls.Find("V269PageTitle", true).Single();
+                var glyph = form.Controls.Find("V269HomeHeadingIcon", true).OfType<V269HomeHeadingIcon>().Single();
+                var list = (DarkProgramList)typeof(MainForm).GetField("_programList",
+                    BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form)!;
+                var body = form.Controls.Find("V269BodyHost", true).Single();
+                var destination = buttons[V269Page.Aplicativos];
+                motion.Checked = false;
+                // Idle apenas como barreira das referências estáveis, não para
+                // adiar o clique em observação. Sem timer, Sleep ou fila manual.
+                Task IdleAsync()
+                {
+                    var ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    EventHandler? handler = null;
+                    handler = (_, _) => { Application.Idle -= handler; ready.TrySetResult(true); };
+                    Application.Idle += handler;
+                    return ready.Task;
+                }
+                foreach (var theme in Enum.GetValues<V269Theme>())
+                {
+                    themeChoice.SelectedIndex = (int)theme;
+                    shell.SelectPage(V269Page.Aplicativos);
+                    destination.Focus();
+                    await IdleAsync();
+                    var bounds = form.RectangleToScreen(form.ClientRectangle);
+                    var hwnd = form.Handle;
+                    Require(Screen.FromControl(form).Bounds.Contains(bounds),
+                        "FRAMES: janela inteira no desktop");
+                    var guard = new Func<bool>(() => RecFis02FrameSampler.OwnsDesktop(hwnd, bounds));
+                    using var target = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, guard));
+                    shell.SelectPage(V269Page.Inicio);
+                    destination.Focus();
+                    await IdleAsync();
+                    Require(form.RectangleToScreen(form.ClientRectangle) == bounds && home.Visible && !apps.Visible,
+                        "FRAMES: origem e geometria coerentes");
+                    using var source = await Task.Run(() => RecFis02FrameSampler.StableReference(bounds, guard));
+                    var events = new List<string>(512);
+                    void Mark(string stage) => events.Add(FormattableString.Invariant(
+                        $"seq={events.Count} tick={System.Diagnostics.Stopwatch.GetTimestamp()} {stage}"));
+                    void Visible(object? sender, EventArgs e)
+                    {
+                        Mark(sender == home ? "home-visible" : "apps-visible");
+                        if (sender == apps && apps.Visible)
+                            Require(!home.Visible && shell.SelectedPage == V269Page.Aplicativos &&
+                                title.Text == "Aplicativos" && glyph.Page == V269Page.Aplicativos &&
+                                buttons.All(p => p.Value.AccessibleDescription ==
+                                    (p.Key == V269Page.Aplicativos ? "Aba atual" : "Abrir aba")),
+                                "FRAMES: identidade antes da exposição");
+                    }
+                    void Committed(object? sender, EventArgs e) => Mark("layout-committed");
+                    void Navigated(object? sender, V269NavigationEventArgs e) => Mark("navigation-changed");
+                    int clicks = 0;
+                    void Clicked(object? sender, EventArgs e) { clicks++; Mark("click-delivered"); }
+                    var probes = new List<NativeTransitionPaintProbe>();
+                    using var stop = new CancellationTokenSource();
+                    home.VisibleChanged += Visible; apps.VisibleChanged += Visible;
+                    shell.PageLayoutCommitted += Committed; shell.NavigationChanged += Navigated;
+                    destination.Click += Clicked;
+                    RecFis02FrameSampler.Session? session = null;
+                    try
+                    {
+                        foreach (var (control, name) in new (Control, string)[] {
+                            (body, "body"), (home, "home"), (apps, "apps"), (list, "list"),
+                            (title, "title"), (glyph, "glyph"),
+                            (buttons[V269Page.Inicio], "home-rail"), (destination, "apps-rail") })
+                        {
+                            Require(control.IsHandleCreated, "FRAMES: HWND ausente " + name);
+                            probes.Add(new NativeTransitionPaintProbe(control, name, Mark));
+                        }
+                        session = RecFis02FrameSampler.Start(bounds, source, target, guard, stop.Token);
+                        await session.Ready;
+                        Require(guard() && home.Visible && !apps.Visible && destination.Enabled &&
+                            destination.IsHandleCreated && destination.Focused,
+                            "FRAMES: origem/foco/permissão antes do clique");
+                        Mark("click-posted");
+                        // Mensagem BM_CLICK endereçada apenas ao botão de navegação.
+                        // Sem input global, clique em coordenada de outro app ou chamada SelectPage.
+                        Require(RecFis02FrameSampler.PostButtonClick(destination.Handle),
+                            "FRAMES: postagem nativa falhou");
+                        var result = await session.Finished;
+                        Mark("sampler-finished");
+                        await IdleAsync();
+                        foreach (var probe in probes) probe.ObservePending("after-idle");
+                        Require(guard() && form.RectangleToScreen(form.ClientRectangle) == bounds &&
+                            clicks == 1 && apps.Visible && !home.Visible &&
+                            shell.SelectedPage == V269Page.Aplicativos && !shell.IsPageLayoutTransition,
+                            "FRAMES: clique único, foco/geometria/identidade finais");
+                        string prefix = $"LayoutCaptures/REC-FIS-02-FRAMES-{theme}";
+                        await Task.Run(() => RecFis02FrameSampler.Export(result, source, target, prefix));
+                        Require(result.DestinationObserved, "FRAMES inconclusivo: " + result.StopReason);
+                        Console.WriteLine($"PASS REC-FIS-02-PAINT-FRAMES theme={theme} samples={result.Frames.Count} stop={result.StopReason}");
+                    }
+                    finally
+                    {
+                        stop.Cancel();
+                        // Observe qualquer falha da worker sem impedir a remoção das sondas.
+                        if (session is not null)
+                        {
+                            try { await session.Finished; }
+                            catch (Exception ex) { Mark("sampler-ended " + ex.GetType().Name); }
+                        }
+                        home.VisibleChanged -= Visible; apps.VisibleChanged -= Visible;
+                        shell.PageLayoutCommitted -= Committed; shell.NavigationChanged -= Navigated;
+                        destination.Click -= Clicked;
+                        foreach (var probe in probes) probe.Dispose();
+                        foreach (string e in events) Console.WriteLine($"REC-FIS-02-FRAMES-EVENT theme={theme} {e}");
+                    }
+                }
+                completed = true;
+            }
+            catch (Exception ex) { failure = ex; }
+            finally { form.Close(); }
+        }));
+        try { Application.Run(form); }
+        finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        if (failure is not null) throw new InvalidOperationException("REC-FIS-02-PAINT-FRAMES", failure);
+        Require(completed, "FRAMES: loop encerrado sem completar a prova");
+    }
+
     private static void VerifyLiveWindowPaint(MainForm form, V269Shell shell)
     {
         var themeChoice = form.Controls.Find("V269ThemeChoice", true).OfType<ComboBox>().Single();
