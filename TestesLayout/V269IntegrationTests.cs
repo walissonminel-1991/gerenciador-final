@@ -86,83 +86,50 @@ internal static class V269IntegrationTests
             if(page is V269Page.Inicio or V269Page.Configuracoes)
                 Require(!shell.RightPane.Visible && !paneToggle.Visible,"resultado alheio retido sem painel ordinário");
         }
-        // A consulta de hardware não pode tornar um resultado anterior inacessível.
-        // Usar somente a fotografia sintética já validada, sem chamar provedores reais.
+        // REC-FIS-02: decisão posterior do proprietário retira os dois comandos.
+        // A prova dos comandos consultivos reais permanece em VerifySettings.
+        // Exercitar também o contrato do painel com uma fixture somente leitura.
         shell.SelectPage(V269Page.Inicio);
         Application.DoEvents();
-        var snapshotField = typeof(MainForm).GetField("_v269LastSnapshot",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-        var previousSnapshot = snapshotField.GetValue(form);
-        var detailButton = form.Controls.Find("V269HardwareDetails", true).OfType<Button>().Single();
-        var previousEnabled = detailButton.Enabled;
+        Require(form.Controls.Find("V269ReadHardware", true).Length == 0 &&
+            form.Controls.Find("V269HardwareDetails", true).Length == 0 &&
+            !shell.RightPane.Visible && !paneToggle.Visible,
+            "REC-FIS-02: Início informativo sem comandos ou painel ordinário");
         var retained = shell.RightPane.Current;
-        try
+        var origin = form.Controls.Find("V269NavInicio", true).OfType<Button>().Single();
+        void OpenReadOnlyFixture()
         {
-            snapshotField.SetValue(form, homeSnapshot);
-            detailButton.Enabled = true;
-            detailButton.Focus();
+            Require(shell.RightPane.TryShowReadOnly("Consulta sintética", "Fixture somente leitura",
+                "V269HomeReadOnlyFixture", origin), "painel aceita consulta sem substituir resultado");
+            shell.EnsureDashboardPane();
+            shell.RightPane.FocusReadOnly();
             Application.DoEvents();
-            Require(detailButton.Visible && detailButton.Enabled && detailButton.CanSelect,
-                "botão de leituras alcançável com resultado preservado");
-            var originalWindows = Application.OpenForms.Cast<Form>().ToArray();
-            bool unexpectedModal = false;
-            // Controle de contenção: uma regressão que volte a abrir o
-            // modal falha rapidamente em vez de travar a execução.
-            using (var watchdog = new System.Windows.Forms.Timer { Interval = 50 })
-            {
-                watchdog.Tick += (_, _) =>
-                {
-                    foreach (var unexpected in Application.OpenForms.Cast<Form>()
-                        .Where(window => !originalWindows.Contains(window)).ToArray())
-                    {
-                        unexpectedModal = true;
-                        unexpected.Close();
-                    }
-                };
-                watchdog.Start();
-                detailButton.PerformClick();
-                Application.DoEvents();
-                watchdog.Stop();
-            }
-            var hardwareEditor = shell.RightPane.Controls.Find("V269HardwareDetailsText", true).OfType<TextBox>().Single();
-            Require(shell.RightPane.ReadOnlyViewActive && hardwareEditor.Visible && hardwareEditor.ReadOnly &&
-                hardwareEditor.WordWrap && hardwareEditor.ScrollBars == ScrollBars.None &&
-                hardwareEditor.Text.Contains("Processador") && hardwareEditor.Text.Contains("Fotografia local") &&
-                ReferenceEquals(shell.RightPane.Current, retained) && !unexpectedModal && Application.OpenForms.Count == originalWindows.Length,
-                "AUT-SHELL-02 consulta hardware no painel real sem modal e sem substituir resultado");
-            var hardwareScroll = hardwareEditor.Parent!.Controls.OfType<DarkVScrollBar>().Single();
-            if (hardwareScroll.Visible)
-                Require(!hardwareEditor.Bounds.IntersectsWith(hardwareScroll.Bounds), "rolagem da consulta sem sobreposição");
-            shell.RightPane.Controls.Find("V269ReadOnlyClose", true).OfType<Button>().Single().PerformClick();
-            Application.DoEvents();
-            Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, retained) &&
-                detailButton.Focused && !shell.RightPane.Visible && !paneToggle.Visible,
-                "retorno ao mesmo resultado e foco original, sem painel ordinário");
-            detailButton.PerformClick();
-            Require(shell.RightPane.ReadOnlyViewActive, "reabrir consulta");
-            shell.SelectPage(V269Page.Configuracoes);
-            Application.DoEvents();
-            Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, retained),
-                "navegação encerra consulta sem descartar resultado");
-            shell.SelectPage(V269Page.Inicio);
-            Application.DoEvents();
-            detailButton.PerformClick();
-            Require(shell.RightPane.ReadOnlyViewActive, "consulta antes de publicação nova");
-            var progress = new V269PanelPresentation(V269PanelKind.Progress, "Operação sintética", "Fixture", 25);
-            shell.PresentPanel(progress);
-            Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, progress),
-                "publicação de operação tem prioridade sobre consulta");
-            Require(!shell.RightPane.TryShowReadOnly("Bloqueado", "Fixture", "BlockedReadOnly", detailButton),
-                "consulta não pode cobrir progresso");
-            shell.PresentPanel(retained);
+            Require(shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, retained),
+                "consulta preserva resultado");
         }
-        finally
-        {
-            detailButton.Enabled = previousEnabled;
-            snapshotField.SetValue(form, previousSnapshot);
-        }
-        Require(ReferenceEquals(shell.RightPane.Current, retained),
-            "botão de leituras funciona sem substituir resultado anterior nem consultar hardware real");
+        OpenReadOnlyFixture();
+        var readOnlyEditor = shell.RightPane.Controls.Find("V269HomeReadOnlyFixture", true).OfType<TextBox>().Single();
+        Require(readOnlyEditor.Visible && readOnlyEditor.ReadOnly && readOnlyEditor.WordWrap &&
+            readOnlyEditor.ScrollBars == ScrollBars.None, "consulta usa editor temático somente leitura");
+        shell.RightPane.Controls.Find("V269ReadOnlyClose", true).OfType<Button>().Single().PerformClick();
+        Application.DoEvents();
+        Require(!shell.RightPane.ReadOnlyViewActive && !shell.RightPane.Visible &&
+            ReferenceEquals(shell.RightPane.Current, retained), "fechar consulta conserva resultado e dashboard");
+        OpenReadOnlyFixture();
+        shell.SelectPage(V269Page.Configuracoes);
+        Application.DoEvents();
+        Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, retained),
+            "navegação encerra consulta sem descartar resultado");
+        shell.SelectPage(V269Page.Inicio);
+        Application.DoEvents();
+        OpenReadOnlyFixture();
+        var progress = new V269PanelPresentation(V269PanelKind.Progress, "Operação sintética", "Fixture", 25);
+        shell.PresentPanel(progress);
+        Require(!shell.RightPane.ReadOnlyViewActive && ReferenceEquals(shell.RightPane.Current, progress),
+            "publicação de operação tem prioridade sobre consulta");
+        Require(!shell.RightPane.TryShowReadOnly("Bloqueado", "Fixture", "BlockedReadOnly", origin),
+            "consulta não pode cobrir progresso");
+        shell.PresentPanel(retained);
         shell.SelectPage(V269Page.Configuracoes);
         Application.DoEvents();
         var appearance = Find<V269AppearancePanel>(views[(int)V269Page.Configuracoes]);
@@ -3758,10 +3725,9 @@ internal static class V269IntegrationTests
         home.AutoScrollPosition = new Point(0, int.MaxValue);
         Require(-home.AutoScrollPosition.Y == Math.Max(0, home.ContentHeight - home.ClientSize.Height),
             "rolagem alcança o final sem ultrapassar o conteúdo");
-        var read = home.Controls.Find("V269ReadHardware", true).OfType<Button>().Single();
-        Require(read.Focus(), "consulta manual alcançável pelo teclado");
-        Application.DoEvents();
-        Require(LayoutTests.FullyVisible(read), "foco traz a consulta para a área visível");
+        Require(home.Controls.Find("V269ReadHardware", true).Length == 0 &&
+            home.Controls.Find("V269HardwareDetails", true).Length == 0,
+            "REC-FIS-02: comandos removidos do dashboard");
         home.AutoScrollPosition = Point.Empty;
         Require(home.AutoScrollPosition == Point.Empty && home.Cards[0].Top >= 0,
             "rolagem retorna ao topo sem cortar o primeiro cartão");
@@ -3832,6 +3798,29 @@ internal static class V269IntegrationTests
         Size originalSurfaceSize = surface.Size;
         try
         {
+            Require(V269HomeCard.UsesVersionedWindowsArt(visualFixture[4]) &&
+                !V269HomeCard.UsesVersionedWindowsArt(visualFixture[4] with {
+                    Specs = Rows("Versão", "Windows 11 Pro (26H2)") }) &&
+                !V269HomeCard.UsesVersionedWindowsArt(empty[4]),
+                "REC-FIS-02: arte com edição/versão somente quando coincide com inventário");
+            home.SetModels(models);
+            // Reproduzir janela larga e baixa da evidência física, não altura do monitor.
+            surface.Size = new Size(1536,828);
+            foreach (var theme in Enum.GetValues<V269Theme>())
+            {
+                themeChoice.SelectedIndex = (int)theme;
+                home.ApplyAppearance(new V269AppearanceOptions(theme, 100, 100, true));
+                home.AutoScrollPosition = Point.Empty;
+                surface.PerformLayout(); home.PerformLayout(); Application.DoEvents();
+                Require(home.Cards.All(c => home.ClientRectangle.Contains(c.Bounds)) &&
+                    home.ContentHeight <= home.ClientSize.Height,
+                    $"REC-FIS-02: cinco cartões e rodapé inteiros sem rolagem {theme} " +
+                    $"viewport={home.ClientSize} content={home.ContentHeight}");
+                home.AutoScrollPosition = new Point(0, int.MaxValue);
+                Require(home.AutoScrollPosition == Point.Empty,
+                    "REC-FIS-02: sem deslocamento ordinário real");
+            }
+            Console.WriteLine("PASS REC-FIS-02-HOME: cinco cartões sem rolagem ordinária nos três temas, sem comandos.");
             home.SetModels(visualFixture);
             // 716px é um teste de estresse nativo; o HTML impõe min-width:760px.
             // Conservar o estresse e acrescentar os dois tamanhos efetivamente comparáveis.

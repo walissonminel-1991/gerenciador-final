@@ -36,48 +36,8 @@ internal sealed partial class MainForm
 
     private Control BuildV269Home()
     {
-        var refresh = CreateSecondaryButton("Consultar hardware");
-        refresh.Name = "V269ReadHardware";
-        refresh.Click += async (_, _) =>
-        {
-            if (_v269HardwareQuery is { IsCancellationRequested: false } active) active.Cancel();
-            else await RefreshV269HardwareAsync();
-        };
-        var details = CreateSecondaryButton("Leituras detalhadas");
-        details.Name = "V269HardwareDetails";
-        details.Enabled = false;
-        details.Click += (_, _) =>
-        {
-            if (_v269LastSnapshot is not { } snapshot || _busy || _v269Confirming ||
-                _nav.RightPane.Current?.Kind is V269PanelKind.Progress or V269PanelKind.Confirmation) return;
-            // Formatamos a fotografia mais recente, não o texto armazenado da consulta inicial.
-            string description = "Fotografia local no momento da abertura; não é atualizada automaticamente." +
-                Environment.NewLine + Environment.NewLine +
-                string.Join(Environment.NewLine + Environment.NewLine,
-                    V269HardwareCards(snapshot).Select(x => x.Title + Environment.NewLine + x.Body));
-            if (_nav.RightPane.Current?.Kind is V269PanelKind.Result or V269PanelKind.History)
-            {
-                if (_nav.RightPane.TryShowReadOnly("Leituras detalhadas do hardware", description,
-                    "V269HardwareDetailsText", details))
-                {
-                    if (!_nav.RightPane.Visible)
-                        _nav.EnsureDashboardPane();
-                    _nav.RightPane.FocusReadOnly();
-                }
-                return;
-            }
-            PresentV269Details("Leituras detalhadas do hardware", description);
-            if (!_nav.RightPane.Visible)
-                _nav.EnsureDashboardPane();
-        };
         _v269HardwareStatus.Text = "Aguardando consulta local.";
-        _v269HardwareStatus.TextChanged += (_, _) =>
-        {
-            refresh.Text = _v269HardwareQuery is { IsCancellationRequested: false }
-                ? "Cancelar consulta" : "Consultar hardware";
-            details.Enabled = _v269LastSnapshot is not null;
-        };
-        _v269Home = new V269HomeDashboard(refresh, details, _v269HardwareStatus);
+        _v269Home = new V269HomeDashboard(_v269HardwareStatus);
         _v269Home.VisibleChanged += (_, _) =>
         {
             if (!_v269Home.Visible)
@@ -1470,7 +1430,7 @@ internal sealed class V269HomeDashboard : Panel
         }
     }
 
-    internal V269HomeDashboard(Button refresh, Button details, Label status)
+    internal V269HomeDashboard(Label status)
     {
         Name = "V269HardwarePage";
         Dock = DockStyle.Fill;
@@ -1486,17 +1446,6 @@ internal sealed class V269HomeDashboard : Panel
             Text = "Imagens ilustrativas. N/D = informação ou sensor indisponível." };
         _footer = new FlowLayoutPanel { Name = "V269HomeFooter", WrapContents = true,
             FlowDirection = FlowDirection.LeftToRight, Margin = Padding.Empty };
-        foreach (Button button in new[] { refresh, details })
-        {
-            button.Dock = DockStyle.None;
-            button.AutoSize = true;
-            button.MinimumSize = new Size(115, 28);
-            _footer.Controls.Add(button);
-            // O foco precisa deslocar o viewport externo, não apenas o
-            // FlowLayoutPanel filho. Sem isso SVGA recorta a ação.
-            button.Enter += (_, _) => RevealAction(button);
-            button.GotFocus += (_, _) => RevealAction(button);
-        }
         _status.Dock = DockStyle.None;
         _status.AutoSize = true;
         _footer.Controls.Add(_status);
@@ -1607,7 +1556,11 @@ internal sealed class V269HomeDashboard : Panel
             while (ancestor is not null && ancestor is not V269Shell) ancestor = ancestor.Parent;
             int windowWidth = ancestor is V269Shell shell ? shell.LayoutWindowWidth :
                 (int)Math.Round((FindForm()?.ClientSize.Width ?? ClientSize.Width) * 96d / DeviceDpi);
-            bool compactHeight = Screen.FromControl(this).WorkingArea.Height * 96d / DeviceDpi <= 950;
+            // A altura do monitor não representa a altura útil de uma janela portátil.
+            // Preservar a geometria de referência compacta e usar densidade compacta
+            // também em janelas largas com viewport vertical reduzido.
+            bool compactHeight = Screen.FromControl(this).WorkingArea.Height * 96d / DeviceDpi <= 950 ||
+                (windowWidth > 1090 && ClientSize.Height * 96d / DeviceDpi <= 720);
             int padding = S(2), gap = S(compactHeight ? 7 : 10);
             int width = Math.Max(1, ClientSize.Width - 2 * padding);
             bool two = windowWidth >= 940 && width >= S(470);
@@ -1639,7 +1592,7 @@ internal sealed class V269HomeDashboard : Panel
             _notice.Location = new Point(offset.X + padding, offset.Y + y);
             y += _notice.Height + S(4);
             _status.MaximumSize = new Size(Math.Max(1, width - S(12)), 0);
-            int footerHeight = Math.Max(S(34), _footer.GetPreferredSize(new Size(width, 0)).Height);
+            int footerHeight = Math.Max(S(18), _footer.GetPreferredSize(new Size(width, 0)).Height);
             _footer.SetBounds(offset.X + padding, offset.Y + y, width, footerHeight);
             _contentHeight = y + footerHeight + padding;
             int clamped = Math.Clamp(_scrollY, 0, Math.Max(0, _contentHeight - ClientSize.Height));
@@ -1763,6 +1716,10 @@ internal sealed class V269HomeCard : Control
         Render(e.Graphics, Width, _windowWidth, _compactHeight);
     }
 
+    internal static bool UsesVersionedWindowsArt(V269HomeModel model) => model.Key == "windows" &&
+        model.Specs.Any(row => row.Label == "Versão" &&
+            row.Value.Equals("Windows 11 Pro (24H2)", StringComparison.OrdinalIgnoreCase));
+
     private int Render(Graphics? g, int width, int windowWidth, bool compactHeight)
     {
         if (Model is not { } model || width < 20) return S(150);
@@ -1784,8 +1741,9 @@ internal sealed class V269HomeCard : Control
         using var nameFont = TextFont(13, FontStyle.Bold);
         // A cascata de .app-window .hw-card mantém o padding 10/11
         // também nos breakpoints compactos; gap de 12px prevalece no CSS.
-        int pad = S(12), gap = S(12), verticalPad = S(11);
-        int heading = Math.Max(S(compactHeight ? 28 : 31), title.Height + S(compactHeight ? 7 : 10));
+        bool fitWideViewport = compactHeight && windowWidth > 1090;
+        int pad = S(12), gap = S(fitWideViewport ? 8 : 12), verticalPad = S(fitWideViewport ? 7 : 11);
+        int heading = Math.Max(S(fitWideViewport ? 24 : compactHeight ? 28 : 31), title.Height + S(compactHeight ? 7 : 10));
         int contentWidth = Math.Max(1, width - 2 * pad);
         bool wide = windowWidth > 850 && contentWidth >= S(235);
         int logicalImage = model.Key == "windows"
@@ -1797,7 +1755,7 @@ internal sealed class V269HomeCard : Control
         int imageWidth = Math.Min(S(logicalImage), Math.Max(1, contentWidth - S(100)));
         if (wide && model.Key != "windows") imageWidth = Math.Min(imageWidth, Math.Max(1, contentWidth / 3));
         int imageHeight = model.Key == "windows"
-            ? Math.Clamp(imageWidth * 5 / 11, S(96), S(116))
+            ? Math.Clamp(imageWidth * 5 / 11, S(fitWideViewport ? 64 : 96), S(fitWideViewport ? 84 : 116))
             : compactHeight ? Math.Min(S(118), imageWidth) : imageWidth;
         int remainder = Math.Max(1, contentWidth - imageWidth - gap);
         double ratio = model.Key == "windows" && (narrowTwo || windowWidth > 1370) ? .5 :
@@ -1873,7 +1831,26 @@ internal sealed class V269HomeCard : Control
         using (var picFill = new SolidBrush(photo))
         {
             g.FillPath(picFill, picShape);
-            if (_art is not null)
+            if (model.Key == "windows" && !UsesVersionedWindowsArt(model))
+            {
+                // Arte congelada contém edição/versão textual. Em qualquer outra
+                // versão, usar identidade neutra, sem contradizer inventário real.
+                var saved = g.Save();
+                try
+                {
+                    g.SetClip(picShape, System.Drawing.Drawing2D.CombineMode.Intersect);
+                    int side = Math.Max(1, Math.Min(picture.Width, picture.Height) / 2);
+                    int tile = Math.Max(1, (side - S(3)) / 2);
+                    int x = picture.X + (picture.Width - side) / 2;
+                    int y = picture.Y + (picture.Height - side) / 2;
+                    using var windowsInk = new SolidBrush(_appearance.Theme == V269Theme.Claro ? Hex("#167bbb") : Hex("#65b8ef"));
+                    for (int row = 0; row < 2; row++)
+                        for (int col = 0; col < 2; col++)
+                            g.FillRectangle(windowsInk, x + col * (tile + S(3)), y + row * (tile + S(3)), tile, tile);
+                }
+                finally { g.Restore(saved); }
+            }
+            else if (_art is not null)
             {
                 var saved = g.Save();
                 try
@@ -1941,7 +1918,7 @@ internal sealed class V269HomeCard : Control
                     Math.Max(1, available / 3), Math.Max(1, available - available / 4));
                 int right = stacked ? w : Math.Max(1, available - left);
                 int h1 = HeightOf(row.Label, font, left), h2 = HeightOf(row.Value, bold, right);
-                int vertical = S(compactHeight ? 3 : 6);
+                int vertical = S(fitWideViewport ? 2 : compactHeight ? 3 : 6);
                 int h = (stacked ? h1 + h2 : Math.Max(h1, h2)) + 2 * vertical + S(1);
                 // No viewport 992×659 com fonte CSS de 9px, a linha
                 // medida no HTML é 17,97px (10,98 + 6 + 1). O GDI
