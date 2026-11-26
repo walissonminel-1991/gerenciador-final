@@ -190,6 +190,7 @@ internal static class V269IntegrationTests
         }
         else Console.WriteLine("V269: Limpeza e Reparo aprovados no percurso WORK18 desta mesma execução.");
         Timed("Sistema e Inicialização",()=>VerifyLastTabs(form,shell));
+        Timed("REC-FIS-PANE inicialização silenciosa", () => VerifyQuietStartupPane(form,shell));
         Timed("Sessão contínua V269", () => VerifyContinuousSession(form, shell, homeSnapshot));
         Timed("Pintura real V269", () => VerifyLiveWindowPaint(form, shell));
         form.Close();
@@ -199,6 +200,67 @@ internal static class V269IntegrationTests
     // Uma sessão na mesma MainForm, sem reiniciar views entre etapas.
     // Provedores de hardware/driver e ações destrutivas não são executados:
     // o objetivo é a concorrência e publicação dos estados na interface real.
+    private static void VerifyQuietStartupPane(MainForm form,V269Shell shell)
+    {
+        const BindingFlags flags=BindingFlags.Instance|BindingFlags.NonPublic;
+        var execute=typeof(MainForm).GetMethod("ExecuteAsync",flags)!;
+        var status=typeof(MainForm).GetMethod("Status",flags)!;
+        var label=(Label)typeof(MainForm).GetField("_status",flags)!.GetValue(form)!;
+        var saved=shell.RightPane.Current;var page=shell.SelectedPage;
+        var previousContext=SynchronizationContext.Current;
+        using var context=new WindowsFormsSynchronizationContext();
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            shell.SelectPage(V269Page.Inicio);
+            foreach(V269PanelPresentation? prior in new V269PanelPresentation?[]{
+                null,new(V269PanelKind.Result,"Resultado anterior","Fixture preservada")})
+            {
+                shell.PresentPanel(prior);
+                var pending=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                const string observed="7 aplicativos com ação disponíveis antes da consulta online";
+                bool completed=false;
+                Func<Task> work=async ()=>
+                {
+                    status.Invoke(form,[observed]);
+                    await pending.Task;
+                    status.Invoke(form,[observed]);completed=true;
+                };
+                var operation=(Task)execute.Invoke(form,["Carregando programas instalados...",work,true])!;
+                try
+                {
+                    Require(!operation.IsCompleted && ReferenceEquals(shell.RightPane.Current,prior) &&
+                        !shell.RightPane.Visible && label.AccessibleDescription==observed,
+                        "REC-FIS-STARTUP: Status silencioso não cria progresso órfão, mantém informação acessível");
+                    shell.SelectPage(V269Page.Configuracoes);Application.DoEvents();
+                    Require(!shell.RightPane.Visible && ReferenceEquals(shell.RightPane.Current,prior),
+                        "inventário silencioso não reabre painel em Configurações");
+                }
+                finally{pending.TrySetResult(true);Pump(operation);}
+                Require(completed && ReferenceEquals(shell.RightPane.Current,prior) && !shell.RightPane.Visible,
+                    "REC-FIS-STARTUP: fim silencioso conserva estado anterior sem progresso órfão");
+                shell.SelectPage(V269Page.Inicio);
+            }
+            shell.PresentPanel(null);shell.SelectPage(V269Page.Configuracoes);
+            bool observedProgress=false;
+            Func<Task> explicitFixture=()=>
+            {
+                status.Invoke(form,["Andamento explícito sintético"]);
+                observedProgress=shell.RightPane.Visible&&shell.RightPane.Current is
+                    {Kind:V269PanelKind.Progress,Description:"Andamento explícito sintético"};
+                return Task.CompletedTask;
+            };
+            Pump((Task)execute.Invoke(form,["Operação explícita sintética",explicitFixture,false])!);
+            Require(observedProgress,"proteção negativa: operação explícita continua apresentando progresso");
+            Console.WriteLine("PASS REC-FIS-STARTUP: carga silenciosa sem painel órfão; progresso explícito preservado.");
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+            shell.SelectPage(page);shell.PresentPanel(saved);
+        }
+    }
+
     private static void VerifyContinuousSession(MainForm form, V269Shell shell, HardwareSensorPortfolio snapshot)
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
