@@ -127,5 +127,50 @@ internal static class WheelScrollTests
         Check(flowBar.Value==0, "viewport V269 retorna ao início");
         Console.WriteLine("OK V5: rolagem proporcional com deltas parciais e inversao nas listas de aplicativos/drivers e paineis.");
         Console.WriteLine("OK V269: deltas parciais respondem imediatamente, limites e curso total preservados.");
+        VerifyDriverPaintClip(drivers);
+    }
+
+    private static void VerifyDriverPaintClip(DarkDriverList drivers)
+    {
+        // Exercita o OnPaint de produção em um buffer sintético. O contador
+        // independente é a política consultiva, não uma contagem declarada
+        // pelo renderer. Nenhuma ação/consulta física é disparada.
+        var evaluated = new List<DriverInventoryEntry>();
+        drivers.SetActionPolicy(true, item =>
+        {
+            evaluated.Add(item);
+            return new DriverSilentUninstallDecision(false, "Fixture de pintura");
+        });
+        var paint = typeof(DarkDriverList).GetMethod("OnPaint", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        try
+        {
+            int Paint(Rectangle clip, DriverInventoryEntry? expected = null)
+            {
+                using var bitmap = new Bitmap(drivers.Width, drivers.Height);
+                using var canvas = Graphics.FromImage(bitmap);
+                canvas.Clear(Color.Magenta);
+                canvas.SetClip(clip);
+                evaluated.Clear();
+                using var args = new PaintEventArgs(canvas, clip);
+                paint.Invoke(drivers, new object[] { args });
+                if (expected is not null)
+                    Check(evaluated.Count == 1 && ReferenceEquals(evaluated[0], expected),
+                        "região de uma linha não deve avaliar outras identidades");
+                if (!clip.Contains(0,0))
+                    Check(bitmap.GetPixel(0,0).ToArgb()==Color.Magenta.ToArgb(),
+                        "pintura parcial preserva pixels externos");
+                return evaluated.Count;
+            }
+            int full = Paint(drivers.ClientRectangle);
+            Check(full > 1, "fixture precisa de várias linhas visíveis");
+            Check(Paint(new Rectangle(0,0,drivers.Width,drivers.TableHeaderHeight))==0,
+                "pintar cabeçalho não deve executar política de nenhuma linha");
+            int y = drivers.TableHeaderHeight + drivers.TableRowHeight + 5;
+            Check(y + 3 < drivers.ClientSize.Height, "segunda linha deve estar visível");
+            Check(Paint(new Rectangle(0,y,drivers.Width,3),drivers.Items[1])==1,
+                "pintura parcial avalia exclusivamente a linha suja");
+            Console.WriteLine($"V269-SCROLL-DRIVER-PAINT full={full} header=0 row=1");
+        }
+        finally { drivers.SetActionPolicy(false,null); }
     }
 }

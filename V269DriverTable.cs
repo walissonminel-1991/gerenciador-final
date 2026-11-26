@@ -236,7 +236,7 @@ internal sealed partial class DarkDriverList
     private Rectangle TableGrip(Rectangle row) =>
         V269AppTable.Grip(row, _tableOptions.InterfacePercent, DeviceDpi);
 
-    private void DrawTable(Graphics graphics)
+    private void DrawTable(Graphics graphics, Rectangle dirty)
     {
         var saved = graphics.Save();
         try
@@ -247,11 +247,14 @@ internal sealed partial class DarkDriverList
             using var font = new Font("Segoe UI", 9f * _tableOptions.TextPercent / 100f);
             using var bold = new Font(font, FontStyle.Bold);
             using var small = new Font("Segoe UI", 8.25f * _tableOptions.TextPercent / 100f);
-            V269AppTable.DrawHeader(graphics, new Rectangle(-_horizontal.Value, 0, tableWidth, y),
-                _tableOptions, bold, DeviceDpi, _compactTable, drivers: true);
+            if (dirty.IntersectsWith(new Rectangle(0, 0, ContentWidth, y)))
+                V269AppTable.DrawHeader(graphics, new Rectangle(-_horizontal.Value, 0, tableWidth, y),
+                    _tableOptions, bold, DeviceDpi, _compactTable, drivers: true);
             graphics.Restore(saved);
             saved = graphics.Save();
-            graphics.SetClip(new Rectangle(0, y, ContentWidth, RowsHeight), CombineMode.Intersect);
+            var dirtyRows = Rectangle.Intersect(dirty, new Rectangle(0, y, ContentWidth, RowsHeight));
+            if (dirtyRows.Width <= 0 || dirtyRows.Height <= 0) return;
+            graphics.SetClip(dirtyRows, CombineMode.Intersect);
             if (_items.Count == 0)
             {
                 int padding = Scale(28);
@@ -262,8 +265,11 @@ internal sealed partial class DarkDriverList
                     TextFormatFlags.PreserveGraphicsClipping);
                 return;
             }
-            int last = Math.Min(_items.Count - 1, (_scrollOffset + RowsHeight - 1) / RowHeight);
-            for (int index = _scrollOffset / RowHeight; index <= last; index++)
+            // A política consultiva de cada linha continua sendo avaliada
+            // ao pintar a linha, mas não para linhas fora da região suja.
+            int first = Math.Max(0, (_scrollOffset + dirtyRows.Top - y) / RowHeight);
+            int last = Math.Min(_items.Count - 1, (_scrollOffset + dirtyRows.Bottom - 1 - y) / RowHeight);
+            for (int index = first; index <= last; index++)
                 DrawTableRow(graphics, index, font, bold, small);
         }
         finally { graphics.Restore(saved); }

@@ -299,13 +299,16 @@ internal sealed partial class DarkDriverList : Control
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(BackColor);
         if (ClientSize.Height < 1) return;
         if (TableMode)
         {
-            DrawTable(e.Graphics);
+            // Preservar a região não invalidada; não limpar o buffer inteiro.
+            using var background = new SolidBrush(BackColor);
+            e.Graphics.FillRectangle(background, e.ClipRectangle);
+            DrawTable(e.Graphics, e.ClipRectangle);
             return;
         }
+        e.Graphics.Clear(BackColor);
         int width = ContentWidth;
         using Region previousClip = e.Graphics.Clip;
         e.Graphics.SetClip(new Rectangle(0, 0, width, ClientSize.Height));
