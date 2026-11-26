@@ -23,6 +23,7 @@ internal static class V269IntegrationTests
         Timed("Feedback independente", VerifyIndependentFeedback);
         Timed("Barras universais", VerifyUniversalMeterPainting);
         Timed("REC-FIS-PAINT recorte parcial de slider", VerifySettingsRangePaintClip);
+        Timed("REC-FIS-GLYPH comandos indisponíveis", VerifyDisabledCommandGlyph);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
@@ -586,6 +587,41 @@ internal static class V269IntegrationTests
             Application.DoEvents();
         }
         reviewWindow.Close();
+    }
+
+    private static void VerifyDisabledCommandGlyph()
+    {
+        // Comandos compartilhados de Sistema, Inicialização e Limpeza:
+        // a cor muda quando indisponível, não a identidade do ícone.
+        var paint=typeof(V269CleanupButton).GetMethod("OnPaint",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        foreach(var theme in Enum.GetValues<V269Theme>())
+        foreach(var (caption,glyph) in new[]{("Somente leitura","lock"),("Verificando...","refresh"),("Histórico","clock"),("Ativar na inicialização","power")})
+        {
+            using var button=new V269CleanupButton(caption,glyph){Size=new Size(260,42),Enabled=false};
+            button.ApplyOptions(V269AppearanceOptions.Default with {Theme=theme});
+            int S(int n)=>V269AppTable.Scale(n,100,button.DeviceDpi);
+            int icon=S(15), measured=TextRenderer.MeasureText(button.Text,button.Font,Size.Empty,
+                TextFormatFlags.NoPadding|TextFormatFlags.NoPrefix).Width;
+            int left=Math.Max(S(5),(button.Width-icon-S(6)-measured)/2),top=(button.Height-icon)/2;
+            using var actual=new Bitmap(button.Width,button.Height);
+            using(var g=Graphics.FromImage(actual))
+            using(var args=new PaintEventArgs(g,button.ClientRectangle))
+                paint.Invoke(button,[args]);
+            // Interior do gradiente vertical é constante em x. Reconstruir
+            // a área do ícone a partir de uma coluna de fundo não desenhada.
+            using var expected=new Bitmap(icon,icon);
+            for(int y=0;y<icon;y++)for(int x=0;x<icon;x++)
+                expected.SetPixel(x,y,actual.GetPixel(button.Width-12,top+y));
+            using(var g=Graphics.FromImage(expected))
+                V269CleanupGlyph.Draw(g,glyph,new Rectangle(0,0,icon,icon),theme,
+                    V269VisualTokens.ForTheme(theme).SecondaryText);
+            for(int y=0;y<icon;y++)for(int x=0;x<icon;x++)
+                Require(actual.GetPixel(left+x,top+y).ToArgb()==expected.GetPixel(x,y).ToArgb(),
+                    "REC-FIS-GLYPH: forma semântica preservada em botão indisponível "+glyph+"/"+theme);
+            bool executed=false;button.Click+=(_,_)=>executed=true;button.PerformClick();
+            Require(!executed && !button.Enabled,"ícone correto não autoriza comando bloqueado");
+        }
+        Console.WriteLine("PASS REC-FIS-GLYPH: identidade visual preservada nos comandos indisponíveis.");
     }
 
     private static void VerifySettingsRangePaintClip()

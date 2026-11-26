@@ -136,13 +136,9 @@ internal sealed class V269CleanupButton : Button
             g.DrawPolygon(play, new Point[] { new(left + S(4), y + S(3)),
                 new(left + icon - S(3), y + icon / 2), new(left + S(4), y + icon - S(3)) });
         }
-        else if(Enabled) V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme,
+        else V269CleanupGlyph.Draw(g,_glyph,new Rectangle(left,(Height-icon)/2,icon,icon),_options.Theme,
+            !Enabled ? V269VisualTokens.ForTheme(_options.Theme).SecondaryText :
             _primary && _glyph=="search" && Text=="Analisar limpeza" && _options.Theme!=V269Theme.Dark ? H(text) : null);
-        else
-        {
-            using var muted = new Pen(V269VisualTokens.ForTheme(_options.Theme).SecondaryText);
-            g.DrawRectangle(muted,left,(Height-icon)/2,icon,icon);
-        }
         int x=left+icon+S(6);
         TextRenderer.DrawText(g,Text,Font,new Rectangle(x,0,Math.Max(1,Width-x-S(3)),Height),
             Enabled?H(text):V269VisualTokens.ForTheme(_options.Theme).SecondaryText,
