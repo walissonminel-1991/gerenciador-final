@@ -47,6 +47,7 @@ try {
         $sdkCompatible = $actualSdkVersion.Major -eq $expectedSdkVersion.Major -and
             $actualSdkVersion.Minor -eq $expectedSdkVersion.Minor -and
             $actualSdkVersion.Build -ge $expectedFeatureBand -and
+            $actualSdkVersion.Build -ge $expectedSdkVersion.Build -and
             $actualSdkVersion.Build -lt ($expectedFeatureBand + 100)
     }
     if (-not $sdkCompatible) {
@@ -73,12 +74,12 @@ try {
     }
 
     if ($null -ne $python) {
-        $pythonVersion = (& $python.Source -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>&1 | Out-String).Trim()
+        $pythonVersion = (& $python.Source -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>&1 | Out-String).Trim()
         if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11.0') {
             Add-Failure "Python 3.11 or newer is required; found '$pythonVersion'"
         }
-        $pythonImports = (& $python.Source -c 'import cv2, importlib.metadata as m; print(cv2.__version__ + " / " + m.version("opencv-python-headless") + " / " + m.version("numpy"))' 2>&1 | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0 -or $pythonImports -ne "$expectedOpenCvVersion / $expectedOpenCvVersion / $expectedNumpyVersion") {
+        $pythonImports = (& $python.Source -c "import cv2, importlib.metadata as m; print(m.version('opencv-python-headless') + ' / ' + m.version('numpy'))" 2>&1 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $pythonImports -ne "$expectedOpenCvVersion / $expectedNumpyVersion") {
             Add-Failure "Pinned Python/OpenCV distributions unavailable: $pythonImports"
         }
     }
