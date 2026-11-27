@@ -26,7 +26,7 @@ class PowerShellToolContractTests(unittest.TestCase):
 
     def test_collection_binds_outputs_and_collectors_to_explicit_run(self):
         source = (ROOT / "Collect-GfDiagnostics.ps1").read_text(encoding="utf-8")
-        self.assertIn("Commit Git:[\\t ]*", source)
+        self.assertIn("Commit fonte", source)
         self.assertIn("'{0:dd\\:hh\\:mm\\:ss}'", source)
         self.assertIn("--duration", source)
         self.assertIn("--resume-runtime:false", source)
@@ -41,6 +41,10 @@ class PowerShellToolContractTests(unittest.TestCase):
         self.assertIn("GetDirectoryName", source)
         self.assertNotIn("Split-Path -LiteralPath", source)
         self.assertIn("BUILD-INFO.txt", source)
+        self.assertIn("Commit fonte", source)
+        self.assertIn("VolumeNameGuid", source)
+        self.assertIn("ReparsePoint", source)
+        self.assertIn("FileShare]::Read", source)
         self.assertIn("IsPathFullyQualified($OutputDirectory)", source)
         self.assertIn("WorkingDirectory = $repoRoot", source)
 
