@@ -47,6 +47,7 @@ public static class GfDiagnosticsNativePath
     private const uint FileShareDelete = 0x00000004;
     private const uint OpenExisting = 3;
     private const uint FileFlagBackupSemantics = 0x02000000;
+    private const uint VolumeNameGuid = 1;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct ByHandleFileInformation
@@ -104,7 +105,7 @@ public static class GfDiagnosticsNativePath
         }
 
         var buffer = new StringBuilder(32768);
-        uint length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, 0);
+        uint length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, VolumeNameGuid);
         if (length == 0 || length >= buffer.Capacity)
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -164,10 +165,6 @@ function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
     if (Test-SameOrDescendant $Path $RepositoryRoot) {
         throw 'GF_DIAGNOSTICS_OUTPUT_IN_SOURCE: choose a directory outside the repository'
     }
-    if ($Path.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
-    }
-
     $existing = $Path
     while (-not (Test-Path -LiteralPath $existing)) {
         $parent = [IO.Path]::GetDirectoryName($existing)
@@ -217,6 +214,8 @@ if (-not [IO.Path]::IsPathFullyQualified($OutputDirectory)) {
 }
 $outputRoot = Get-FullPath $OutputDirectory
 Assert-LocalOutputRoot $outputRoot $repoRoot
+$null = New-Item -ItemType Directory -Path $outputRoot -Force
+Assert-LocalOutputRoot $outputRoot $repoRoot
 
 $buildInfoFile = (Resolve-Path -LiteralPath $BuildInfoPath).Path
 $buildInfoRoot = [IO.Path]::GetDirectoryName($buildInfoFile)
@@ -224,7 +223,8 @@ if ([IO.Path]::GetFileName($buildInfoFile) -ine 'BUILD-INFO.txt') {
     throw 'GF_DIAGNOSTICS_BUILD_INFO_NAME_REQUIRED: use the official BUILD-INFO.txt'
 }
 $buildInfoItem = Get-Item -LiteralPath $buildInfoFile -Force
-if ($null -ne $buildInfoItem.LinkType -or $null -ne $buildInfoItem.Target) {
+if ($null -ne $buildInfoItem.LinkType -or $null -ne $buildInfoItem.Target -or
+    ($buildInfoItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw 'GF_DIAGNOSTICS_BUILD_INFO_LINK_FORBIDDEN: BUILD-INFO.txt must be a regular file'
 }
 if ([GfDiagnosticsNativePath]::GetLinkCount($buildInfoFile) -ne 1) {
@@ -247,8 +247,15 @@ if (-not $physicalProcessRoot.Equals($physicalBuildInfoRoot, [StringComparison]:
     throw 'GF_DIAGNOSTICS_BUILD_BINDING_MISMATCH: BUILD-INFO physical directory differs from executable'
 }
 $targetStartTime = $target.StartTime.ToUniversalTime()
-$buildInfo = Get-Content -LiteralPath $buildInfoFile -Raw
-$commitPattern = "(?m)^[\t ]*Commit Git:[\t ]*$([regex]::Escape($expectedCommitLower))[\t ]*(?:\r?\n|$)"
+$buildInfoStream = [IO.File]::Open($buildInfoFile, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+try {
+    $buildInfoReader = [IO.StreamReader]::new($buildInfoStream)
+    $buildInfo = $buildInfoReader.ReadToEnd()
+    $buildInfoReader.Dispose()
+} finally {
+    $buildInfoStream.Dispose()
+}
+$commitPattern = "(?m)^[\t ]*(?:Commit Git|Commit fonte):[\t ]*$([regex]::Escape($expectedCommitLower))[\t ]*(?:\r?\n|$)"
 if ($buildInfo.ToLowerInvariant() -notmatch $commitPattern) {
     throw 'GF_DIAGNOSTICS_COMMIT_MISMATCH: BUILD-INFO does not contain the expected commit'
 }
@@ -273,6 +280,7 @@ $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
 $shortCommit = $expectedCommitLower.Substring(0, 8)
 $collectionRoot = Join-Path $outputRoot "gf-$stamp-$shortCommit-$([Guid]::NewGuid().ToString('N'))"
 $null = New-Item -ItemType Directory -Path $collectionRoot -Force
+Assert-LocalOutputRoot $collectionRoot $repoRoot
 $tracePath = Join-Path $collectionRoot 'trace.nettrace'
 $countersPath = Join-Path $collectionRoot 'counters.csv'
 $metadataPath = Join-Path $collectionRoot 'metadata.json'
