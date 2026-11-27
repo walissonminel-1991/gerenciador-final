@@ -27,7 +27,7 @@ function Get-FullPath([string]$Path) {
 }
 
 function Test-SameOrDescendant([string]$Candidate, [string]$Parent) {
-    $parentPath = $Parent.TrimEnd('\', '/')
+    $parentPath = $Parent.TrimEnd([char[]]@('\', '/'))
     return $Candidate.Equals($parentPath, [StringComparison]::OrdinalIgnoreCase) -or
         $Candidate.StartsWith($parentPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
 }
