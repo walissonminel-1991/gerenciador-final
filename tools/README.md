@@ -53,7 +53,7 @@ Com o processo autorizado já aberto, localize o PID e forneça metadados do bui
 A coleta:
 
 - anexa aos processos GerenciadorFinal ou GfToolProbe;
-- exige o SHA esperado no BUILD-INFO ao lado do executável observado e verifica nome, caminho e horário de início do mesmo PID antes de cada coleta;
+- exige o SHA esperado no BUILD-INFO.txt oficial ao lado do executável observado, em `Commit Git` ou `Commit fonte`, e verifica nome, caminho e horário de início do mesmo PID antes de cada coleta;
 - exige uma duração entre 5 e 600 segundos e passa essa duração aos dois coletores;
 - mantém o runtime do alvo suspenso quando aplicável, sem usar entrada interativa ou enviar Q;
 - exige um diretório absoluto no mesmo volume local do repositório, fora da árvore do repositório, e cria uma pasta única por coleta;
