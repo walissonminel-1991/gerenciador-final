@@ -23,6 +23,28 @@ class PowerShellToolContractTests(unittest.TestCase):
         self.assertIn("dotnet-counters", source)
         self.assertNotIn("Start-Process (Join-Path", source)
 
+    def test_collection_binds_outputs_and_collectors_to_explicit_run(self):
+        source = (ROOT / "Collect-GfDiagnostics.ps1").read_text(encoding="utf-8")
+        self.assertIn("Commit Git:[\\t ]*", source)
+        self.assertIn("'{0:dd\\:hh\\:mm\\:ss}'", source)
+        self.assertIn("--duration", source)
+        self.assertIn("--resume-runtime:false", source)
+        self.assertIn("$collectionRoot", source)
+        self.assertIn("Network", source)
+
+    def test_health_check_runs_from_repo_and_checks_distributions(self):
+        source = (ROOT / "Check-GfEngineeringTools.ps1").read_text(encoding="utf-8")
+        self.assertIn("Push-Location -LiteralPath $root", source)
+        self.assertIn("opencv-python-headless", source)
+        self.assertIn("importlib.metadata", source)
+
+    def test_probe_is_excluded_from_product_project(self):
+        project_path = ROOT.parent.parent / "GerenciadorAplicativos.csproj"
+        if not project_path.exists():
+            self.skipTest("full repository is not mounted in this scratch workspace")
+        source = project_path.read_text(encoding="utf-8")
+        self.assertIn('<Compile Remove="tools/**/*.cs" />', source)
+
 
 if __name__ == "__main__":
     unittest.main()
