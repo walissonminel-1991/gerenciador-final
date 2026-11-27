@@ -137,6 +137,7 @@ $durationText = '{0:dd\:hh\:mm\:ss}' -f $duration
 function Start-DiagnosticTool([string[]]$Arguments) {
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = 'dotnet'
+    $info.WorkingDirectory = $repoRoot
     $info.UseShellExecute = $false
     $info.RedirectStandardInput = $false
     foreach ($argument in $Arguments) { [void]$info.ArgumentList.Add($argument) }
