@@ -70,6 +70,10 @@ function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
     if ($drive.DriveType -eq [IO.DriveType]::Network) {
         throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
     }
+    $repositoryDrive = [IO.Path]::GetPathRoot($RepositoryRoot)
+    if (-not $root.Equals($repositoryDrive, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_VOLUME_REQUIRED: choose a directory on the repository local volume'
+    }
     if (Test-Path -LiteralPath $Path) {
         $outputItem = Get-Item -LiteralPath $Path -Force
         if ($null -ne $outputItem.LinkType -or $null -ne $outputItem.Target) {
@@ -151,7 +155,7 @@ function Wait-DiagnosticTool([Diagnostics.Process]$Process, [string]$Name) {
     $timeoutMilliseconds = ($DurationSeconds + 120) * 1000
     if (-not $Process.WaitForExit($timeoutMilliseconds)) {
         # Only the diagnostic child is stopped; the GF process is never touched.
-        $Process.Kill()
+        $Process.Kill($true)
         $Process.WaitForExit()
         throw "GF_DIAGNOSTICS_$($Name.ToUpperInvariant())_TIMEOUT"
     }
