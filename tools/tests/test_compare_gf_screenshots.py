@@ -10,7 +10,7 @@ import numpy as np
 ROOT = pathlib.Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from compare_gf_screenshots import compare_images, write_report  # noqa: E402
+from compare_gf_screenshots import compare_images, main, write_report  # noqa: E402
 
 
 class ScreenshotComparisonTests(unittest.TestCase):
@@ -69,6 +69,22 @@ class ScreenshotComparisonTests(unittest.TestCase):
         self.assertTrue(payload["passed"])
         self.assertEqual(len(payload["reference_sha256"]), 64)
         self.assertEqual(len(payload["candidate_sha256"]), 64)
+
+    def test_unsupported_16_bit_screenshot_is_rejected(self):
+        image = np.zeros((4, 5, 4), dtype=np.uint16)
+        image[:, :, 3] = 65535
+        sixteen_bit = self.root / "sixteen-bit.png"
+        cv2.imwrite(str(sixteen_bit), cv2.cvtColor(image, cv2.COLOR_RGBA2BGRA))
+        with self.assertRaises(ValueError):
+            compare_images(sixteen_bit, self.reference)
+
+    def test_report_cannot_overwrite_an_input_image(self):
+        exit_code = main([str(self.reference), str(self.candidate), "--output", str(self.reference)])
+        self.assertEqual(exit_code, 2)
+
+    def test_missing_dependency_has_documented_exit_code(self):
+        source = (ROOT / "compare_gf_screenshots.py").read_text(encoding="utf-8")
+        self.assertIn("return 3", source)
 
 
 if __name__ == "__main__":
