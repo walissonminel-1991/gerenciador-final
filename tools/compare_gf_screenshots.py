@@ -41,15 +41,18 @@ def _load_rgba(path: Path) -> np.ndarray:
         raise ValueError(f"Image could not be decoded: {path}")
     if image.dtype != np.uint8:
         raise ValueError(f"Only 8-bit screenshots are supported: {path}")
-    if image.ndim == 2:
-        return cv2.cvtColor(image, cv2.COLOR_GRAY2RGBA)
-    if image.ndim != 3:
-        raise ValueError(f"Unsupported image shape: {image.shape}")
-    if image.shape[2] == 3:
-        return cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
-    if image.shape[2] == 4:
-        return cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
-    raise ValueError(f"Unsupported channel count: {image.shape[2]}")
+    try:
+        if image.ndim == 2:
+            return cv2.cvtColor(image, cv2.COLOR_GRAY2RGBA)
+        if image.ndim != 3:
+            raise ValueError(f"Unsupported image shape: {image.shape}")
+        if image.shape[2] == 3:
+            return cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
+        if image.shape[2] == 4:
+            return cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
+        raise ValueError(f"Unsupported channel count: {image.shape[2]}")
+    except cv2.error as error:
+        raise ValueError(f"Image could not be converted: {path}") from error
 
 
 def _validate_region(region: tuple[int, int, int, int] | None, width: int, height: int) -> dict[str, int]:
