@@ -22,37 +22,110 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$outputRoot = [IO.Path]::GetFullPath($OutputDirectory)
-$repoPrefix = $repoRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
-if ($outputRoot.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'GF_DIAGNOSTICS_OUTPUT_IN_SOURCE: choose a directory outside the repository'
+function Get-FullPath([string]$Path) {
+    return [IO.Path]::GetFullPath($Path)
 }
+
+function Test-SameOrDescendant([string]$Candidate, [string]$Parent) {
+    $parentPath = $Parent.TrimEnd('\', '/')
+    return $Candidate.Equals($parentPath, [StringComparison]::OrdinalIgnoreCase) -or
+        $Candidate.StartsWith($parentPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
+    if (-not [IO.Path]::IsPathFullyQualified($Path)) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_ABSOLUTE_REQUIRED: choose an absolute local directory'
+    }
+    if (Test-SameOrDescendant $Path $RepositoryRoot) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_IN_SOURCE: choose a directory outside the repository'
+    }
+    if ($Path.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
+    }
+
+    $existing = $Path
+    while (-not (Test-Path -LiteralPath $existing)) {
+        $parent = Split-Path -LiteralPath $existing -Parent
+        if ([string]::IsNullOrEmpty($parent) -or $parent -eq $existing) {
+            throw 'GF_DIAGNOSTICS_OUTPUT_PARENT_INVALID'
+        }
+        $existing = $parent
+    }
+    $existingItem = Get-Item -LiteralPath $existing -Force
+    if ($null -ne $existingItem.LinkType -or $null -ne $existingItem.Target) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_LINK_FORBIDDEN: choose a non-linked local directory'
+    }
+    $root = [IO.Path]::GetPathRoot($existingItem.FullName)
+    if ($root.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
+    }
+    $drive = [IO.DriveInfo]::new($root)
+    if ($drive.DriveType -eq [IO.DriveType]::Network) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
+    }
+    if (Test-Path -LiteralPath $Path) {
+        $outputItem = Get-Item -LiteralPath $Path -Force
+        if ($null -ne $outputItem.LinkType -or $null -ne $outputItem.Target) {
+            throw 'GF_DIAGNOSTICS_OUTPUT_LINK_FORBIDDEN: choose a non-linked local directory'
+        }
+    }
+}
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$outputRoot = Get-FullPath $OutputDirectory
+Assert-LocalOutputRoot $outputRoot $repoRoot
+
+$buildInfoFile = (Resolve-Path -LiteralPath $BuildInfoPath).Path
+$buildInfoRoot = Split-Path -LiteralPath $buildInfoFile -Parent
+$expectedCommitLower = $ExpectedCommit.ToLowerInvariant()
 
 $target = Get-Process -Id $ProcessId -ErrorAction Stop
 if ($target.ProcessName -notin @('GerenciadorFinal', 'GfToolProbe')) {
     throw "GF_DIAGNOSTICS_TARGET_REJECTED: unexpected process '$($target.ProcessName)'"
 }
-$processPath = $target.MainModule.FileName
-$buildInfo = Get-Content -LiteralPath $BuildInfoPath -Raw
-if ($buildInfo -notmatch "(?m)^Commit Git:s*$([regex]::Escape($ExpectedCommit))s*$") {
+$processPath = (Resolve-Path -LiteralPath $target.MainModule.FileName).Path
+$processRoot = Split-Path -LiteralPath $processPath -Parent
+if (-not $processRoot.Equals($buildInfoRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'GF_DIAGNOSTICS_BUILD_BINDING_MISMATCH: BUILD-INFO must be beside the observed executable'
+}
+$targetStartTime = $target.StartTime.ToUniversalTime()
+$buildInfo = Get-Content -LiteralPath $buildInfoFile -Raw
+$commitPattern = "(?m)^[\t ]*Commit Git:[\t ]*$([regex]::Escape($expectedCommitLower))[\t ]*(?:\r?\n|$)"
+if ($buildInfo.ToLowerInvariant() -notmatch $commitPattern) {
     throw 'GF_DIAGNOSTICS_COMMIT_MISMATCH: BUILD-INFO does not contain the expected commit'
+}
+
+function Get-VerifiedTarget {
+    $current = Get-Process -Id $ProcessId -ErrorAction Stop
+    if ($current.ProcessName -notin @('GerenciadorFinal', 'GfToolProbe')) {
+        throw 'GF_DIAGNOSTICS_TARGET_CHANGED: process name changed'
+    }
+    $currentPath = (Resolve-Path -LiteralPath $current.MainModule.FileName).Path
+    if (-not $currentPath.Equals($processPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'GF_DIAGNOSTICS_TARGET_CHANGED: process path changed'
+    }
+    if ($current.StartTime.ToUniversalTime() -ne $targetStartTime) {
+        throw 'GF_DIAGNOSTICS_TARGET_CHANGED: process start time changed'
+    }
+    return $current
 }
 
 $null = New-Item -ItemType Directory -Path $outputRoot -Force
 $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-$shortCommit = $ExpectedCommit.Substring(0, 8).ToLowerInvariant()
-$tracePath = Join-Path $outputRoot "gf-$stamp-$shortCommit.nettrace"
-$countersPath = Join-Path $outputRoot "gf-$stamp-$shortCommit.csv"
-$metadataPath = Join-Path $outputRoot "gf-$stamp-$shortCommit.json"
+$shortCommit = $expectedCommitLower.Substring(0, 8)
+$collectionRoot = Join-Path $outputRoot "gf-$stamp-$shortCommit-$([Guid]::NewGuid().ToString('N'))"
+$null = New-Item -ItemType Directory -Path $collectionRoot -Force
+$tracePath = Join-Path $collectionRoot 'trace.nettrace'
+$countersPath = Join-Path $collectionRoot 'counters.csv'
+$metadataPath = Join-Path $collectionRoot 'metadata.json'
 $duration = [TimeSpan]::FromSeconds($DurationSeconds)
-$durationText = '{0:dd:hh:mm:ss}' -f $duration
+$durationText = '{0:dd\:hh\:mm\:ss}' -f $duration
 
 function Start-DiagnosticTool([string[]]$Arguments) {
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = 'dotnet'
     $info.UseShellExecute = $false
-    $info.RedirectStandardInput = $true
+    $info.RedirectStandardInput = $false
     foreach ($argument in $Arguments) { [void]$info.ArgumentList.Add($argument) }
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $info
@@ -60,48 +133,62 @@ function Start-DiagnosticTool([string[]]$Arguments) {
     return $process
 }
 
+function Wait-DiagnosticTool([Diagnostics.Process]$Process, [string]$Name) {
+    $timeoutMilliseconds = ($DurationSeconds + 120) * 1000
+    if (-not $Process.WaitForExit($timeoutMilliseconds)) {
+        # Only the diagnostic child is stopped; the GF process is never touched.
+        $Process.Kill()
+        $Process.WaitForExit()
+        throw "GF_DIAGNOSTICS_$($Name.ToUpperInvariant())_TIMEOUT"
+    }
+    if ($Process.ExitCode -ne 0) {
+        throw "GF_DIAGNOSTICS_$($Name.ToUpperInvariant())_FAILED: exit $($Process.ExitCode)"
+    }
+}
+
+$null = Get-VerifiedTarget
 $trace = Start-DiagnosticTool @(
     'tool', 'run', 'dotnet-trace', '--', 'collect',
     '--process-id', $ProcessId.ToString(),
     '--duration', $durationText,
+    '--resume-runtime:false',
     '--output', $tracePath
 )
-$trace.WaitForExit()
-if ($trace.ExitCode -ne 0) { throw "GF_DIAGNOSTICS_TRACE_FAILED: exit $($trace.ExitCode)" }
+Wait-DiagnosticTool $trace 'trace'
 
+$null = Get-VerifiedTarget
 $counters = Start-DiagnosticTool @(
     'tool', 'run', 'dotnet-counters', '--', 'collect',
     '--process-id', $ProcessId.ToString(),
+    '--duration', $durationText,
+    '--resume-runtime:false',
     '--refresh-interval', '1',
     '--format', 'csv',
     '--output', $countersPath
 )
-Start-Sleep -Seconds $DurationSeconds
-if (-not $counters.HasExited) {
-    $counters.StandardInput.WriteLine('q')
-    $counters.StandardInput.Flush()
-    if (-not $counters.WaitForExit(30000)) {
-        # Only the diagnostic child is stopped; the GF process is never touched.
-        $counters.Kill()
-        $counters.WaitForExit()
+Wait-DiagnosticTool $counters 'counters'
+
+foreach ($artifact in @($tracePath, $countersPath)) {
+    if (-not (Test-Path -LiteralPath $artifact -PathType Leaf) -or (Get-Item -LiteralPath $artifact).Length -eq 0) {
+        throw "GF_DIAGNOSTICS_ARTIFACT_MISSING: $artifact"
     }
 }
-if ($counters.ExitCode -ne 0) { throw "GF_DIAGNOSTICS_COUNTERS_FAILED: exit $($counters.ExitCode)" }
 
 $metadata = [ordered]@{
     tool = 'GF engineering diagnostics'
     scenario = $Scenario
-    expected_commit = $ExpectedCommit.ToLowerInvariant()
+    expected_commit = $expectedCommitLower
     process_id = $ProcessId
     process_name = $target.ProcessName
     process_path = $processPath
+    process_start_time_utc = $targetStartTime.ToString('O')
     captured_at_utc = [DateTime]::UtcNow.ToString('O')
     duration_seconds = $DurationSeconds
     trace = [IO.Path]::GetFileName($tracePath)
     counters = [IO.Path]::GetFileName($countersPath)
     target_started_by_script = $false
     target_stopped_by_script = $false
-    output_directory = $outputRoot
+    output_directory = $collectionRoot
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding utf8
 Write-Output ($metadata | ConvertTo-Json -Depth 5)
