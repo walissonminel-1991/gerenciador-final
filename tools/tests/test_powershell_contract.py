@@ -34,6 +34,8 @@ class PowerShellToolContractTests(unittest.TestCase):
         self.assertIn("Network", source)
         self.assertIn("repositoryDrive", source)
         self.assertIn("$Process.Kill($true)", source)
+        self.assertIn("GetFinalPathNameByHandle", source)
+        self.assertIn("BUILD_INFO_LINK_FORBIDDEN", source)
         self.assertIn("GetDirectoryName", source)
         self.assertNotIn("Split-Path -LiteralPath", source)
         self.assertIn("BUILD-INFO.txt", source)
