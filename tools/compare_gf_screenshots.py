@@ -14,7 +14,7 @@ from typing import Any
 try:
     import cv2
     import numpy as np
-except ModuleNotFoundError as error:  # pragma: no cover - exercised by CLI health checks
+except ImportError as error:  # pragma: no cover - exercised by CLI health checks
     _IMPORT_ERROR = error
     cv2 = None  # type: ignore[assignment]
     np = None  # type: ignore[assignment]
@@ -33,7 +33,10 @@ def _sha256(path: Path) -> str:
 def _load_rgba(path: Path) -> np.ndarray:
     if not path.is_file():
         raise ValueError(f"Image not found: {path}")
-    image = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    try:
+        image = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    except cv2.error as error:
+        raise ValueError(f"Image could not be decoded: {path}") from error
     if image is None:
         raise ValueError(f"Image could not be decoded: {path}")
     if image.dtype != np.uint8:
@@ -121,6 +124,13 @@ def write_report(path: str | Path, result: dict[str, Any]) -> None:
     )
 
 
+def _same_file(left: Path, right: Path) -> bool:
+    try:
+        return os.path.samefile(left, right)
+    except OSError:
+        return False
+
+
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("reference", type=Path)
@@ -154,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
             if any(
                 os.path.exists(input_path)
                 and os.path.exists(args.output)
-                and os.path.samefile(args.output, input_path)
+                and _same_file(args.output, input_path)
                 for input_path in (args.reference, args.candidate)
             ) or output_path in {
                 args.reference.resolve(strict=False),
