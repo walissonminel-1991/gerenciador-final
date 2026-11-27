@@ -32,6 +32,70 @@ function Test-SameOrDescendant([string]$Candidate, [string]$Parent) {
         $Candidate.StartsWith($parentPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
 }
 
+if (-not ('GfDiagnosticsNativePath' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+
+public static class GfDiagnosticsNativePath
+{
+    private const uint FileShareRead = 0x00000001;
+    private const uint FileShareWrite = 0x00000002;
+    private const uint FileShareDelete = 0x00000004;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFile(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(
+        SafeFileHandle file,
+        StringBuilder path,
+        uint bufferLength,
+        uint flags);
+
+    public static string GetFinalPath(string path)
+    {
+        using SafeFileHandle handle = CreateFile(
+            path,
+            0,
+            FileShareRead | FileShareWrite | FileShareDelete,
+            IntPtr.Zero,
+            OpenExisting,
+            FileFlagBackupSemantics,
+            IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        var buffer = new StringBuilder(32768);
+        uint length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, 0);
+        if (length == 0 || length >= buffer.Capacity)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        return buffer.ToString();
+    }
+}
+'@
+}
+
+function Get-PhysicalPath([string]$Path) {
+    return [GfDiagnosticsNativePath]::GetFinalPath($Path)
+}
+
 function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
     if (-not [IO.Path]::IsPathFullyQualified($Path)) {
         throw 'GF_DIAGNOSTICS_OUTPUT_ABSOLUTE_REQUIRED: choose an absolute local directory'
@@ -62,7 +126,9 @@ function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
         if ([string]::IsNullOrEmpty($parent) -or $parent -eq $cursor) { break }
         $cursor = $parent
     }
-    $root = [IO.Path]::GetPathRoot($existingItem.FullName)
+    $physicalRepositoryRoot = Get-PhysicalPath $RepositoryRoot
+    $physicalExistingRoot = Get-PhysicalPath $existingItem.FullName
+    $root = [IO.Path]::GetPathRoot($physicalExistingRoot)
     if ($root.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase)) {
         throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
     }
@@ -70,7 +136,7 @@ function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
     if ($drive.DriveType -eq [IO.DriveType]::Network) {
         throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
     }
-    $repositoryDrive = [IO.Path]::GetPathRoot($RepositoryRoot)
+    $repositoryDrive = [IO.Path]::GetPathRoot($physicalRepositoryRoot)
     if (-not $root.Equals($repositoryDrive, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'GF_DIAGNOSTICS_OUTPUT_VOLUME_REQUIRED: choose a directory on the repository local volume'
     }
@@ -94,6 +160,10 @@ $buildInfoRoot = [IO.Path]::GetDirectoryName($buildInfoFile)
 if ([IO.Path]::GetFileName($buildInfoFile) -ine 'BUILD-INFO.txt') {
     throw 'GF_DIAGNOSTICS_BUILD_INFO_NAME_REQUIRED: use the official BUILD-INFO.txt'
 }
+$buildInfoItem = Get-Item -LiteralPath $buildInfoFile -Force
+if ($null -ne $buildInfoItem.LinkType -or $null -ne $buildInfoItem.Target) {
+    throw 'GF_DIAGNOSTICS_BUILD_INFO_LINK_FORBIDDEN: BUILD-INFO.txt must be a regular file'
+}
 $expectedCommitLower = $ExpectedCommit.ToLowerInvariant()
 
 $target = Get-Process -Id $ProcessId -ErrorAction Stop
@@ -104,6 +174,11 @@ $processPath = (Resolve-Path -LiteralPath $target.MainModule.FileName).Path
 $processRoot = [IO.Path]::GetDirectoryName($processPath)
 if (-not $processRoot.Equals($buildInfoRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'GF_DIAGNOSTICS_BUILD_BINDING_MISMATCH: BUILD-INFO must be beside the observed executable'
+}
+$physicalProcessRoot = [IO.Path]::GetDirectoryName((Get-PhysicalPath $processPath))
+$physicalBuildInfoRoot = [IO.Path]::GetDirectoryName((Get-PhysicalPath $buildInfoFile))
+if (-not $physicalProcessRoot.Equals($physicalBuildInfoRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'GF_DIAGNOSTICS_BUILD_BINDING_MISMATCH: BUILD-INFO physical directory differs from executable'
 }
 $targetStartTime = $target.StartTime.ToUniversalTime()
 $buildInfo = Get-Content -LiteralPath $buildInfoFile -Raw
