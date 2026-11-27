@@ -7,6 +7,14 @@
 - Não reiniciar auditorias já comprovadas no mesmo SHA, nem recuperar decisões descartadas. Última decisão explícita do proprietário prevalece; resolver divergências com rastreabilidade, não por preferência do agente.
 - Delimitar um objetivo funcional completo e seus impactos. Uma única integração #113; frentes especializadas não produzem versões concorrentes nem sobrescrevem trabalho alheio.
 
+## Avaliação de ferramentas antes de soluções próprias
+
+Antes de criar uma solução própria complexa, pesquisar ferramentas, bibliotecas, SDKs, analisadores, depuradores, plugins ou servidores MCP maduros que possam resolver o problema com maior eficiência, segurança e custo zero. Avaliar somente opções compatíveis com o produto, a licença, a manutenção, a privacidade, a reversibilidade e as áreas protegidas.
+
+Ferramentas de desenvolvimento, teste e diagnóstico permanecem fora do EXE/ZIP e não alteram o produto por si só. A adoção exige escopo explícito e prova de valor; não instalar silenciosamente, não enviar código/logs privados a serviços externos e não criar nova infraestrutura.
+
+Quando uma ferramenta ou melhoria metodológica for comprovadamente benéfica, consolidar a regra ou decisão nesta fonte de autoridade e na seção vigente correspondente, para que nenhuma evolução fique restrita à memória de uma IA, a uma conversa ou a comentários. Não criar documento, relatório, gate ou protocolo paralelo quando a regra puder ser incorporada ao ciclo já existente.
+
 ## Ciclo de trabalho extenso e consolidado
 1. Investigar causa, contrato e caminho de produção; conferir a implementação ativa e as substituídas.
 2. Preparar alteração causal e testes positivos/negativos, preservando segurança, identidade e autorização. Reutilizar infraestrutura compartilhada. Não apagar código por nome, nem reimplementar o que já existe.
