@@ -45,7 +45,7 @@ class PowerShellToolContractTests(unittest.TestCase):
         self.assertIn("TryParse", source)
 
     def test_probe_is_excluded_from_product_project(self):
-        project_path = ROOT.parent.parent / "GerenciadorAplicativos.csproj"
+        project_path = ROOT.parent / "GerenciadorAplicativos.csproj"
         if not project_path.exists():
             self.skipTest("full repository is not mounted in this scratch workspace")
         source = project_path.read_text(encoding="utf-8")
