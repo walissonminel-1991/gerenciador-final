@@ -7,7 +7,10 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$expectedSdk = '10.0.402'
+$globalJson = Get-Content -LiteralPath (Join-Path $root 'global.json') -Raw | ConvertFrom-Json
+$expectedSdk = $globalJson.sdk.version
+$expectedSdkVersion = [version]$expectedSdk
+$expectedFeatureBand = [math]::Floor($expectedSdkVersion.Build / 100) * 100
 $expectedToolVersion = '10.0.750501'
 $expectedOpenCvVersion = '5.1.0.95'
 $expectedNumpyVersion = '2.4.5'
@@ -38,8 +41,16 @@ try {
 
     if ($null -ne $dotnet) {
         $sdkVersion = (& $dotnet.Source --version 2>&1 | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0 -or $sdkVersion -ne $expectedSdk) {
-            Add-Failure "Expected .NET SDK $expectedSdk; found '$sdkVersion'"
+    $actualSdkVersion = $null
+    $sdkCompatible = $false
+    if ($LASTEXITCODE -eq 0 -and [version]::TryParse($sdkVersion, [ref]$actualSdkVersion)) {
+        $sdkCompatible = $actualSdkVersion.Major -eq $expectedSdkVersion.Major -and
+            $actualSdkVersion.Minor -eq $expectedSdkVersion.Minor -and
+            $actualSdkVersion.Build -ge $expectedFeatureBand -and
+            $actualSdkVersion.Build -lt ($expectedFeatureBand + 100)
+    }
+    if (-not $sdkCompatible) {
+        Add-Failure "Expected .NET SDK feature band $expectedSdk; found '$sdkVersion'"
         }
 
         $manifestPath = Join-Path $root '.config/dotnet-tools.json'
@@ -66,9 +77,9 @@ try {
         if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11.0') {
             Add-Failure "Python 3.11 or newer is required; found '$pythonVersion'"
         }
-        $pythonImports = (& $python.Source -c 'import importlib.metadata as m; print(m.version("opencv-python-headless") + " / " + m.version("numpy"))' 2>&1 | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0 -or $pythonImports -ne "$expectedOpenCvVersion / $expectedNumpyVersion") {
-            Add-Failure "Pinned Python distributions unavailable: $pythonImports"
+        $pythonImports = (& $python.Source -c 'import cv2, importlib.metadata as m; print(cv2.__version__ + " / " + m.version("opencv-python-headless") + " / " + m.version("numpy"))' 2>&1 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $pythonImports -ne "$expectedOpenCvVersion / $expectedOpenCvVersion / $expectedNumpyVersion") {
+            Add-Failure "Pinned Python/OpenCV distributions unavailable: $pythonImports"
         }
     }
 } finally {
