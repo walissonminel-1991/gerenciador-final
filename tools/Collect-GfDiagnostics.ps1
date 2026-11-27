@@ -45,15 +45,22 @@ function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
 
     $existing = $Path
     while (-not (Test-Path -LiteralPath $existing)) {
-        $parent = Split-Path -LiteralPath $existing -Parent
+        $parent = [IO.Path]::GetDirectoryName($existing)
         if ([string]::IsNullOrEmpty($parent) -or $parent -eq $existing) {
             throw 'GF_DIAGNOSTICS_OUTPUT_PARENT_INVALID'
         }
         $existing = $parent
     }
     $existingItem = Get-Item -LiteralPath $existing -Force
-    if ($null -ne $existingItem.LinkType -or $null -ne $existingItem.Target) {
-        throw 'GF_DIAGNOSTICS_OUTPUT_LINK_FORBIDDEN: choose a non-linked local directory'
+    $cursor = $existingItem.FullName
+    while ($true) {
+        $cursorItem = Get-Item -LiteralPath $cursor -Force
+        if ($null -ne $cursorItem.LinkType -or $null -ne $cursorItem.Target) {
+            throw 'GF_DIAGNOSTICS_OUTPUT_LINK_FORBIDDEN: choose a non-linked local directory'
+        }
+        $parent = [IO.Path]::GetDirectoryName($cursor)
+        if ([string]::IsNullOrEmpty($parent) -or $parent -eq $cursor) { break }
+        $cursor = $parent
     }
     $root = [IO.Path]::GetPathRoot($existingItem.FullName)
     if ($root.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase)) {
@@ -72,11 +79,17 @@ function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+if (-not [IO.Path]::IsPathFullyQualified($OutputDirectory)) {
+    throw 'GF_DIAGNOSTICS_OUTPUT_ABSOLUTE_REQUIRED: choose an absolute local directory'
+}
 $outputRoot = Get-FullPath $OutputDirectory
 Assert-LocalOutputRoot $outputRoot $repoRoot
 
 $buildInfoFile = (Resolve-Path -LiteralPath $BuildInfoPath).Path
-$buildInfoRoot = Split-Path -LiteralPath $buildInfoFile -Parent
+$buildInfoRoot = [IO.Path]::GetDirectoryName($buildInfoFile)
+if ([IO.Path]::GetFileName($buildInfoFile) -ine 'BUILD-INFO.txt') {
+    throw 'GF_DIAGNOSTICS_BUILD_INFO_NAME_REQUIRED: use the official BUILD-INFO.txt'
+}
 $expectedCommitLower = $ExpectedCommit.ToLowerInvariant()
 
 $target = Get-Process -Id $ProcessId -ErrorAction Stop
@@ -84,7 +97,7 @@ if ($target.ProcessName -notin @('GerenciadorFinal', 'GfToolProbe')) {
     throw "GF_DIAGNOSTICS_TARGET_REJECTED: unexpected process '$($target.ProcessName)'"
 }
 $processPath = (Resolve-Path -LiteralPath $target.MainModule.FileName).Path
-$processRoot = Split-Path -LiteralPath $processPath -Parent
+$processRoot = [IO.Path]::GetDirectoryName($processPath)
 if (-not $processRoot.Equals($buildInfoRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'GF_DIAGNOSTICS_BUILD_BINDING_MISMATCH: BUILD-INFO must be beside the observed executable'
 }
