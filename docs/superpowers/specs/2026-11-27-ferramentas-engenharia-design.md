@@ -157,3 +157,15 @@ Traces, imagens e logs permanecem locais por padrão. Nenhum arquivo privado ser
 ## Próxima etapa
 
 Após aprovação formal deste design, preparar um plano de implementação em incrementos pequenos, começando por manifesto, verificação de ferramentas, scripts de trace/counters, comparação visual e documentação. A integração do FlaUI será uma decisão condicional posterior, não parte automática do primeiro incremento.
+
+## Consolidação metodológica no AGENTS.md
+
+A solicitação do proprietário inclui uma alteração permanente de método, não apenas a criação do kit. O plano deve atualizar o AGENTS.md existente, preservando sua estrutura e decisões, com uma regra curta e não redundante:
+
+- antes de criar uma solução própria complexa, pesquisar e avaliar ferramenta, biblioteca, SDK ou plugin maduro que possa resolver o problema com maior eficiência, segurança e custo zero;
+- escolher a ferramenta somente após verificar compatibilidade, licença, privacidade, manutenção, impacto no produto, reversibilidade e valor demonstrável;
+- manter ferramentas de desenvolvimento/teste fora do produto distribuído, salvo autorização explícita;
+- quando uma melhoria metodológica for comprovada, consolidá-la no AGENTS.md ou na seção vigente correspondente, em vez de deixá-la apenas na memória de uma IA, em comentários ou em documentos paralelos;
+- não criar uma nova obrigação, relatório ou protocolo se a regra puder ser incorporada a um passo já existente do ciclo de investigação, teste ou evidência.
+
+A consolidação deve permanecer subordinada ao proprietário, ao HEAD vigente, à autoridade do produto, ao orçamento zero, à privacidade e às áreas protegidas. Ela não autoriza automaticamente instalar ferramentas, mudar workflows, alterar gates ou transformar uma ferramenta em funcionalidade do GF.
