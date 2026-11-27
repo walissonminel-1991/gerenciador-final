@@ -1,5 +1,6 @@
 import pathlib
 import unittest
+import xml.etree.ElementTree as ET
 
 
 ROOT = pathlib.Path(__file__).parents[1]
@@ -31,6 +32,8 @@ class PowerShellToolContractTests(unittest.TestCase):
         self.assertIn("--resume-runtime:false", source)
         self.assertIn("$collectionRoot", source)
         self.assertIn("Network", source)
+        self.assertIn("repositoryDrive", source)
+        self.assertIn("$Process.Kill($true)", source)
         self.assertIn("GetDirectoryName", source)
         self.assertNotIn("Split-Path -LiteralPath", source)
         self.assertIn("BUILD-INFO.txt", source)
@@ -49,8 +52,9 @@ class PowerShellToolContractTests(unittest.TestCase):
         project_path = ROOT.parent / "GerenciadorAplicativos.csproj"
         if not project_path.exists():
             self.skipTest("full repository is not mounted in this scratch workspace")
-        source = project_path.read_text(encoding="utf-8")
-        self.assertIn('<Compile Remove="tools/**/*.cs" />', source)
+        project = ET.fromstring(project_path.read_text(encoding="utf-8"))
+        removes = [node.attrib.get("Remove", "") for node in project.iter() if node.tag.endswith("Compile")]
+        self.assertTrue(any("tools/**/*.cs" in value.split(";") for value in removes))
 
 
 if __name__ == "__main__":
