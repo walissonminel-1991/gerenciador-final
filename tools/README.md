@@ -56,7 +56,7 @@ A coleta:
 - exige o SHA esperado no BUILD-INFO ao lado do executável observado e verifica nome, caminho e horário de início do mesmo PID antes de cada coleta;
 - exige uma duração entre 5 e 600 segundos e passa essa duração aos dois coletores;
 - mantém o runtime do alvo suspenso quando aplicável, sem usar entrada interativa ou enviar Q;
-- exige um diretório absoluto em volume local, fora da árvore do repositório, e cria uma pasta única por coleta;
+- exige um diretório absoluto no mesmo volume local do repositório, fora da árvore do repositório, e cria uma pasta única por coleta;
 - grava .nettrace, CSV e JSON somente nessa pasta externa;
 - não inicia, fecha, reinicia, eleva ou interage com o processo-alvo, nem envia arquivos para serviços externos.
 
