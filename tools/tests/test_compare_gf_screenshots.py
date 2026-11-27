@@ -82,9 +82,20 @@ class ScreenshotComparisonTests(unittest.TestCase):
         exit_code = main([str(self.reference), str(self.candidate), "--output", str(self.reference)])
         self.assertEqual(exit_code, 2)
 
+    def test_report_cannot_overwrite_a_hard_link_to_an_input_image(self):
+        hard_link = self.root / "candidate-hard-link.png"
+        try:
+            hard_link.hardlink_to(self.candidate)
+        except (AttributeError, OSError):
+            self.skipTest("hard links are unavailable in this environment")
+        exit_code = main([str(self.reference), str(self.candidate), "--output", str(hard_link)])
+        self.assertEqual(exit_code, 2)
+
     def test_missing_dependency_has_documented_exit_code(self):
         source = (ROOT / "compare_gf_screenshots.py").read_text(encoding="utf-8")
         self.assertIn("return 3", source)
+        self.assertIn("except ImportError", source)
+        self.assertIn("cv2.error", source)
 
 
 if __name__ == "__main__":
