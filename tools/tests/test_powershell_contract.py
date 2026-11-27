@@ -35,6 +35,7 @@ class PowerShellToolContractTests(unittest.TestCase):
         self.assertNotIn("Split-Path -LiteralPath", source)
         self.assertIn("BUILD-INFO.txt", source)
         self.assertIn("IsPathFullyQualified($OutputDirectory)", source)
+        self.assertIn("WorkingDirectory = $repoRoot", source)
 
     def test_health_check_runs_from_repo_and_checks_distributions(self):
         source = (ROOT / "Check-GfEngineeringTools.ps1").read_text(encoding="utf-8")
