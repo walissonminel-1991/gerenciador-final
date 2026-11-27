@@ -31,12 +31,18 @@ class PowerShellToolContractTests(unittest.TestCase):
         self.assertIn("--resume-runtime:false", source)
         self.assertIn("$collectionRoot", source)
         self.assertIn("Network", source)
+        self.assertIn("GetDirectoryName", source)
+        self.assertNotIn("Split-Path -LiteralPath", source)
+        self.assertIn("BUILD-INFO.txt", source)
+        self.assertIn("IsPathFullyQualified($OutputDirectory)", source)
 
     def test_health_check_runs_from_repo_and_checks_distributions(self):
         source = (ROOT / "Check-GfEngineeringTools.ps1").read_text(encoding="utf-8")
         self.assertIn("Push-Location -LiteralPath $root", source)
         self.assertIn("opencv-python-headless", source)
         self.assertIn("importlib.metadata", source)
+        self.assertIn("import cv2", source)
+        self.assertIn("TryParse", source)
 
     def test_probe_is_excluded_from_product_project(self):
         project_path = ROOT.parent.parent / "GerenciadorAplicativos.csproj"
