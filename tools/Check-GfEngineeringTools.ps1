@@ -9,6 +9,8 @@ Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $expectedSdk = '10.0.402'
 $expectedToolVersion = '10.0.750501'
+$expectedOpenCvVersion = '5.1.0.95'
+$expectedNumpyVersion = '2.4.5'
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Add-Failure([string]$Message) {
@@ -29,38 +31,53 @@ if ($null -eq $git) { Add-Failure 'git is missing' }
 if ($null -eq $dotnet) { Add-Failure 'dotnet is missing' }
 if ($null -eq $python) { Add-Failure 'python is missing' }
 
-if ($null -ne $dotnet) {
-    $sdkVersion = (& $dotnet.Source --version 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $sdkVersion -ne $expectedSdk) {
-        Add-Failure "Expected .NET SDK $expectedSdk; found '$sdkVersion'"
-    }
+$previousTelemetry = $env:DOTNET_CLI_TELEMETRY_OPTOUT
+try {
+    Push-Location -LiteralPath $root
+    $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 
-    $manifestPath = Join-Path $root '.config/dotnet-tools.json'
-    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-        Add-Failure 'Local .NET tool manifest is missing'
-    } else {
-        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-        foreach ($toolName in @('dotnet-trace', 'dotnet-counters')) {
-            $tool = $manifest.tools.$toolName
-            if ($null -eq $tool -or $tool.version -ne $expectedToolVersion) {
-                Add-Failure "$toolName is not pinned to $expectedToolVersion"
-            } else {
-                $toolOutput = (& $dotnet.Source tool run $toolName -- --version 2>&1 | Out-String).Trim()
-                if ($LASTEXITCODE -ne 0 -or $toolOutput -notmatch [regex]::Escape($expectedToolVersion)) {
-                    Add-Failure "$toolName is not restored or has an unexpected version: $toolOutput"
+    if ($null -ne $dotnet) {
+        $sdkVersion = (& $dotnet.Source --version 2>&1 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $sdkVersion -ne $expectedSdk) {
+            Add-Failure "Expected .NET SDK $expectedSdk; found '$sdkVersion'"
+        }
+
+        $manifestPath = Join-Path $root '.config/dotnet-tools.json'
+        if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+            Add-Failure 'Local .NET tool manifest is missing'
+        } else {
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            foreach ($toolName in @('dotnet-trace', 'dotnet-counters')) {
+                $tool = $manifest.tools.$toolName
+                if ($null -eq $tool -or $tool.version -ne $expectedToolVersion) {
+                    Add-Failure "$toolName is not pinned to $expectedToolVersion"
+                } else {
+                    $toolOutput = (& $dotnet.Source tool run $toolName -- --version 2>&1 | Out-String).Trim()
+                    if ($LASTEXITCODE -ne 0 -or $toolOutput -notmatch [regex]::Escape($expectedToolVersion)) {
+                        Add-Failure "$toolName is not restored or has an unexpected version: $toolOutput"
+                    }
                 }
             }
         }
     }
-}
 
-if ($null -ne $python) {
-    $pythonVersion = (& $python.Source -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11.0') {
-        Add-Failure "Python 3.11 or newer is required; found '$pythonVersion'"
+    if ($null -ne $python) {
+        $pythonVersion = (& $python.Source -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>&1 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11.0') {
+            Add-Failure "Python 3.11 or newer is required; found '$pythonVersion'"
+        }
+        $pythonImports = (& $python.Source -c 'import importlib.metadata as m; print(m.version("opencv-python-headless") + " / " + m.version("numpy"))' 2>&1 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $pythonImports -ne "$expectedOpenCvVersion / $expectedNumpyVersion") {
+            Add-Failure "Pinned Python distributions unavailable: $pythonImports"
+        }
     }
-    $pythonImports = (& $python.Source -c 'import cv2, numpy; print(cv2.__version__ + " / " + numpy.__version__)' 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) { Add-Failure "Python OpenCV/NumPy unavailable: $pythonImports" }
+} finally {
+    Pop-Location
+    if ($null -eq $previousTelemetry) {
+        Remove-Item Env:DOTNET_CLI_TELEMETRY_OPTOUT -ErrorAction SilentlyContinue
+    } else {
+        $env:DOTNET_CLI_TELEMETRY_OPTOUT = $previousTelemetry
+    }
 }
 
 $optional = [ordered]@{}
@@ -75,6 +92,7 @@ $result = [ordered]@{
     root = $root
     expected_sdk = $expectedSdk
     expected_dotnet_tools = $expectedToolVersion
+    expected_python_distributions = "$expectedOpenCvVersion / $expectedNumpyVersion"
     optional_tools = $optional
     failures = @($failures)
 }
