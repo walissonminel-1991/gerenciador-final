@@ -64,7 +64,7 @@ Traces e caminhos podem conter informações sensíveis. Mantenha-os locais e fa
 
 ## Comparação visual
 
-O comparador exige imagens RGBA de 8 bits e igualdade exata por padrão:
+O comparador normaliza entradas de 8 bits (cinza, BGR ou RGBA) para RGBA e exige igualdade exata por padrão:
 
     python tools/compare_gf_screenshots.py reference.png candidate.png --output report.json
 
