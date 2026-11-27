@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -150,7 +151,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.output:
             output_path = args.output.resolve(strict=False)
-            if output_path in {
+            if any(
+                os.path.exists(input_path)
+                and os.path.exists(args.output)
+                and os.path.samefile(args.output, input_path)
+                for input_path in (args.reference, args.candidate)
+            ) or output_path in {
                 args.reference.resolve(strict=False),
                 args.candidate.resolve(strict=False),
             }:
