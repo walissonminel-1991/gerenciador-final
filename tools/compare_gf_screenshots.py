@@ -14,8 +14,11 @@ try:
     import cv2
     import numpy as np
 except ModuleNotFoundError as error:  # pragma: no cover - exercised by CLI health checks
-    print(f"GF_SCREENSHOT_COMPARE_DEPENDENCY_MISSING: {error}", file=sys.stderr)
-    raise
+    _IMPORT_ERROR = error
+    cv2 = None  # type: ignore[assignment]
+    np = None  # type: ignore[assignment]
+else:
+    _IMPORT_ERROR = None
 
 
 def _sha256(path: Path) -> str:
@@ -32,6 +35,8 @@ def _load_rgba(path: Path) -> np.ndarray:
     image = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
     if image is None:
         raise ValueError(f"Image could not be decoded: {path}")
+    if image.dtype != np.uint8:
+        raise ValueError(f"Only 8-bit screenshots are supported: {path}")
     if image.ndim == 2:
         return cv2.cvtColor(image, cv2.COLOR_GRAY2RGBA)
     if image.ndim != 3:
@@ -132,8 +137,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if _IMPORT_ERROR is not None:
+        print(f"GF_SCREENSHOT_COMPARE_DEPENDENCY_MISSING: {_IMPORT_ERROR}", file=sys.stderr)
+        return 3
     try:
-        args = _parse_args(argv or sys.argv[1:])
+        args = _parse_args(argv if argv is not None else sys.argv[1:])
         result = compare_images(
             args.reference,
             args.candidate,
@@ -141,6 +149,12 @@ def main(argv: list[str] | None = None) -> int:
             region=tuple(args.region) if args.region else None,
         )
         if args.output:
+            output_path = args.output.resolve(strict=False)
+            if output_path in {
+                args.reference.resolve(strict=False),
+                args.candidate.resolve(strict=False),
+            }:
+                raise ValueError("Report output must not overwrite an input image")
             write_report(args.output, result)
         else:
             print(json.dumps(result, ensure_ascii=False, indent=2))
