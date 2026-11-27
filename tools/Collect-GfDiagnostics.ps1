@@ -48,6 +48,24 @@ public static class GfDiagnosticsNativePath
     private const uint OpenExisting = 3;
     private const uint FileFlagBackupSemantics = 0x02000000;
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public uint CreationTimeLow;
+        public uint CreationTimeHigh;
+        public uint LastAccessTimeLow;
+        public uint LastAccessTimeHigh;
+        public uint LastWriteTimeLow;
+        public uint LastWriteTimeHigh;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFileHandle CreateFile(
         string fileName,
@@ -64,6 +82,11 @@ public static class GfDiagnosticsNativePath
         StringBuilder path,
         uint bufferLength,
         uint flags);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandle(
+        SafeFileHandle file,
+        out ByHandleFileInformation information);
 
     public static string GetFinalPath(string path)
     {
@@ -88,12 +111,50 @@ public static class GfDiagnosticsNativePath
         }
         return buffer.ToString();
     }
+
+    public static uint GetLinkCount(string path)
+    {
+        using SafeFileHandle handle = CreateFile(
+            path,
+            0,
+            FileShareRead | FileShareWrite | FileShareDelete,
+            IntPtr.Zero,
+            OpenExisting,
+            0,
+            IntPtr.Zero);
+        if (handle.IsInvalid || !GetFileInformationByHandle(handle, out ByHandleFileInformation information))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        return information.NumberOfLinks;
+    }
 }
 '@
 }
 
 function Get-PhysicalPath([string]$Path) {
     return [GfDiagnosticsNativePath]::GetFinalPath($Path)
+}
+
+function Test-NetworkPhysicalPath([string]$Path) {
+    return $Path.StartsWith('\\?\UNC\', [StringComparison]::OrdinalIgnoreCase) -or
+        ($Path.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase) -and
+            -not $Path.StartsWith('\\?\', [StringComparison]::OrdinalIgnoreCase))
+}
+
+function Get-PhysicalVolumeIdentity([string]$Path) {
+    if ($Path.StartsWith('\\?\UNC\', [StringComparison]::OrdinalIgnoreCase)) {
+        $parts = $Path.Substring(8).Split('\')
+        return 'UNC:' + ($parts[0] + '\' + $parts[1])
+    }
+    if ($Path.StartsWith('\\?\', [StringComparison]::OrdinalIgnoreCase)) {
+        return 'LOCAL:' + $Path.Substring(4).Split('\')[0]
+    }
+    if ($Path.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase)) {
+        $parts = $Path.Substring(2).Split('\')
+        return 'UNC:' + ($parts[0] + '\' + $parts[1])
+    }
+    return 'LOCAL:' + [IO.Path]::GetPathRoot($Path)
 }
 
 function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
@@ -127,17 +188,19 @@ function Assert-LocalOutputRoot([string]$Path, [string]$RepositoryRoot) {
         $cursor = $parent
     }
     $physicalRepositoryRoot = Get-PhysicalPath $RepositoryRoot
-    $physicalExistingRoot = Get-PhysicalPath $existingItem.FullName
-    $root = [IO.Path]::GetPathRoot($physicalExistingRoot)
-    if ($root.StartsWith('\\', [StringComparison]::OrdinalIgnoreCase)) {
+    $physicalExistingPath = Get-PhysicalPath $existingItem.FullName
+    if (Test-SameOrDescendant $physicalExistingPath $physicalRepositoryRoot) {
+        throw 'GF_DIAGNOSTICS_OUTPUT_IN_SOURCE: physical destination is inside the repository'
+    }
+    if (Test-NetworkPhysicalPath $physicalExistingPath) {
         throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
     }
-    $drive = [IO.DriveInfo]::new($root)
-    if ($drive.DriveType -eq [IO.DriveType]::Network) {
+    if (Test-NetworkPhysicalPath $physicalRepositoryRoot) {
         throw 'GF_DIAGNOSTICS_OUTPUT_NETWORK_FORBIDDEN: choose a local volume'
     }
-    $repositoryDrive = [IO.Path]::GetPathRoot($physicalRepositoryRoot)
-    if (-not $root.Equals($repositoryDrive, [StringComparison]::OrdinalIgnoreCase)) {
+    $physicalVolume = Get-PhysicalVolumeIdentity $physicalExistingPath
+    $repositoryVolume = Get-PhysicalVolumeIdentity $physicalRepositoryRoot
+    if (-not $physicalVolume.Equals($repositoryVolume, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'GF_DIAGNOSTICS_OUTPUT_VOLUME_REQUIRED: choose a directory on the repository local volume'
     }
     if (Test-Path -LiteralPath $Path) {
@@ -163,6 +226,9 @@ if ([IO.Path]::GetFileName($buildInfoFile) -ine 'BUILD-INFO.txt') {
 $buildInfoItem = Get-Item -LiteralPath $buildInfoFile -Force
 if ($null -ne $buildInfoItem.LinkType -or $null -ne $buildInfoItem.Target) {
     throw 'GF_DIAGNOSTICS_BUILD_INFO_LINK_FORBIDDEN: BUILD-INFO.txt must be a regular file'
+}
+if ([GfDiagnosticsNativePath]::GetLinkCount($buildInfoFile) -ne 1) {
+    throw 'GF_DIAGNOSTICS_BUILD_INFO_LINK_FORBIDDEN: BUILD-INFO.txt must have one link'
 }
 $expectedCommitLower = $ExpectedCommit.ToLowerInvariant()
 
