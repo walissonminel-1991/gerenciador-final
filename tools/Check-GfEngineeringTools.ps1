@@ -1,0 +1,82 @@
+[CmdletBinding()]
+param(
+    [switch]$SkipOptionalWindowsTools
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$expectedSdk = '10.0.402'
+$expectedToolVersion = '10.0.750501'
+$failures = [System.Collections.Generic.List[string]]::new()
+
+function Add-Failure([string]$Message) {
+    $failures.Add($Message)
+}
+
+function Get-CommandOrNull([string]$Name) {
+    return Get-Command $Name -ErrorAction SilentlyContinue
+}
+
+if ($env:OS -ne 'Windows_NT') { Add-Failure 'Windows_NT is required' }
+if ($PSVersionTable.PSVersion.Major -lt 7) { Add-Failure 'PowerShell 7 or newer is required' }
+
+$git = Get-CommandOrNull 'git'
+$dotnet = Get-CommandOrNull 'dotnet'
+$python = Get-CommandOrNull 'python'
+if ($null -eq $git) { Add-Failure 'git is missing' }
+if ($null -eq $dotnet) { Add-Failure 'dotnet is missing' }
+if ($null -eq $python) { Add-Failure 'python is missing' }
+
+if ($null -ne $dotnet) {
+    $sdkVersion = (& $dotnet.Source --version 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $sdkVersion -ne $expectedSdk) {
+        Add-Failure "Expected .NET SDK $expectedSdk; found '$sdkVersion'"
+    }
+
+    $manifestPath = Join-Path $root '.config/dotnet-tools.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        Add-Failure 'Local .NET tool manifest is missing'
+    } else {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        foreach ($toolName in @('dotnet-trace', 'dotnet-counters')) {
+            $tool = $manifest.tools.$toolName
+            if ($null -eq $tool -or $tool.version -ne $expectedToolVersion) {
+                Add-Failure "$toolName is not pinned to $expectedToolVersion"
+            } else {
+                $toolOutput = (& $dotnet.Source tool run $toolName -- --version 2>&1 | Out-String).Trim()
+                if ($LASTEXITCODE -ne 0 -or $toolOutput -notmatch [regex]::Escape($expectedToolVersion)) {
+                    Add-Failure "$toolName is not restored or has an unexpected version: $toolOutput"
+                }
+            }
+        }
+    }
+}
+
+if ($null -ne $python) {
+    $pythonVersion = (& $python.Source -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11.0') {
+        Add-Failure "Python 3.11 or newer is required; found '$pythonVersion'"
+    }
+    $pythonImports = (& $python.Source -c 'import cv2, numpy; print(cv2.__version__ + " / " + numpy.__version__)' 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { Add-Failure "Python OpenCV/NumPy unavailable: $pythonImports" }
+}
+
+$optional = [ordered]@{}
+if (-not $SkipOptionalWindowsTools) {
+    foreach ($toolName in @('wpr.exe', 'wpa.exe', 'PerfView.exe')) {
+        $optional[$toolName] = $null -ne (Get-CommandOrNull $toolName)
+    }
+}
+
+$result = [ordered]@{
+    ok = $failures.Count -eq 0
+    root = $root
+    expected_sdk = $expectedSdk
+    expected_dotnet_tools = $expectedToolVersion
+    optional_tools = $optional
+    failures = @($failures)
+}
+$result | ConvertTo-Json -Depth 5
+if ($failures.Count -gt 0) { exit 1 }
