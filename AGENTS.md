@@ -15,6 +15,18 @@ Ferramentas de desenvolvimento, teste e diagnóstico permanecem fora do EXE/ZIP 
 
 Quando uma ferramenta ou melhoria metodológica for comprovadamente benéfica, consolidar a regra ou decisão nesta fonte de autoridade e na seção vigente correspondente, para que nenhuma evolução fique restrita à memória de uma IA, a uma conversa ou a comentários. Não criar documento, relatório, gate ou protocolo paralelo quando a regra puder ser incorporada ao ciclo já existente.
 
+
+A aplicação corrente desta avaliação é:
+- analisadores Roslyn do SDK, inicialmente como sugestões não bloqueantes, para descobrir riscos sem converter diagnóstico em gate prematuro;
+- `dotnet-trace` e `dotnet-counters` versionados no manifesto local, anexados somente a um PID explicitamente autorizado e com saídas locais;
+- PerfView, Windows Performance Recorder/Analyzer e ferramentas equivalentes somente para investigação externa de desempenho, sem incorporá-las ao produto;
+- Git Bisect para localizar regressões reproduzíveis, preservando a branch, o SHA e as áreas protegidas;
+- Python com OpenCV headless para comparação objetiva de capturas, exata por padrão e com tolerância/região somente quando declaradas;
+- uma aplicação WinForms sintética isolada para validar a cadeia de ferramentas antes de qualquer uso no GF; a prova sintética não substitui homologação física;
+- automação nativa de acessibilidade/UI Automation como primeira opção para interação real; FlaUI permanece apenas uma alternativa a avaliar se a UI Automation nativa se mostrar insuficiente.
+
+Plugins, extensões de IDE e servidores MCP podem acelerar leitura, diagnóstico e validação, mas são auxiliares de desenvolvimento: não entram no EXE/ZIP, não recebem código ou logs privados sem autorização, não criam infraestrutura e não substituem os contratos, o HEAD, os testes nem a homologação do GF.
+
 ## Ciclo de trabalho extenso e consolidado
 1. Investigar causa, contrato e caminho de produção; conferir a implementação ativa e as substituídas.
 2. Preparar alteração causal e testes positivos/negativos, preservando segurança, identidade e autorização. Reutilizar infraestrutura compartilhada. Não apagar código por nome, nem reimplementar o que já existe.
