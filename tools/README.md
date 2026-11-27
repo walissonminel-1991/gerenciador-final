@@ -53,20 +53,22 @@ Com o processo autorizado já aberto, localize o PID e forneça metadados do bui
 A coleta:
 
 - anexa aos processos GerenciadorFinal ou GfToolProbe;
-- exige o SHA esperado no BUILD-INFO;
-- exige uma duração entre 5 e 600 segundos;
-- grava .nettrace, CSV e JSON fora da árvore do repositório;
-- não inicia, fecha, reinicia, eleva ou interage com o processo-alvo;
-- pode encerrar somente o processo auxiliar dotnet-counters após enviar Q;
-- não envia arquivos para serviços externos.
+- exige o SHA esperado no BUILD-INFO ao lado do executável observado e verifica nome, caminho e horário de início do mesmo PID antes de cada coleta;
+- exige uma duração entre 5 e 600 segundos e passa essa duração aos dois coletores;
+- mantém o runtime do alvo suspenso quando aplicável, sem usar entrada interativa ou enviar Q;
+- exige um diretório absoluto em volume local, fora da árvore do repositório, e cria uma pasta única por coleta;
+- grava .nettrace, CSV e JSON somente nessa pasta externa;
+- não inicia, fecha, reinicia, eleva ou interage com o processo-alvo, nem envia arquivos para serviços externos.
 
 Traces e caminhos podem conter informações sensíveis. Mantenha-os locais e faça sanitização manual antes de qualquer publicação.
 
 ## Comparação visual
 
-O comparador exige igualdade RGBA por padrão:
+O comparador exige imagens RGBA de 8 bits e igualdade exata por padrão:
 
     python tools/compare_gf_screenshots.py reference.png candidate.png --output report.json
+
+Imagens com profundidade diferente de 8 bits são rejeitadas, assim como um relatório cujo destino seja uma das capturas de entrada.
 
 Código de saída:
 
