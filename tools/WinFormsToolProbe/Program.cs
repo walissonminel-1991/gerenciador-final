@@ -17,7 +17,7 @@ internal sealed class ProbeForm : Form
 {
     private readonly Label _status;
     private readonly ProgressBar _progress;
-    private readonly Timer _timer;
+    private readonly System.Windows.Forms.Timer _timer;
     private int _ticks;
 
     public ProbeForm()
@@ -95,7 +95,7 @@ internal sealed class ProbeForm : Form
 
         Controls.Add(layout);
 
-        _timer = new Timer { Interval = 250 };
+        _timer = new System.Windows.Forms.Timer { Interval = 250 };
         _timer.Tick += (_, _) =>
         {
             _progress.Value = (_progress.Value + 1) % 101;
