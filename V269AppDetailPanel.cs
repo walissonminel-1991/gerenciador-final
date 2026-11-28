@@ -367,7 +367,7 @@ internal sealed class V269AppOperationHistory : Panel
     private readonly Panel _viewport=new(){Margin=Padding.Empty};
     private readonly DarkVScrollBar _scroll=new(){Name="V269AppOperationHistoryScroll",
         AccessibleName="Rolagem dos resultados anteriores",Visible=false};
-    private readonly WheelDeltaAccumulator _wheel=new();
+    private readonly PixelWheelDeltaAccumulator _wheel=new();
     private readonly TableLayoutPanel _rows=new(){Dock=DockStyle.None,AutoSize=false,
         ColumnCount=1,Margin=Padding.Empty};
     private readonly Label _heading=new(){Text="Resultados anteriores",AutoSize=true,
@@ -427,29 +427,52 @@ internal sealed class V269AppOperationHistory : Panel
         foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyPalette(palette);
         MeasureRows();_heading.Invalidate();
     }
-    private int Measure(int width)
+    private void ConfigureRows(int width)
     {
-        width=Math.Max(1,width);
         int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
         _heading.Padding=new Padding(0,S(12),0,S(9));
         _rows.Width=width;_heading.MaximumSize=new Size(width,0);
         foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyMetrics(_percent,width);
+    }
+    private int Measure(int width)
+    {
+        width=Math.Max(1,width);
+        ConfigureRows(width);
         return Math.Max(1,_rows.GetPreferredSize(new Size(width,0)).Height);
     }
-    internal int PreferredHeightForWidth(int width)=>Measure(width);
+    internal int PreferredHeightForWidth(int width)
+    {
+        // O hospedeiro consulta larguras candidatas antes de distribuir
+        // as linhas. A consulta não pode deixar o conteúdo mais largo que
+        // o viewport atual, mesmo quando a altura final não muda.
+        int visibleWidth=Math.Max(1,_viewport.ClientSize.Width);
+        try{return Measure(width);}
+        finally
+        {
+            if(Math.Max(1,width)!=visibleWidth)
+            {
+                ConfigureRows(visibleWidth);
+                _rows.PerformLayout();
+            }
+        }
+    }
     private void MeasureRows()
     {
         if(_measuring||IsDisposed||Disposing)return;_measuring=true;
         try
         {
             int width=Math.Max(1,ClientSize.Width),height=Math.Max(1,ClientSize.Height);
-            int barWidth=Math.Max(12,_scroll.Width);
+            // Mesma espessura temática dos detalhes; ignorar largura residual
+            // de um layout ou DPI anterior, inclusive antes de reaplicar o tema.
+            const int barWidth=12;
             int content=Measure(width);
             if(content>height){width=Math.Max(1,width-barWidth-3);content=Measure(width);}
             _viewport.Bounds=new Rectangle(0,0,width,height);
             _scroll.Bounds=new Rectangle(Math.Max(0,ClientSize.Width-barWidth),0,barWidth,height);
             _rows.Size=new Size(width,content);_rows.PerformLayout();
-            _scroll.SetMetrics(content,height);PositionRows();
+            _scroll.SetMetrics(content,height);
+            if(_scroll.MaximumValue==0)_wheel.Move(0,0,0,0);
+            PositionRows();
         }
         finally{_measuring=false;}
     }
@@ -469,8 +492,7 @@ internal sealed class V269AppOperationHistory : Panel
     private void ScrollContent(object? sender,MouseEventArgs e)
     {
         if(e is HandledMouseEventArgs {Handled:true}||_scroll.MaximumValue==0)return;
-        int notches=_wheel.Consume(e.Delta);
-        if(notches!=0)_scroll.Value-=notches*Math.Max(24,Font.Height*3);
+        _scroll.Value=_wheel.Move(_scroll.Value,_scroll.MaximumValue,e.Delta,Math.Max(24,Font.Height*3));
         if(e is HandledMouseEventArgs handled)handled.Handled=true;
     }
     protected override void OnMouseWheel(MouseEventArgs e)
@@ -488,7 +510,7 @@ internal sealed class V269AppDetailPanel : Panel
     private readonly Panel _viewport=new(){Name="V269AppDetailsViewport",AutoScroll=false,Margin=Padding.Empty};
     private readonly DarkVScrollBar _scroll=new(){Name="V269AppDetailsScroll",
         AccessibleName="Rolagem dos detalhes do aplicativo",Visible=false};
-    private readonly WheelDeltaAccumulator _wheel=new();
+    private readonly PixelWheelDeltaAccumulator _wheel=new();
     private readonly TableLayoutPanel _table=new(){Name="V269AppDetailsFields",Dock=DockStyle.None,AutoSize=false,
         ColumnCount=2,Margin=Padding.Empty};
     private V269Palette _palette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
@@ -537,9 +559,26 @@ internal sealed class V269AppDetailPanel : Panel
         DpiChangedAfterParent+=(_,_)=>ApplyInterfaceScale(_interfacePercent);
         RefreshIdentityFont();ApplyInterfaceScale(100);ApplyPalette(V269AppDetailStyle.Palette(_theme),_theme);
     }
+    private static bool SamePresentation(V269AppDetailModel? current,V269AppDetailModel? next)
+    {
+        if(Equals(current,next))return true;
+        if(current is null||next is null)return false;
+        // As listas de campos e histórico são recriadas por consultas
+        // equivalentes. Comparar conteúdo e manter todos os demais membros
+        // do record (inclusive identidade de ícone e delegate de dispensar).
+        if(!current.Fields.SequenceEqual(next.Fields))return false;
+        if(!ReferenceEquals(current.PreviousResults,next.PreviousResults)&&
+            (current.PreviousResults is null||next.PreviousResults is null||
+                !current.PreviousResults.SequenceEqual(next.PreviousResults)))return false;
+        return Equals(current,next with {Fields=current.Fields,PreviousResults=current.PreviousResults});
+    }
     internal void Present(V269AppDetailModel? model)
     {
-        if(Equals(_model,model))return;
+        if(SamePresentation(_model,model))
+        {
+            _model=model;
+            return;
+        }
         _model=model;
         bool driver = model?.DriverGlyph is not null;
         bool cleanup = model?.CleanupGlyph is not null;
@@ -551,6 +590,8 @@ internal sealed class V269AppDetailPanel : Panel
         AccessibleDescription=model is null?"":string.Join(Environment.NewLine,
             new[]{model.Name,model.Publisher}.Concat(model.Fields.Select(field=>$"{field.Label}: {field.Value}"))
                 .Concat(new[]{model.Description,model.Reasons,model.RepairReport ?? "",cleanup||repair?"Use os botões da ferramenta para iniciar ações.":"Enter ou botão direito: ações disponíveis."}));
+        // Uma nova apresentação inicia também um novo gesto de rolagem.
+        _wheel.Move(0,0,0,0);
         _scroll.Value=0;
         _table.SuspendLayout();
         try
@@ -645,6 +686,8 @@ internal sealed class V269AppDetailPanel : Panel
                     history.ApplyMetrics(_interfacePercent,Math.Max(1,ClientSize.Width));
                     history.ApplyPalette(_palette);
                     history.MouseWheel+=ScrollContent;
+                    foreach(Control button in history.Controls.OfType<Button>())
+                        button.Enter+=(_,_)=>EnsureHistoryButtonVisible(button);
                     foreach(Control child in history.Controls)child.MouseWheel+=ScrollContent;
                     _table.Controls.Add(history,0,row);_table.SetColumnSpan(history,2);
                 }
@@ -669,7 +712,9 @@ internal sealed class V269AppDetailPanel : Panel
         if(_arranging||IsDisposed||Disposing)return;_arranging=true;
         try
         {
-            int barWidth=Math.Max(12,_scroll.Width);
+            // Mesma espessura de DarkVScrollBar.ApplyAppScrollTheme (12 px).
+            // Não ler Bounds anteriores nem divergir da reaplicação do tema.
+            const int barWidth=12;
             int height=Math.Max(1,ClientSize.Height);
             bool app = _model is { DriverGlyph: null };
             var labels = _table.Controls.OfType<Label>().ToArray();
@@ -714,7 +759,9 @@ internal sealed class V269AppDetailPanel : Panel
             _scroll.Bounds=new Rectangle(Math.Max(0,ClientSize.Width-barWidth),0,barWidth,height);
             _table.Size=new Size(width,content);
             _table.PerformLayout();
-            _scroll.SetMetrics(content,height);PositionContent();
+            _scroll.SetMetrics(content,height);
+            if(_scroll.MaximumValue==0)_wheel.Move(0,0,0,0);
+            PositionContent();
         }
         finally{_arranging=false;}
     }
@@ -727,13 +774,22 @@ internal sealed class V269AppDetailPanel : Panel
     private void ScrollContent(object? sender,MouseEventArgs e)
     {
         if(e is HandledMouseEventArgs {Handled:true}||_scroll.MaximumValue==0)return;
-        int notches=_wheel.Consume(e.Delta);
-        if(notches!=0)_scroll.Value-=notches*Math.Max(24,Font.Height*3);
+        _scroll.Value=_wheel.Move(_scroll.Value,_scroll.MaximumValue,e.Delta,Math.Max(24,Font.Height*3));
         if(e is HandledMouseEventArgs handled)handled.Handled=true;
     }
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         ScrollContent(this,e);base.OnMouseWheel(e);
+    }
+    // O viewport manual não revela automaticamente o foco recebido por Tab.
+    // Ajustar somente a posição dos detalhes, sem executar o comando focado.
+    private void EnsureHistoryButtonVisible(Control button)
+    {
+        if(button.IsDisposed||_scroll.MaximumValue==0)return;
+        var location=_table.PointToClient(button.PointToScreen(Point.Empty));
+        if(location.Y<_scroll.Value)_scroll.Value=location.Y;
+        else if(location.Y+button.Height>_scroll.Value+_viewport.Height)
+            _scroll.Value=location.Y+button.Height-_viewport.Height;
     }
     private void RefreshIdentityFont()
     {

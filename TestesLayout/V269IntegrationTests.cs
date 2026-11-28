@@ -30,6 +30,7 @@ internal static class V269IntegrationTests
         Timed("REC-FIS-PAINT arte de Início com recorte parcial", VerifyHomeArtPaintClip);
         Timed("REC-FIS-STARTUP texto de comandos", VerifyStartupCaptionLayout);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
+        Timed("REC-BASE-HISTORY-WHEEL", VerifyOperationalHistoryPartialWheel);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
@@ -1945,9 +1946,55 @@ internal static class V269IntegrationTests
                             visibleCards[0].Top==visibleCards[2].Top && visibleCards[3].Top==visibleCards[5].Top &&
                             visibleCards[3].Top>visibleCards[0].Top && diskSection.Top>=tools.Bottom,
                             $"confirmação de Limpeza preserva seis cartões em três colunas e discos abaixo: página={page.Width}, viewport={pageViewport.CleanupViewportWidth}, ferramentas={tools.Size}, discos={diskSection.Bounds}");
-                        Require(diskSection.RectangleToScreen(diskSection.ClientRectangle).Top <
-                            pageViewport.RectangleToScreen(pageViewport.ClientRectangle).Bottom,
-                            "Espaço em disco permanece visível na captura de confirmação");
+                        // A região de recorte é o Fill interno, não a largura do host
+                        // que inclui a barra temática. Exigir interseção nos dois eixos.
+                        var pageClip=pageViewport.Content.Parent!;
+                        Require(pageClip.ClientSize==new Size(pageViewport.CleanupViewportWidth,pageViewport.CleanupViewportHeight),
+                            "viewport efetivo da confirmação corresponde à área de recorte");
+                        Rectangle clip=pageClip.RectangleToScreen(pageClip.ClientRectangle);
+                        Rectangle diskBounds=diskSection.RectangleToScreen(diskSection.ClientRectangle);
+                        Rectangle intersection=Rectangle.Intersect(diskBounds,clip);
+                        Require(diskSection.Visible&&intersection.Width>0&&intersection.Height>0,
+                            $"Espaço em disco permanece visível na captura de confirmação: disco={diskBounds}, viewport={clip}, interseção={intersection}");
+                        // Uma faixa parcial não demonstra que o título é legível.
+                        // Exercitar a barra real da página sem clicar em comandos,
+                        // preservando a confirmação e a posição da captura.
+                        var diskHeading=diskSection.Controls.Find("V269DiskHeading",true).OfType<Label>().Single();
+                        var pageScroll=pageViewport.Controls.OfType<DarkVScrollBar>().Single();
+                        int originalPagePosition=pageScroll.Value;
+                        var originalConfirmation=shell.RightPane.Current;
+                        try
+                        {
+                            Require(diskHeading.Visible&&diskHeading.Width>0&&diskHeading.Height>0,
+                                "título de armazenamento existe e possui geometria");
+                            var headingBounds=diskHeading.RectangleToScreen(diskHeading.ClientRectangle);
+                            int target=Math.Clamp(originalPagePosition+headingBounds.Top-clip.Top,0,pageScroll.MaximumValue);
+                            pageScroll.Value=target;
+                            Require(pageViewport.Content.Top==-pageScroll.Value&&LayoutTests.FullyVisible(diskHeading)&&
+                                ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                                "rolagem da página revela título de armazenamento sem resolver a confirmação");
+                            // O título não prova que o último volume ou seu comando
+                            // possam ser alcançados. A fixture tem dois discos sintéticos;
+                            // não focar/clicar no comando, pois Enter do cartão muda detalhes.
+                            Require(MainForm.V269DiskCardsMatch(disks.Content.Controls, observedDisks),
+                                "confirmação preserva identidade e ordem dos dois volumes sintéticos");
+                            var lastDisk=disks.Content.Controls.OfType<V269CleanupDiskCard>().Last();
+                            var lastCommand=lastDisk.Command;
+                            Require(ReferenceEquals(lastDisk,fixtures[^1])&&lastDisk.Visible&&lastCommand.Visible&&
+                                lastDisk.ClientRectangle.Contains(lastCommand.Bounds)&&lastCommand.Width>0&&lastCommand.Height>0,
+                                "último cartão e comando pertencem ao volume sintético correto");
+                            pageScroll.Value=pageScroll.MaximumValue;
+                            Require(pageViewport.Content.Top==-pageScroll.Value&&
+                                LayoutTests.FullyVisible(lastDisk)&&LayoutTests.FullyVisible(lastCommand)&&
+                                ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                                "fim da rolagem revela o último volume e comando sem executar manutenção");
+                            Console.WriteLine($"PASS REC-BASE-CLEANUP-LAST-DISK theme={palette} size={size} max={pageScroll.MaximumValue} dpi={lastDisk.DeviceDpi}");
+                        }
+                        finally{pageScroll.Value=originalPagePosition;}
+                        Require(pageScroll.Value==originalPagePosition&&pageViewport.Content.Top==-originalPagePosition&&
+                            ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                            "posição original e confirmação preservadas para captura");
+                        Console.WriteLine($"PASS REC-BASE-CLEANUP-CLIP theme={palette} size={size} intersection={intersection.Width}x{intersection.Height} dpi={diskHeading.DeviceDpi}");
                         var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
                         var scroll=shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).OfType<DarkVScrollBar>().Single();
                         Require(!viewport.AutoScroll,"Limpeza não usa a barra branca nativa no painel de operação");
@@ -1963,6 +2010,52 @@ internal static class V269IntegrationTests
                             Require(viewport.Controls.OfType<TableLayoutPanel>().Single().Top==-scroll.Value,
                                 "rolagem temática alcança o último resultado");
                         }
+                        // Prova de alcance real dos comandos, não apenas Visible
+                        // ou Top do painel. Nenhum clique/foco autoriza manutenção.
+                        var historyPanel=shell.RightPane.Controls.Find("V269AppOperationHistory",true)
+                            .OfType<V269AppOperationHistory>().Single();
+                        var historyBar=historyPanel.Controls.Find("V269AppOperationHistoryScroll",true)
+                            .OfType<DarkVScrollBar>().Single();
+                        var historyRows=historyPanel.Controls.Find("V269AppPreviousResult",true)
+                            .OfType<V269AppHistoryRow>().ToArray();
+                        Require(historyRows.Length==4&&historyBar.Visible==(historyBar.MaximumValue>0),
+                            "histórico operacional conserva quatro resultados e barra coerente");
+                        int outerPosition=scroll.Value,innerPosition=historyBar.Value;
+                        var historyDescriptions=historyRows.Select(row=>row.AccessibleDescription).ToArray();
+                        void RevealInFlow(Control command)
+                        {
+                            Rectangle clip=viewport.RectangleToScreen(viewport.ClientRectangle);
+                            Rectangle bounds=command.RectangleToScreen(command.ClientRectangle);
+                            if(bounds.Top<clip.Top)
+                                scroll.Value=Math.Clamp(scroll.Value+bounds.Top-clip.Top,0,scroll.MaximumValue);
+                            else if(bounds.Bottom>clip.Bottom)
+                                scroll.Value=Math.Clamp(scroll.Value+bounds.Bottom-clip.Bottom,0,scroll.MaximumValue);
+                            Require(command.Visible&&command.Width>0&&command.Height>0&&
+                                viewport.Controls.OfType<TableLayoutPanel>().Single().Top==-scroll.Value&&
+                                LayoutTests.FullyVisible(command)&&
+                                ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                                $"REC-BASE-HISTORY: comando integralmente alcançável sem alterar confirmação: {command.Name}, viewport={viewport.ClientSize}, bounds={bounds}");
+                        }
+                        try
+                        {
+                            RevealInFlow(accept);
+                            RevealInFlow(shell.RightPane.Controls.Find("V269CancelConfirmation",true).Single());
+                            foreach(var historyRow in historyRows)
+                            {
+                                var dismiss=historyRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                                Require(dismiss.Enabled&&dismiss.TabStop&&historyRow.ClientRectangle.Contains(dismiss.Bounds),
+                                    "Dispensar associado ao resultado e disponível para seleção");
+                                historyPanel.EnsureVisible(dismiss);
+                                RevealInFlow(dismiss);
+                            }
+                        }
+                        finally{historyBar.Value=innerPosition;scroll.Value=outerPosition;}
+                        Require(historyBar.Value==innerPosition&&scroll.Value==outerPosition&&
+                            historyRows.Select(row=>row.AccessibleDescription).SequenceEqual(historyDescriptions)&&
+                            historyPanel.Controls.Find("V269AppPreviousResult",true).Length==4&&
+                            ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                            "prova de alcance não descarta resultados nem resolve autorização");
+                        Console.WriteLine($"PASS REC-BASE-HISTORY-REACH theme={palette} size={size} outer={scroll.MaximumValue} inner={historyBar.MaximumValue}");
                         // O HTML de referência está no início da rolagem. A captura
                         // deve ocorrer após a prova de alcance, não antes de restaurar a posição.
                         scroll.Value=0;
@@ -2346,6 +2439,52 @@ internal static class V269IntegrationTests
                     "divisor de largura integral e ausência de borda após o último resultado, conforme HTML");
                 var captureScroll=shell.RightPane.Controls.Find("V269AppDetailsScroll",true)
                     .OfType<DarkVScrollBar>().Single();
+                // Reproduz a largura residual de uma geometria anterior (L02/L11).
+                // A prova injeta somente a dimensão do controle, nunca uma operação.
+                var detailsViewport=detailPane.Controls.Find("V269AppDetailsViewport",false).OfType<Panel>().Single();
+                const int expectedBar=12; // contrato vigente de ApplyAppScrollTheme
+                Require(detailsViewport.Width>1&&historyTable.Width==detailsViewport.Width&&
+                    captureScroll.Width==expectedBar,"detalhes: largura e trilha coerentes antes da regressão");
+                int originalViewportWidth=detailsViewport.Width;
+                int originalMaximum=captureScroll.MaximumValue;
+                Require(originalViewportWidth==detailPane.ClientSize.Width-(originalMaximum>0?expectedBar+3:0)&&
+                    captureScroll.Visible==(originalMaximum>0),"detalhes: reservar a trilha somente com overflow real");
+                int originalValue=captureScroll.Value;
+                int originalScrollWidth=captureScroll.Width;
+                try
+                {
+                    // Exercitar os extremos reais disponíveis, sem inventar overflow.
+                    foreach(int position in new[]{0,originalMaximum}.Distinct())
+                    {
+                        captureScroll.Value=position;
+                        Require(historyTable.Top==-position,
+                            "controle positivo: posição real do conteúdo antes da regressão");
+                        captureScroll.Width=detailPane.ClientSize.Width+expectedBar;
+                        Require(captureScroll.Width>detailPane.ClientSize.Width,
+                            "controle negativo: largura residual injetada");
+                        detailPane.ApplyInterfaceScale(shell.InterfaceScalePercent);
+                        Require(captureScroll.Width==expectedBar&&
+                            captureScroll.Right==detailPane.ClientSize.Width&&
+                            detailsViewport.Width==originalViewportWidth&&
+                            historyTable.Width==detailsViewport.Width&&
+                            captureScroll.MaximumValue==originalMaximum&&captureScroll.Value==position&&
+                            historyTable.Top==-position,
+                            "REC-BASE-01: largura residual não pode colapsar a tabela nem alterar rolagem");
+                        var currentTheme=(V269Theme)historyIndex;
+                        detailPane.ApplyPalette(V269AppDetailStyle.Palette(currentTheme),currentTheme);
+                        Require(captureScroll.Width==expectedBar&&captureScroll.Right==detailPane.ClientSize.Width&&
+                            detailsViewport.Width==originalViewportWidth&&historyTable.Width==originalViewportWidth&&
+                            captureScroll.MaximumValue==originalMaximum&&captureScroll.Value==position&&historyTable.Top==-position,
+                            "REC-BASE-01: reaplicar tema não pode alterar a geometria ou posição da rolagem");
+                    }
+                }
+                finally
+                {
+                    captureScroll.Width=originalScrollWidth;
+                    detailPane.ApplyInterfaceScale(shell.InterfaceScalePercent);
+                    captureScroll.Value=originalValue;
+                }
+                Console.WriteLine($"PASS REC-BASE-DETAIL-WIDTH theme={(V269Theme)historyIndex} dpi={detailPane.DeviceDpi} pane={detailPane.ClientSize.Width} viewport={detailsViewport.Width} scroll={captureScroll.Width} max={originalMaximum}");
                 foreach(bool bottom in new[]{false,true})
                 {
                     captureScroll.Value=bottom?captureScroll.MaximumValue:0;
@@ -2357,6 +2496,155 @@ internal static class V269IntegrationTests
             }
             theme.SelectedIndex=historyTheme;surface.PerformLayout();Application.DoEvents();
             Console.WriteLine("PASS Aplicativos V2.6.9: seis capturas de histórico contextual nos três temas.");
+            // Prova complementar N04: conteúdo declaradamente sintético, com
+            // overflow obrigatório, sem alterar inventário ou executar ações.
+            var savedDetail=shell.RightPane.Current!;
+            Require(savedDetail.Kind==V269PanelKind.Details&&savedDetail.Application is not null,
+                "fixture de detalhes disponível antes da prova de overflow");
+            var savedTheme=shell.Theme;
+            int savedUi=shell.InterfaceScalePercent,savedText=shell.TextScalePercent;
+            var overflowModel=savedDetail.Application! with
+            {
+                Description=string.Join(Environment.NewLine,Enumerable.Repeat("Linha sintética para testar rolagem de detalhes.",80))
+            };
+            var overflowPresentation=savedDetail with {Application=overflowModel};
+            shell.PresentPanel(overflowPresentation);
+            try
+            {
+                foreach(var testTheme in new[]{V269Theme.AzulGf,V269Theme.Dark,V269Theme.Claro})
+                foreach(var scales in new[]{(Ui:90,Text:115),(Ui:110,Text:90)})
+                {
+                    shell.ApplyAppearance(testTheme,scales.Ui,scales.Text);
+                    surface.PerformLayout();Application.DoEvents();
+                    var pane=shell.RightPane.Controls.Find("V269StructuredAppDetails",true).OfType<V269AppDetailPanel>().Single();
+                    var bar=pane.Controls.Find("V269AppDetailsScroll",false).OfType<DarkVScrollBar>().Single();
+                    var viewport=pane.Controls.Find("V269AppDetailsViewport",false).OfType<Panel>().Single();
+                    var table=viewport.Controls.Find("V269AppDetailsFields",false).OfType<TableLayoutPanel>().Single();
+                    Require(shell.Theme==testTheme&&shell.InterfaceScalePercent==scales.Ui&&shell.TextScalePercent==scales.Text&&
+                        pane.Visible&&bar.Visible&&bar.MaximumValue>0&&viewport.Height>0&&pane.ClientSize.Width>15,
+                        "N04: overflow real obrigatório na escala e tema efetivamente aplicados");
+                    int maximum=bar.MaximumValue,originalWidth=bar.Width,originalPosition=bar.Value;
+                    void RequireGeometry(int position)
+                    {
+                        Require(bar.Width==12&&bar.Right==pane.ClientSize.Width&&
+                            viewport.Width==pane.ClientSize.Width-15&&table.Width==viewport.Width&&
+                            bar.MaximumValue==maximum&&bar.Value==position&&table.Top==-position&&
+                            (position!=maximum||table.Bottom==viewport.ClientSize.Height),
+                            "N04: trilha, viewport, limite e posição consistentes com overflow");
+                    }
+                    try
+                    {
+                        foreach(int position in new[]{0,maximum})
+                        {
+                            bar.Value=position;RequireGeometry(position);
+                            bar.Width=pane.ClientSize.Width+12;
+                            Require(bar.Width>pane.ClientSize.Width,"N04: injeção residual efetiva");
+                            pane.ApplyInterfaceScale(scales.Ui);RequireGeometry(position);
+                            shell.ApplyAppearance(testTheme,scales.Ui,scales.Text);
+                            surface.PerformLayout();Application.DoEvents();
+                            RequireGeometry(position);
+                        }
+                    }
+                    finally
+                    {
+                        bar.Width=originalWidth;pane.ApplyInterfaceScale(scales.Ui);bar.Value=originalPosition;
+                    }
+                    VerifyHistoryPartialWheel(pane,bar,table,"detalhes");
+                    VerifyHistoryWheelReset(pane,bar,table,()=>{
+                        shell.PresentPanel(overflowPresentation with {Application=overflowModel with {Name=overflowModel.Name+" (fixture de troca)"}});
+                        shell.PresentPanel(overflowPresentation);
+                        surface.PerformLayout();Application.DoEvents();
+                    },"troca de identidade dos detalhes");
+                    // Foco real, sem chamar Enter por reflexão nem executar Dispensar.
+                    var focusDismiss=table.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                    Require(list.Focus()&&focusDismiss.Enabled&&focusDismiss.CanFocus,
+                        "detalhes: comando contextual alcançável pelo foco");
+                    try
+                    {
+                        bar.Value=0;
+                        var clip=viewport.RectangleToScreen(viewport.ClientRectangle);
+                        Require(focusDismiss.Height>0&&focusDismiss.Width>0&&focusDismiss.Height<=clip.Height&&
+                            !clip.Contains(focusDismiss.RectangleToScreen(focusDismiss.ClientRectangle)),
+                            "controle negativo: histórico sintético inicialmente fora do viewport");
+                        Require(focusDismiss.Focus(),"detalhes: foco nativo no comando do histórico");
+                        Application.DoEvents();
+                        Require(focusDismiss.Focused&&bar.Value>0&&table.Top==-bar.Value&&
+                            viewport.RectangleToScreen(viewport.ClientRectangle)
+                                .Contains(focusDismiss.RectangleToScreen(focusDismiss.ClientRectangle))&&
+                            LayoutTests.FullyVisible(focusDismiss),
+                            "REC-BASE-DETAIL-FOCUS: receber foco revela o comando inteiro sem ativá-lo");
+                        // O produtor cria novos arrays a cada reapresentação.
+                        // Mesmos dados/delegate não podem destruir foco ou rolagem.
+                        var equivalent=overflowModel with
+                        {
+                            Fields=overflowModel.Fields.ToArray(),
+                            PreviousResults=overflowModel.PreviousResults?.ToArray()
+                        };
+                        Require(!ReferenceEquals(equivalent.Fields,overflowModel.Fields)&&
+                            !ReferenceEquals(equivalent.PreviousResults,overflowModel.PreviousResults)&&
+                            !Equals(equivalent,overflowModel),
+                            "detalhes: controle negativo de igualdade por referência");
+                        var retainedControls=table.Controls.Cast<Control>().ToArray();
+                        int retainedScroll=bar.Value;
+                        shell.PresentPanel(overflowPresentation with {Application=equivalent});
+                        Application.DoEvents();
+                        Require(retainedControls.SequenceEqual(table.Controls.Cast<Control>())&&
+                            !focusDismiss.IsDisposed&&focusDismiss.Focused&&bar.Value==retainedScroll&&
+                            bar.MaximumValue==maximum&&table.Top==-retainedScroll,
+                            "REC-BASE-DETAIL-REPLAY: reapresentação equivalente preserva controles, foco e rolagem");
+                        if(testTheme==V269Theme.AzulGf&&scales.Ui==90)
+                        {
+                            // Mesmo texto, ID diferente: não reutilizar handler
+                            // vinculado à identidade antiga do resultado.
+                            var changedId=equivalent with
+                            {
+                                PreviousResults=equivalent.PreviousResults!.Select(r=>r with {Id=Guid.NewGuid()}).ToArray()
+                            };
+                            // A fonte oficial do shell reconcilia IDs da sessão.
+                            // Exercitar negativos diretamente no renderer, sem
+                            // alterar essa fonte ou acionar qualquer comando.
+                            Require(list.Focus(),"detalhes: retirar foco antes de trocar identidade sintética");
+                            try
+                            {
+                                pane.Present(changedId);
+                                var changedButton=table.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                                Require(focusDismiss.IsDisposed&&!ReferenceEquals(changedButton,focusDismiss)&&
+                                    !changedButton.IsDisposed&&bar.Value==0,
+                                    "detalhes: ID real de histórico alterado precisa reconstruir apresentação");
+                                // Mesmo conteúdo e IDs, mas outro callback.
+                                var changedHandler=changedId with
+                                {
+                                    DismissResult=_=>throw new InvalidOperationException("Fixture não pode dispensar")
+                                };
+                                pane.Present(changedHandler);
+                                Require(changedButton.IsDisposed,
+                                    "detalhes: callback diferente não pode manter handler anterior");
+                            }
+                            finally
+                            {
+                                shell.PresentPanel(overflowPresentation);
+                                Application.DoEvents();
+                            }
+                        }
+                        Console.WriteLine("PASS REC-BASE-DETAIL-REPLAY: conteúdo equivalente não recria detalhes.");
+                    }
+                    finally
+                    {
+                        list.Focus();bar.Value=originalPosition;
+                    }
+                    Require(shell.RightPane.Current?.Application is {} active&&active.Name==overflowModel.Name&&
+                        active.Description==overflowModel.Description&&
+                        (active.PreviousResults??[]).SequenceEqual(overflowModel.PreviousResults??[]),
+                        "N04: tema e escala preservam identidade e histórico");
+                    Console.WriteLine($"PASS REC-BASE-DETAIL-OVERFLOW theme={testTheme} ui={scales.Ui} text={scales.Text} dpi={pane.DeviceDpi} max={maximum}");
+                }
+            }
+            finally
+            {
+                shell.ApplyAppearance(savedTheme,savedUi,savedText);
+                shell.PresentPanel(savedDetail);
+                surface.PerformLayout();Application.DoEvents();
+            }
             // Reproduzir a restauração de um resultado já registrado enquanto
             // a janela estava oculta, sem iniciar a bandeja ou manutenção real.
             var pendingResult=typeof(MainForm).GetField("_pendingUninstallResult",flags)!;
@@ -4534,6 +4822,154 @@ internal static class V269IntegrationTests
         home.AutoScrollPosition = Point.Empty;
         Console.WriteLine("PASS Início V2.6.9: cinco cartões, artes originais, fontes reais, três temas, geometria e capturas.");
         return snapshot;
+    }
+
+    // Isola a entrada de roda dos históricos de outros hosts; não aciona
+    // Dispensar, não injeta input global nem depende de inventário.
+    private static void VerifyOperationalHistoryPartialWheel()
+    {
+        var results=Enumerable.Range(0,12).Select(i=>new V269AppPreviousResult(
+            Guid.NewGuid(),"Resultado sintético "+i,"Fixture de histórico sem operação real.")).ToArray();
+        using var history=new V269AppOperationHistory(results,_=>throw new InvalidOperationException("Fixture não pode dispensar"))
+            {Dock=DockStyle.None,Size=new Size(360,100)};
+        history.ApplyAppearance(V269Theme.AzulGf,100,history.Font);
+        history.PerformLayout();
+        var bar=history.Controls.Find("V269AppOperationHistoryScroll",false).OfType<DarkVScrollBar>().Single();
+        var content=history.Controls.OfType<Panel>().SelectMany(view=>view.Controls.OfType<TableLayoutPanel>()).Single();
+        VerifyHistoryPartialWheel(history,bar,content,"histórico operacional");
+        VerifyHistoryWheelReset(history,bar,content,()=>{
+            int height=history.Height;
+            try
+            {
+                history.Height=content.Height+50;
+                Require(bar.MaximumValue==0&&bar.Value==0,
+                    "histórico: crescimento realmente removeu o overflow");
+            }
+            finally{history.Height=height;}
+        },"retorno do overflow operacional");
+        var viewport=content.Parent!;
+        var rows=content.Controls.OfType<V269AppHistoryRow>().ToArray();
+        Require(rows.Length==results.Length&&content.Width==viewport.ClientSize.Width&&
+            history.ClientSize.Width>viewport.ClientSize.Width,
+            "histórico: fixture com largura reduzida pela barra interna");
+        int original=bar.Value;
+        try
+        {
+            bar.Value=Math.Min(37,bar.MaximumValue);
+            var expectedBounds=content.Bounds;
+            int expectedMaximum=bar.MaximumValue,expectedValue=bar.Value;
+            var expectedRows=rows.Select(row=>row.Bounds).ToArray();
+            var expectedWidths=rows.Select(row=>row.MaximumSize.Width).ToArray();
+            foreach(int candidateWidth in new[]{history.ClientSize.Width,viewport.ClientSize.Width-37,viewport.ClientSize.Width})
+            {
+                Require(history.PreferredHeightForWidth(candidateWidth)>0,
+                    "histórico: altura consultiva positiva");
+                Require(content.Bounds==expectedBounds&&content.Width==viewport.ClientSize.Width&&
+                    bar.MaximumValue==expectedMaximum&&bar.Value==expectedValue&&
+                    rows.SequenceEqual(content.Controls.OfType<V269AppHistoryRow>())&&
+                    expectedRows.SequenceEqual(rows.Select(row=>row.Bounds))&&
+                    expectedWidths.SequenceEqual(rows.Select(row=>row.MaximumSize.Width)),
+                    "REC-BASE-HISTORY-MEASURE: consultar largura candidata não altera geometria nem posição real");
+            }
+        }
+        finally{bar.Value=original;}
+        Console.WriteLine("PASS REC-BASE-HISTORY-MEASURE: medida consultiva preserva viewport, posição e identidade.");
+        int originalWidth=bar.Width;
+        try
+        {
+            foreach(int position in new[]{0,bar.MaximumValue})
+            {
+                bar.Value=position;
+                int maximum=bar.MaximumValue,width=viewport.ClientSize.Width;
+                var bounds=content.Bounds;
+                bar.Width=history.ClientSize.Width+12;
+                Require(bar.Width>history.ClientSize.Width,
+                    "histórico: controle negativo de largura residual efetivo");
+                // Reproduzir o evento de medição que não reaplica a paleta.
+                typeof(V269AppOperationHistory).GetMethod("MeasureRows",BindingFlags.Instance|BindingFlags.NonPublic)!
+                    .Invoke(history,null);
+                Require(bar.Width==12&&bar.Right==history.ClientSize.Width&&
+                    viewport.ClientSize.Width==width&&content.Bounds==bounds&&
+                    bar.MaximumValue==maximum&&bar.Value==position,
+                    "REC-BASE-HISTORY-WIDTH: medição restaura trilha sem colapsar conteúdo ou rolagem");
+            }
+        }
+        finally
+        {
+            bar.Width=originalWidth;
+            history.ApplyAppearance(V269Theme.AzulGf,100,history.Font);
+            bar.Value=original;
+        }
+        Console.WriteLine("PASS REC-BASE-HISTORY-WIDTH: largura residual da barra operacional corrigida.");
+        Console.WriteLine("PASS REC-BASE-HISTORY-WHEEL: histórico operacional responde a deltas parciais.");
+    }
+
+    private static void VerifyHistoryPartialWheel(Control panel,DarkVScrollBar bar,Control content,string name)
+    {
+        int original=bar.Value,maximum=bar.MaximumValue,step=Math.Max(24,panel.Font.Height*3);
+        Require(maximum>0,name+": fixture deve ter overflow real");
+        var wheel=panel.GetType().GetMethod("OnMouseWheel",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        void Move(int delta)
+        {
+            var e=new HandledMouseEventArgs(MouseButtons.None,0,0,0,delta);
+            wheel.Invoke(panel,[e]);
+            Require(e.Handled&&content.Top==-bar.Value,name+": evento consumido e conteúdo acompanha a barra");
+        }
+        try
+        {
+            bar.Value=0;Move(120);
+            for(int i=1;i<=4;i++)
+            {
+                Move(-30);
+                Require(bar.Value==Math.Min(maximum,step*i/4),
+                    name+": cada delta parcial desloca pixels, sem esperar um entalhe completo");
+            }
+            Move(120);Require(bar.Value==0,name+": inversão de entalhe retorna ao início");
+            bar.Value=maximum;Move(-120);Move(30);
+            Require(bar.Value==Math.Max(0,maximum-step/4),
+                name+": limite não retém pressão invisível");
+        }
+        finally{bar.Value=original;}
+    }
+
+    // Reproduz resíduo fracionário entre duas épocas de conteúdo. Escolher
+    // o delta pela métrica real, não presumir fonte/DPI ou passo de 85px.
+    private static void VerifyHistoryWheelReset(Control panel,DarkVScrollBar bar,Control content,Action reset,string name)
+    {
+        int step=Math.Max(24,panel.Font.Height*3),original=bar.Value;
+        int delta=Enumerable.Range(1,119).FirstOrDefault(d=>((long)d*step)%120>=60);
+        if(delta==0)
+        {
+            // Um curso múltiplo exato de 120 não produz fração alguma.
+            Require(step%120==0,name+": controle de fração aplicável");
+            Console.WriteLine("REC-BASE-HISTORY-WHEEL-EPOCH: sem resto possível neste passo "+step);
+            return;
+        }
+        int expected=step*delta/120,maximum=bar.MaximumValue;
+        Require(maximum>expected+1,name+": overflow suficiente para distinguir um pixel residual");
+        var wheel=panel.GetType().GetMethod("OnMouseWheel",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        void Move(int amount)
+        {
+            var e=new HandledMouseEventArgs(MouseButtons.None,0,0,0,amount);
+            wheel.Invoke(panel,[e]);
+            Require(e.Handled&&content.Top==-bar.Value,name+": evento e conteúdo coerentes");
+        }
+        try
+        {
+            bar.Value=0;Move(120);Move(-delta);
+            Require(bar.Value==expected,name+": primeiro deslocamento sem resíduo antigo");
+            // Controle negativo independente: sem reset, duas frações iguais
+            // somam pelo menos 120 e introduzem exatamente um pixel extra.
+            Require((2L*delta*step)/120==2L*expected+1,name+": negativo distingue o acumulador anterior");
+            reset();
+            Require(bar.MaximumValue==maximum&&bar.Value==0&&content.Top==0&&
+                Math.Max(24,panel.Font.Height*3)==step,
+                name+": restauração efetiva da geometria e posição inicial");
+            Move(-delta);
+            Require(bar.Value==expected,name+": nova época não herda fração de pixel");
+            Console.WriteLine("PASS REC-BASE-HISTORY-WHEEL-EPOCH: "+name);
+        }
+        finally{bar.Value=0;Move(120);bar.Value=original;}
     }
 
     private static T? Find<T>(Control control) where T : Control
