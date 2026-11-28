@@ -7,6 +7,11 @@ namespace GerenciadorAplicativos;
 internal static class DiagnosticTrace
 {
     private static readonly object Gate = new();
+    private static readonly DiagnosticAuditAdmission Admission = new(Write);
+    internal static bool CompleteStartupAudit(bool traceStarted) => Admission.CompleteStartup(traceStarted);
+    internal static bool MutationAuditReady => Admission.IsReady;
+    internal static bool MutationAuditDegraded => Admission.IsDegraded;
+    internal static bool TryAuthorizeMutation() => Admission.TryAuthorizeMutation();
     internal static Action<string>? LocalEventSink { get; set; }
     internal static Action<string,Exception>? LocalFailureSink { get; set; }
     private static readonly UTF8Encoding NoBom = new(false);
@@ -139,7 +144,8 @@ internal static class DiagnosticTrace
     {
         lock (Gate)
         {
-            if (_identityLock is null || _logFile is null) return false;
+            if (_identityLock is null || _logFile is null)
+            { Admission.ObserveFailure(); return false; }
             try
             {
                 // Open não cria/trunca. Só escrever depois de conferir o handle
@@ -163,6 +169,7 @@ internal static class DiagnosticTrace
                 NotSupportedException or System.Security.SecurityException)
             {
                 _lastFailure = ex.GetType().Name;
+                Admission.ObserveFailure();
                 return false;
             }
         }

@@ -22,6 +22,8 @@ if (args.Length == 2 && args[0] == "--hold-beta-send-lease")
     return;
 }
 
+DiagnosticAuditAdmissionTests.Run(Verify);
+
 string temp = Path.Combine(Path.GetTempPath(), "gf-telemetry-tests-" + Guid.NewGuid().ToString("N"));
 try
 {
@@ -268,6 +270,8 @@ try
                 "Revisão rejeita link de arquivo e remoção apaga só a entrada local");
         }
         else Console.WriteLine("SKIP: link de diretorio indisponivel; nao e teste aprovado.");
+
+        DiagnosticAuditDiskTests.Run(temp, Verify);
 
         string logFolder = Path.Combine(temp, "protected-log");
         Directory.CreateDirectory(logFolder);

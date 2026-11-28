@@ -16,5 +16,6 @@
     <Compile Include="../BetaTelemetryTransport.cs" Link="BetaTelemetryTransport.cs" />
     <Compile Include="../DiagnosticPayloadPolicy.cs" Link="DiagnosticPayloadPolicy.cs" />
     <Compile Include="../DiagnosticTrace.cs" Link="DiagnosticTrace.cs" />
+    <Compile Include="../DiagnosticAuditAdmission.cs" Link="DiagnosticAuditAdmission.cs" />
   </ItemGroup>
 </Project>
