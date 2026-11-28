@@ -12,6 +12,7 @@ internal static class V269IntegrationTests
         form.Show();
         Application.DoEvents();
         var shell = form.Controls.Find("V269Shell", true).OfType<V269Shell>().Single();
+        V269RootGeometryProbe.VerifyCurrent(form, shell);
         var pages = Enum.GetValues<V269Page>();
         var views = pages.Select(page => shell.PageContent(page) ??
             throw new InvalidOperationException($"View ausente: {page}")).ToArray();
@@ -1671,6 +1672,18 @@ internal static class V269IntegrationTests
         Console.WriteLine($"V269-END Reparo ms={clock.ElapsedMilliseconds}");
         form.Close();
         Console.WriteLine("PASS V2.6.9: partição visual de Limpeza e Reparo completa.");
+    }
+
+    // Recuperado da rota L04/L11: mesmo sampler e mesmas guardas, sem
+    // repetir a bateria integral para diagnosticar o ambiente interativo.
+    internal static void RunFramePaintOnly()
+    {
+        using var form = new MainForm(startServices:false);
+        form.Show();
+        Application.DoEvents();
+        var shell = form.Controls.Find("V269Shell", true).OfType<V269Shell>().Single();
+        VerifyFramePaintLoop(form, shell);
+        Console.WriteLine("PASS V2.6.9: FRAMES isolado concluído.");
     }
 
     private static void VerifyCleanup(MainForm form,V269Shell shell)
