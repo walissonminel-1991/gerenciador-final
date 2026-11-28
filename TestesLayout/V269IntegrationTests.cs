@@ -19,6 +19,7 @@ internal static class V269IntegrationTests
         Require(views.Distinct().Count() == 8 && shell.SelectedPage == V269Page.Inicio,
             "oito instâncias nativas com Início ativo");
         Timed("Navegação sequencial nativa", () => VerifySequentialNavigation(form, shell));
+        Timed("REC-BASE-PLACEMENT", () => VerifyCompactPlacementTransitions(form, shell));
         Timed("Medição de viewports ao ocultar", () => VerifyViewportVisibilityMeasurements(form,shell));
         Timed("Dock do viewport externo", VerifyPageViewportDock);
         Timed("Feedback independente", VerifyIndependentFeedback);
@@ -166,6 +167,52 @@ internal static class V269IntegrationTests
         Timed("REC-FIS-02-PAINT-FRAMES", () => VerifyFramePaintLoop(form, shell));
         if (!form.IsDisposed) form.Close();
         Console.WriteLine("PASS V2.6.9 integração: MainForm ativa, oito views, confirmação, cancelamento e resultado persistente.");
+    }
+
+    private static void VerifyCompactPlacementTransitions(MainForm form, V269Shell shell)
+    {
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        var layout = form.Controls.Find("V269MainLayout", true).OfType<TableLayoutPanel>().Single();
+        var savedSize = surface.Size;
+        var savedPage = shell.SelectedPage;
+        var savedPanel = shell.RightPane.Current;
+        try
+        {
+            surface.Size = new Size(992, 659);
+            shell.SelectPage(V269Page.Limpeza); Application.DoEvents();
+            var toggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().Single();
+            Require(toggle.Visible, "controle de painel compacto visível em Limpeza");
+            toggle.PerformClick(); Application.DoEvents();
+            Require(shell.RightPane.Visible, "painel compacto aberto em Limpeza");
+            Require(layout.RowStyles[1].Height == 70 && layout.RowStyles[2].Height == 30,
+                $"Limpeza compacta usa 70/30, obtido {layout.RowStyles[1].Height}/{layout.RowStyles[2].Height}");
+            shell.SelectPage(V269Page.Reparo); Application.DoEvents();
+            Require(shell.RightPane.Visible && layout.RowStyles[1].Height == 58 && layout.RowStyles[2].Height == 42,
+                $"Reparo após Limpeza atualiza 58/42 sem reparenting, obtido {layout.RowStyles[1].Height}/{layout.RowStyles[2].Height}");
+            // Controle negativo: o oráculo rejeita uma proporção de outra aba.
+            layout.RowStyles[1].Height = 70; layout.RowStyles[2].Height = 30;
+            Require(!(layout.RowStyles[1].Height == 58 && layout.RowStyles[2].Height == 42),
+                "controle negativo rejeita geometria 70/30 em Reparo");
+            shell.SelectPage(V269Page.Limpeza); Application.DoEvents();
+            Require(shell.RightPane.Visible && layout.RowStyles[1].Height == 70 && layout.RowStyles[2].Height == 30,
+                $"retorno Limpeza restaura 70/30, obtido {layout.RowStyles[1].Height}/{layout.RowStyles[2].Height}");
+            Console.WriteLine("PASS REC-BASE-PLACEMENT: transição compacta 2→2 atualiza proporções.");
+        }
+        finally
+        {
+            shell.PresentPanel(null);
+            var toggle = form.Controls.Find("V269PaneToggle", true).OfType<Button>().SingleOrDefault();
+            if (toggle is { Visible: true } && shell.RightPane.Visible)
+            {
+                toggle.PerformClick();
+                Application.DoEvents();
+            }
+            surface.Size = savedSize;
+            surface.PerformLayout();
+            shell.SelectPage(savedPage);
+            if (savedPanel is not null) shell.PresentPanel(savedPanel);
+            Application.DoEvents();
+        }
     }
 
     // Uma sessão na mesma MainForm, sem reiniciar views entre etapas.

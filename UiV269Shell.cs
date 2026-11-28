@@ -1650,6 +1650,15 @@ internal sealed class V269Shell : UserControl
             _centralLayout.ColumnStyles[2].Width=width;
             if(_appSplitter is not null)_appSplitter.ForeColor=V269VisualTokens.ForTheme(Theme).Border;
         }
+        else if(placement==2 && _centralLayout.RowStyles.Count>=3)
+        {
+            // Limpeza e Reparo compartilham o placement compacto. A troca
+            // 2→2 não reentra no bloco estrutural acima, mas a proporção do
+            // painel precisa acompanhar a aba atual sem reparenting.
+            bool cleanupPlacement=SelectedPage==V269Page.Limpeza;
+            _centralLayout.RowStyles[1].Height=cleanupPlacement?70:58;
+            _centralLayout.RowStyles[2].Height=cleanupPlacement?30:42;
+        }
         _rightPane.Margin=placement==2?new Padding(0,S(10),0,0):Padding.Empty;
     }
 
