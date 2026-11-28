@@ -669,7 +669,8 @@ internal sealed class V269AppDetailPanel : Panel
         if(_arranging||IsDisposed||Disposing)return;_arranging=true;
         try
         {
-            int barWidth=Math.Max(12,_scroll.Width);
+            // A largura anterior pode pertencer a outro viewport/DPI.
+            int barWidth=Math.Max(12,V269AppTable.Scale(14,_interfacePercent,DeviceDpi));
             int height=Math.Max(1,ClientSize.Height);
             bool app = _model is { DriverGlyph: null };
             var labels = _table.Controls.OfType<Label>().ToArray();

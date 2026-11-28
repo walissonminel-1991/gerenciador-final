@@ -2299,6 +2299,22 @@ internal static class V269IntegrationTests
                     "divisor de largura integral e ausência de borda após o último resultado, conforme HTML");
                 var captureScroll=shell.RightPane.Controls.Find("V269AppDetailsScroll",true)
                     .OfType<DarkVScrollBar>().Single();
+                // Reproduz a largura residual de uma geometria anterior (L02/L11).
+                // A prova injeta somente a dimensão do controle, nunca uma operação.
+                var detailsViewport=detailPane.Controls.Find("V269AppDetailsViewport",false).OfType<Panel>().Single();
+                int expectedBar=Math.Max(12,V269AppTable.Scale(14,shell.InterfaceScalePercent,detailPane.DeviceDpi));
+                Require(detailsViewport.Width>1&&historyTable.Width==detailsViewport.Width&&
+                    captureScroll.Width==expectedBar,"detalhes: largura e trilha coerentes antes da regressão");
+                int originalViewportWidth=detailsViewport.Width;
+                int originalMaximum=captureScroll.MaximumValue;
+                captureScroll.Width=detailPane.ClientSize.Width+expectedBar;
+                Require(captureScroll.Width>detailPane.ClientSize.Width,
+                    "controle negativo: largura residual injetada");
+                detailPane.ApplyInterfaceScale(shell.InterfaceScalePercent);
+                Require(captureScroll.Width==expectedBar&&detailsViewport.Width==originalViewportWidth&&
+                    historyTable.Width==detailsViewport.Width&&captureScroll.MaximumValue==originalMaximum,
+                    "REC-BASE-01: largura residual não pode colapsar a tabela nem alterar rolagem");
+                Console.WriteLine($"PASS REC-BASE-DETAIL-WIDTH theme={(V269Theme)historyIndex} dpi={detailPane.DeviceDpi} pane={detailPane.ClientSize.Width} viewport={detailsViewport.Width} scroll={captureScroll.Width}");
                 foreach(bool bottom in new[]{false,true})
                 {
                     captureScroll.Value=bottom?captureScroll.MaximumValue:0;
