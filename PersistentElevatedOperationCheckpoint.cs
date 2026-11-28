@@ -21,7 +21,7 @@ internal sealed class PersistentElevatedOperationCheckpoint(string directory) : 
     private byte[]? _nonce;
     private string? _path;
 
-    private static bool Expected(Exception ex) => ex is IOException or UnauthorizedAccessException
+    private static bool Expected(Exception ex) => ex is IOException or InvalidDataException or UnauthorizedAccessException
         or ArgumentException or NotSupportedException or InvalidOperationException
         or System.Security.SecurityException or System.ComponentModel.Win32Exception;
 
@@ -76,8 +76,12 @@ internal sealed class PersistentElevatedOperationCheckpoint(string directory) : 
 
     private bool OwnsMarker(FileStream file)
     {
-        if (_identity is null || _nonce is null ||
-            InstallerFileGuard.ReadIdentity(file) != _identity ||
+        if (_identity is null || _nonce is null) return false;
+        var observed = InstallerFileGuard.ReadIdentity(file);
+        // LastWriteTime pode ser finalizado ao fechar o último escritor.
+        // Identidade estável e bytes exatos, não timestamp, provam posse.
+        if (observed.Volume != _identity.Volume || observed.Index != _identity.Index ||
+            observed.Links != 1 || observed.Size != (ulong)_nonce.Length ||
             file.Length != _nonce.Length) return false;
         Span<byte> actual = stackalloc byte[16];
         file.Position = 0;
