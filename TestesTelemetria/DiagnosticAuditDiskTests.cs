@@ -24,9 +24,10 @@ internal static class DiagnosticAuditDiskTests
             string path = DiagnosticTrace.LogFilePath;
             // Outro leitor legítimo permite a identidade já mantida, mas
             // nega novas aberturas para escrita; simula indisponibilidade real.
-            // Gate independente: a sessão estática ainda não deve ser iniciada
-            // após uma falha. O cenário positivo estático usa outro processo
-            // ou, nesta suíte, é executado antes das escritas negativas.
+            // Exercitar a admissão estática real antes de qualquer escrita
+            // negativa e manter o estado degradado até o fim deste processo.
+            verify(DiagnosticTrace.CompleteStartupAudit(true) && DiagnosticTrace.MutationAuditReady &&
+                DiagnosticTrace.TryAuthorizeMutation(), "GF-03 disco: fachada estática admite após escrita durável");
             var healthy = new DiagnosticAuditAdmission(DiagnosticTrace.Write);
             verify(healthy.CompleteStartup(true) && healthy.TryAuthorizeMutation() &&
                 File.ReadAllText(path).Contains(DiagnosticAuditAdmission.MutationMarker, StringComparison.Ordinal),
@@ -34,6 +35,9 @@ internal static class DiagnosticAuditDiskTests
             var first = new DiagnosticAuditAdmission(DiagnosticTrace.Write);
             using (var denyWrite = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
+                if (DiagnosticTrace.TryAuthorizeMutation()) effects++;
+                verify(DiagnosticTrace.MutationAuditDegraded && !DiagnosticTrace.MutationAuditReady && effects == 0,
+                    "GF-03 disco: fachada estática fecha admissão ao perder escrita");
                 verify(!first.CompleteStartup(true) && first.IsDegraded && !first.TryAuthorizeMutation(),
                     "GF-03 disco: primeira gravação realmente recusada após abrir o log");
                 if (healthy.TryAuthorizeMutation()) effects++;
