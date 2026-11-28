@@ -1962,6 +1962,52 @@ internal static class V269IntegrationTests
                             Require(viewport.Controls.OfType<TableLayoutPanel>().Single().Top==-scroll.Value,
                                 "rolagem temática alcança o último resultado");
                         }
+                        // Prova de alcance real dos comandos, não apenas Visible
+                        // ou Top do painel. Nenhum clique/foco autoriza manutenção.
+                        var historyPanel=shell.RightPane.Controls.Find("V269AppOperationHistory",true)
+                            .OfType<V269AppOperationHistory>().Single();
+                        var historyBar=historyPanel.Controls.Find("V269AppOperationHistoryScroll",true)
+                            .OfType<DarkVScrollBar>().Single();
+                        var historyRows=historyPanel.Controls.Find("V269AppPreviousResult",true)
+                            .OfType<V269AppHistoryRow>().ToArray();
+                        Require(historyRows.Length==4&&historyBar.Visible==(historyBar.MaximumValue>0),
+                            "histórico operacional conserva quatro resultados e barra coerente");
+                        int outerPosition=scroll.Value,innerPosition=historyBar.Value;
+                        var historyDescriptions=historyRows.Select(row=>row.AccessibleDescription).ToArray();
+                        void RevealInFlow(Control command)
+                        {
+                            Rectangle clip=viewport.RectangleToScreen(viewport.ClientRectangle);
+                            Rectangle bounds=command.RectangleToScreen(command.ClientRectangle);
+                            if(bounds.Top<clip.Top)
+                                scroll.Value=Math.Clamp(scroll.Value+bounds.Top-clip.Top,0,scroll.MaximumValue);
+                            else if(bounds.Bottom>clip.Bottom)
+                                scroll.Value=Math.Clamp(scroll.Value+bounds.Bottom-clip.Bottom,0,scroll.MaximumValue);
+                            Require(command.Visible&&command.Width>0&&command.Height>0&&
+                                viewport.Controls.OfType<TableLayoutPanel>().Single().Top==-scroll.Value&&
+                                LayoutTests.FullyVisible(command)&&
+                                ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                                $"REC-BASE-HISTORY: comando integralmente alcançável sem alterar confirmação: {command.Name}, viewport={viewport.ClientSize}, bounds={bounds}");
+                        }
+                        try
+                        {
+                            RevealInFlow(accept);
+                            RevealInFlow(shell.RightPane.Controls.Find("V269CancelConfirmation",true).Single());
+                            foreach(var historyRow in historyRows)
+                            {
+                                var dismiss=historyRow.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                                Require(dismiss.Enabled&&dismiss.TabStop&&historyRow.ClientRectangle.Contains(dismiss.Bounds),
+                                    "Dispensar associado ao resultado e disponível para seleção");
+                                historyPanel.EnsureVisible(dismiss);
+                                RevealInFlow(dismiss);
+                            }
+                        }
+                        finally{historyBar.Value=innerPosition;scroll.Value=outerPosition;}
+                        Require(historyBar.Value==innerPosition&&scroll.Value==outerPosition&&
+                            historyRows.Select(row=>row.AccessibleDescription).SequenceEqual(historyDescriptions)&&
+                            historyPanel.Controls.Find("V269AppPreviousResult",true).Length==4&&
+                            ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                            "prova de alcance não descarta resultados nem resolve autorização");
+                        Console.WriteLine($"PASS REC-BASE-HISTORY-REACH theme={palette} size={size} outer={scroll.MaximumValue} inner={historyBar.MaximumValue}");
                         // O HTML de referência está no início da rolagem. A captura
                         // deve ocorrer após a prova de alcance, não antes de restaurar a posição.
                         scroll.Value=0;
