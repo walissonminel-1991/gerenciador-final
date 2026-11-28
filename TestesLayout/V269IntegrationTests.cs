@@ -2107,7 +2107,29 @@ internal static class V269IntegrationTests
         var theme=form.Controls.Find("V269ThemeChoice",true).OfType<ComboBox>().Single();
         var surface=form.Controls.OfType<TableLayoutPanel>().Single();
         var originalSize=surface.Size;int originalTheme=theme.SelectedIndex;
+        int physicalScale=form.DeviceDpi;
         var original=inventory.ToArray();var panel=shell.RightPane.Current;
+        void SetSyntheticSurface(Size logicalSize)
+        {
+            Size physicalSize=new(logicalSize.Width*physicalScale/96,logicalSize.Height*physicalScale/96);
+            surface.Size=physicalSize;
+            surface.PerformLayout();
+            shell.Bounds=new Rectangle(shell.Left,shell.Top,
+                Math.Max(1,surface.ClientSize.Width-shell.Left),
+                Math.Max(1,surface.ClientSize.Height-shell.Top));
+            shell.PerformLayout();
+            apps.PerformLayout();
+            if (list.Parent is { } listHost)
+            {
+                listHost.Bounds=new Rectangle(listHost.Left,listHost.Top,
+                    Math.Max(1,apps.ClientSize.Width-listHost.Left),
+                    Math.Max(1,apps.ClientSize.Height-listHost.Top));
+                listHost.PerformLayout();
+                list.Bounds = new Rectangle(listHost.Padding.Left, listHost.Padding.Top,
+                    Math.Max(1,listHost.ClientSize.Width-listHost.Padding.Horizontal),
+                    Math.Max(1,listHost.ClientSize.Height-listHost.Padding.Vertical));
+            }
+        }
         var render=typeof(MainForm).GetMethod("RenderPrograms",flags)!;
         var entries=new[]{
             new ProgramEntry{Name="7-Zip 24.09 (x64)",Version="24.09",Publisher="Igor Pavlov",InventoryId="GF-APP-FIXTURE-1",
@@ -2154,12 +2176,22 @@ internal static class V269IntegrationTests
             foreach(var size in new[]{new Size(760,596),new Size(992,659),new Size(1200,659)})
             foreach(int index in new[]{0,1,2})
             {
-                surface.Size=size;theme.SelectedIndex=index;
+                SetSyntheticSurface(size);theme.SelectedIndex=index;
                 shell.PresentPanel(null);render.Invoke(form,[]);
                 list.SelectedIndex=0;
                 if(list.SelectedItem is {} selected)
                     typeof(MainForm).GetMethod("PresentV269AppDetails",flags)!.Invoke(form,[selected]);
                 surface.PerformLayout();Application.DoEvents();
+                if (list.Parent is { } renderedHost)
+                {
+                    renderedHost.Bounds=new Rectangle(renderedHost.Left,renderedHost.Top,
+                        Math.Max(1,apps.ClientSize.Width-renderedHost.Left),
+                        Math.Max(1,apps.ClientSize.Height-renderedHost.Top));
+                    renderedHost.PerformLayout();
+                    list.Bounds=new Rectangle(renderedHost.Padding.Left,renderedHost.Padding.Top,
+                        Math.Max(1,renderedHost.ClientSize.Width-renderedHost.Padding.Horizontal),
+                        Math.Max(1,renderedHost.ClientSize.Height-renderedHost.Padding.Vertical));
+                }
                 Require(list.TableHeaderHeight>0&&list.Items.Count==5,"cabeçalho fixo e inventário preservado");
                 var hScroll=list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single();
                 var vScroll=list.Controls.Find("V269AppsVerticalScroll",false).OfType<DarkVScrollBar>().Single();
@@ -2183,7 +2215,7 @@ internal static class V269IntegrationTests
                     "Instalado em legível por inteiro com fonte padrão, sem invadir outra coluna");
                 var origin=surface.PointToScreen(Point.Empty);
                 Rectangle Relative(Control x)=>new(surface.PointToClient(x.PointToScreen(Point.Empty)),x.Size);
-                Console.WriteLine($"V269-APPS-GEOMETRY {size.Width}x{size.Height} theme={(V269Theme)index} dpi={list.DeviceDpi} toolbar={Relative(form.Controls.Find("V269AppsSearch",true).Single().Parent!)} list={Relative(list)} header={list.TableHeaderHeight} row={row.Height} pane={Relative(shell.RightPane)} paneVisible={shell.RightPane.Visible}");
+                Console.WriteLine($"V269-APPS-GEOMETRY {size.Width}x{size.Height} theme={(V269Theme)index} dpi={list.DeviceDpi} surface={surface.ClientSize} shell={shell.ClientSize}/{shell.Bounds} parent={shell.Parent?.ClientSize} page={apps.ClientSize} toolbar={Relative(form.Controls.Find("V269AppsSearch",true).Single().Parent!)} list={Relative(list)} header={list.TableHeaderHeight} row={row.Height} pane={Relative(shell.RightPane)} paneVisible={shell.RightPane.Visible}");
                 using(var image=new Bitmap(surface.Width,surface.Height))
                 {surface.DrawToBitmap(image,new Rectangle(Point.Empty,surface.Size));image.Save($"LayoutCaptures/v269-aplicativos-SINTETICO-{(V269Theme)index}-{size.Width}x{size.Height}.png");}
                 if(size.Width<=1040)
@@ -2248,7 +2280,7 @@ internal static class V269IntegrationTests
             // Testar o hit-test sem disparar nenhum executável, inclusive com
             // o deslocamento horizontal aplicado.
             var horizontal=list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single();
-            surface.Size=new Size(760,596);surface.PerformLayout();Application.DoEvents();
+            SetSyntheticSurface(new Size(760,596));Application.DoEvents();
             if(shell.RightPane.Visible)details.PerformClick();
             if(horizontal.Visible)horizontal.Value=horizontal.MaximumValue;
             var bounds=(Rectangle)typeof(DarkProgramList).GetMethod("RowBounds",flags)!.Invoke(list,[2])!;
@@ -2294,7 +2326,7 @@ internal static class V269IntegrationTests
             }
             finally{list.UninstallOperationFor=previousOperation;}
             // Só estados de apresentação; nenhum comando, rede ou manutenção.
-            surface.Size=new Size(1200,659);surface.PerformLayout();
+            SetSyntheticSurface(new Size(1200,659));
             shell.PresentPanel(null);list.SelectedIndex=0;
             var record=typeof(MainForm).GetMethod("RecordV269AppResult",flags)!;
             var oldResult=new V269PanelPresentation(V269PanelKind.Result,"Resultado de fixture","Resultado real da fixture, sem execução.");
@@ -2338,6 +2370,9 @@ internal static class V269IntegrationTests
                         historyTable.GetControlFromPosition(1,fieldRow) is Label value&&value.Margin.Left==halfGap,
                         "intervalo horizontal de 12 px entre rótulo e valor");
                 }
+                Console.WriteLine($"V269-APPS-DETAIL history={historyTable.Bounds}/{historyTable.ClientSize} detail={detailPane.Bounds}/{detailPane.ClientSize} right={shell.RightPane.Bounds}/{shell.RightPane.ClientSize} page={apps.Bounds}/{apps.ClientSize}");
+                for(Control? ancestor=historyTable;ancestor is not null;ancestor=ancestor.Parent)
+                    Console.WriteLine($"V269-APPS-ANCESTOR {ancestor.Name} type={ancestor.GetType().Name} bounds={ancestor.Bounds} client={ancestor.ClientSize} dock={ancestor.Dock}");
                 Require(historyTable.ColumnStyles[0].SizeType==SizeType.Absolute&&
                     historyTable.ColumnStyles[0].Width<historyTable.ClientSize.Width*.4,
                     "rótulos reservam a largura necessária e deixam o restante para os valores");
@@ -2488,7 +2523,7 @@ internal static class V269IntegrationTests
             Require(shell.RightPane.Current?.Application?.PreviousResults is {Count:0}&&
                 shell.RightPane.Controls.Find("V269AppPreviousResult",true).Length==0,
                 "dispensar remove somente o resultado da apresentação");
-            surface.Size=new Size(1200,659);surface.PerformLayout();
+            SetSyntheticSurface(new Size(1200,659));
             var cancelField=typeof(MainForm).GetField("_uninstallCts",flags)!;
             var showCancel=typeof(MainForm).GetMethod("ShowUninstallCancellation",flags)!;
             Require(cancelField.GetValue(form) is null,"fixture sem desinstalação real");
@@ -3662,6 +3697,7 @@ internal static class V269IntegrationTests
         shell.PresentPanel(null);
         var surface=form.Controls.OfType<TableLayoutPanel>().Single();
         Size originalSize=surface.Size;
+        int physicalScale = form.DeviceDpi;
         var old=page.Appearance.GetOptions();
         var themeChoice=page.Appearance.Controls.Find("V269ThemeChoice",true).OfType<V269SettingsCombo>().Single();
         Require(themeChoice.DrawMode==DrawMode.OwnerDrawFixed&&themeChoice.DropDownStyle==ComboBoxStyle.DropDownList,
@@ -3670,7 +3706,9 @@ internal static class V269IntegrationTests
         {
             foreach(var size in new[]{new Size(760,596),new Size(992,659)})
             {
-                surface.Size=size;
+                Size physicalSize = new(size.Width * physicalScale / 96,
+                    size.Height * physicalScale / 96);
+                surface.Size=physicalSize;
                 foreach(var theme in Enum.GetValues<V269Theme>())
                 {
                     themeChoice.SelectedIndex=(int)theme;
@@ -3684,7 +3722,7 @@ internal static class V269IntegrationTests
                     // Em ambas as janelas da referência, o seletor de
                     // tema começa fora da área visível em abertura.
                     if(page.DeviceDpi==96&&Screen.FromControl(page).WorkingArea.Height<=810&&
-                        surface.Size==size)
+                        surface.Size==physicalSize)
                     {
                         var comboOnPage=page.RectangleToClient(themeChoice.RectangleToScreen(themeChoice.ClientRectangle));
                         if(!page.ClientRectangle.IntersectsWith(comboOnPage))
@@ -3697,7 +3735,7 @@ internal static class V269IntegrationTests
                         Cards=new[]{(Control)page.General,page.Appearance}.Select(card=>{
                             var p=card.PointToScreen(Point.Empty);return new{card.Name,X=p.X-origin.X,Y=p.Y-origin.Y,card.Width,card.Height};}).ToArray()};
                     Console.WriteLine("V269-SETTINGS-GEOMETRY "+System.Text.Json.JsonSerializer.Serialize(geom));
-                    if(geom.Dpi==96&&geom.WorkAreaHeight<=810&&surface.Size==size)
+                    if(geom.Dpi==96&&geom.WorkAreaHeight<=810&&surface.Size==physicalSize)
                     {
                         // Medidas do HTML original PR #109, mesma classe
                         // de viewport e escalas 100%. Tolerância de arredondamento.
@@ -3793,7 +3831,7 @@ internal static class V269IntegrationTests
                         "controle de Configurações ajusta a janela real e mantém dimensão fixa no monitor");
                     // A janela real mudou; manter o viewport compacto explícito
                     // para que os testes de acesso não passem por área maior.
-                    surface.Size=new Size(760,596);
+                    surface.Size=new Size(760 * physicalScale / 96,596 * physicalScale / 96);
                     surface.PerformLayout();Application.DoEvents();
                     foreach(Control action in new Control[]{general.Administrator,general.StartWindows,
                         general.Notifications,general.Tray,general.Collect,general.Privacy,general.Diagnostic,general.History,
@@ -3807,7 +3845,8 @@ internal static class V269IntegrationTests
             }
             finally
             {
-                range.Value=100;textRange.Value=100;surface.Size=new Size(992,659);
+                range.Value=100;textRange.Value=100;
+                surface.Size=new Size(992 * physicalScale / 96,659 * physicalScale / 96);
                 page.ScrollTo(0);Application.DoEvents();
             }
             // Acionar os três botões consultivos da view real, em MainForm

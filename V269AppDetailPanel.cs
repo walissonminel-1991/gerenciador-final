@@ -443,7 +443,9 @@ internal sealed class V269AppOperationHistory : Panel
         try
         {
             int width=Math.Max(1,ClientSize.Width),height=Math.Max(1,ClientSize.Height);
-            int barWidth=Math.Max(12,_scroll.Width);
+            // Mesma espessura de DarkVScrollBar.ApplyAppScrollTheme (12 px).
+            // Não ler largura residual de um layout ou DPI anterior.
+            const int barWidth=12;
             int content=Measure(width);
             if(content>height){width=Math.Max(1,width-barWidth-3);content=Measure(width);}
             _viewport.Bounds=new Rectangle(0,0,width,height);
@@ -669,7 +671,9 @@ internal sealed class V269AppDetailPanel : Panel
         if(_arranging||IsDisposed||Disposing)return;_arranging=true;
         try
         {
-            int barWidth=Math.Max(12,_scroll.Width);
+            // Mesma espessura de DarkVScrollBar.ApplyAppScrollTheme (12 px).
+            // Não ler largura residual de um layout ou DPI anterior.
+            const int barWidth=12;
             int height=Math.Max(1,ClientSize.Height);
             bool app = _model is { DriverGlyph: null };
             var labels = _table.Controls.OfType<Label>().ToArray();
