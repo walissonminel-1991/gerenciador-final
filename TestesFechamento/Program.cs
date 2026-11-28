@@ -7,6 +7,7 @@ void Check(bool ok, string what)
     Console.WriteLine("OK " + what);
     checks++;
 }
+ElevatedWorkerReadSupervisorTests.Run(Check);
 string apps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps");
 string terminal = Path.Combine(apps,
     "Microsoft.WindowsTerminal_1.24.12741.0_x64__8wekyb3d8bbwe", "WindowsTerminal.exe");
