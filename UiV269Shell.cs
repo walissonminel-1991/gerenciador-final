@@ -1623,8 +1623,8 @@ internal sealed class V269Shell : UserControl
                 }
                 else if(placement==2)
                 {
-                    _centralLayout.RowCount=3;_centralLayout.RowStyles[1].Height=58;
-                    _centralLayout.RowStyles.Add(new RowStyle(SizeType.Percent,42));
+                    _centralLayout.RowCount=3;_centralLayout.RowStyles[1].Height=70;
+                    _centralLayout.RowStyles.Add(new RowStyle(SizeType.Percent,30));
                     _centralLayout.Controls.Add(_rightPane,0,2);
                 }
                 else _columns.Controls.Add(_rightPane,2,0);

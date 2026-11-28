@@ -682,8 +682,11 @@ internal static class LayoutTests
                         var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                             .Single(x => x.EmbeddedInPage && x.Content.Controls.Count == count);
                         var cards = toolFlow.Content.Controls.OfType<Panel>().ToArray();
-                        if (cards.Length != count || cards.Any(x => x.Height > 116))
-                            throw new Exception("Cartoes ainda excessivamente altos em 1440x900: aba " + tab);
+                        int maxCardHeight = V269AppTable.Scale(116,
+                            V269AppearanceOptions.Default.InterfacePercent, form.DeviceDpi);
+                        if (cards.Length != count || cards.Any(x => x.Height > maxCardHeight))
+                            throw new Exception($"Cartoes ainda excessivamente altos em 1440x900: aba {tab} " +
+                                $"limite={maxCardHeight}px dpi={form.DeviceDpi}");
                         foreach (Panel card in cards)
                         {
                             if (tab == V269Page.Limpeza)
