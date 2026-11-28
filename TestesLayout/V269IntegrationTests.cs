@@ -2551,22 +2551,22 @@ internal static class V269IntegrationTests
                     }
                     VerifyHistoryPartialWheel(pane,bar,table,"detalhes");
                     // Foco real, sem chamar Enter por reflexão nem executar Dispensar.
-                    var dismiss=table.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
-                    Require(list.Focus()&&dismiss.Enabled&&dismiss.CanFocus,
+                    var focusDismiss=table.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                    Require(list.Focus()&&focusDismiss.Enabled&&focusDismiss.CanFocus,
                         "detalhes: comando contextual alcançável pelo foco");
                     try
                     {
                         bar.Value=0;
                         var clip=viewport.RectangleToScreen(viewport.ClientRectangle);
-                        Require(dismiss.Height>0&&dismiss.Width>0&&dismiss.Height<=clip.Height&&
-                            !clip.Contains(dismiss.RectangleToScreen(dismiss.ClientRectangle)),
+                        Require(focusDismiss.Height>0&&focusDismiss.Width>0&&focusDismiss.Height<=clip.Height&&
+                            !clip.Contains(focusDismiss.RectangleToScreen(focusDismiss.ClientRectangle)),
                             "controle negativo: histórico sintético inicialmente fora do viewport");
-                        Require(dismiss.Focus(),"detalhes: foco nativo no comando do histórico");
+                        Require(focusDismiss.Focus(),"detalhes: foco nativo no comando do histórico");
                         Application.DoEvents();
-                        Require(dismiss.Focused&&bar.Value>0&&table.Top==-bar.Value&&
+                        Require(focusDismiss.Focused&&bar.Value>0&&table.Top==-bar.Value&&
                             viewport.RectangleToScreen(viewport.ClientRectangle)
-                                .Contains(dismiss.RectangleToScreen(dismiss.ClientRectangle))&&
-                            LayoutTests.FullyVisible(dismiss),
+                                .Contains(focusDismiss.RectangleToScreen(focusDismiss.ClientRectangle))&&
+                            LayoutTests.FullyVisible(focusDismiss),
                             "REC-BASE-DETAIL-FOCUS: receber foco revela o comando inteiro sem ativá-lo");
                     }
                     finally
