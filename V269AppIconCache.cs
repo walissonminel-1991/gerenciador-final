@@ -83,7 +83,11 @@ internal sealed class V269AppIconCache : IDisposable
         this.owner=owner;
         _read=read??ReadAsync;
         _completed=completed;
+        _completionTimer=new System.Windows.Forms.Timer{Interval=25};
+        _completionTimer.Tick+=DrainCompletedRead;
         owner.VisibleChanged+=OwnerVisibilityChanged;
+        owner.HandleCreated+=OwnerHandleCreated;
+        owner.Disposed+=OwnerDisposed;
     }
 
     private static async Task<byte[]?> ReadAsync(V269IconRequest source) =>
@@ -107,7 +111,15 @@ internal sealed class V269AppIconCache : IDisposable
     private readonly Dictionary<V269IconRequest,Bitmap?> _items=new();
     private readonly Queue<V269IconRequest> _order=new(),_queue=new();
     private readonly HashSet<V269IconRequest> _pending=new();
-    private bool _running,_disposed;
+    // A fila e o cache pertencem exclusivamente à thread de UI. O timer tem
+    // janela própria e só funciona enquanto há uma leitura pendente, sem depender
+    // do HWND do controle que pode ser destruído/recriado durante a extração.
+    private readonly System.Windows.Forms.Timer _completionTimer;
+    private Task<byte[]?>? _activeRead;
+    private V269IconRequest? _activeSource;
+    private bool _disposed;
+    private void OwnerHandleCreated(object? sender,EventArgs e)=>Start();
+    private void OwnerDisposed(object? sender,EventArgs e)=>Dispose();
     internal Bitmap? Get(string value,V269MsixIconSource? msix=null) =>
         Get(V269IconRequest.Create(value,msix));
 
@@ -120,35 +132,42 @@ internal sealed class V269AppIconCache : IDisposable
     }
     private void Start()
     {
-        if(_disposed||_running||_queue.Count==0||!owner.Visible||!owner.IsHandleCreated)return;
-        _running=true;var source=_queue.Dequeue();
-        _=Task.Run(async ()=>
+        if(_disposed||_activeRead is not null||_queue.Count==0||owner.IsDisposed||
+            !owner.Visible||!owner.IsHandleCreated)return;
+        var source=_queue.Dequeue();
+        _activeSource=source;
+        _activeRead=Task.Run(async ()=>
         {
-            byte[]? bytes=await _read(source);
-            try
-            {
-                if(!owner.IsDisposed&&owner.IsHandleCreated)
-                    owner.BeginInvoke(new Action(()=>Complete(source,bytes)));
-            }
-            catch(InvalidOperationException){ }
+            try{return await _read(source).ConfigureAwait(false);}
+            catch(Exception){return null;} // falha de apresentação: fallback, sem travar a fila
         });
+        _completionTimer.Start();
+    }
+    private void DrainCompletedRead(object? sender,EventArgs e)
+    {
+        if(_disposed||_activeRead is not {IsCompleted:true} read||_activeSource is not {} source)return;
+        // O leitor não publica callbacks nem toca em controles. A conclusão
+        // acontece mesmo se o HWND do owner sumir, sempre na thread de UI.
+        _completionTimer.Stop();
+        _activeRead=null;_activeSource=null;
+        Complete(source,read.GetAwaiter().GetResult());
     }
     private void Complete(V269IconRequest source,byte[]? bytes)
     {
         if(_disposed)return;
-        _pending.Remove(source);_running=false;
+        _pending.Remove(source);
         Bitmap? image=null;
         if(bytes is not null)
         {
             try{using var stream=new MemoryStream(bytes);using var decoded=new Bitmap(stream);image=new Bitmap(decoded);}
-            catch(ArgumentException){ }
+            catch(Exception ex) when(ex is ArgumentException or ExternalException or OutOfMemoryException or IOException){ }
         }
         V269IconRequest? evicted=null;
         while(_items.Count>=192&&_order.TryDequeue(out var first))
             if(_items.Remove(first,out var removed)&&removed is not null)
             { removed.Dispose();evicted=first; }
         _items[source]=image;_order.Enqueue(source);
-        if(owner.Visible)
+        if(!owner.IsDisposed&&owner.IsHandleCreated&&owner.Visible)
         {
             // O painel de detalhes mantém sua invalidação original. A lista
             // conhece as identidades e posições atuais, não as da requisição.
@@ -245,8 +264,15 @@ internal sealed class V269AppIconCache : IDisposable
     }
     public void Dispose()
     {
+        if(_disposed)return;
         _disposed=true;
         owner.VisibleChanged-=OwnerVisibilityChanged;
+        owner.HandleCreated-=OwnerHandleCreated;
+        owner.Disposed-=OwnerDisposed;
+        _completionTimer.Stop();
+        _completionTimer.Tick-=DrainCompletedRead;
+        _completionTimer.Dispose();
+        _activeRead=null;_activeSource=null;
         foreach(var image in _items.Values)image?.Dispose();
         _items.Clear();_queue.Clear();_order.Clear();_pending.Clear();
     }

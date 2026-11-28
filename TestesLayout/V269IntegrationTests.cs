@@ -3071,6 +3071,7 @@ internal static class V269IntegrationTests
     {
         VerifyAppIconQueueVisibility();
         VerifyAppIconPartialInvalidation();
+        V269IconQueueRecoveryTests.Run(Require);
         Require(V269LocalIconSource.Parse("\"C:\\Program Files\\GF\\app.exe\",-12") is {Index:-12}&&
             V269LocalIconSource.Parse("C:\\GF\\app.ico") is {Index:0},"ícones locais com índice documentado");
         foreach(string invalid in new[]{"https://site/app.ico","\\\\server\\share\\a.exe","C:\\GF\\..\\a.exe",
