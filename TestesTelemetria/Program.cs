@@ -22,6 +22,8 @@ if (args.Length == 2 && args[0] == "--hold-beta-send-lease")
     return;
 }
 
+DiagnosticAuditAdmissionTests.Run(Verify);
+
 string temp = Path.Combine(Path.GetTempPath(), "gf-telemetry-tests-" + Guid.NewGuid().ToString("N"));
 try
 {
