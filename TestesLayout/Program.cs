@@ -44,6 +44,11 @@ internal static class LayoutTests
             },
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
+        // Rotas focais diagnósticas: nunca substituem o percurso integral.
+        if (args.Length == 1 && args[0] == "--ui-v269-root-geometry-probe")
+        { Measure("L12-root-geometry", V269RootGeometryProbe.Run); return; }
+        if (args.Length == 1 && args[0] == "--ui-v269-frames")
+        { Measure("REC-FIS-02-PAINT-FRAMES", V269IntegrationTests.RunFramePaintOnly); return; }
         Measure("Monitor_GF", () =>
         {
             GfThermalEvidenceTests.Run();
