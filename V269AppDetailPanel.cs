@@ -645,6 +645,8 @@ internal sealed class V269AppDetailPanel : Panel
                     history.ApplyMetrics(_interfacePercent,Math.Max(1,ClientSize.Width));
                     history.ApplyPalette(_palette);
                     history.MouseWheel+=ScrollContent;
+                    foreach(Control button in history.Controls.OfType<Button>())
+                        button.Enter+=(_,_)=>EnsureHistoryButtonVisible(button);
                     foreach(Control child in history.Controls)child.MouseWheel+=ScrollContent;
                     _table.Controls.Add(history,0,row);_table.SetColumnSpan(history,2);
                 }
@@ -736,6 +738,16 @@ internal sealed class V269AppDetailPanel : Panel
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         ScrollContent(this,e);base.OnMouseWheel(e);
+    }
+    // O viewport manual não revela automaticamente o foco recebido por Tab.
+    // Ajustar somente a posição dos detalhes, sem executar o comando focado.
+    private void EnsureHistoryButtonVisible(Control button)
+    {
+        if(button.IsDisposed||_scroll.MaximumValue==0)return;
+        var location=_table.PointToClient(button.PointToScreen(Point.Empty));
+        if(location.Y<_scroll.Value)_scroll.Value=location.Y;
+        else if(location.Y+button.Height>_scroll.Value+_viewport.Height)
+            _scroll.Value=location.Y+button.Height-_viewport.Height;
     }
     private void RefreshIdentityFont()
     {
