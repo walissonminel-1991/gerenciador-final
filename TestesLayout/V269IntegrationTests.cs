@@ -1925,6 +1925,22 @@ internal static class V269IntegrationTests
                             Require(pageViewport.Content.Top==-pageScroll.Value&&LayoutTests.FullyVisible(diskHeading)&&
                                 ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
                                 "rolagem da página revela título de armazenamento sem resolver a confirmação");
+                            // O título não prova que o último volume ou seu comando
+                            // possam ser alcançados. A fixture tem dois discos sintéticos;
+                            // não focar/clicar no comando, pois Enter do cartão muda detalhes.
+                            Require(MainForm.V269DiskCardsMatch(disks.Content.Controls, observedDisks),
+                                "confirmação preserva identidade e ordem dos dois volumes sintéticos");
+                            var lastDisk=disks.Content.Controls.OfType<V269CleanupDiskCard>().Last();
+                            var lastCommand=lastDisk.Command;
+                            Require(ReferenceEquals(lastDisk,fixtures[^1])&&lastDisk.Visible&&lastCommand.Visible&&
+                                lastDisk.ClientRectangle.Contains(lastCommand.Bounds)&&lastCommand.Width>0&&lastCommand.Height>0,
+                                "último cartão e comando pertencem ao volume sintético correto");
+                            pageScroll.Value=pageScroll.MaximumValue;
+                            Require(pageViewport.Content.Top==-pageScroll.Value&&
+                                LayoutTests.FullyVisible(lastDisk)&&LayoutTests.FullyVisible(lastCommand)&&
+                                ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                                "fim da rolagem revela o último volume e comando sem executar manutenção");
+                            Console.WriteLine($"PASS REC-BASE-CLEANUP-LAST-DISK theme={palette} size={size} max={pageScroll.MaximumValue} dpi={lastDisk.DeviceDpi}");
                         }
                         finally{pageScroll.Value=originalPagePosition;}
                         Require(pageScroll.Value==originalPagePosition&&pageViewport.Content.Top==-originalPagePosition&&
