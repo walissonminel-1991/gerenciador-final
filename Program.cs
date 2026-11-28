@@ -814,6 +814,7 @@ internal sealed partial class MainForm : Form
         Bounds = opening;
 
         var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 2, Padding = Padding.Empty, BackColor = AppServices.Background };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         Controls.Add(root);
