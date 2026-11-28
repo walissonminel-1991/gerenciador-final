@@ -33,7 +33,7 @@ internal static class ElevatedWorkerPipeTests
         {
             using var reader = new StreamReader(server, Encoding.UTF8, false, 1024, leaveOpen: true);
             using var cancellation = new CancellationTokenSource();
-            var admission = new ElevatedOperationAdmission();
+            var admission = new ElevatedOperationAdmission(new FixtureElevatedOperationCheckpoint());
             using var lease = admission.TryAcquire() ?? throw new InvalidOperationException("fixture");
             int callbacks = 0;
             var pending = ElevatedWorkerReadSupervisor.ObserveAsync(

@@ -10,5 +10,8 @@
     <Compile Include="../InstallerLockScanner.cs" Link="InstallerLockScanner.cs" />
     <Compile Include="../UpdateBlockingPreflight.cs" Link="UpdateBlockingPreflight.cs" />
     <Compile Include="../ElevatedWorkerReadSupervisor.cs" Link="ElevatedWorkerReadSupervisor.cs" />
+    <Compile Include="../PersistentElevatedOperationCheckpoint.cs" Link="PersistentElevatedOperationCheckpoint.cs" />
+    <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
+    <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
   </ItemGroup>
 </Project>

@@ -70,7 +70,7 @@ internal static class ElevatedWorkerReadSupervisorTests
             _ => Task.FromResult(0), _ => { }, Budget);
         check(broken.State == ElevatedObservationState.CommunicationLost, "GF-04: perda do canal inconclusiva");
 
-        var admission = new ElevatedOperationAdmission();
+        var admission = new ElevatedOperationAdmission(new FixtureElevatedOperationCheckpoint());
         using (var first = admission.TryAcquire() ?? throw new InvalidOperationException("fixture"))
         {
             check(admission.IsBlocked && admission.TryAcquire() is null, "GF-04: concorrência recusada");
@@ -83,13 +83,13 @@ internal static class ElevatedWorkerReadSupervisorTests
         }
         check(admission.IsInconclusive && admission.IsBlocked && admission.TryAcquire() is null,
             "GF-04: timeout mantém posse; terminal tardio não rearma");
-        var noLaunch = new ElevatedOperationAdmission();
+        var noLaunch = new ElevatedOperationAdmission(new FixtureElevatedOperationCheckpoint());
         using (var lease = noLaunch.TryAcquire() ?? throw new InvalidOperationException("fixture")) lease.NoLaunch();
         using (var lease = noLaunch.TryAcquire() ?? throw new InvalidOperationException("fixture")) { }
         check(noLaunch.IsInconclusive && noLaunch.TryAcquire() is null,
             "GF-04: somente recusa comprovada antes de lançar libera; descarte sem desfecho bloqueia");
 
-        var competing = new ElevatedOperationAdmission();
+        var competing = new ElevatedOperationAdmission(new FixtureElevatedOperationCheckpoint());
         int winners = 0;
         Parallel.For(0, 32, _ =>
         {
@@ -98,4 +98,12 @@ internal static class ElevatedWorkerReadSupervisorTests
         });
         check(winners == 1 && competing.IsBlocked, "GF-04: uma única posse sob concorrência");
     }
+}
+
+// Exclusivamente para as provas unitárias da máquina de estados, sem I/O.
+internal sealed class FixtureElevatedOperationCheckpoint : IElevatedOperationCheckpoint
+{
+    public bool TryBegin() => true;
+    public bool TryClear() => true;
+    public void Retain() { }
 }

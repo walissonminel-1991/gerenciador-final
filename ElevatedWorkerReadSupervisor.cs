@@ -92,16 +92,30 @@ internal static class ElevatedWorkerReadSupervisor
 
 // A perda de comunicação não prova que DISM/SFC/WUA ou filhos terminaram.
 // Quarentena é terminal nesta instância; não há reset por timeout ou PID.
-// Integração exige posse compartilhada entre rotas e recuperação entre sessões.
-internal sealed class ElevatedOperationAdmission
+// Integração exige uma instância compartilhada entre rotas e o checkpoint durável.
+internal sealed class ElevatedOperationAdmission(IElevatedOperationCheckpoint checkpoint)
 {
     private const int Idle = 0, Active = 1, Quarantined = 2;
     private int _state;
     internal bool IsBlocked => Volatile.Read(ref _state) != Idle;
     internal bool IsInconclusive => Volatile.Read(ref _state) == Quarantined;
 
-    internal Lease? TryAcquire() =>
-        Interlocked.CompareExchange(ref _state, Active, Idle) == Idle ? new(this) : null;
+    private readonly IElevatedOperationCheckpoint _checkpoint = checkpoint ?? throw new ArgumentNullException(nameof(checkpoint));
+
+    internal Lease? TryAcquire()
+    {
+        if (Interlocked.CompareExchange(ref _state, Active, Idle) != Idle) return null;
+        bool persisted = false;
+        try
+        {
+            persisted = _checkpoint.TryBegin();
+            return persisted ? new(this) : null;
+        }
+        finally
+        {
+            if (!persisted) Interlocked.Exchange(ref _state, Quarantined);
+        }
+    }
 
     internal sealed class Lease : IDisposable
     {
@@ -111,8 +125,14 @@ internal sealed class ElevatedOperationAdmission
         private void Finish(bool release)
         {
             var owner = Interlocked.Exchange(ref _owner, null);
-            if (owner is not null)
-                Interlocked.CompareExchange(ref owner._state, release ? Idle : Quarantined, Active);
+            if (owner is null) return;
+            bool cleared = false;
+            try
+            {
+                if (release) cleared = owner._checkpoint.TryClear();
+                else owner._checkpoint.Retain();
+            }
+            finally { Interlocked.CompareExchange(ref owner._state, cleared ? Idle : Quarantined, Active); }
         }
 
         // Usar somente quando há prova de que nenhum processo foi iniciado.
