@@ -2501,6 +2501,29 @@ internal static class V269IntegrationTests
                     {
                         bar.Width=originalWidth;pane.ApplyInterfaceScale(scales.Ui);bar.Value=originalPosition;
                     }
+                    // Foco real, sem chamar Enter por reflexão nem executar Dispensar.
+                    var dismiss=table.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
+                    Require(list.Focus()&&dismiss.Enabled&&dismiss.CanFocus,
+                        "detalhes: comando contextual alcançável pelo foco");
+                    try
+                    {
+                        bar.Value=0;
+                        var clip=viewport.RectangleToScreen(viewport.ClientRectangle);
+                        Require(dismiss.Height>0&&dismiss.Width>0&&dismiss.Height<=clip.Height&&
+                            !clip.Contains(dismiss.RectangleToScreen(dismiss.ClientRectangle)),
+                            "controle negativo: histórico sintético inicialmente fora do viewport");
+                        Require(dismiss.Focus(),"detalhes: foco nativo no comando do histórico");
+                        Application.DoEvents();
+                        Require(dismiss.Focused&&bar.Value>0&&table.Top==-bar.Value&&
+                            viewport.RectangleToScreen(viewport.ClientRectangle)
+                                .Contains(dismiss.RectangleToScreen(dismiss.ClientRectangle))&&
+                            LayoutTests.FullyVisible(dismiss),
+                            "REC-BASE-DETAIL-FOCUS: receber foco revela o comando inteiro sem ativá-lo");
+                    }
+                    finally
+                    {
+                        list.Focus();bar.Value=originalPosition;
+                    }
                     Require(shell.RightPane.Current?.Application is {} active&&active.Name==overflowModel.Name&&
                         active.Description==overflowModel.Description&&
                         (active.PreviousResults??[]).SequenceEqual(overflowModel.PreviousResults??[]),
