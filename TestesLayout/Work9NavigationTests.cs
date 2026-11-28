@@ -14,17 +14,17 @@ internal static class Work9NavigationTests
         var setView = typeof(MainForm).GetMethod("SetSystemView", Private)!;
         var refresh = typeof(MainForm).GetMethod("RefreshStartupEntriesAsync", Private)!;
         nav.SelectPage(V269Page.Sistema);
-        var tooltip = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!.GetValue(form)!;
-        check(!tooltip.Active, "WU-UI1 nenhum tooltip flutuante na janela principal");
+        check(typeof(MainForm).GetFields(Private).All(field => field.FieldType != typeof(ToolTip)),
+            "WU-UI1 nenhum componente tooltip na janela principal");
         setView.Invoke(form, ["update"]);
         typeof(MainForm).GetMethod("DrawWindowsUpdates", Private)!.Invoke(form, null);
         var search = (Button)typeof(MainForm).GetField("_searchWindowsUpdatesButton", Private)!.GetValue(form)!;
         var summary = (Label)typeof(MainForm).GetField("_systemPanelSummary", Private)!.GetValue(form)!;
         bool scanning = (bool)typeof(MainForm).GetField("_windowsUpdateScanning", Private)!.GetValue(form)!;
         bool checkedWU = (bool)typeof(MainForm).GetField("_windowsUpdateChecked", Private)!.GetValue(form)!;
-        check(search.Name == "WindowsUpdateExplicitSearch" && search.Text == "Buscar atualizações" &&
+        check(search.Name == "WindowsUpdateExplicitSearch" && search.Text == "Verificar atualizações" &&
             search.Enabled && !scanning && !checkedWU &&
-            summary.Text.Contains("Buscar atualizações", StringComparison.Ordinal),
+            summary.Text.Contains("Verificar atualizações", StringComparison.Ordinal),
             "WU-UI2 visualização sem consulta e botão de busca explícito");
         foreach (bool leaveMainTab in new[] { false, true })
         {

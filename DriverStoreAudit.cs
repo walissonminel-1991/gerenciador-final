@@ -30,20 +30,64 @@ internal sealed record DriverStoreAuditResult(IReadOnlyList<DriverStoreEvidence>
 // leitura de conteúdo, elevação, download ou qualquer operação de manutenção.
 internal static class DriverStoreAudit
 {
-    internal static DriverInventoryResult CaptureWithPackages(CancellationToken token)
+    internal enum AuditPhase { Inventory, WmiConnect, WmiPnp, WmiSigned, Store, Published, History, Correlation, Binding, Metadata, PublishedListSize, PublishedListRead, PublishedResolve }
+    internal static readonly TimeSpan InteractiveTimeout = TimeSpan.FromSeconds(20);
+
+    // Mesma rota consultiva utilizada pelo GF e pela prova nativa da CI.
+    internal static DriverInventoryResult CaptureForDisplay(CancellationToken token,
+        Action<AuditPhase,bool,long>? observe = null)
     {
-        var inventory = DriverInventory.Capture(token);
-        var store = Capture(inventory, token);
-        var published = DriverPublishedPackages.Capture(inventory, token);
-        var history = DriverWindowsHistory.Capture(token);
-        var byInf = store.Packages.ToDictionary(x => x.InfName, StringComparer.OrdinalIgnoreCase);
-        var audited = inventory with
+        var inventory = CaptureWithPackages(token, observe);
+        return RunPhase(AuditPhase.Metadata, token, observe,
+            () => DriverDeviceMetadata.Enrich(inventory, token));
+    }
+
+    internal static DriverInventoryResult CaptureWithPackages(CancellationToken token) =>
+        CaptureWithPackages(token,null);
+
+    internal static DriverInventoryResult CaptureWithPackages(CancellationToken token,
+        Action<AuditPhase,bool,long>? observe)
+    {
+        var inventory = Phase(AuditPhase.Inventory, () => DriverInventory.Capture(token, observe));
+        var store = Phase(AuditPhase.Store, () => Capture(inventory, token));
+        var published = Phase(AuditPhase.Published, () => DriverPublishedPackages.Capture(inventory, token, observe: observe));
+        var history = Phase(AuditPhase.History, () => DriverWindowsHistory.Capture(token));
+        var audited = Phase(AuditPhase.Correlation, () =>
         {
-            Store = store, PublishedPackages = published, WindowsHistory = history,
-            Items = inventory.Items.Select(x => x with
-                { PackageEvidence = byInf.GetValueOrDefault(x.InfName), WindowsEvents = DriverWindowsHistory.Correlate(x, history) }).ToArray()
-        };
-        return DriverBindingEvidence.Enrich(audited, token);
+            var byInf = store.Packages.ToDictionary(x => x.InfName, StringComparer.OrdinalIgnoreCase);
+            return inventory with
+            {
+                Store = store, PublishedPackages = published, WindowsHistory = history,
+                Items = inventory.Items.Select(x => x with
+                    { PackageEvidence = byInf.GetValueOrDefault(x.InfName), WindowsEvents = DriverWindowsHistory.Correlate(x, history) }).ToArray()
+            };
+        });
+        return Phase(AuditPhase.Binding, () => DriverBindingEvidence.Enrich(audited, token));
+
+        T Phase<T>(AuditPhase phase, Func<T> work) => RunPhase(phase, token, observe, work);
+    }
+
+    // Os limites das APIs nativas são cooperativos. Se uma chamada voltar
+    // após o cancelamento, não iniciar a próxima fase nem devolver uma
+    // fotografia que o chamador já não pode publicar.
+    internal static T RunPhase<T>(AuditPhase phase, CancellationToken token,
+        Action<AuditPhase,bool,long>? observe, Func<T> work)
+    {
+        token.ThrowIfCancellationRequested();
+        long started = observe is null ? 0 : Stopwatch.GetTimestamp();
+        observe?.Invoke(phase, false, 0);
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            T result = work();
+            token.ThrowIfCancellationRequested();
+            return result;
+        }
+        finally
+        {
+            // Retorno da chamada, inclusive falha/cancelamento; não prova êxito.
+            observe?.Invoke(phase, true, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        }
     }
 
     internal static DriverStoreAuditResult Capture(DriverInventoryResult inventory, CancellationToken token,

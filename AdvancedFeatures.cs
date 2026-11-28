@@ -249,6 +249,47 @@ internal static class WindowsUpdateClient
     internal static string? CanonicalSelectedIdentity(string? value) =>
         WindowsUpdateSearchPolicy.CanonicalSelectedIdentity(value);
 
+    // Consulta exclusivamente o registro local do agente; não chama Search,
+    // Download, Install, nem altera as opções do Windows Update.
+    internal static Task<string> ReadHistoryAsync() =>
+        StaWorker.Run(() => ReadHistory(() => (object)CreateSession()));
+
+    internal static string ReadHistory(Func<object> createSession)
+    {
+        const int limit = 50;
+        dynamic searcher = ((dynamic)createSession()).CreateUpdateSearcher();
+        int total = (int)searcher.GetTotalHistoryCount();
+        if (total < 0) throw new InvalidDataException("Contagem inválida de histórico WUA.");
+        if (total == 0) return "Nenhum evento no histórico consultado do Windows Update.";
+        int requested = Math.Min(total, limit);
+        dynamic entries = searcher.QueryHistory(0, requested);
+        int count = (int)entries.Count;
+        if (count < 0 || count > requested) throw new InvalidDataException("Coleção inválida de histórico WUA.");
+        var lines = new List<string>
+        {
+            $"Windows Update · {count} registro(s) retornado(s) de {total} informado(s).",
+            "Eventos históricos não comprovam que a atualização permanece instalada."
+        };
+        if (total > count)
+            lines.Add("Exibição parcial dos registros mais recentes.");
+        for (int i = 0; i < count; i++)
+        {
+            dynamic entry = entries.Item(i);
+            string title = ((string?)entry.Title ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
+            if (title.Length > 240) title = title[..240] + "…";
+            if (title.Length == 0) title = "Título não informado";
+            DateTime date = (DateTime)entry.Date;
+            string operation = (int)entry.Operation switch
+            {
+                1 => "Instalação", 2 => "Desinstalação", _ => "Operação não identificada"
+            };
+            var outcome = new WindowsUpdateNativeResult((int)entry.ResultCode, (int)entry.HResult, null);
+            lines.Add($"{date:dd/MM/yyyy HH:mm} · {operation} · {outcome.Description}" +
+                WindowsUpdateOperation.ErrorText(outcome.Error) + Environment.NewLine + title);
+        }
+        return string.Join(Environment.NewLine + Environment.NewLine, lines);
+    }
+
     public static Task<WindowsUpdateScan> ScanAsync() => StaWorker.Run(() =>
     {
         dynamic session = CreateSession();

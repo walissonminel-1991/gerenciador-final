@@ -2,69 +2,54 @@ using System.Drawing;
 
 namespace GerenciadorAplicativos;
 
-// A janela acompanha a area util do monitor em todas as resolucoes.
-// Inicial: aprox. 57,4% da area; limite absoluto: 59,76%.
-// Nao multiplica fontes por resolucao: quem controla tipografia e o DPI do Windows.
-// Nao grava tamanho, DPI ou posicao no disco.
+// Política global de janela fixa. A classe usa a resolução nominal do
+// monitor para escolher a faixa e a área útil para calcular as dimensões.
+// O ajuste de interface existente nas Configurações é o único multiplicador.
 internal static class StartupWindowSizing
 {
-    // Utilizado APENAS se o Windows ainda nao informou uma area valida.
     internal static readonly Size PreferredSize = new(875, 745);
-    internal static readonly Size NormalMinimum = new(800, 600);
-
-    private const int InitialWidthPercent = 70;
-    private const int InitialHeightPercent = 82;
-    private const int MaximumWidthPercent = 72;
-    private const int MaximumHeightPercent = 83;
-
-    // A regra agora e universal, inclusive em 800x600 e monitores antigos.
     internal static bool ApplyAreaLimit(Rectangle workingArea) =>
         workingArea.Width > 0 && workingArea.Height > 0;
 
-    internal static Size MaximumSizeFor(Rectangle workingArea)
+    internal static int BasePercent(int screenHeight) =>
+        screenHeight >= 1080 ? 60 : screenHeight >= 720 ? 80 : 90;
+
+    internal static Size MaximumSizeFor(Rectangle workingArea,int screenHeight=0,int interfacePercent=100)
     {
         if (!ApplyAreaLimit(workingArea)) return PreferredSize;
-        return new Size(
-            Math.Max(1, (int)((long)workingArea.Width * MaximumWidthPercent / 100L)),
-            Math.Max(1, (int)((long)workingArea.Height * MaximumHeightPercent / 100L)));
+        int percent=BasePercent(screenHeight>0?screenHeight:workingArea.Height);
+        // Geometria pura: também compilada isoladamente pelos testes de
+        // resíduos, sem dependência de tokens visuais ou WinForms.
+        int scale=Math.Clamp(interfacePercent,90,110);
+        int Dimension(int available)=>Math.Clamp((int)(((long)available*percent*scale+5000L)/10000L),1,available);
+        return new Size(Dimension(workingArea.Width),Dimension(workingArea.Height));
     }
 
-    internal static Size LimitSize(Size requested, Rectangle workingArea)
+    internal static Size LimitSize(Size requested, Rectangle workingArea,int screenHeight=0,int interfacePercent=100)
     {
         if (!ApplyAreaLimit(workingArea)) return requested;
-        Size maximum = MaximumSizeFor(workingArea);
-        return new Size(
-            Math.Clamp(requested.Width, 1, maximum.Width),
-            Math.Clamp(requested.Height, 1, maximum.Height));
+        return MaximumSizeFor(workingArea,screenHeight,interfacePercent);
     }
 
-    internal static Rectangle Fit(Rectangle workingArea)
+    internal static Rectangle Fit(Rectangle workingArea,int screenHeight=0,int interfacePercent=100)
     {
         if (!ApplyAreaLimit(workingArea))
             return new Rectangle(0, 0, PreferredSize.Width, PreferredSize.Height);
-        Size size = LimitSize(new Size(
-            Math.Max(1, (int)((long)workingArea.Width * InitialWidthPercent / 100L)),
-            Math.Max(1, (int)((long)workingArea.Height * InitialHeightPercent / 100L))),
-            workingArea);
+        Size size=MaximumSizeFor(workingArea,screenHeight,interfacePercent);
         return new Rectangle(
-            workingArea.Left + (workingArea.Width - size.Width) / 2,
-            workingArea.Top + (workingArea.Height - size.Height) / 2,
-            size.Width, size.Height);
+            workingArea.Left+(workingArea.Width-size.Width)/2,
+            workingArea.Top+(workingArea.Height-size.Height)/2,size.Width,size.Height);
     }
 
-    internal static Size AllowedMinimum(Rectangle planned) => new(
-        Math.Min(NormalMinimum.Width, Math.Max(1, planned.Width)),
-        Math.Min(NormalMinimum.Height, Math.Max(1, planned.Height)));
+    internal static Size AllowedMinimum(Rectangle planned)=>planned.Size;
 
-    // Troca de monitor ou DPI: preservar quando couber, limitar em qualquer
-    // resolucao e reposicionar sem jamais passar dos 60% da area util.
-    internal static Rectangle KeepVisible(Rectangle desired, Rectangle workingArea)
+    internal static Rectangle KeepVisible(Rectangle desired, Rectangle workingArea,int screenHeight=0,int interfacePercent=100)
     {
         if (!ApplyAreaLimit(workingArea)) return desired;
-        Size limited = LimitSize(desired.Size, workingArea);
-        int x = Math.Clamp(desired.Left, workingArea.Left, workingArea.Right - limited.Width);
-        int y = Math.Clamp(desired.Top, workingArea.Top, workingArea.Bottom - limited.Height);
-        return new Rectangle(x, y, limited.Width, limited.Height);
+        Size fixedSize=MaximumSizeFor(workingArea,screenHeight,interfacePercent);
+        int x=Math.Clamp(desired.Left,workingArea.Left,workingArea.Right-fixedSize.Width);
+        int y=Math.Clamp(desired.Top,workingArea.Top,workingArea.Bottom-fixedSize.Height);
+        return new Rectangle(x,y,fixedSize.Width,fixedSize.Height);
     }
 
     // Em qualquer resolucao, o rodape de diagnostico continua legivel.

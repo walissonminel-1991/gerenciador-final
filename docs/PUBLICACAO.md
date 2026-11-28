@@ -5,8 +5,9 @@
 Usar Windows x64 e o SDK indicado em `global.json` (10.0.402; correções da mesma
 faixa permitidas). `Compilar-OSS-Windows-x64.bat` gera a publicação de
 **desenvolvimento não assinada** em Distribuicao. `Publicar-Portatil-Windows-x64.bat`
-limpa saídas locais e cria o ZIP portátil. Ambos precisam do SDK somente na
-máquina que compila; o usuário final recebe o runtime completo.
+exige o SHA integral da fonte homologada e usa um checkout local isolado para
+gerar um ZIP privado. Além do SDK, exige Git, PowerShell 7 e Python 3.11+
+somente na máquina que compila; o usuário final recebe o runtime completo.
 
 A publicação mantém EXE, DLLs e runtime lado a lado: self-contained, sem
 single-file, trimming, packer ou extração do aplicativo em TEMP. O projeto inclui
@@ -38,8 +39,32 @@ python scripts/verificar_pacote.py PASTA --version VERSAO --source SHA_FONTE --b
 ```
 
 Os valores esperados devem vir da PR/run confiável, além de conferir BUILD-INFO.
-Os ZIPs locais de desenvolvimento não têm os metadados de proveniência da CI;
-não apresentá-los como candidata aprovada apenas porque o publish terminou.
+## Pacote local privado para homologação física
+
+Após SUCCESS integral do commit fonte e autorização do proprietário para o
+teste físico, no computador de compilação Windows x64:
+
+```powershell
+.\Publicar-Portatil-Windows-x64.bat SHA_FONTE_APROVADO
+```
+
+O script requer o HEAD exato e a árvore de trabalho limpa; cria um worktree
+local destacado, usa o perfil local sem receptor remoto e valida o assembly,
+o manifesto Win32, a composição e os hashes com o verificador existente.
+O ZIP só recebe o nome definitivo depois da extração e verificação
+independente. O nome inclui versão e SHA curto, e arquivos anteriores não
+são sobrescritos. Saída e evidências ficam em pasta irmã à fonte, por padrão
+`GF-Testes-Privados`; nenhum upload ou release é criado. O worktree e os
+arquivos intermediários ficam disponíveis para investigação ou remoção manual.
+A aprovação de CI não é atestação do binário compilado localmente; comparar
+a versão e origem, conferir o hash do ZIP, manter o AVG ativo e interromper
+em caso de detecção. A edição BETA local mantém as exigências de autorização
+do proprietário; o script não autoriza distribuição pública nem transporte
+remoto.
+
+O GF pode usar arquivos locais de diagnóstico/configuração conforme seu
+fluxo, inclusive Documentos e a área local de dados do usuário. Não se
+presume ausência de persistência fora da pasta do executável.
 
 ## Instalador e release pública
 

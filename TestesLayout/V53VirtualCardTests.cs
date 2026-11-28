@@ -69,10 +69,14 @@ internal static class V53VirtualCardTests
         // (faixa de 29 px). Renderizar o cartao real de Aplicativos sem executar
         // nenhuma acao; a lista e o tooltip preservam o titulo completo.
         using var owner = new MainForm(startServices: false);
+        owner.Show();Application.DoEvents();
+        var shell=owner.Controls.Find("V269Shell",true).OfType<V269Shell>().Single();
+        shell.SelectPage(V269Page.Aplicativos);shell.PresentPanel(null);Application.DoEvents();
         var appList = (DarkProgramList)(typeof(MainForm).GetField("_programList",
             BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(owner)
             ?? throw new Exception("V5.3: lista de aplicativos indisponivel"));
-        appList.Size = new Size(800, 170);
+        Require(appList.Visible&&appList.IsHandleCreated&&appList.ClientSize.Width>80,
+            "viewport real de Aplicativos visível antes de testar mouse");
         appList.SetItems([new ProgramEntry
         {
             Name = longName, Version = "1.0", Publisher = "Fabricante ficticio",
@@ -82,20 +86,23 @@ internal static class V53VirtualCardTests
         int wrapped = TextRenderer.MeasureText(longName, testFont,
             new Size(280, 200), TextFormatFlags.WordBreak).Height;
         Require(wrapped > 29, "nome longo nao reproduz clipping com WordBreak anterior");
-        using var appCapture = new Bitmap(800, 67);
+        var appRow=(Rectangle)typeof(DarkProgramList).GetMethod("RowBounds",
+            BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(appList,[0])!;
+        Require(appList.V269TableMode&&appRow.Top>=appList.TableHeaderHeight&&appRow.Height==appList.ItemHeight,
+            "a linha real começa após o cabeçalho fixo");
+        using var appCapture = new Bitmap(appRow.Width,appRow.Height);
         using (var appGraphics = Graphics.FromImage(appCapture))
         {
             typeof(MainForm).GetMethod("DrawProgramCard",
                 BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner,
                 [appList, new DrawItemEventArgs(appGraphics, appList.Font,
-                    new Rectangle(0, 0, 800, 67), 0, DrawItemState.Default)]);
+                    new Rectangle(0, 0, appRow.Width, appRow.Height), 0, DrawItemState.Default)]);
         }
         // Todo aplicativo mostra Desinstalar, inclusive entrada de inventário
         // sem comando confiável. O clique retorna gerenciamento manual, não
         // eleva nem executa um desinstalador inventado.
         appList.ActionsEnabled = true;
-        var uninstallButton = AppRowGeometry.UninstallButton(
-            new Rectangle(0, 0, appList.ClientSize.Width, appList.ItemHeight));
+        var uninstallButton = V269AppTable.Action(appRow,V269AppearanceOptions.Default.InterfacePercent,appList.DeviceDpi,true);
         var hit = ((ProgramEntry? Item, string Action))(
             typeof(DarkProgramList).GetMethod("HitAction",
                 BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
@@ -104,14 +111,28 @@ internal static class V53VirtualCardTests
         Require(hit.Item is null && !appList.AllowsRemoval(appList.Items[0]) &&
             appList.Items[0].UninstallAction == "uninstall-manual",
             "remover permanece desabilitado e o roteamento manual é preservado no menu");
-        // O contrato do tooltip era existente e permanece no controle real.
-        typeof(DarkProgramList).GetMethod("OnMouseMove",
-            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
-            [new MouseEventArgs(MouseButtons.None, 0, 80, 10, 0)]);
-        var tips = (ToolTip)typeof(DarkProgramList).GetField("_itemTips",
-            BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(appList)!;
-        Require(!tips.Active && tips.GetToolTip(appList).Contains(longName, StringComparison.Ordinal),
-            "reticencias nao podem descartar o nome completo do tooltip");
+        // O cabeçalho não é uma linha. Usar a geometria real e preservar
+        // o nome completo, sem reativar tooltip flutuante do produto.
+        var move=typeof(DarkProgramList).GetMethod("OnMouseMove",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        var point=new Point(Math.Min(80,appList.ClientSize.Width/2),appRow.Top+appRow.Height/2);
+        Require((int)typeof(DarkProgramList).GetMethod("RowAt",BindingFlags.Instance|BindingFlags.NonPublic)!
+            .Invoke(appList,[point])! == 0,"mouse de teste atinge a primeira linha visível");
+        move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,point.X,point.Y,0)]);
+        Require(typeof(DarkProgramList).GetField("_itemTips",
+            BindingFlags.Instance|BindingFlags.NonPublic) is null,
+            "tooltip flutuante removido, inclusive suas alocações de texto");
+        var accessibleRow = appList.AccessibilityObject.GetChild(0);
+        Require(accessibleRow?.Name?.Contains(longName,StringComparison.Ordinal)==true &&
+            !string.IsNullOrWhiteSpace(accessibleRow.Description),
+            "reticências preservam o nome completo e descrição consultiva para leitor de tela");
+        var header = new Point(80,appList.TableHeaderHeight/2);
+        move.Invoke(appList,[new MouseEventArgs(MouseButtons.None,0,header.X,header.Y,0)]);
+        Require((int)typeof(DarkProgramList).GetMethod("RowAt",BindingFlags.Instance|BindingFlags.NonPublic)!
+            .Invoke(appList,[header])! < 0,"cabeçalho não identifica uma linha inexistente");
+        var headerHit = ((ProgramEntry? Item,string Action))typeof(DarkProgramList).GetMethod("HitAction",
+            BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(appList,[header])!;
+        Require(headerHit.Item is null && headerHit.Action.Length==0,
+            "cabeçalho não autoriza ações de uma linha inexistente");
 
         // Render GDI real em runner 96 DPI, sem drivers/arquivos reais.
         var paint = typeof(DarkDriverList).GetMethod("DrawCard",

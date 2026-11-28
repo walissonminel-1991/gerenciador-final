@@ -56,6 +56,53 @@ internal static class DriverStoreTests
             "Driver Store: resultado atribuído a INF errado é rejeitado");
         check(DriverStoreAudit.Capture(inventory with { Partial = true }, default, Probe).Partial,
             "Driver Store: API bem-sucedida não apaga parcialidade WMI");
+        // Prova a instrumentação sem SetupAPI real: preserva a ABI de duas
+        // chamadas, identifica a última fase iniciada e não altera o resultado.
+        var trace = new List<(DriverStoreAudit.AuditPhase Phase,bool Returned)>();
+        void Trace(DriverStoreAudit.AuditPhase phase,bool returned,long _) => trace.Add((phase,returned));
+        string raw = "oem1.inf\0system.inf\0\0";
+        var enumerated = DriverPublishedPackages.EnumerateCore(
+            () => (true,(uint)raw.Length),
+            buffer => { raw.CopyTo(0,buffer,0,raw.Length); return (true,(uint)raw.Length); }, Trace);
+        check(enumerated.SequenceEqual(new[]{"oem1.inf","system.inf"}) &&
+            trace.SequenceEqual(new[]{
+                (DriverStoreAudit.AuditPhase.PublishedListSize,false),
+                (DriverStoreAudit.AuditPhase.PublishedListSize,true),
+                (DriverStoreAudit.AuditPhase.PublishedListRead,false),
+                (DriverStoreAudit.AuditPhase.PublishedListRead,true)}),
+            "Drivers: trace separa tamanho e leitura da lista INF sem alterar evidência");
+        trace.Clear();
+        bool readStarted=false, failedSize=false;
+        try
+        {
+            DriverPublishedPackages.EnumerateCore(() => (false,0u),
+                _ => { readStarted=true; return (true,0u); }, Trace);
+        }
+        catch (IOException) { failedSize=true; }
+        check(failedSize && !readStarted && trace.SequenceEqual(new[]{
+            (DriverStoreAudit.AuditPhase.PublishedListSize,false),
+            (DriverStoreAudit.AuditPhase.PublishedListSize,true)}),
+            "Drivers: falha no tamanho não inicia segunda chamada nativa");
+        trace.Clear();
+        var list = DriverPublishedPackages.Capture(inventory,default,() => enumerated,Probe,observe:Trace);
+        check(list.Packages.Count==2 && list.Packages.All(x=>!x.CanMaintain) &&
+            trace.SequenceEqual(new[]{
+                (DriverStoreAudit.AuditPhase.PublishedResolve,false),
+                (DriverStoreAudit.AuditPhase.PublishedResolve,true)}),
+            "Drivers: resolução publicada rastreada sem mudar autorização");
+        trace.Clear();
+        using var cancelResolve = new CancellationTokenSource();
+        bool resolveStopped=false;
+        try
+        {
+            DriverPublishedPackages.Capture(inventory,cancelResolve.Token,() => enumerated,
+                inf => { cancelResolve.Cancel(); return new(inf,DriverStoreState.Mapped); },observe:Trace);
+        }
+        catch (OperationCanceledException) { resolveStopped=true; }
+        check(resolveStopped && trace.SequenceEqual(new[]{
+            (DriverStoreAudit.AuditPhase.PublishedResolve,false),
+            (DriverStoreAudit.AuditPhase.PublishedResolve,true)}),
+            "Drivers: trace conserva cancelamento durante resolução sem fotografia válida");
         check(DriverInventory.Correlate([first], new Dictionary<string, bool?>
             { [first.DeviceId] = true, [first.DeviceId.ToLowerInvariant()] = false }).Single().Present is null,
             "Presenças contraditórias do mesmo ID não são resolvidas pela ordem de leitura");

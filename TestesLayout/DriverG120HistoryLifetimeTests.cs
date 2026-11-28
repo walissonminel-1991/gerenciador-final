@@ -57,17 +57,15 @@ internal static class DriverG120HistoryLifetimeTests
             // Painel, fonte acessivel, tooltip, filtro e viewports.
             var status = Find<Label>(newPage, "DriverInventoryStatus");
             var list = Find<DarkDriverList>(newPage, "DriverInventoryList");
-            var tips = (ToolTip)typeof(MainForm).GetField("_toolTips", Private)!
-                .GetValue(secondOwner)!;
+            Ensure(typeof(MainForm).GetFields(Private).All(field => field.FieldType != typeof(ToolTip)),
+                "nenhum componente tooltip na janela de Drivers");
             foreach (var size in new[] { new Size(500, 340), new Size(790, 510),
                 new Size(1200, 720), new Size(1450, 820) })
             {
                 newPage.ClientSize = size;
                 Pump(25);
                 Ensure(status.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true &&
-                    newHistory.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true &&
-                    string.IsNullOrEmpty(tips.GetToolTip(status)) &&
-                    string.IsNullOrEmpty(tips.GetToolTip(newHistory)),
+                    newHistory.AccessibleDescription?.Contains(newHistory.Text, StringComparison.Ordinal) == true,
                     "histórico inacessível ou tooltip invasivo no viewport: " + size);
             }
             list.Focus();
@@ -141,6 +139,30 @@ internal static class DriverG120HistoryLifetimeTests
             Pump(90);
             Ensure(File.ReadAllBytes(path).SequenceEqual(current),
                 "timeout e retorno tardio substituiriam v1");
+
+            // F6: a consulta foi publicada, mas o prazo se esgotou antes
+            // de gravar o histórico. Não deixar estado de andamento eterno
+            // nem afirmar que a lista anterior é a lista exibida.
+            Fixture(owner, path, token => Task.Delay(Timeout.InfiniteTimeSpan, token));
+            using var finishingPage = Open(owner, _ => Task.FromResult(Snap("7.0")),
+                out var finishing, out _, TimeSpan.FromSeconds(2));
+            finishing();
+            var finishingHistory = Find<Label>(finishingPage, "DriverHistoryStatus");
+            var finishingStatus = Find<Label>(finishingPage, "DriverInventoryStatus");
+            var finishingList = Find<DarkDriverList>(finishingPage, "DriverInventoryList");
+            var finishingRefresh = Find<Button>(finishingPage, "DriverInventoryRefresh");
+            // TextChanged pode reentrar antes de o catch/finally atualizar o
+            // estado completo, como na prova G1.20 anterior de acessibilidade.
+            // Esperar a restauração do comando, não apenas o primeiro rótulo.
+            PumpUntil(() => finishingHistory.Text.Contains("finalização interrompida", StringComparison.Ordinal) &&
+                finishingRefresh.Enabled && finishingRefresh.Text == "Consultar drivers");
+            Ensure(finishingList.Items.Count == 1 && finishingList.Items[0].Version == "7.0",
+                $"prazo após publicação perdeu lista nova: quantidade={finishingList.Items.Count}, versao={finishingList.Items.FirstOrDefault()?.Version}");
+            Ensure(finishingStatus.Text.Contains("Inventário concluído e preservado", StringComparison.Ordinal),
+                $"prazo após publicação deixou estado divergente: {finishingStatus.Text}");
+            Ensure(!finishingHistory.Text.Contains("em andamento", StringComparison.Ordinal),
+                "prazo após publicação deixou histórico em andamento");
+            Ensure(File.ReadAllBytes(path).SequenceEqual(current), "prazo do histórico após publicação alterou a base");
 
             // Regressoes existentes continuam cobrindo arquivo malformado,
             // schema desconhecido, parcial/vazio, lock, 20 entradas e hashes.

@@ -73,16 +73,17 @@ internal static class DriverRowGeometry
 
 internal enum DriverCardAction { Details, Update, Uninstall }
 
-internal sealed class DarkDriverList : Control
+internal sealed partial class DarkDriverList : Control
 {
     private int ContentWidth =>
         Math.Max(1, ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0));
-    private int RowHeight => DriverRowGeometry.Height(DeviceDpi, ContentWidth);
+    private int RowHeight => TableMode ? TableRowHeight : DriverRowGeometry.Height(DeviceDpi, ContentWidth);
     private readonly List<DriverInventoryEntry> _items = new();
     private HashSet<string> _offeredDevices = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _eligibleUpdateDevices = new(StringComparer.OrdinalIgnoreCase);
     private readonly DarkVScrollBar _scrollbar = new();
     private readonly WheelDeltaAccumulator _wheel = new();
+    private readonly PixelWheelDeltaAccumulator _verticalWheel = new(), _horizontalWheel = new();
     private readonly Font _titleFont = new("Segoe UI", 10f, FontStyle.Bold);
     private readonly Font _detailsFont = new("Segoe UI", 8.8f);
     private readonly Font _markFont = new("Segoe UI", 10.5f, FontStyle.Bold);
@@ -91,6 +92,7 @@ internal sealed class DarkDriverList : Control
     private readonly ToolStripMenuItem _detailsMenu = new("Detalhes");
     private readonly ToolStripMenuItem _updateMenu = new("Atualizar");
     private readonly ToolStripMenuItem _uninstallMenu = new("Desinstalar");
+    private readonly ToolStripMenuItem _summaryMenu = new("Copiar resumo sem identificadores") { Visible = false };
     private int _selectedIndex = -1;
     private int _scrollOffset;
     private int _tipIndex = -1;
@@ -106,6 +108,10 @@ internal sealed class DarkDriverList : Control
     internal DriverInventoryEntry? SelectedItem =>
         _selectedIndex >= 0 && _selectedIndex < _items.Count ? _items[_selectedIndex] : null;
     internal bool ActionsCurrent => _actionsCurrent;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    internal bool CanCopySummary { get; set; }
+    internal event Action? CopySummaryRequested;
+    internal bool HasConsultativeOffer(DriverInventoryEntry item) => _offeredDevices.Contains(item.DeviceId);
     internal bool CanUpdate(DriverInventoryEntry item) =>
         _actionsCurrent && _eligibleUpdateDevices.Contains(item.DeviceId);
     internal bool CanUninstall(DriverInventoryEntry item) =>
@@ -148,8 +154,11 @@ internal sealed class DarkDriverList : Control
             if (e.CloseReason != ToolStripDropDownCloseReason.ItemClicked)
                 _menuDevice = null;
         };
-        _actionsMenu.Items.AddRange([_detailsMenu, _updateMenu, _uninstallMenu]);
+        _actionsMenu.ShowItemToolTips = false;
+        _summaryMenu.Click += (_, _) => CopySummaryRequested?.Invoke();
+        _actionsMenu.Items.AddRange([_detailsMenu, _updateMenu, _uninstallMenu, _summaryMenu]);
         Resize += (_, _) => UpdateMetrics();
+        VisibleChanged += (_, _) => { if (TableMode) UpdateMetrics(); };
         DpiChangedAfterParent += (_, _) => UpdateMetrics();
     }
 
@@ -177,6 +186,7 @@ internal sealed class DarkDriverList : Control
         _items.Clear();
         _items.AddRange(items);
         _offeredDevices.Clear();
+        _offerVersions.Clear();
         _eligibleUpdateDevices.Clear();
         _selectedIndex = -1;
         if (unambiguousBefore)
@@ -187,6 +197,8 @@ internal sealed class DarkDriverList : Control
                     StringComparison.OrdinalIgnoreCase)) == 1)
                 _selectedIndex = sameReference;
         }
+        if (_dragIndex >= 0) EndTableDrag();
+        if (TableMode && _selectedIndex < 0 && _items.Count > 0) _selectedIndex = 0;
         _tipIndex = -1;
         _tipAction = null;
         _menuDevice = null;
@@ -222,7 +234,7 @@ internal sealed class DarkDriverList : Control
         var selected = SelectedItem;
         if (selected is null)
         {
-            AccessibleDescription = $"Nenhum dispositivo selecionado; {_items.Count} associações exibidas. Use as setas para escolher.";
+            AccessibleDescription = (TableMode && EmptyMessage.Length > 0 ? EmptyMessage + " " : "") + $"Nenhum dispositivo selecionado; {_items.Count} associações exibidas. Use as setas para escolher.";
             return;
         }
         int sameDeviceId = _items.Count(item => string.Equals(item.DeviceId,
@@ -249,12 +261,20 @@ internal sealed class DarkDriverList : Control
                       "após confirmação, sem remoção automática pelo GF; " +
                       UninstallReason(selected)) +
                   ". Use Enter para abrir as ações acessíveis."
-                : "; ações bloqueadas até consulta válida; pressione Tab para Investigar.");
+                : "; ações bloqueadas até consulta válida.");
     }
 
     private void UpdateMetrics()
     {
-        _scrollbar.SetMetrics(_items.Count * RowHeight, Math.Max(1, ClientSize.Height));
+        if (_updatingTableMetrics) return;
+        _updatingTableMetrics = true;
+        try
+        {
+            if (TableMode)
+                V269AppTable.FitScrollBars(this, _scrollbar, _horizontal, MinimumWidth, TableHeaderHeight, _items.Count * RowHeight);
+            else _scrollbar.SetMetrics(_items.Count * RowHeight, Math.Max(1, ClientSize.Height));
+        }
+        finally { _updatingTableMetrics = false; }
         _scrollOffset = _scrollbar.Value;
         Invalidate();
     }
@@ -268,8 +288,8 @@ internal sealed class DarkDriverList : Control
             int top = _selectedIndex * RowHeight;
             int bottom = top + RowHeight;
             if (top < _scrollOffset) _scrollbar.Value = top;
-            else if (bottom > _scrollOffset + ClientSize.Height)
-                _scrollbar.Value = bottom - ClientSize.Height;
+            else if (bottom > _scrollOffset + RowsHeight)
+                _scrollbar.Value = bottom - RowsHeight;
         }
         Invalidate();
         UpdateAccessibleSelection();
@@ -279,8 +299,16 @@ internal sealed class DarkDriverList : Control
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(BackColor);
         if (ClientSize.Height < 1) return;
+        if (TableMode)
+        {
+            // Preservar a região não invalidada; não limpar o buffer inteiro.
+            using var background = new SolidBrush(BackColor);
+            e.Graphics.FillRectangle(background, e.ClipRectangle);
+            DrawTable(e.Graphics, e.ClipRectangle);
+            return;
+        }
+        e.Graphics.Clear(BackColor);
         int width = ContentWidth;
         using Region previousClip = e.Graphics.Clip;
         e.Graphics.SetClip(new Rectangle(0, 0, width, ClientSize.Height));
@@ -386,14 +414,15 @@ internal sealed class DarkDriverList : Control
 
     private (int Index, DriverCardAction? Action) HitTest(Point position)
     {
-        if (position.X < 0 || position.X >= ContentWidth || position.Y < 0)
+        if (position.X < 0 || position.X >= ContentWidth || position.Y < TableHeaderHeight ||
+            position.Y >= TableHeaderHeight + RowsHeight)
             return (-1, null);
-        int index = (position.Y + _scrollOffset) / RowHeight;
+        int index = (position.Y - TableHeaderHeight + _scrollOffset) / RowHeight;
         if (index < 0 || index >= _items.Count) return (-1, null);
-        var row = new Rectangle(0, index * RowHeight - _scrollOffset, ContentWidth, RowHeight);
-        var uninstall = DriverRowGeometry.Uninstall(row, DeviceDpi, _actionFont);
+        var row = TableMode ? TableRow(index) : new Rectangle(0, index * RowHeight - _scrollOffset, ContentWidth, RowHeight);
+        var uninstall = TableMode ? TableAction(row, true) : DriverRowGeometry.Uninstall(row, DeviceDpi, _actionFont);
         if (CanUninstall(_items[index]) && uninstall.Contains(position)) return (index, DriverCardAction.Uninstall);
-        var update = DriverRowGeometry.Update(row, DeviceDpi, _actionFont);
+        var update = TableMode ? TableAction(row, false) : DriverRowGeometry.Update(row, DeviceDpi, _actionFont);
         if (CanUpdate(_items[index]) && update.Contains(position))
             return (index, DriverCardAction.Update);
         return (index, null);
@@ -426,12 +455,26 @@ internal sealed class DarkDriverList : Control
         Focus();
         SelectIndex(hit.Index);
         if (hit.Action is { } action) RequestSelected(action);
+        else if (TableMode && TableGrip(TableRow(hit.Index)).Contains(e.Location))
+        {
+            _dragIndex = hit.Index;
+            _dragOrigin = e.Location;
+            Capture = true;
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
         var hit = HitTest(e.Location);
+        if (_dragIndex >= 0)
+        {
+            var dragSize = SystemInformation.DragSize;
+            var deadZone = new Rectangle(_dragOrigin.X - dragSize.Width / 2,
+                _dragOrigin.Y - dragSize.Height / 2, dragSize.Width, dragSize.Height);
+            _dropIndex = deadZone.Contains(e.Location) || hit.Index == _dragIndex ? -1 : hit.Index;
+            Invalidate();
+        }
         if (hit.Index == _tipIndex && hit.Action == _tipAction) return;
         _tipIndex = hit.Index;
         _tipAction = hit.Action;
@@ -450,6 +493,16 @@ internal sealed class DarkDriverList : Control
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
+        if (e is HandledMouseEventArgs { Handled: true }) return;
+        if (TableMode)
+        {
+            bool horizontal = (ModifierKeys & Keys.Shift) != 0 && _horizontal.MaximumValue > 0;
+            var bar = horizontal ? _horizontal : _scrollbar;
+            var wheel = horizontal ? _horizontalWheel : _verticalWheel;
+            bar.Value = wheel.Move(bar.Value, bar.MaximumValue, e.Delta, horizontal ? Scale(52) : RowHeight * 3);
+            if (e is HandledMouseEventArgs handled) handled.Handled = true;
+            return;
+        }
         int notches = _wheel.Consume(e.Delta);
         if (notches != 0)
             _scrollbar.Value = (int)Math.Clamp((long)_scrollbar.Value - (long)notches * RowHeight * 3,
@@ -463,24 +516,29 @@ internal sealed class DarkDriverList : Control
     private void OpenActionsMenu(Point location)
     {
         var item = SelectedItem;
-        if (item is null) return;
+        bool canSummarize = TableMode && CanCopySummary;
+        if (item is null && !canSummarize) return;
         _menuDevice = item;
+        _detailsMenu.Visible = _updateMenu.Visible = _uninstallMenu.Visible = item is not null;
         _detailsMenu.Enabled = _actionsCurrent;
-        _updateMenu.Enabled = CanUpdate(item);
+        _updateMenu.Enabled = item is not null && CanUpdate(item);
         _uninstallMenu.Enabled = _actionsCurrent;
-        bool directUninstall = CanUninstall(item);
-        _uninstallMenu.Text = directUninstall ? "Desinstalar" : "Gerenciar no Windows";
-        _detailsMenu.ToolTipText = "";
-        _updateMenu.ToolTipText = "";
-        _uninstallMenu.ToolTipText = directUninstall
-            ? "Remoção OEM elegível: exige confirmação, backup e revalidação."
-            : "Abre o Gerenciador de Dispositivos após confirmação; o GF não remove.";
+        _summaryMenu.Visible = canSummarize;
+        _uninstallMenu.Text = item is not null && CanUninstall(item) ? "Desinstalar" : "Gerenciar no Windows";
         _actionsMenu.Show(this, location);
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
+        if (e.Button == MouseButtons.Left && _dragIndex >= 0)
+        {
+            int from = _dragIndex;
+            int to = _dropIndex;
+            EndTableDrag();
+            if (to >= 0) ReorderRequested?.Invoke(from, to);
+            return;
+        }
         if (e.Button != MouseButtons.Right) return;
         var hit = HitTest(e.Location);
         if (hit.Index >= 0)
@@ -488,16 +546,29 @@ internal sealed class DarkDriverList : Control
             SelectIndex(hit.Index);
             OpenActionsMenu(e.Location);
         }
+        else if (_items.Count == 0 && TableMode && CanCopySummary) OpenActionsMenu(e.Location);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (TableMode && e.Alt && !e.Control && !e.Shift &&
+            (e.KeyCode is Keys.Up or Keys.Down) && _selectedIndex >= 0)
+        {
+            int nextIndex = _selectedIndex + (e.KeyCode == Keys.Up ? -1 : 1);
+            if (nextIndex >= 0 && nextIndex < _items.Count)
+            {
+                ReorderRequested?.Invoke(_selectedIndex, nextIndex);
+                SelectIndex(nextIndex);
+            }
+            e.SuppressKeyPress = true;
+            return;
+        }
         if (e.KeyCode is Keys.Enter or Keys.Apps ||
             e.KeyCode == Keys.F10 && e.Shift)
         {
-            if (SelectedItem is not null)
+            if (SelectedItem is not null || TableMode && CanCopySummary)
             {
-                int y = _selectedIndex * RowHeight - _scrollOffset +
+                int y = TableHeaderHeight + Math.Max(0, _selectedIndex) * RowHeight - _scrollOffset +
                     DriverRowGeometry.Scale(20, DeviceDpi);
                 OpenActionsMenu(new Point(DriverRowGeometry.Scale(60, DeviceDpi),
                     Math.Clamp(y, 0, Math.Max(0, Height - 1))));
@@ -505,7 +576,7 @@ internal sealed class DarkDriverList : Control
             e.Handled = true;
             return;
         }
-        int page = Math.Max(1, ClientSize.Height / RowHeight);
+        int page = Math.Max(1, RowsHeight / RowHeight);
         int next = _selectedIndex;
         switch (e.KeyCode)
         {
@@ -526,6 +597,7 @@ internal sealed class DarkDriverList : Control
         if (disposing)
         {
             _actionsMenu.Dispose();
+            if (!TableMode) _horizontal.Dispose();
             _titleFont.Dispose();
             _detailsFont.Dispose();
             _markFont.Dispose();

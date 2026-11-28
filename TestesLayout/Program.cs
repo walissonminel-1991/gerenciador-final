@@ -4,15 +4,69 @@ using GerenciadorAplicativos;
 
 internal static class LayoutTests
 {
+    // Apenas instrumentação de testes, sem modificar o watchdog de 240 s.
+    private static string activeBlock = "inicialização";
+    private static void Measure(string name, Action work)
+    {
+        string previous = Interlocked.Exchange(ref activeBlock, name);
+        using var process=System.Diagnostics.Process.GetCurrentProcess();
+        uint gdiBefore=GetGuiResources(process.Handle,0), userBefore=GetGuiResources(process.Handle,1);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Console.WriteLine($"LAYOUT-BLOCK inicio bloco={name}");
+        try { work(); }
+        finally
+        {
+            long elapsed=clock.ElapsedMilliseconds;
+            uint gdiAfter=GetGuiResources(process.Handle,0), userAfter=GetGuiResources(process.Handle,1);
+            Console.WriteLine($"LAYOUT-BLOCK retorno bloco={name} duracao_ms={elapsed} gdi_antes={gdiBefore} gdi_depois={gdiAfter} user_antes={userBefore} user_depois={userAfter}");
+            Volatile.Write(ref activeBlock, previous);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+    private static extern uint GetGuiResources(IntPtr process,uint flags);
+
     [STAThread]
     static void Main(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+        var suiteClock=System.Diagnostics.Stopwatch.StartNew();
+        string configuration = typeof(LayoutTests).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
+            .OfType<System.Reflection.AssemblyConfigurationAttribute>().FirstOrDefault()?.Configuration ?? "indefinida";
+        Console.WriteLine($"LAYOUT-SUITE inicio; limite_ms=240000; configuracao={configuration}; percurso={(args.Contains("--work18") ? "WORK18" : args.Length == 0 ? "integral" : "dirigido")}");
         using var deadline = new System.Threading.Timer(
-            _ => Environment.FailFast("Timeout no teste de layout"),
+            _ =>
+            {
+                Console.Error.WriteLine($"LAYOUT-SUITE timeout global; decorrido_ms={suiteClock.ElapsedMilliseconds}; bloco={Volatile.Read(ref activeBlock)}");
+                Environment.FailFast("Timeout no teste de layout");
+            },
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
+        // Rotas focais diagnósticas: nunca substituem o percurso integral.
+        if (args.Length == 1 && args[0] == "--ui-v269-root-geometry-probe")
+        { Measure("L12-root-geometry", V269RootGeometryProbe.Run); return; }
+        if (args.Length == 1 && args[0] == "--ui-v269-frames")
+        { Measure("REC-FIS-02-PAINT-FRAMES", V269IntegrationTests.RunFramePaintOnly); return; }
+        Measure("Monitor_GF", () =>
+        {
+            GfThermalEvidenceTests.Run();
+            GfThermalPresentationTests.Run();
+            GfMonitorSnapshotRelayTests.Run();
+            GfMonitorWindowBindingTests.Run();
+            GfMonitorPreferencesAndProgressTests.Run();
+            GfMonitorHostTests.Run();
+            GfMonitorSettingsTests.Run();
+        });
+        if (args.Contains("--monitor-settings-visual")) { GfMonitorSettingsTests.RunMainFormVisual(); return; }
+        if (args.Contains("--monitor-gf"))
+        {
+            D3dKmtGpuSensorProviderTests.Run(); // ABI e fixtures, sem sonda física.
+            GfResourceMonitorTests.Run();
+            return;
+        }
+        GfResourceMonitorTests.Run(); // somente fixtures e janela consultiva; sem coleta ou manutenção.
         BundlewareReviewTests.Run(); // política ARP: nenhum comando de desinstalação é iniciado.
         if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
             uninstallPath != @"C:\cache.exe_folder\uninstall.exe" || uninstallArgs != "/S" ||
@@ -108,15 +162,29 @@ internal static class LayoutTests
         if (args.Contains("--monitoramento")) { LiveHardwareMonitoringTests.Run(); NativeHardwareDiscoveryTests.Run(); HardwareSensorProviderTests.Run(); WindowsWddmGpuProviderTests.Run(); DxgiGpuIdentityProviderTests.Run(); D3dKmtGpuSensorProviderTests.Run(); HardwareMonitoringDiagnosticReportTests.Run(); StorageAssociationLinkerTests.Run(); StorageReliabilityCounterMapperTests.Run(); WindowsPlatformHardwareProviderTests.Run(); return; }
         if (args.Contains("--windows-update-p0")) { WindowsUpdateP0Tests.Run(); return; }
         if (args.Contains("--p1-batch")) { AppBatchUpdateP1Tests.Run(); return; }
-        if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
+        if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); GfMonitorSettingsTests.RunMainFormVisual(); return; }
         if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
         if (args.Contains("--work18"))
         {
-            Work18UpdateUiTests.Run();
-            Stage3UpdateQueryTests.Run();
-            UninstallCleanupTests.VerifyTrayConfirmation();
-            TestMainWorkspace();
+            // Este percurso encerra antes da suíte nativa completa.
+            D3dKmtGpuSensorProviderTests.Run();
+            Measure("WORK18_UI", Work18UpdateUiTests.Run);
+            Measure("WORK18_consulta", Stage3UpdateQueryTests.Run);
+            Measure("WORK18_confirmacao", UninstallCleanupTests.VerifyTrayConfirmation);
+            // Release: matriz e partição visual independente de Limpeza/Reparo.
+            // BetaInternal usa o mesmo SHA e execução e verifica o recibo antes
+            // de deixar de repetir essas mesmas capturas. Fora da CI a suíte
+            // padrão continua integral.
+            Measure("contrato_recibo", TestMaintenanceVisualReceipt);
+            Measure("WORK18_workspace", () => TestMainWorkspace(runIntegratedVisualSuite: false));
+            Measure("WORK18_manutencao_visual", V269IntegrationTests.RunMaintenanceVisual);
+            if(MaintenanceVisualReceipt() is { } receipt)
+            {
+                File.WriteAllText(receipt.Path,receipt.Identity);
+                Console.WriteLine("LAYOUT-SUITE recibo_manutencao_gravado=true");
+            }
+            Console.WriteLine($"LAYOUT-SUITE fim; decorrido_ms={suiteClock.ElapsedMilliseconds}");
             return;
         }
         if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
@@ -152,33 +220,36 @@ internal static class LayoutTests
             if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
             return;
         }
-        LiveHardwareMonitoringTests.Run();
-        NativeHardwareDiscoveryTests.Run();
-        HardwareSensorProviderTests.Run();
-        WindowsWddmGpuProviderTests.Run();
+        Measure("Monitor_fontes_e_hardware", () =>
+        {
+            LiveHardwareMonitoringTests.Run();
+            NativeHardwareDiscoveryTests.Run();
+            HardwareSensorProviderTests.Run();
+            WindowsWddmGpuProviderTests.Run();
+        });
         // Exercitar a ABI DXGI em runners Windows sem forçar consultas WMI
         // ou exigir GPU física no host de CI. Ausência é estado inconclusivo.
-        DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        Measure("DXGI", () => DxgiGpuIdentityProviderTests.Run(probeNative: OperatingSystem.IsWindows()));
         // Homologação consultiva nativa no runner Windows já autorizado pelo
         // workflow existente. Apenas lê o driver e publica contagens, sem IDs.
-        D3dKmtGpuSensorProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        Measure("D3DKMT", () => D3dKmtGpuSensorProviderTests.Run(probeNative: OperatingSystem.IsWindows()));
         HardwareMonitoringDiagnosticReportTests.Run();
         StorageAssociationLinkerTests.Run();
         StorageReliabilityCounterMapperTests.Run();
         // Contadores e inventário WMI reais só no runner Windows. O teste
         // registra contagens agregadas; chipset/VRM sem fonte física ficam sem leitura.
-        WindowsPlatformHardwareProviderTests.Run(probeNative: OperatingSystem.IsWindows());
+        Measure("Plataforma_Windows", () => WindowsPlatformHardwareProviderTests.Run(probeNative: OperatingSystem.IsWindows()));
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
-        WheelScrollTests.Run();
-        V53VirtualCardTests.Run();
-        Work11ProgressLayoutTests.Run();
-        Work16EcosystemUiTests.Run();
-        Work12UninstallLayoutTests.Run();
+        Measure("WheelScrollTests", WheelScrollTests.Run);
+        Measure("V53VirtualCardTests", V53VirtualCardTests.Run);
+        Measure("Work11ProgressLayoutTests", Work11ProgressLayoutTests.Run);
+        Measure("Work16EcosystemUiTests", Work16EcosystemUiTests.Run);
+        Measure("Work12UninstallLayoutTests", Work12UninstallLayoutTests.Run);
         Work14ReliabilityTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
-        ConfirmReviewTests.Run();
-        Work7SafetyTests.Run();
-        UninstallCleanupTests.Run();
+        Measure("ConfirmReviewTests", ConfirmReviewTests.Run);
+        Measure("Work7SafetyTests", Work7SafetyTests.Run);
+        Measure("UninstallCleanupTests", UninstallCleanupTests.Run);
         // PC fraco v5.13.11.21: 19 MSIX estão no inventário, mas não
         // aparecem na lista de ações. O filtro explícito revela sem permitir
         // atualização nem desinstalação somente pelo nome ou origem.
@@ -258,8 +329,8 @@ internal static class LayoutTests
             if (!preview.RenderedText.Contains("COLETA DESATIVADA\r\n\r\n"))
                 throw new Exception("Previa inicial nao preservou separacao de paragrafos.");
             simulate.PerformClick();
-            // ModernButton somente despacha Click depois de 145 ms de feedback.
-            // Testar o clique REAL, sem executar diretamente o callback.
+            // Testar o clique REAL, sem executar diretamente o callback;
+            // a animação não condiciona o despacho da simulação.
             for (int attempt = 0; attempt < 30 &&
                 !preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA"); attempt++)
             {
@@ -284,9 +355,10 @@ internal static class LayoutTests
         foreach (var area in new[] { new Size(1280,720),new Size(1440,900),new Size(2560,1440) })
         foreach (int dpi in new[] {96,144,192})
         {
+            using var testFont = new Font("Segoe UI",9.5f*dpi/96f);
             using var dialog = new TelemetryPrivacyDialog(dryRunRecorder);
             dialog.Show();
-            dialog.Font = new Font("Segoe UI",9.5f*dpi/96f);
+            dialog.Font = testFont;
             dialog.FitPrivacyArea(area,dpi);
             dialog.PerformLayout();
             Application.DoEvents();
@@ -326,7 +398,7 @@ internal static class LayoutTests
         {
             if (resolution.Width < 1280 || resolution.Height < 720) continue;
             var window = StartupWindowSizing.Fit(new Rectangle(0, 0,
-                resolution.Width, Math.Max(300, resolution.Height - 48)));
+                resolution.Width, Math.Max(300, resolution.Height - 48)),resolution.Height);
             foreach (int dpi in new[] { 96, 120, 144, 192 })
             {
                 // Simular padding da janela/sistema e scrollbar; conferir
@@ -344,7 +416,7 @@ internal static class LayoutTests
             }
         }
         Console.WriteLine("OK: Inicializacao em todas as resolucoes >=720p, DPI 100/125/150/200%.");
-        V52DpiActionLayoutTests.Run();
+        Measure("V52DpiActionLayoutTests", V52DpiActionLayoutTests.Run);
         TestStartupBounds();
         TestWorkspaceProportions();
         var p5Samples = new List<PerformanceSample>();
@@ -361,10 +433,12 @@ internal static class LayoutTests
         TestSafeMemoryPolicyAndLogCache();
         TestSamplingCadence();
 
-        TestMainWorkspace();
+        Measure("contrato_recibo", TestMaintenanceVisualReceipt);
+        Measure("workspace_integrado", () => TestMainWorkspace());
+        Console.WriteLine($"LAYOUT-SUITE fim; decorrido_ms={suiteClock.ElapsedMilliseconds}");
     }
 
-    private static void TestMainWorkspace()
+    private static void TestMainWorkspace(bool runIntegratedVisualSuite = true)
     {
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
@@ -442,10 +516,11 @@ internal static class LayoutTests
         AppBatchUpdateP1Tests.Run();
 
 
-        var repairCards = Descendants(form).OfType<Button>().ToArray();
-        if (!repairCards.Any(b => b.Text == "Verificar Windows") ||
-            !repairCards.Any(b => b.Text == "Escolher ponto de restauração") ||
-            repairCards.SingleOrDefault(b => b.Text == "Reparar Windows") is not { Enabled: false })
+        var repairCards = Descendants(form).OfType<V269RepairCard>().ToArray();
+        if (repairCards.Length != 12 || !repairCards.Any(card => card.AccessibleName == "Verificar Windows") ||
+            !repairCards.Any(card => card.AccessibleName == "Escolher ponto de restauração") ||
+            repairCards.SingleOrDefault(card => card.AccessibleName == "Reparar Windows")?.Command is not { Enabled: false } ||
+            repairCards.SingleOrDefault(card => card.AccessibleName == "Reparar rede")?.Command is not { Enabled: false })
             throw new Exception("Reparo do Windows deve iniciar bloqueado; assistente de restauracao deve existir.");
         var nav = Descendants(form).OfType<V269Shell>().Single();
         var pages = Enum.GetValues<V269Page>();
@@ -457,29 +532,24 @@ internal static class LayoutTests
             c.Name == "DriversPlaceholder")
             ?? throw new Exception("Pagina DRIVERS ausente.");
         var driverCards = Descendants(placeholder).OfType<DarkDriverList>().SingleOrDefault()
-            ?? throw new Exception("DRIVERS deve usar cartoes do mesmo padrao dos aplicativos.");
+            ?? throw new Exception("DRIVERS deve usar tabela virtualizada.");
         if (!placeholder.Visible || Descendants(placeholder).OfType<DataGridView>().Any() ||
             Descendants(placeholder).OfType<Button>()
                 .Count(b => b.Name == "DriverInventoryRefresh") != 1)
             throw new Exception("DRIVERS nao pode usar grade antiga nem oferecer alteracao de drivers.");
-        if (!Descendants(placeholder).OfType<TextBox>().Any(t =>
-                t.Name == "DriverInventorySearch") ||
-            !Descendants(placeholder).OfType<Label>().Any(c =>
-                c.Text.Contains("Nenhuma alteração em drivers")))
-            throw new Exception("Busca ou aviso de consulta segura ausente.");
+        if (Descendants(placeholder).OfType<TextBox>().SingleOrDefault(t => t.Name == "DriverInventorySearch")
+                is not { PlaceholderText: "Pesquisar driver ou dispositivo..." } ||
+            Descendants(placeholder).OfType<Button>().Single(b => b.Name == "DriverInventoryRefresh")
+                is not { Text: "Verificar" } verifyDrivers ||
+            !verifyDrivers.AccessibleDescription!.Contains("Não modifica drivers"))
+            throw new Exception("Busca ou descrição acessível de consulta segura ausente.");
         if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
             throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
-        if (!Descendants(placeholder).OfType<Button>().Any(b =>
-                b.Text == "Outros" &&
-                b.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true) ||
-            Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
-            throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
-        if (!Descendants(placeholder).OfType<Button>().Any(b =>
-                b.Text == "Falhas PnP" && b.AccessibleName.Contains("Problemas PnP")))
-            throw new Exception("Filtro de falhas PnP ausente.");
         if (Descendants(placeholder).OfType<Button>().Any(b =>
-            b.Name is "DriverSyntheticLabOpen" or "DriverUpdateAction" or "DriverUninstallAction"))
-            throw new Exception("Drivers: laboratório e ações globais não pertencem à interface normal.");
+                b.Text is "Todos" or "Presentes" or "Falhas PnP" or "Sem driver" or "Outros" or "Limpar" or "Atualizar drivers" ||
+                b.Name is "DriverSyntheticLabOpen" or "DriverUpdateAction" or "DriverUninstallAction" or "DriverUpdateEligible") ||
+            Descendants(placeholder).Any(c => c.Name == "DriverCompactFilter"))
+            throw new Exception("Drivers: filtros, limpeza de pesquisa e atualização global não pertencem ao HTML aprovado.");
         // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
         if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
             throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
@@ -494,8 +564,9 @@ internal static class LayoutTests
             "Fabricante de teste", "1.2.3." + i, "oem" + i + ".inf",
             true, i % 3 == 0 ? true : i % 3 == 1 ? false : null)).ToArray();
         driverCards.SetItems(fakeDrivers);
-        if (driverCards.Items.Count != 184 || driverCards.SelectedItem is not null)
-            throw new Exception("Lista de drivers virtualizada perdeu registros ou selecionou automaticamente.");
+        if (!driverCards.TableMode || driverCards.Items.Count != 184 ||
+            !ReferenceEquals(driverCards.SelectedItem, fakeDrivers[0]) || driverCards.ActionsCurrent)
+            throw new Exception("Drivers: a tabela virtualizada perdeu registros ou confundiu seleção visual com autorização.");
         if (DriverListFilters.Apply(fakeDrivers, "Todos", "").Length != 184 ||
             DriverListFilters.Apply(fakeDrivers, "Presentes", "").Length != 62 ||
             DriverListFilters.Apply(fakeDrivers, "Não confirmados", "").Length != 122 ||
@@ -556,7 +627,7 @@ internal static class LayoutTests
             // testar limites no modelo e rolagem no viewport acessivel.
             var monitor = new Rectangle(0, 0, resolution.Width,
                 Math.Max(300, resolution.Height - 48));
-            var opening = StartupWindowSizing.Fit(monitor);
+            var opening = StartupWindowSizing.Fit(monitor,resolution.Height);
             surface.Size = new Size(
                 Math.Clamp(opening.Width - 16, 520, 1400),
                 Math.Clamp(opening.Height - 39, 400, 1040));
@@ -611,10 +682,21 @@ internal static class LayoutTests
                         var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                             .Single(x => x.EmbeddedInPage && x.Content.Controls.Count == count);
                         var cards = toolFlow.Content.Controls.OfType<Panel>().ToArray();
-                        if (cards.Length != count || cards.Any(x => x.Height > 116))
-                            throw new Exception("Cartoes ainda excessivamente altos em 1440x900: aba " + tab);
+                        int maxCardHeight = V269AppTable.Scale(116,
+                            V269AppearanceOptions.Default.InterfacePercent, form.DeviceDpi);
+                        if (cards.Length != count || cards.Any(x => x.Height > maxCardHeight))
+                            throw new Exception($"Cartoes ainda excessivamente altos em 1440x900: aba {tab} " +
+                                $"limite={maxCardHeight}px dpi={form.DeviceDpi}");
                         foreach (Panel card in cards)
                         {
+                            if (tab == V269Page.Limpeza)
+                            {
+                                var command = Descendants(card).OfType<Button>().Single();
+                                if (card is not V269CleanupCard || command.Text is not ("Limpar" or "Abrir") ||
+                                    command.AccessibleName == command.Text || command.Bottom > card.ClientSize.Height ||
+                                    command.Right > card.ClientSize.Width)
+                                    throw new Exception("Cartão de limpeza divergente do HTML: " + command.AccessibleName);
+                            }
                             var label = Descendants(card).OfType<Label>().Single();
                             int required = TextRenderer.MeasureText(label.Text, label.Font,
                                 new Size(Math.Max(90, label.ClientSize.Width -
@@ -626,82 +708,31 @@ internal static class LayoutTests
                     }
                     if (tab == V269Page.Aplicativos)
                     {
-                        var commands = Descendants(form).OfType<TableLayoutPanel>()
-                            .FirstOrDefault(panel => panel.Controls.OfType<Button>()
-                                .Any(button => button.Text == "Atualizar e verificar"));
-                        string[] expectedCommands = { "Atualizar e verificar",
-                            "Atualizar todos", "Selecionar vários", "Desinstalar selecionados", "Limpar seleção" };
-                        if (commands is null ||
-                            !commands.Controls.OfType<Button>()
-                                .Select(button => button.Text).SequenceEqual(expectedCommands))
-                            throw new Exception("Os cinco comandos de Aplicativos nao estao juntos.");
-                        var search = Descendants(form).OfType<TableLayoutPanel>()
-                            .FirstOrDefault(panel => panel.Controls.OfType<TextBox>()
-                                .Any(t => t.PlaceholderText.Contains("Nome, versão")));
-                        if (search is null || search.Controls.OfType<Button>()
-                            .Any(button => button.Text == "Atualizar lista"))
-                            throw new Exception("Atualizar lista nao deve aparecer junto da pesquisa.");
-                        var allFilter = Descendants(form).OfType<Button>()
-                            .SingleOrDefault(button => button.Text == "Todos" &&
-                                button.Parent is TableLayoutPanel parent &&
-                                parent.Controls.OfType<Button>().Count() == 2);
-                        if (allFilter is null || !allFilter.Visible ||
-                            allFilter.Parent is not TableLayoutPanel heading ||
-                            heading.ColumnCount != 3 ||
-                            heading.Controls.OfType<Button>().Count() != 2 ||
-                            heading.Controls.OfType<Button>().Any(b =>
-                                b.Text is "Possíveis" or "Inventário"))
-                            throw new Exception("Filtros redundantes permaneceram ou Todos ficou inacessivel.");
-                        foreach (var filterButton in heading.Controls.OfType<Button>())
-                        {
-                            if (filterButton.Right > heading.ClientSize.Width + 2 ||
-                                filterButton.Left < 0 ||
-                                filterButton.Width < 45)
-                                throw new Exception("Filtro de aplicativos cortado: " +
-                                    name + " / " + filterButton.Text);
-                        }
-                        bool expectCompact = commands.ClientSize.Width <
-                            (int)Math.Ceiling(860d * Math.Max(1, commands.DeviceDpi) / 96d);
-                        if (commands.RowCount != (expectCompact ? 3 : 1))
-                            throw new Exception("Acoes com numero incorreto de linhas: " + resolution);
-                        if (commands.Controls.OfType<Button>().Single(b => b.Text == "Atualizar todos").Enabled)
-                            throw new Exception("Atualizar todos não pode iniciar sem catálogo de aplicativos elegíveis.");
-                        foreach (Button button in commands.Controls.OfType<Button>())
-                        {
-                            if (commands.GetRow(button) < 0 ||
-                                commands.GetRow(button) >= commands.RowCount ||
-                                commands.GetColumn(button) < 0 ||
-                                button.Right > commands.ClientSize.Width + 2)
-                                throw new Exception("Acao cortada: " + name + " / " + button.Text);
-                        }
+                        var toolbar=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsToolbar");
+                        var verify=toolbar.Controls.OfType<Button>().Single(b=>b.Name=="V269AppsVerify");
+                        var search=toolbar.Controls.Find("V269AppsSearch",true).OfType<TextBox>().Single();
+                        var sort=toolbar.Controls.OfType<ComboBox>().Single();
+                        if(!verify.Visible||!search.Visible||!sort.Visible||sort.Items.Count!=5||
+                            toolbar.Controls.Cast<Control>().Any(x=>x.Visible&&x.Right>toolbar.ClientSize.Width+2))
+                            throw new Exception("Barra do HTML de Aplicativos incompleta ou cortada.");
+                        var apps=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269AppsPage");
+                        if(apps.RowCount!=2||apps.Controls.Count!=2||
+                            Descendants(apps).OfType<Button>().Any(x=>x.Name!="V269AppsVerify"&&x.Name!="V269AppsDetails")||
+                            Descendants(apps).Any(x=>x.Name is "V269AppsMore" or "V269AppsFooter" or "V269AppsExtraCommands" or "V269AppsExtraScroll"))
+                            throw new Exception("Aplicativos contém controles fora do HTML aprovado.");
                     }
                     if (tab == V269Page.Sistema)
                     {
-                        var descriptions = Descendants(form).OfType<Label>()
-                            .Where(label => label.Name.StartsWith("SystemActionDescription",
-                                StringComparison.Ordinal)).OrderBy(label => label.Name).ToArray();
-                        var expectedDescriptions = new[]
-                        {
-                            "Consumo e memória disponível. Histórico local, também na bandeja.",
-                            "Consulte e revise os planos de energia do Windows.",
-                            "Procure, selecione e instale atualizações oficiais.",
-                            "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos."
-                        };
-                        if (descriptions.Length != 4 ||
-                            !descriptions.Select(x => x.Text).SequenceEqual(expectedDescriptions) ||
-                            descriptions.Any(x => x.Height < 35 || x.Width < 60))
-                            throw new Exception("Descricoes dos quatro botoes do Sistema ausentes ou comprimidas.");
-                        if (descriptions.Any(x => !x.Visible))
-                            throw new Exception("Descricoes do Sistema ocultas na aba selecionada.");
-                        foreach (var label in descriptions)
-                        {
-                            int heightNeeded = TextRenderer.MeasureText(label.Text,
-                                label.Font, new Size(Math.Max(80, label.ClientSize.Width -
-                                    label.Padding.Horizontal), 800),
-                                TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
-                            if (label.ClientSize.Height - label.Padding.Vertical + 4 < heightNeeded)
-                                throw new Exception($"Descricao cortada no Sistema: {name} / {label.Name}, altura={label.Height}, texto={heightNeeded}");
-                        }
+                        var modules=Descendants(form).OfType<TableLayoutPanel>().Single(x=>x.Name=="V269SystemModules");
+                        var update=modules.Controls.Find("V269WindowsUpdateSection",false).Single();
+                        var energy=modules.Controls.Find("V269EnergySection",false).Single();
+                        var ram=modules.Controls.Find("MemoryRamDashboard",false).Single();
+                        if(!update.Visible||!energy.Visible||!ram.Visible||
+                            update.Top>=energy.Top||energy.Top>=ram.Top||
+                            update.Right>modules.ClientSize.Width||energy.Right>modules.ClientSize.Width||
+                            ram.Right>modules.ClientSize.Width)
+                            throw new Exception("Sistema: três módulos devem coexistir e respeitar o viewport.");
+
                     }
 
                     // Somente a pagina pode rolar quando o conteudo ultrapassar
@@ -736,8 +767,8 @@ internal static class LayoutTests
                         if (diskButton is null || !diskButton.Enabled ||
                             diskButton.Text != "Otimizar" ||
                             (string?)diskButton.Tag != "optimize-volume:C" ||
-                            diskButton.Parent is not TableLayoutPanel titleRow ||
-                            titleRow.Controls.OfType<Label>().Count() != 1)
+                            diskFixture is not V269CleanupDiskCard ||
+                            diskButton.Parent != diskFixture || !diskFixture.ClientRectangle.Contains(diskButton.Bounds))
                             throw new Exception($"Otimizar deve aparecer junto ao nome da unidade: {name}");
                         using var unsupportedFixture = (Control)diskBuilder.Invoke(form,
                             new object[] { new DiskUsageInfo(@"D:\", "Nao elegivel",
@@ -768,18 +799,16 @@ internal static class LayoutTests
                     // A página apresenta ações individuais, inativas antes da consulta.
                     if (tab == V269Page.Drivers)
                     {
-                        bool tinyDrivers = placeholder.Height < DriverRowGeometry.Scale(265, placeholder.DeviceDpi);
-                        int minDriverHeight = DriverRowGeometry.Height(driverCards.DeviceDpi,
-                            Math.Max(1, driverCards.ClientSize.Width - 20));
+                        int minDriverHeight = driverCards.TableHeaderHeight + driverCards.TableRowHeight;
                         if (driverCards.Height < minDriverHeight ||
                             driverCards.Width < placeholder.Width - 70)
-                            throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution} " +
+                            throw new Exception($"DRIVERS não aproveita o espaço para a tabela: {name} {resolution} " +
                                 $"lista={driverCards.Size} raiz={placeholder.Size}");
-                        var mobileFilter = Descendants(placeholder).OfType<ComboBox>()
-                            .SingleOrDefault(c => c.Name == "DriverCompactFilter");
-                        if (mobileFilter is null || mobileFilter.Visible != (tinyDrivers || placeholder.Width < DriverRowGeometry.Scale(760, placeholder.DeviceDpi)) ||
-                            mobileFilter.Items.Count != 5)
-                            throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
+                        if (Descendants(placeholder).Any(c => c.Name == "DriverCompactFilter") ||
+                            placeholder is not TableLayoutPanel driverRoot ||
+                            driverRoot.RowStyles[1].Height != 0 || driverRoot.RowStyles[2].Height != 0 ||
+                            driverRoot.RowStyles[4].Height != 0)
+                            throw new Exception($"Drivers: faixa de filtros não liberou espaço: {name} {resolution}");
                         var driverButtons = Descendants(placeholder).OfType<Button>().ToArray();
                         if (Descendants(placeholder).OfType<DataGridView>().Any() ||
                             driverCards.ActionsCurrent ||
@@ -803,6 +832,21 @@ internal static class LayoutTests
 
                     if (capture)
                     {
+                        // A matriz continua verificando foco e visibilidade de todas as ações.
+                        // A captura de Início deve, porém, representar o estado de abertura
+                        // e não a posição de rolagem do último botão testado.
+                        if (tab == V269Page.Inicio && nav.PageContent(tab) is V269HomeDashboard home)
+                        {
+                            home.Focus();
+                            Application.DoEvents();
+                            home.AutoScrollPosition = Point.Empty;
+                            home.PerformLayout();
+                            Application.DoEvents();
+                            if (nav.LayoutWindowWidth is >= 940 and <= 1090 &&
+                                home.ClientSize.Width >= 470 * home.DeviceDpi / 96 &&
+                                home.Cards[0].Top != home.Cards[1].Top)
+                                throw new Exception("Início perdeu as duas colunas do breakpoint CSS de 940–1090.");
+                        }
                         // Nao criar bitmaps gigantes (5K/8K); nesses casos a
                         // cobertura verifica geometria, foco e navegabilidade.
                         using var shot = new Bitmap(surface.Width, surface.Height);
@@ -866,46 +910,29 @@ internal static class LayoutTests
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         setSystemView.Invoke(form, ["energy"]);
         Application.DoEvents();
-        var activateButtons = Descendants(form).OfType<ModernButton>()
+        var activateButtons = Descendants(form).OfType<Button>()
             .Where(b => b.Text == "Ativar" && b.Parent is TableLayoutPanel).ToArray();
         if (activateButtons.Length != 3 ||
             activateButtons.Any(b => b.Width > 130 || b.Height > 33))
             throw new Exception("Botoes Ativar ainda demasiadamente largos.");
         nav.SelectPage(V269Page.Reparo);
         Application.DoEvents();
-        var repairTools = Descendants(form).OfType<ModernButton>()
-            .Where(b => b.Text is "Analisar rede" or "Reparar rede" or "Diagnosticar áudio" or
-                "Diagnosticar impressora" or "Diagnosticar USB" or "Diagnosticar chipset" or
-                "Diagnosticar tela azul" or
-                "Criar ponto de restauração" or "Restaurar configurações da rede" or
-                "Escolher ponto de restauração").ToArray();
-        if (repairTools.Length != 10 || repairTools.Any(b =>
-            b.Width >= b.Parent!.ClientSize.Width))
-            throw new Exception("Botoes de reparo nao devem ultrapassar a largura util do cartao.");
-        // Regressao PC FORTE .49: titulo longo no cartao de 3 colunas
-        // encolhia a fonte porque a largura tinha teto fixo de 215 px.
-        var longRepair = repairTools.Single(b =>
-            b.Text == "Restaurar configurações da rede");
-        int naturalWidth = TextRenderer.MeasureText(longRepair.Text, longRepair.Font,
-            new Size(int.MaxValue, 33), TextFormatFlags.NoPadding |
-            TextFormatFlags.NoPrefix).Width;
-        if (longRepair.Parent!.ClientSize.Width >= naturalWidth + 40 && longRepair.Width - 27 < naturalWidth)
-            throw new Exception("Rotulo de restauracao ainda reduz a fonte apesar do espaco do cartao.");
-        if (repairTools.Select(b => b.Font.SizeInPoints).Distinct().Count() != 1)
-            throw new Exception("Botoes de reparo devem compartilhar a mesma fonte.");
-        // PC FORTE .40: tres colunas ja existiam, mas cada card era limitado
-        // a 316 px; sobravam faixas laterais mesmo com largura suficiente.
         var repairFlow = Descendants(form).OfType<DarkScrollableFlow>()
             .Single(flow => flow.Name == "RepairActions");
-        var repairCardPanels = repairFlow.Content.Controls.OfType<Panel>().ToArray();
-        if (repairCardPanels.Length != 12 || !repairTools.Any(button => button.Text == "Diagnosticar USB") ||
-            !repairTools.Any(button => button.Text == "Diagnosticar chipset") ||
-            !repairTools.Any(button => button.Text == "Diagnosticar tela azul"))
-            throw new Exception("Grade de Reparo e Rede deve conter os doze cartões, incluindo USB, chipset e tela azul.");
-        var diagnosticReport = Descendants(form).OfType<Label>().Single(label => label.Name == "RepairDiagnosticResult");
-        if (diagnosticReport.Visible || diagnosticReport.Parent is not TableLayoutPanel repairLayout ||
-            repairLayout.RowStyles[repairLayout.GetRow(diagnosticReport)].Height != 0)
-            throw new Exception("VF03: painel de diagnóstico não deve ocupar espaço antes da consulta.");
+        var repairCardPanels = repairFlow.Content.Controls.OfType<V269RepairCard>().ToArray();
+        var repairTools = repairCardPanels.Select(card => card.Command).ToArray();
+        if (repairCardPanels.Length != 12 || repairTools.Any(button => button.Width >= button.Parent!.ClientSize.Width) ||
+            repairTools.Select(button => button.Font.SizeInPoints).Distinct().Count() != 1)
+            throw new Exception("Os doze cartões de Reparo devem ter comandos compactos e tipografia uniforme.");
+        var longRepair = repairCardPanels.Single(card => card.AccessibleName == "Restaurar configurações da rede");
+        if (longRepair.Command.Text != "Restaurar" ||
+            !Descendants(longRepair).OfType<Label>().Any(label => label.Text == longRepair.AccessibleName))
+            throw new Exception("O título integral deve ficar no cartão e o comando deve ser compacto.");
+        if (!repairCardPanels.Any(card => card.AccessibleName == "Diagnosticar USB") ||
+            !repairCardPanels.Any(card => card.AccessibleName == "Diagnosticar chipset") ||
+            !repairCardPanels.Any(card => card.AccessibleName == "Diagnosticar tela azul") ||
+            Descendants(nav.PageContent(V269Page.Reparo)!).OfType<Label>().Any(label => label.Name == "RepairDiagnosticResult" || label.Text == "DIAGNÓSTICO DE REDE"))
+            throw new Exception("Diagnósticos e resultados devem ocupar o painel lateral, sem duplicar cartões.");
         var firstRow = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(x => x.Top))
             .OrderBy(card => card.Left).ToArray();
         if (repairFlow.ClientSize.Width >= 1100)
@@ -925,7 +952,7 @@ internal static class LayoutTests
                 // Simular o viewport, como na matriz acima. Redimensionar o
                 // Form seria limitado pelo monitor fisico do runner (e pela
                 // politica de 60%), nao pelo monitor sintetico deste cenario.
-                var opening = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48));
+                var opening = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48),screen.Height);
                 surface.Size = new Size(opening.Width - 16, opening.Height - 39);
                 surface.PerformLayout(); Application.DoEvents();
                 var row = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(c => c.Top))
@@ -946,9 +973,9 @@ internal static class LayoutTests
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
         // DRIVERS agora usa a mesma lista virtualizada de Aplicativos,
-        // sem rolagem externa duplicada. Outras quatro paginas a preservam.
-        if (pageViewports.Length != 4)
-            throw new Exception($"Esperadas quatro paginas com rolagem controlada e " +
+        // sem rolagem externa duplicada. Limpeza, Reparo e Sistema têm um viewport cada.
+        if (pageViewports.Length != 3)
+            throw new Exception($"Esperadas três páginas com rolagem controlada e " +
                 $"DRIVERS com lista propria; encontradas {pageViewports.Length}");
         var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
             .SelectMany(flow => flow.Content.Controls.Cast<Control>());
@@ -959,8 +986,77 @@ internal static class LayoutTests
         Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
         // O teste do novo shell cria um Form próprio; executá-lo após a suíte
         // legada evita modificar a ordem das janelas e o estado de foco dela.
-        V269ShellTests.Run();
-        V269IntegrationTests.Run();
+        Measure("shell_V269", V269ShellTests.Run);
+        if (runIntegratedVisualSuite)
+        {
+            string evidence = CheckMaintenanceVisualReceipt(MaintenanceVisualReceipt());
+            bool alreadyTested = evidence == "valido";
+            Console.WriteLine($"LAYOUT-SUITE recibo_manutencao_estado={evidence}; recibo_manutencao_valido={alreadyTested}; executar_particao_manutencao={!alreadyTested}");
+            Measure("integracao_V269", () => V269IntegrationTests.Run(includeMaintenanceVisual: !alreadyTested));
+        }
+    }
+
+    private static (string Path,string Identity)? MaintenanceVisualReceipt()
+    {
+        return BuildMaintenanceVisualReceipt(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
+            Environment.GetEnvironmentVariable("GITHUB_SHA"), Environment.GetEnvironmentVariable("GITHUB_RUN_ID"),
+            Environment.GetEnvironmentVariable("GITHUB_RUN_ATTEMPT"), "LayoutCaptures");
+    }
+
+    private static (string Path,string Identity)? BuildMaintenanceVisualReceipt(string? actions, string? sha,
+        string? run, string? attempt, string folder)
+    {
+        if(actions!="true")return null;
+        if(sha is null||sha.Length!=40||!sha.All(Uri.IsHexDigit)||
+            !long.TryParse(run,out long runId)||runId<=0||
+            !int.TryParse(attempt,out int attemptId)||attemptId<=0)return null;
+        string identity=$"V269-TOOLS-COMPLETE:{sha}:{runId}:{attemptId}";
+        // Só escrito após o retorno integral da partição de testes.
+        // Não aceitar recibos de outro checkout, execução ou tentativa.
+        return (Path.Combine(folder,$"V269-tools-{sha}-{runId}-{attemptId}.ok"),identity);
+    }
+
+    private static string CheckMaintenanceVisualReceipt((string Path,string Identity)? receipt)
+    {
+        if (receipt is not { } proof) return "sem_identidade_ci";
+        try
+        {
+            // Um recibo truncado, estranho ou inacessível nunca dispensa testes.
+            if (!File.Exists(proof.Path)) return "ausente";
+            return string.Equals(File.ReadAllText(proof.Path), proof.Identity, StringComparison.Ordinal) ? "valido" : "incompativel";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        { return "indisponivel"; }
+    }
+
+    private static void TestMaintenanceVisualReceipt()
+    {
+        string folder=Path.Combine(Path.GetTempPath(), "GF-receipt-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string sha=new('a',40), otherSha=new('b',40);
+            var receipt=BuildMaintenanceVisualReceipt("true", sha, "10", "1", folder)!.Value;
+            void Require(bool condition) { if(!condition) throw new Exception("Recibo visual aceitou identidade inválida ou perdeu prova válida."); }
+            Require(CheckMaintenanceVisualReceipt(null)=="sem_identidade_ci" && CheckMaintenanceVisualReceipt(receipt)=="ausente");
+            File.WriteAllText(receipt.Path, receipt.Identity);
+            Require(CheckMaintenanceVisualReceipt(receipt)=="valido");
+            foreach(var wrong in new[]{BuildMaintenanceVisualReceipt("true",otherSha,"10","1",folder),
+                BuildMaintenanceVisualReceipt("true",sha,"11","1",folder),BuildMaintenanceVisualReceipt("true",sha,"10","2",folder)})
+            {
+                Require(CheckMaintenanceVisualReceipt(wrong)=="ausente");
+                File.WriteAllText(wrong!.Value.Path,receipt.Identity);
+                Require(CheckMaintenanceVisualReceipt(wrong)=="incompativel");
+            }
+            Require(BuildMaintenanceVisualReceipt("false",sha,"10","1",folder) is null &&
+                BuildMaintenanceVisualReceipt("true","inválido","10","1",folder) is null &&
+                BuildMaintenanceVisualReceipt("true",sha,"0","1",folder) is null &&
+                BuildMaintenanceVisualReceipt("true",sha,"10","0",folder) is null);
+            File.WriteAllText(receipt.Path,receipt.Identity[..^1]);
+            Require(CheckMaintenanceVisualReceipt(receipt)=="incompativel");
+            Console.WriteLine("PASS recibo visual: SHA, run, tentativa, ausência e conteúdo incompatível; fallback integral.");
+        }
+        finally { Directory.Delete(folder,true); }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
@@ -1113,9 +1209,7 @@ internal static class LayoutTests
     {
         var graph = Descendants(form).OfType<MemoryRamChart>().Single();
         if (!graph.Visible ||
-            Descendants(form).OfType<Button>().All(x =>
-                x.Name != "OpenWindowsTaskManager" || x.Text != "Abrir tarefas" ||
-                x.AccessibleName?.Contains("Gerenciador de Tarefas", StringComparison.Ordinal) != true) ||
+            graph.ContextMenuStrip?.Items.Cast<ToolStripItem>().Any(x=>x.Text=="Abrir Gerenciador de Tarefas")!=true ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryAutoOptimization") ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryManualOptimization") ||
             Descendants(form).OfType<Label>().All(x => x.Name != "MemoryCandidates"))
@@ -1138,67 +1232,31 @@ internal static class LayoutTests
     {
         if (StartupWindowSizing.ValidationMatrix.Length != 21)
             throw new Exception("A matriz precisa de 21 resolucoes.");
-        var referenceArea = new Rectangle(0, 0, 1440, 852);
-        var reference = StartupWindowSizing.Fit(referenceArea);
-        if (reference.Size != new Size(1008, 698) ||
-            reference.X != 216 || reference.Y != 77)
-            throw new Exception("1440x900: dimensao deve acompanhar area util e ocupar cerca de 57%.");
-        var wxga = new Rectangle(0, 0, 1366, 720);
-        var wxgaWindow = StartupWindowSizing.Fit(wxga);
-        if (wxgaWindow.Size != new Size(956, 590))
-            throw new Exception("1366x768: nao abriu com tamanho proporcional.");
-        var lowResolution = new Rectangle(0, 0, 800, 552);
-        var lowWindow = StartupWindowSizing.Fit(lowResolution);
-        if (!StartupWindowSizing.ApplyAreaLimit(lowResolution) ||
-            lowWindow.Size != new Size(560, 452))
-            throw new Exception("800x600 tambem deve respeitar a regra universal de 60%.");
-        var hugeArea = new Rectangle(0, 0, 2560, 1392);
-        var quadHd = StartupWindowSizing.Fit(hugeArea);
-        if (quadHd.Size != new Size(1792, 1141))
-            throw new Exception("2560x1440 deve ampliar a janela proporcionalmente; DPI nao define resolucao.");
-        if (quadHd.Width <= reference.Width || quadHd.Height <= reference.Height)
-            throw new Exception("Janela em 1440p permanece artificialmente pequena.");
-        var resized = StartupWindowSizing.KeepVisible(
-            new Rectangle(0, 0, 4000, 4000), hugeArea);
-        if (resized.Width * (long)resized.Height >
-            3L * hugeArea.Width * hugeArea.Height / 5L)
-            throw new Exception("Troca de monitor permitiu exceder o limite de 60%.");
-        var largestArea = new Rectangle(0, 0, 7680, 4272);
-        if (StartupWindowSizing.Fit(largestArea).Width <= quadHd.Width)
-            throw new Exception("8K nao está utilizando proporcionalmente a area do monitor.");
-        foreach (var (name, resolution) in StartupWindowSizing.ValidationMatrix)
+        foreach(var (name,resolution) in StartupWindowSizing.ValidationMatrix.Concat(
+            new[]{("PC FRACO",new Size(1440,900))}))
         {
-            // Simular barra de tarefas de 48 pixels e area util com origem
-            // deslocada, como ocorre em um monitor secundario.
-            var workArea = new Rectangle(100, 64, resolution.Width, resolution.Height - 48);
-            Rectangle opening = StartupWindowSizing.Fit(workArea);
-            long pixels = (long)opening.Width * opening.Height;
-            long available = (long)workArea.Width * workArea.Height;
-            if (!StartupWindowSizing.ApplyAreaLimit(workArea) ||
-                pixels > 3L * available / 5L)
-                throw new Exception($"Area acima de 60%: {name} {opening}");
-            if (pixels < 55L * available / 100L)
-                throw new Exception($"Janela ficou pequena demais: {name} {opening}");
-            if (!workArea.Contains(opening) ||
-                opening.Width > workArea.Width || opening.Height > workArea.Height)
-                throw new Exception($"Janela inicial fora da tela: {name} {opening}");
-            Size min = StartupWindowSizing.AllowedMinimum(opening);
-            if (min.Width > opening.Width || min.Height > opening.Height)
-                throw new Exception($"Tamanho minimo impede abertura: {name}");
-            var outside = new Rectangle(-3000, -3000, 2000, 1400);
-            Rectangle recovered = StartupWindowSizing.KeepVisible(outside, workArea);
-            if (!workArea.Contains(recovered))
-                throw new Exception($"Nao recuperou a janela apos troca de monitor: {name}");
-            Size maximum = StartupWindowSizing.MaximumSizeFor(workArea);
-            if (opening.Width > maximum.Width || opening.Height > maximum.Height)
-                throw new Exception($"Janela ultrapassou tamanho maximo: {name}");
-            if ((long)maximum.Width * maximum.Height > 3L * available / 5L)
-                throw new Exception($"Redimensionamento excederia 60%: {name}");
-            // Ao mover para monitor menor, o tamanho e limitado sem alterar os
-            // limites das janelas ja validas.
-            if (StartupWindowSizing.KeepVisible(opening, workArea) != opening)
-                throw new Exception($"Posicao valida alterada: {name}");
-            Console.WriteLine($"Fit OK {name}: {resolution.Width}x{resolution.Height}");
+            var area=new Rectangle(100,64,resolution.Width,resolution.Height-48);
+            int expected=resolution.Height>=1080?60:resolution.Height>=720?80:90;
+            if(StartupWindowSizing.BasePercent(resolution.Height)!=expected)
+                throw new Exception($"Faixa de janela incorreta: {name}");
+            foreach(int scale in new[]{90,100,110})
+            {
+                var opening=StartupWindowSizing.Fit(area,resolution.Height,scale);
+                int W(int n)=>Math.Clamp((int)(((long)n*expected*scale+5000L)/10000L),1,n);
+                if(opening.Size!=new Size(W(area.Width),W(area.Height))||
+                    opening.X!=area.Left+(area.Width-opening.Width)/2||
+                    opening.Y!=area.Top+(area.Height-opening.Height)/2||!area.Contains(opening))
+                    throw new Exception($"Dimensão fixa incorreta: {name} escala {scale}: {opening}");
+                if(StartupWindowSizing.AllowedMinimum(opening)!=opening.Size||
+                    StartupWindowSizing.MaximumSizeFor(area,resolution.Height,scale)!=opening.Size)
+                    throw new Exception($"Limites de tamanho fixo incorretos: {name}");
+                var recovered=StartupWindowSizing.KeepVisible(new Rectangle(-3000,-3000,9000,9000),
+                    area,resolution.Height,scale);
+                if(recovered.Size!=opening.Size||!area.Contains(recovered)||
+                    StartupWindowSizing.KeepVisible(opening,area,resolution.Height,scale)!=opening)
+                    throw new Exception($"Recuperação de monitor incorreta: {name}");
+            }
+            Console.WriteLine($"Fit OK {name}: {resolution.Width}x{resolution.Height} faixa={expected}%");
         }
     }
 

@@ -106,15 +106,12 @@ internal static class DriverG119HistoryIdentityTests
             status.AccessibleDescription?.Contains(history.Text, StringComparison.Ordinal) == true &&
             history.AccessibleDescription == history.Text,
             "painel publicado anuncia fotografia historica antiga");
-        var tooltipField = typeof(MainForm).GetField("_toolTips",
-            BindingFlags.Instance | BindingFlags.NonPublic);
-        var tips = tooltipField?.GetValue(owner) as ToolTip
-            ?? throw new Exception("G1.19: tooltips do painel não encontrados");
+        Ensure(typeof(MainForm).GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .All(field => field.FieldType != typeof(ToolTip)),
+            "painel de Drivers não deve possuir componente tooltip");
         // UX91: informações detalhadas continuam acessíveis a leitores de tela,
         // mas nunca aparecem em pop-ups extensos ao passar o mouse.
-        Ensure(string.IsNullOrEmpty(tips.GetToolTip(status)) &&
-            string.IsNullOrEmpty(tips.GetToolTip(history)) &&
-            status.AccessibleDescription?.Contains(history.Text, StringComparison.Ordinal) == true &&
+        Ensure(status.AccessibleDescription?.Contains(history.Text, StringComparison.Ordinal) == true &&
             history.AccessibleDescription == history.Text,
             "histórico não acessível ou tooltip de hover invasivo reapareceu");
 
@@ -124,9 +121,7 @@ internal static class DriverG119HistoryIdentityTests
             page.ClientSize = size;
             Pump(40);
             Ensure(status.AccessibleDescription?.Contains(history.Text, StringComparison.Ordinal) == true &&
-                history.AccessibleDescription == history.Text &&
-                string.IsNullOrEmpty(tips.GetToolTip(status)) &&
-                string.IsNullOrEmpty(tips.GetToolTip(history)),
+                history.AccessibleDescription == history.Text,
                 "viewport perdeu histórico acessível ou reintroduziu tooltip em " + size);
         }
         list.Focus();

@@ -27,19 +27,15 @@ internal static class CleanupP0LayoutTests
         {
             form.ClientSize = new Size(width, 590);
             Application.DoEvents();
-            if (!report.Visible || report.ColumnCount != 2 || report.RowCount != 5 || report.Width < Math.Min(480, navigation.PageContent(V269Page.Limpeza)!.ClientSize.Width - 55))
+            if (!report.Visible || report.ColumnCount is not (2 or 4) || report.RowCount != (report.ColumnCount == 4 ? 3 : 5) || report.Controls.OfType<Label>().Count() != 10 || report.Width < Math.Min(480, navigation.PageContent(V269Page.Limpeza)!.ClientSize.Width - 55))
                 throw new InvalidOperationException($"P0 limpeza {name}: painel de categorias indisponível.");
-            for (int row = 0; row < states.Length; row++)
+            foreach (Label label in report.Controls.OfType<Label>())
             {
-                for (int col = 0; col < 2; col++)
-                {
-                    var label = (Label)report.GetControlFromPosition(col, row)!;
-                    int required = TextRenderer.MeasureText(label.Text, label.Font,
-                        new Size(label.Width, int.MaxValue), TextFormatFlags.WordBreak |
-                        TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix).Height;
-                    if (required > label.Height || !report.ClientRectangle.Contains(label.Bounds))
-                        throw new InvalidOperationException($"P0 limpeza {name}: texto cortado, linha {row}, coluna {col}.");
-                }
+                int required = TextRenderer.MeasureText(label.Text, label.Font,
+                    new Size(label.Width, int.MaxValue), TextFormatFlags.WordBreak |
+                    TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix).Height;
+                if (required > label.Height || !report.ClientRectangle.Contains(label.Bounds))
+                    throw new InvalidOperationException($"P0 limpeza {name}: texto cortado, {label.Text}.");
             }
             using var bitmap = new Bitmap(report.Width, report.Height);
             report.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));

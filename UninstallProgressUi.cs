@@ -1,11 +1,10 @@
-using System.Drawing;
 using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
 
 internal sealed partial class MainForm
 {
-    private string? pendingUninstallSummary;
+    private V269PanelPresentation? _pendingUninstallResult;
     private void SetUninstallProgress(ProgramEntry app, string phase, string? details = null)
     {
         var stage = phase switch
@@ -26,45 +25,34 @@ internal sealed partial class MainForm
         else _programList.RefreshOperations();
     }
 
-    private void DrawUninstallOperation(Graphics graphics, Rectangle area, UninstallOperationSnapshot state)
-    {
-        Color color = state.Stage == UninstallStage.Failed ? AppServices.Red :
-            state.Stage is UninstallStage.Pending or UninstallStage.Partial ? Color.FromArgb(245, 204, 103) :
-            state.Stage == UninstallStage.Finished ? Color.FromArgb(120, 222, 165) : Accent;
-        TextRenderer.DrawText(graphics, state.Text, _rowInfo,
-            new Rectangle(area.X, area.Y - 2, area.Width, area.Height - 4), color,
-            TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        var track = new Rectangle(area.X + 1, area.Bottom - 5, area.Width - 2, 4);
-        if (track.Width < 4) return;
-        using var background = new SolidBrush(Color.FromArgb(20, 30, 42));
-        using var fill = new SolidBrush(color);
-        graphics.FillRectangle(background, track);
-        var clip = graphics.Save();
-        try
-        {
-            graphics.SetClip(track);
-            if (state.Active)
-            {
-                int segment = Math.Max(12, track.Width / 4);
-                int offset = _programList.OperationFrame * (track.Width + segment) / 18 - segment;
-                graphics.FillRectangle(fill, track.X + offset, track.Y, segment, track.Height);
-            }
-            else graphics.FillRectangle(fill, track);
-        }
-        finally { graphics.Restore(clip); }
-    }
-
     internal void ShowUninstallResult(string summary)
     {
         if (IsDisposed || Disposing) return;
-        if (IsInTray || !Visible)
-        { pendingUninstallSummary = pendingUninstallSummary is null ? summary : pendingUninstallSummary + "\n\n" + summary; return; }
-        _nav.PresentPanel(new(V269PanelKind.Result, "Resultado da desinstalação", summary));
+        var presentation=new V269PanelPresentation(V269PanelKind.Result,"Resultado da desinstalação",summary);
+        if(_v269AppExecutionActive)_v269AppExecutionResult=presentation;
+        PresentUninstallResult(presentation);
+    }
+    private void PresentUninstallResult(V269PanelPresentation presentation)
+    {
+        if(IsDisposed||Disposing)return;
+        if(IsInTray||!Visible)
+        {
+            // Um único resultado conserva a identidade usada pelo histórico
+            // contextual. Resultados acumulados conservam o texto integral,
+            // sem atribuir a combinação a uma operação individual.
+            _pendingUninstallResult=_pendingUninstallResult is {} pending
+                ?new(V269PanelKind.Result,presentation.Title,pending.Description+"\n\n"+presentation.Description)
+                :presentation;
+            return;
+        }
+        _nav.PresentPanel(presentation);
     }
     private void ResumeUninstallResult()
     {
-        if (pendingUninstallSummary is not string summary) return;
-        pendingUninstallSummary = null;
-        BeginInvoke((Action)(() => ShowUninstallResult(summary)));
+        if(_pendingUninstallResult is not {} presentation)return;
+        _pendingUninstallResult=null;
+        // A restauração é só apresentação: não recriar a identidade nem
+        // atribuir um resultado antigo à eventual operação em andamento.
+        BeginInvoke((Action)(()=>PresentUninstallResult(presentation)));
     }
 }

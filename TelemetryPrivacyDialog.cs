@@ -183,14 +183,13 @@ internal sealed partial class MainForm
 {
     private void RefreshPrivacyStatus()
     {
+        RefreshV269General();
 #if !GF_BETA
         if (_privacyStatusButton is null || _privacyStatusButton.IsDisposed) return;
         var state = AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked;
         _privacyStatusButton.Text = PrivacyConsentPresentation.ButtonLabel(state);
         _privacyStatusButton.AccessibleName = "Privacidade: " + _privacyStatusButton.Text;
         _privacyStatusButton.AccessibleDescription = PrivacyConsentPresentation.Explanation(state);
-        _toolTips.SetToolTip(_privacyStatusButton,
-            _privacyStatusButton.AccessibleDescription);
         _privacyStatusButton.BackColor = state == TelemetryConsent.LocalOnly
             ? Color.FromArgb(43, 66, 89) : AppServices.Gray;
         _privacyStatusButton.Invalidate();

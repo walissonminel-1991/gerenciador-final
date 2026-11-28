@@ -61,6 +61,18 @@ internal static class V269ShellTests
             "As três regiões estruturais precisam existir.");
         Check(shell.Controls.Find("V269NavConfiguracoes", true).Length == 1,
             "As oito abas devem ser acessíveis no menu lateral.");
+        var dashboardColumns = shell.Controls.Find("V269Columns", true)
+            .OfType<TableLayoutPanel>().Single();
+        Check(!shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Início sem operação deve recuperar toda a largura prevista no HTML.");
+        shell.PresentPanel(new(V269PanelKind.Details, "Consulta", "Somente leitura."));
+        Check(!shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Detalhes de consulta não devem estreitar a página Início.");
+        shell.SelectPage(V269Page.Configuracoes);
+        Check(!shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Configurações sem operação deve ocupar a área útil.");
+        shell.SelectPage(V269Page.Inicio);
+        shell.PresentPanel(null);
         var navigation = shell.Controls.Find("V269Navigation", true)
             .OfType<TableLayoutPanel>().Single();
         Check(navigation.AccessibleName == "Navegação principal" &&
@@ -98,25 +110,73 @@ internal static class V269ShellTests
             .OfType<TableLayoutPanel>().Single();
         // O runner Windows pode ter viewport menor que a dimensão solicitada
         // ao formulário. Exigir a escala correta para a largura REAL do shell.
-        int compactWidth = shell.ClientSize.Width < 1040 ? 166 : 210;
-        int compactRight = shell.ClientSize.Width < 1040 ? 240 : 310;
-        int expectedLeft = V269VisualTokens.Scale(compactWidth, 110);
-        int expectedRight = V269VisualTokens.Scale(compactRight, 110);
+        int logicalWidth = shell.LayoutWindowWidth;
+        int expectedLeft = V269VisualTokens.Scale(
+            (logicalWidth <= 1040 ? 175 : logicalWidth <= 1250 ? 195 : 236) + 11, 110);
+        var mainLayout = shell.RightPane.Parent as TableLayoutPanel;
         Check(columns.ColumnStyles[0].Width == expectedLeft &&
-            columns.ColumnStyles[2].Width == expectedRight,
-            $"Escala precisa alterar as colunas na largura real. " +
-            $"shell={shell.ClientSize.Width}, esquerda={columns.ColumnStyles[0].Width}/{expectedLeft}, " +
-            $"direita={columns.ColumnStyles[2].Width}/{expectedRight}.");
+            columns.ColumnStyles[2].Width == 0 && mainLayout is not null &&
+            !ReferenceEquals(mainLayout, columns) && shell.RightPane.Visible,
+            "Aplicativos deve manter painel integrado e sidebar na escala real do HTML.");
+        Check(logicalWidth <= 1040
+            ? mainLayout!.RowCount == 3 && mainLayout.GetRow(shell.RightPane) == 2
+            : mainLayout!.ColumnCount == 3 && mainLayout.GetColumn(shell.RightPane) == 2,
+            "Painel de Aplicativos precisa alternar entre posição inferior e lateral.");
+        shell.SelectPage(V269Page.Drivers);
+        Check(columns.ColumnStyles[0].Width == expectedLeft &&
+            columns.ColumnStyles[2].Width == 0 &&
+            ReferenceEquals(shell.RightPane.Parent, mainLayout) &&
+            ReferenceEquals(shell.RightPane.Current, result),
+            "Drivers reutiliza o painel responsivo do HTML e preserva o resultado publicado.");
+        shell.SelectPage(V269Page.Aplicativos);
 
         var progress = new V269PanelPresentation(V269PanelKind.Progress,
             "Em andamento", "Sem conclusão presumida.", 37);
         shell.PresentPanel(progress);
         var bar = shell.Controls.Find("V269PanelProgress", true)
-            .OfType<ProgressBar>().Single();
-        Check(bar.Visible && bar.Value == 37, "Progresso deve permanecer no painel direito.");
+            .OfType<GfDynamicProgressBar>().Single();
+        var percent = shell.RightPane.Controls.Find("V269FlowPercentMeter", true).Single();
+        var chromatic = percent.Controls.OfType<GfDynamicProgressBar>().Single();
+        // AUT-OP-01: contrato PR #114 + decisão posterior do proprietário.
+        // Não acoplar a expectativa à rotina Operation que estamos testando:
+        // o oráculo usa as âncoras e os intervalos publicados da escala inversa.
+        static Color ExpectedOperationalInk(V269Theme theme,int value)
+        {
+            var colors = GfMeterScale.Colors(theme);
+            var first = value <= 35 ? colors.Red : colors.Yellow;
+            var last = value <= 35 ? colors.Yellow : colors.Blue;
+            double t = value <= 35 ? value/35d : (value-35)/65d;
+            int Channel(int a,int b) => (int)Math.Round(a+(b-a)*t);
+            return Color.FromArgb(Channel(first.R,last.R),Channel(first.G,last.G),Channel(first.B,last.B));
+        }
+        static void AssertOperationalFrame(GfDynamicProgressBar control,V269Theme theme,int value)
+        {
+            var frame=control.CurrentFrame;
+            Check(frame.State==GfMeterState.Running && frame.ScaleKind==GfMeterKind.InvertedProgress &&
+                frame.ScalePosition==value && frame.Fraction==value/100d &&
+                frame.Color.ToArgb()==ExpectedOperationalInk(theme,value).ToArgb() &&
+                frame.Color.ToArgb()!=GfMeterScale.Colors(theme).Green.ToArgb(),
+                "AUT-OP-01: progresso medido, escala inversa, tema correto, sem sucesso antecipado");
+        }
+        Check(percent.Visible && percent.AccessibleDescription == "37%" && !bar.Visible &&
+            chromatic.CurrentFrame.State==GfMeterState.Running && chromatic.CurrentFrame.Fraction==.37,
+            "Aplicativos usa a barra temática com a porcentagem medida.");
+        AssertOperationalFrame(chromatic,shell.Theme,37);
+        var unknown=progress with {ProgressPercent=null};
+        shell.PresentPanel(unknown);
+        Check(percent.Visible && !bar.Visible && chromatic.CurrentFrame.State==GfMeterState.Indeterminate &&
+            chromatic.CurrentFrame.Fraction is null && percent.AccessibleDescription=="Progresso não informado",
+            "REC-FIS-PROGRESS: Aplicativos mantém atividade sem percentual");
         shell.SelectPage(V269Page.Configuracoes);
-        Check(ReferenceEquals(shell.RightPane.Current, progress),
-            "O painel não pode perder o progresso ao trocar de aba.");
+        Check(bar.Visible && !percent.Visible && bar.CurrentFrame.State==GfMeterState.Indeterminate &&
+            bar.CurrentFrame.Fraction is null,"REC-FIS-PROGRESS: fallback único sem percentual inventado");
+        shell.PresentPanel(progress);shell.SelectPage(V269Page.Aplicativos);
+        shell.SelectPage(V269Page.Configuracoes);
+        Check(ReferenceEquals(shell.RightPane.Current, progress) && shell.RightPane.Visible &&
+            dashboardColumns.ColumnStyles[2].Width > 0 && bar.Visible && bar.CurrentFrame.State==GfMeterState.Running &&
+            bar.CurrentFrame.Fraction==.37 && !percent.Visible,
+            "O painel não pode perder nem ocultar o progresso ao trocar de aba.");
+        AssertOperationalFrame(bar,shell.Theme,37);
 
         shell.ApplyAppearance(V269Theme.Claro, 90, 90);
         Check(shell.Theme == V269Theme.Claro &&
@@ -128,22 +188,69 @@ internal static class V269ShellTests
         var otherNav = shell.Controls.Find("V269NavAplicativos", true)
             .OfType<Button>().Single();
         Check(selectedNav.ForeColor == Color.White &&
-            selectedNav.BackColor == V269VisualTokens.ForTheme(V269Theme.Claro).Selection &&
+            selectedNav.BackColor.A == 255 &&
             selectedNav.AccessibleDescription == "Aba atual" &&
             otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Claro).Text,
             "Aba ativa do Claro precisa manter texto branco sobre azul e sinal acessível.");
+        AssertOperationalFrame(bar,V269Theme.Claro,37);
         shell.ApplyAppearance(V269Theme.Dark, 90, 90);
         Check(selectedNav.ForeColor == Color.FromArgb(242, 247, 251) &&
             otherNav.ForeColor == V269VisualTokens.ForTheme(V269Theme.Dark).Text,
             "Aba ativa do Dark deve conservar contraste sem brancura excessiva.");
+        AssertOperationalFrame(bar,V269Theme.Dark,37);
+        foreach(var palette in Enum.GetValues<V269Theme>())
+        {
+            shell.ApplyAppearance(palette,90,90);
+            shell.SelectPage(V269Page.Aplicativos);
+            foreach(int value in new[]{10,35,75,100})
+            {
+                var sample=progress with { ProgressPercent=value };
+                shell.PresentPanel(sample);
+                Check(percent.Visible && !bar.Visible,"AUT-OP-01: somente uma barra de progresso visível");
+                AssertOperationalFrame(chromatic,palette,value);
+                shell.SelectPage(V269Page.Configuracoes);
+                Check(bar.Visible && !percent.Visible && ReferenceEquals(shell.RightPane.Current,sample),
+                    "AUT-OP-01: operação retida, sem duplicação de barra");
+                AssertOperationalFrame(bar,palette,value);
+                shell.SelectPage(V269Page.Aplicativos);
+            }
+        }
+        shell.ApplyAppearance(V269Theme.Dark,90,90);
+        shell.SelectPage(V269Page.Configuracoes);
+        shell.PresentPanel(progress);
+        AssertOperationalFrame(bar,V269Theme.Dark,37);
+        Console.WriteLine("PASS AUT-OP-01: escala inversa, 3 temas, troca de abas, 100% sem sucesso fictício.");
         shell.PresentPanel(null);
-        Check(shell.RightPane.Current is null && !bar.Visible,
-            "O painel deve limpar estado sem simular sucesso.");
+        Check(shell.RightPane.Current is null && !bar.Visible && bar.CurrentFrame.State==GfMeterState.Unavailable &&
+            !percent.Visible && chromatic.CurrentFrame.State==GfMeterState.Unavailable &&
+            !shell.RightPane.Visible && dashboardColumns.ColumnStyles[2].Width == 0,
+            "Ao dispensar a operação, Configurações deve recuperar a largura sem simular sucesso.");
 
         bool rejected = false;
         try { shell.SetPageContent(V269Page.Inicio, apps); }
         catch (InvalidOperationException) { rejected = true; }
         Check(rejected, "Uma view não pode ser associada a duas abas.");
+
+        // A troca de geometria não pode destruir fontes ainda retidas
+        // pelo WinForms quando a nova fonte possui valor equivalente.
+        using var lateView = new Panel();
+        using var lateLabel = new Label { Text = "Fonte herdada", Dock = DockStyle.Fill };
+        lateView.Controls.Add(lateLabel);
+        shell.SetPageContent(V269Page.Inicio, lateView);
+        foreach (int scale in new[] { 100, 115, 90, 100 })
+        {
+            shell.ApplyAppearance(V269Theme.AzulGf, 100, scale);
+            foreach (var page in new[] { V269Page.Inicio, V269Page.Aplicativos, V269Page.Inicio })
+            {
+                shell.SelectPage(page);
+                Application.DoEvents();
+                Check(TextRenderer.MeasureText("Fonte", lateLabel.Font).Width > 0,
+                    "Fonte herdada válida após alternância de geometria.");
+                foreach (var nav in AllDescendants(shell).OfType<Button>())
+                    Check(TextRenderer.MeasureText(nav.Text, nav.Font).Height > 0,
+                        "Fonte de navegação válida após alteração de escala.");
+            }
+        }
 
         // A etapa A não contém botão de instalar/desinstalar nem serviço de manutenção.
         Check(!AllDescendants(shell).OfType<Button>().Any(b =>

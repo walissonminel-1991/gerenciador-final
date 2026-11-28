@@ -81,8 +81,8 @@ internal sealed partial class MainForm
             BackColor = Color.Transparent,
             AutoSize = false
         };
-        var minimize = CaptionButton("—", "Minimizar para a bandeja do sistema", false,
-            (_, _) => MinimizeToTray());
+        var minimize = CaptionButton("—", "Minimizar conforme a preferência da janela", false,
+            (_, _) => MinimizeByV269Preference());
         var close = CaptionButton("×", "Fechar o Gerenciador Final", true,
             (_, _) => Close());
         _caption.Controls.Add(title);
@@ -116,7 +116,7 @@ internal sealed partial class MainForm
 
         // Programas continuam coletando dados enquanto a janela esta oculta.
         // Sair realmente fecha o processo e libera o icone da bandeja.
-        FormClosed += (_, _) =>
+        void ReleaseWindowChrome()
         {
             if (_trayIcon is not null)
             {
@@ -128,7 +128,9 @@ internal sealed partial class MainForm
             _trayMenu = null;
             _windowIcon?.Dispose();
             _windowIcon = null;
-        };
+        }
+        FormClosed += (_, _) => ReleaseWindowChrome();
+        Disposed += (_, _) => ReleaseWindowChrome();
         VisibleChanged += (_, _) =>
         {
             if (!_diagnoseWindowLifecycle || _trayTransitioning || IsDisposed) return;
@@ -141,7 +143,7 @@ internal sealed partial class MainForm
         Resize += (_, _) =>
         {
             if (!IsDisposed && IsHandleCreated && !_trayTransitioning &&
-                WindowState == FormWindowState.Minimized)
+                WindowState == FormWindowState.Minimized && _v269General.MinimizeToTray)
                 BeginInvoke((Action)MinimizeToTray);
         };
     }
@@ -169,7 +171,6 @@ internal sealed partial class MainForm
         button.FlatAppearance.MouseDownBackColor = isClose
             ? Color.FromArgb(142, 25, 33) : Color.FromArgb(73, 87, 104);
         button.Click += action;
-        _toolTips.SetToolTip(button, hint);
         return button;
     }
 

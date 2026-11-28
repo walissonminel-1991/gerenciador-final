@@ -487,15 +487,16 @@ internal static class DriverRecoveryVault
                 File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint))
                 return new(false, false, "Recibo de backup ausente ou inválido.");
             var receipt = JsonSerializer.Deserialize<DriverBackupReceipt>(File.ReadAllText(path));
+            string? originalInf = receipt?.OriginalInf;
             if (receipt is null || receipt.Schema != 1 ||
                 !PublishedInf.IsMatch(receipt.PublishedInf ?? "") ||
-                !InfFile.IsMatch(receipt.OriginalInf ?? "") ||
+                originalInf is null || !InfFile.IsMatch(originalInf) ||
                 !Hash64(receipt.InfSha256) || !Hash64(receipt.PackageSha256) ||
                 receipt.CreatedAtUtc == default || receipt.CreatedAtUtc > DateTimeOffset.UtcNow.AddMinutes(5))
                 return new(false, false, "Recibo inconsistente.");
-            string? inf = FindSingleInf(folder, receipt.OriginalInf);
+            string? inf = FindSingleInf(folder, originalInf);
             if (inf is null || !DriverSilentUninstall.VerifyBackup(folder,
-                    receipt.OriginalInf, receipt.InfSha256, out string hash) ||
+                    originalInf, receipt.InfSha256, out string hash) ||
                 !hash.Equals(receipt.PackageSha256, StringComparison.OrdinalIgnoreCase))
                 return new(false, false, "Backup alterado, incompleto ou não verificável.");
             bool stageAllowed = DriverUpdatePilot.AllowedClass(receipt.DriverClass);

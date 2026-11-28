@@ -208,6 +208,45 @@ internal static class DriverMainPanelTemporalTests
             Console.WriteLine("OK G1.12: cancelamento, resposta tardia e trava contra segunda leitura");
         }
 
+        // A captura anterior continua visível, mas não autoriza ação após
+        // revogação. Falha tardia não reabre o resultado nem impede uma
+        // nova consulta depois que a chamada nativa realmente terminou.
+        {
+            int started = 0;
+            var pending = new TaskCompletionSource<DriverInventoryResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var page = Open(owner, _ => ++started switch
+            {
+                1 => Task.FromResult(snapshots[0]),
+                2 => pending.Task,
+                3 => throw new InvalidOperationException("fixture: falha síncrona"),
+                _ => Task.FromResult(snapshots[2])
+            }, TimeSpan.FromSeconds(4), out var read, out _);
+            var list = Find<DarkDriverList>(page, "DriverInventoryList");
+            var refresh = Find<Button>(page, "DriverInventoryRefresh");
+            var investigate = Find<Button>(page, "DriverReadOnlyInvestigation");
+            read();
+            PumpUntil(() => list.Items.Count == 3 && refresh.Text == "Consultar drivers");
+            read();
+            read();
+            PumpUntil(() => refresh.Text == "Consultar drivers");
+            read();
+            if (started != 2 || list.Items.Count != 3 || investigate.Enabled || list.ActionsCurrent)
+                throw new Exception("Drivers: consulta cancelada perdeu a lista anterior ou manteve evidência autorizada.");
+            pending.SetException(new InvalidOperationException("fixture: falha nativa tardia"));
+            Pump();
+            if (list.Items.Count != 3 || investigate.Enabled || list.ActionsCurrent)
+                throw new Exception("Drivers: exceção tardia modificou a lista ou as ações revogadas.");
+            read(); // provedor lança antes de devolver Task
+            PumpUntil(() => refresh.Text == "Consultar drivers");
+            if (started != 3 || list.Items.Count != 3 || investigate.Enabled)
+                throw new Exception("Drivers: falha antes do await não restaurou o botão ou revogou a lista.");
+            read();
+            PumpUntil(() => list.Items.Count == 0 && refresh.Text == "Consultar drivers");
+            if (started != 4 || !investigate.Enabled)
+                throw new Exception("Drivers: nova consulta não recuperou após o encerramento real da anterior.");
+            Console.WriteLine("OK Drivers: lista preservada, falha tardia observada, falha síncrona e recuperação sem concorrência.");
+        }
+
         // Timeout curto do chamador e descarte da página: nada pode ser publicado
         // posteriormente, mesmo que a Task sintética conclua depois do fechamento.
         {

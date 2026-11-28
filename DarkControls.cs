@@ -24,6 +24,25 @@ internal sealed class DarkVScrollBar : Control
     private static readonly Color Track = Color.FromArgb(29, 38, 49);
     private static readonly Color Thumb = Color.FromArgb(87, 110, 134);
     private static readonly Color ThumbHot = Color.FromArgb(117, 157, 196);
+    private (Color Track,Color Thumb,Color Hot)? _appColors;
+    private bool _horizontalAxis;
+    internal void SetAppHorizontalAxis()
+    {
+        _horizontalAxis=true;
+        MinimumSize=new Size(25,12);
+        Height=12;
+    }
+    // Opt-in por instância: barras legadas de Drivers, histórico e outras
+    // ferramentas mantêm exatamente as cores e a geometria anteriores.
+    internal void ApplyAppScrollTheme(V269Theme theme)
+    {
+        _appColors=V269AppTable.ScrollColors(theme);
+        BackColor=_appColors.Value.Track;
+        // Trilha estreita; o controle mantém área de clique e foco.
+        if(_horizontalAxis)Height=12;else Width=12;
+        AccessibleRole=AccessibleRole.ScrollBar;
+        Invalidate();
+    }
 
     public event EventHandler? ValueChanged;
 
@@ -75,25 +94,33 @@ internal sealed class DarkVScrollBar : Control
     private Rectangle ThumbBounds()
     {
         const int margin = 3;
-        int available = Math.Max(1, Height - margin * 2);
+        int available = Math.Max(1, (_horizontalAxis?Width:Height) - margin * 2);
+        int thickness=Math.Max(2,(_horizontalAxis?Height:Width)-margin*2);
+        Rectangle Along(int pos,int size)=>_horizontalAxis?
+            new Rectangle(margin+pos,margin,size,thickness):new Rectangle(margin,margin+pos,thickness,size);
         if (_contentSize <= 0 || _contentSize <= _pageSize)
-            return new Rectangle(margin, margin, Math.Max(2, Width - margin * 2), available);
+            return Along(0,available);
         int size = Math.Clamp((int)Math.Round(available * (_pageSize / (double)_contentSize)), Math.Min(25, available), available);
         int travel = available - size;
         int pos = MaximumValue == 0 ? 0 : (int)Math.Round(travel * (_value / (double)MaximumValue));
-        return new Rectangle(margin, margin + pos, Math.Max(2, Width - margin * 2), size);
+        return Along(pos,size);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(Track);
+        e.Graphics.Clear(_appColors?.Track??Track);
         if (!Visible || MaximumValue == 0) return;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         Rectangle rect = ThumbBounds();
         using var path = ModernButton.RoundRect(rect, 5);
-        using var brush = new SolidBrush(_hot || _dragging ? ThumbHot : Thumb);
+        using var brush = new SolidBrush(_hot || _dragging ? (_appColors?.Hot??ThumbHot) : (_appColors?.Thumb??Thumb));
         e.Graphics.FillPath(brush, path);
+        if(_appColors is not null&&Focused)
+            ControlPaint.DrawFocusRectangle(e.Graphics,Rectangle.Inflate(rect,-1,-1));
     }
+
+    protected override void OnGotFocus(EventArgs e){base.OnGotFocus(e);if(_appColors is not null)Invalidate();}
+    protected override void OnLostFocus(EventArgs e){base.OnLostFocus(e);if(_appColors is not null)Invalidate();}
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
@@ -104,13 +131,13 @@ internal sealed class DarkVScrollBar : Control
         if (thumb.Contains(e.Location))
         {
             _dragging = true;
-            _dragY = e.Y;
+            _dragY = _horizontalAxis?e.X:e.Y;
             _dragValue = _value;
             Capture = true;
         }
         else
         {
-            Value += e.Y < thumb.Top ? -_pageSize : _pageSize;
+            Value += (_horizontalAxis?e.X<thumb.Left:e.Y<thumb.Top) ? -_pageSize : _pageSize;
         }
     }
 
@@ -120,8 +147,8 @@ internal sealed class DarkVScrollBar : Control
         if (_dragging)
         {
             Rectangle thumb = ThumbBounds();
-            int travel = Math.Max(1, Height - 6 - thumb.Height);
-            Value = _dragValue + (int)Math.Round((e.Y - _dragY) * (MaximumValue / (double)travel));
+            int travel = Math.Max(1, (_horizontalAxis?Width-thumb.Width:Height-thumb.Height) - 6);
+            Value = _dragValue + (int)Math.Round(((_horizontalAxis?e.X:e.Y) - _dragY) * (MaximumValue / (double)travel));
         }
         else
         {
@@ -147,14 +174,17 @@ internal sealed class DarkVScrollBar : Control
     protected override bool IsInputKey(Keys keyData)
     {
         Keys key = keyData & Keys.KeyCode;
-        return key is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End || base.IsInputKey(keyData);
+        return (_horizontalAxis&&(key is Keys.Left or Keys.Right))||
+            key is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End || base.IsInputKey(keyData);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         switch (e.KeyCode)
         {
+            case Keys.Left when _horizontalAxis:
             case Keys.Up: Value -= 35; break;
+            case Keys.Right when _horizontalAxis:
             case Keys.Down: Value += 35; break;
             case Keys.PageUp: Value -= _pageSize; break;
             case Keys.PageDown: Value += _pageSize; break;
@@ -190,8 +220,6 @@ internal static class AppRowGeometry
 internal sealed class DarkProgramList : Control
 {
     private readonly List<ProgramEntry> _items = new();
-    private readonly ToolTip _itemTips = new() { Active = false, InitialDelay = 450, AutoPopDelay = 12000 };
-    private int _tipRow = -1;
     private readonly Dictionary<int, UpdateOperationSnapshot?> _paintedOperations = new();
     private readonly Dictionary<int, UninstallOperationSnapshot?> _paintedUninstalls = new();
     private readonly System.Windows.Forms.Timer _operationTimer = new() { Interval = 100 };
@@ -204,7 +232,6 @@ internal sealed class DarkProgramList : Control
     internal void RefreshOperations()
     {
         if (IsDisposed || Disposing) return;
-        _tipRow = -1;
         if (Visible && IsHandleCreated && _items.Any(p => OperationFor?.Invoke(p)?.Active == true || UninstallOperationFor?.Invoke(p)?.Active == true))
             _operationTimer.Start();
         else _operationTimer.Stop();
@@ -214,7 +241,7 @@ internal sealed class DarkProgramList : Control
     {
         if (IsDisposed || Disposing || !Visible) return;
         int first = Math.Max(0, _scrollOffset / _itemHeight);
-        int last = Math.Min(_items.Count - 1, (_scrollOffset + ClientSize.Height) / _itemHeight);
+        int last = Math.Min(_items.Count - 1, (_scrollOffset + RowsHeight) / _itemHeight);
         for (int i = first; i <= last; i++)
         {
             var operation = OperationFor?.Invoke(_items[i]);
@@ -222,7 +249,7 @@ internal sealed class DarkProgramList : Control
             if (operation?.Active == true || uninstall?.Active == true ||
                 !_paintedUninstalls.TryGetValue(i, out var previousUninstall) || previousUninstall != uninstall ||
                 !_paintedOperations.TryGetValue(i, out var previous) || previous != operation)
-                Invalidate(new Rectangle(0, i * _itemHeight - _scrollOffset, ClientSize.Width, _itemHeight));
+                Invalidate(Rectangle.Intersect(RowBounds(i),new Rectangle(0,TableHeaderHeight,ContentWidth,RowsHeight)));
             _paintedOperations[i] = operation;
             _paintedUninstalls[i] = uninstall;
         }
@@ -231,13 +258,86 @@ internal sealed class DarkProgramList : Control
     {
         base.OnVisibleChanged(e);
         if (_operationTimer is not null) RefreshOperations();
+        if(_tableMode&&Visible)UpdateMetrics();
     }
-    private readonly DarkVScrollBar _scrollbar = new();
+    private readonly DarkVScrollBar _scrollbar = new(){Name="V269AppsVerticalScroll"};
+    private readonly DarkVScrollBar _horizontal=new(){Name="V269AppsHorizontalScroll",Visible=false,TabStop=true,AccessibleName="Rolagem horizontal de aplicativos"};
+    private V269AppearanceOptions _tableOptions=V269AppearanceOptions.Default;
+    private bool _tableMode,_tableLayout;
+    private ProgramEntry? _dragApp;
+    private Font? _tableFont;
+    private V269AppIconCache? _appIcons;
+    internal bool LoadLocalAppIcons;
+    internal Bitmap? LocalAppIcon(ProgramEntry item)=>LoadLocalAppIcons?
+        (_appIcons??=new V269AppIconCache(this,completed:OnLocalIconCompleted)).Get(item.DisplayIcon,V269MsixIconSource.From(item)):null;
+
+    internal DarkProgramList(Func<V269IconRequest,Task<byte[]?>> iconReader):this()
+    {
+        _appIcons=new V269AppIconCache(this,iconReader,OnLocalIconCompleted);
+    }
+
+    private void OnLocalIconCompleted(V269IconRequest? changed,V269IconRequest? evicted)
+    {
+        if(!LoadLocalAppIcons||IsDisposed||Disposing||!Visible||_appIcons is null)return;
+        var viewport=new Rectangle(0,TableHeaderHeight,ContentWidth,RowsHeight);
+        int first=Math.Max(0,_scrollOffset/_itemHeight);
+        int last=Math.Min(_items.Count-1,(_scrollOffset+RowsHeight-1)/_itemHeight);
+        for(int i=first;i<=last;i++)
+        {
+            var area=Rectangle.Intersect(RowBounds(i),viewport);
+            if(area.Width<=0||area.Height<=0)continue;
+            var item=_items[i];
+            var source=V269IconRequest.Create(item.DisplayIcon,V269MsixIconSource.From(item));
+            if(source is null)continue;
+            // Repõe vagas da fila de 24 mesmo quando a extração termina sem
+            // imagem; não depende de uma repintura total para voltar a pedir.
+            _appIcons.Get(source);
+            if(source==changed||source==evicted)Invalidate(area);
+        }
+    }
+    internal bool V269TableMode=>_tableMode;
+    internal bool TableCompact {get;private set;}
+    internal void SetV269WindowWidth(int logicalWidth)
+    {
+        bool compact=V269AppTable.IsCompact(logicalWidth);
+        if(TableCompact==compact)return;
+        TableCompact=compact;UpdateMetrics();
+    }
+    private string _emptyMessage="Nenhum aplicativo identificado.";
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal string EmptyMessage {get=>_emptyMessage;set{_emptyMessage=value;Invalidate();}}
+    internal int TableHeaderHeight=>_tableMode?V269AppTable.Scale(42,_tableOptions.InterfacePercent,DeviceDpi):0;
+    private int TableInterfacePercent=>_tableOptions.InterfacePercent;
+    private int HorizontalHeight=>_tableMode&&_horizontal.Visible?_horizontal.Height:0;
+    private int RowsHeight=>Math.Max(1,ClientSize.Height-TableHeaderHeight-HorizontalHeight);
+    private int ContentWidth=>Math.Max(1,ClientSize.Width-(_scrollbar.Visible?_scrollbar.Width:0));
+    private int LogicalWidth=>_tableMode?Math.Max(ContentWidth,V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi,TableCompact)):ContentWidth;
+    private int HorizontalOffset=>_tableMode?_horizontal.Value:0;
+    private Rectangle RowBounds(int index)=>new(-HorizontalOffset,TableHeaderHeight+index*_itemHeight-_scrollOffset,LogicalWidth,_itemHeight);
+    private int RowAt(Point point)=>point.Y<TableHeaderHeight||point.Y>=TableHeaderHeight+RowsHeight||
+        point.X<0||point.X>=ContentWidth?-1:(point.Y-TableHeaderHeight+_scrollOffset)/_itemHeight;
+    internal void ApplyV269Table(V269AppearanceOptions options)
+    {
+        _tableMode=true;_tableOptions=options.Normalize();
+        _scrollbar.ApplyAppScrollTheme(_tableOptions.Theme);
+        _scrollbar.AccessibleName="Rolagem vertical de aplicativos";
+        _horizontal.ApplyAppScrollTheme(_tableOptions.Theme);
+        _itemHeight=V269AppTable.Scale(52,_tableOptions.InterfacePercent,DeviceDpi);
+        float fontSize=9f*_tableOptions.TextPercent/100f;
+        if(_tableFont is null||Math.Abs(_tableFont.Size-fontSize)>.01f)
+        {
+            var old=_tableFont;_tableFont=new Font("Segoe UI",fontSize);Font=_tableFont;old?.Dispose();
+        }
+        AccessibleName="Tabela de aplicativos instalados";
+        AccessibleDescription="Use setas para selecionar, Enter para ações, Alt+seta para reordenar; Shift+roda para rolagem horizontal.";
+        UpdateMetrics();
+    }
     private readonly WheelDeltaAccumulator _wheel = new();
+    private readonly PixelWheelDeltaAccumulator _verticalWheel = new(), _horizontalWheel = new();
     private int _selectedIndex = -1;
     private int _scrollOffset;
     private int _itemHeight = 72;
-    // Pressão visual de 160 ms antes de abrir instaladores/navegador.
+    // Pressão visual de 160 ms, independente do despacho da ação.
     // Uma só animação leve por clique, sem formularios extras, sons ou arquivos.
     private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
     private ProgramEntry? _hoverItem;
@@ -252,15 +352,8 @@ internal sealed class DarkProgramList : Control
     public event EventHandler? SelectedIndexChanged;
     public event DrawItemEventHandler? DrawItem;
     public event Action<ProgramEntry, string>? ItemActionClicked;
-    public event Action<ProgramEntry>? ItemCheckboxClicked;
-    private bool _multiSelectMode;
+    internal event Action<ProgramEntry,ProgramEntry>? ReorderRequested;
     private bool _actionsEnabled = true;
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool MultiSelectMode
-    {
-        get => _multiSelectMode;
-        set { _multiSelectMode = value; ResetActionVisuals(); Invalidate(); }
-    }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool ActionsEnabled
     {
@@ -291,15 +384,125 @@ internal sealed class DarkProgramList : Control
             ControlStyles.ResizeRedraw, true);
         _scrollbar.Dock = DockStyle.Right;
         _scrollbar.ValueChanged += (_, _) => { _scrollOffset = _scrollbar.Value; Invalidate(); };
+        MouseCaptureChanged+=(_,_)=>{if(!Capture)_dragApp=null;};
         Controls.Add(_scrollbar);
+        _horizontal.SetAppHorizontalAxis();
+        Controls.Add(_horizontal);
+        _horizontal.ValueChanged+=(_,_)=>Invalidate();
         Resize += (_, _) => UpdateMetrics();
+        DpiChangedAfterParent+=(_,_)=>{if(_tableMode)ApplyV269Table(_tableOptions);};
         _feedbackTimer.Tick += (_, _) => AdvanceButtonAnimation();
         _operationTimer.Tick += (_, _) => RefreshOperations();
+    }
+
+    protected override AccessibleObject CreateAccessibilityInstance()=>new AppListAccessibility(this);
+    private sealed class AppListAccessibility(DarkProgramList owner):ControlAccessibleObject(owner)
+    {
+        public override AccessibleRole Role=>owner._tableMode?AccessibleRole.List:base.Role;
+        public override int GetChildCount()=>owner._tableMode?owner._items.Count:base.GetChildCount();
+        public override AccessibleObject? GetChild(int index)=>owner._tableMode
+            ? index>=0&&index<owner._items.Count?new AppRowAccessibility(owner,owner._items[index]):null
+            : base.GetChild(index);
+        public override AccessibleObject? GetSelected()=>owner._tableMode&&owner.SelectedItem is {} app
+            ? new AppRowAccessibility(owner,app):base.GetSelected();
+        public override AccessibleObject? GetFocused()=>owner.Focused?GetSelected():null;
+    }
+    private sealed class AppRowAccessibility(DarkProgramList owner,ProgramEntry item):AccessibleObject
+    {
+        private int Index=>owner._items.IndexOf(item);
+        public override AccessibleObject? Parent=>owner.AccessibilityObject;
+        public override string? Name
+        {
+            get=>$"{item.Name}, versão {item.Version}, editor {item.Publisher}, instalado em {item.InstallDate?.ToString("dd/MM/yyyy")??"não informado"}";
+            set{}
+        }
+        public override string? Description
+        {
+            get
+            {
+                var update=owner.OperationFor?.Invoke(item);
+                var uninstall=owner.UninstallOperationFor?.Invoke(item);
+                string capability=ApplicationCapabilityInspection.Describe(item,update);
+                return uninstall is not null?capability+"\n"+uninstall.Text+"\n"+uninstall.Details:
+                    update is not null?capability+"\n"+update.Details:capability;
+            }
+        }
+        public override AccessibleRole Role=>AccessibleRole.ListItem;
+        public override AccessibleStates State=>Index<0?AccessibleStates.Unavailable|AccessibleStates.Invisible:
+            AccessibleStates.Selectable|AccessibleStates.Focusable|
+            (ReferenceEquals(owner.SelectedItem,item)?AccessibleStates.Selected:AccessibleStates.None)|
+            (ReferenceEquals(owner.SelectedItem,item)&&owner.Focused?AccessibleStates.Focused:AccessibleStates.None)|
+            (Bounds.IsEmpty?AccessibleStates.Offscreen:AccessibleStates.None);
+        public override Rectangle Bounds=>Index<0?Rectangle.Empty:owner.AccessibleRowBounds(Index);
+        public override string? DefaultAction=>"Abrir ações";
+        public override void Select(AccessibleSelection flags)
+        {
+            owner.OnAccessibleUi(()=>{
+                int index=Index;if(index<0)return;
+                if((flags&AccessibleSelection.TakeFocus)!=0)owner.Focus();
+                if((flags&(AccessibleSelection.TakeSelection|AccessibleSelection.TakeFocus))!=0)owner.SelectIndex(index);
+            });
+        }
+        public override void DoDefaultAction()=>owner.OnAccessibleUi(()=>{
+            int index=Index;if(index<0||!owner._actionsEnabled)return;
+            owner.SelectIndex(index);owner.Focus();
+            owner.OpenAppActions(new Point(20,Math.Max(owner.TableHeaderHeight,owner.RowBounds(index).Top)));
+        });
+        public override int GetChildCount()=>Index>=0?2:0;
+        public override AccessibleObject? GetChild(int index)=>(index is 0 or 1)&&GetChildCount()==2
+            ? new AppActionAccessibility(owner,item,index==1,this):null;
+    }
+    private sealed class AppActionAccessibility(DarkProgramList owner,ProgramEntry item,bool remove,AccessibleObject parent):AccessibleObject
+    {
+        private bool Allowed=>owner._items.Contains(item)&&(remove?owner.AllowsRemoval(item):owner.AllowsUpdate(item));
+        public override AccessibleObject? Parent=>parent;
+        public override string? Name {get=>remove?"Desinstalar "+item.Name:"Atualizar "+item.Name;set{}}
+        public override AccessibleRole Role=>AccessibleRole.PushButton;
+        public override AccessibleStates State=>(Allowed?AccessibleStates.Focusable:AccessibleStates.Unavailable)|
+            (Bounds.IsEmpty?AccessibleStates.Offscreen:AccessibleStates.None);
+        public override Rectangle Bounds
+        {
+            get
+            {
+                int index=owner._items.IndexOf(item);
+                if(index<0)return Rectangle.Empty;
+                Rectangle area=V269AppTable.Action(owner.RowBounds(index),owner.TableInterfacePercent,owner.DeviceDpi,remove,owner.TableCompact);
+                area.Intersect(new Rectangle(0,owner.TableHeaderHeight,owner.ContentWidth,owner.RowsHeight));
+                return area.Width>0&&area.Height>0?owner.RectangleToScreen(area):Rectangle.Empty;
+            }
+        }
+        public override string? DefaultAction=>Allowed?"Acionar":null;
+        public override void DoDefaultAction()=>owner.OnAccessibleUi(()=>owner.InvokeAccessibleAction(item,remove));
+    }
+    private Rectangle AccessibleRowBounds(int index)
+    {
+        if(!Visible)return Rectangle.Empty;
+        var bounds=Rectangle.Intersect(RowBounds(index),new Rectangle(0,TableHeaderHeight,ContentWidth,RowsHeight));
+        return bounds.Width>0&&bounds.Height>0?RectangleToScreen(bounds):Rectangle.Empty;
+    }
+    private void OnAccessibleUi(Action action)
+    {
+        if(IsDisposed||!IsHandleCreated)return;
+        if(InvokeRequired)
+        {
+            try{BeginInvoke(new Action(()=>{if(!IsDisposed)action();}));}catch(InvalidOperationException){ }
+        }
+        else action();
+    }
+    private void InvokeAccessibleAction(ProgramEntry item,bool remove)
+    {
+        if(!Visible||!Enabled||!_items.Contains(item)||
+            !(remove?this.AllowsRemoval(item):this.AllowsUpdate(item)))return;
+        SelectIndex(_items.IndexOf(item));
+        string? command=remove?item.UninstallAction:VerifiedUpdaters.GetPrimaryAction(item);
+        if(command is not null)ItemActionClicked?.Invoke(item,command);
     }
 
     private void ResetActionVisuals()
     {
         _feedbackTimer.Stop();
+        _dragApp=null;
+        if(Capture)Capture=false;
         _hoverItem = _downItem = _pulseItem = null;
         _hoverAction = _downAction = _pulseAction = "";
         _pulseProgress = 0;
@@ -319,14 +522,19 @@ internal sealed class DarkProgramList : Control
 
     private (ProgramEntry? Item, string Action) HitAction(Point point)
     {
-        int contentWidth = ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0);
-        if (!_actionsEnabled || _multiSelectMode || point.X < 0 || point.Y < 0 ||
-            point.X >= contentWidth || point.Y >= ClientSize.Height || _itemHeight <= 0)
-            return (null, "");
-        int index = (point.Y + _scrollOffset) / _itemHeight;
+        if (!_actionsEnabled || _itemHeight <= 0) return (null, "");
+        int index = RowAt(point);
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
-        var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
+        var bounds = RowBounds(index);
+        if(_tableMode)
+        {
+            if(this.AllowsRemoval(item)&&V269AppTable.Action(bounds,_tableOptions.InterfacePercent,DeviceDpi,true,TableCompact).Contains(point))
+                return (item,item.UninstallAction);
+            if(this.AllowsUpdate(item)&&V269AppTable.Action(bounds,_tableOptions.InterfacePercent,DeviceDpi,false,TableCompact).Contains(point))
+                return (item,VerifiedUpdaters.GetPrimaryAction(item)!);
+            return (null,"");
+        }
         if (this.AllowsRemoval(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
             return (item, item.UninstallAction);
         if (this.AllowsUpdate(item) && AppRowGeometry.UpdateButton(bounds).Contains(point))
@@ -338,7 +546,7 @@ internal sealed class DarkProgramList : Control
 
     private void OpenAppActions(Point position)
     {
-        if (SelectedItem is not { } item || !_actionsEnabled || _multiSelectMode) return;
+        if (SelectedItem is not { } item || !_actionsEnabled) return;
         foreach (ToolStripItem previous in _appActionsMenu.Items.Cast<ToolStripItem>().ToArray())
             previous.Dispose();
         var update = VerifiedUpdaters.GetPrimaryAction(item);
@@ -358,7 +566,7 @@ internal sealed class DarkProgramList : Control
             var command = new ToolStripMenuItem(title) { Enabled = action is not null && allowed() };
             command.Click += (_, _) =>
             {
-                if (_actionsEnabled && !_multiSelectMode && ReferenceEquals(SelectedItem, item) &&
+                if (_actionsEnabled && ReferenceEquals(SelectedItem, item) &&
                     action is not null && allowed()) ItemActionClicked?.Invoke(item, action);
             };
             _appActionsMenu.Items.Add(command);
@@ -370,22 +578,20 @@ internal sealed class DarkProgramList : Control
         if (_pulseItem is null) { _feedbackTimer.Stop(); return; }
         _pulseProgress = Math.Clamp((float)((Stopwatch.GetTimestamp() - _pulseStart) * 1000.0 /
             Stopwatch.Frequency / 160.0), 0F, 1F);
-        Invalidate();
-        if (_pulseProgress < 1F) return;
         var item = _pulseItem;
-        var action = _pulseAction;
-        _feedbackTimer.Stop();
-        _pulseItem = null;
-        _pulseAction = "";
-        _pulseProgress = 0;
-        Invalidate();
-        if (!IsDisposed && _actionsEnabled && !_multiSelectMode && _items.Contains(item))
-            ItemActionClicked?.Invoke(item, action);
+        if (_pulseProgress >= 1F || !Visible || !Enabled || !this.V269Options().AnimateButtonFeedback)
+        {
+            _feedbackTimer.Stop();
+            _pulseItem = null;
+            _pulseAction = "";
+            _pulseProgress = 0;
+        }
+        InvalidateActionRow(item); // o timer não executa ações nem repinta toda a lista
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); _appActionsMenu.Dispose(); }
+        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _appActionsMenu.Dispose(); _tableFont?.Dispose(); _appIcons?.Dispose(); }
         base.Dispose(disposing);
     }
 
@@ -400,18 +606,36 @@ internal sealed class DarkProgramList : Control
         _paintedUninstalls.Clear();
         _items.AddRange(entries);
         RefreshOperations();
-        _tipRow = -1;
         int oldSelected = _selectedIndex;
         _selectedIndex = prior is null ? -1 : _items.FindIndex(x => ReferenceEquals(x, prior));
+        if(_selectedIndex<0&&prior is not null&&!string.IsNullOrEmpty(prior.InventoryId))
+        {
+            var matches=_items.Select((item,index)=>(item,index)).Where(x=>
+                string.Equals(x.item.InventoryId,prior.InventoryId,StringComparison.OrdinalIgnoreCase)).ToArray();
+            if(matches.Length==1)_selectedIndex=matches[0].index;
+        }
+        if(_tableMode&&_selectedIndex<0&&_items.Count>0)_selectedIndex=0;
         UpdateMetrics();
-        if (oldSelected != _selectedIndex) SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        if (oldSelected != _selectedIndex || !ReferenceEquals(prior,SelectedItem)) SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
         Invalidate();
     }
 
     private void UpdateMetrics()
     {
-        _scrollbar.SetMetrics(_items.Count * _itemHeight, Math.Max(1, ClientSize.Height));
-        _scrollOffset = _scrollbar.Value;
+        if(_tableLayout)return;
+        _tableLayout=true;
+        try
+        {
+            if(_tableMode)
+            {
+                _scrollbar.Dock=DockStyle.None;
+                int minimum=V269AppTable.MinimumWidth(_tableOptions.InterfacePercent,DeviceDpi,TableCompact);
+                V269AppTable.FitScrollBars(this,_scrollbar,_horizontal,minimum,TableHeaderHeight,_items.Count*_itemHeight);
+            }
+            else _scrollbar.SetMetrics(_items.Count*_itemHeight,Math.Max(1,ClientSize.Height));
+            _scrollOffset=_scrollbar.Value;
+        }
+        finally{_tableLayout=false;}
         Invalidate();
     }
 
@@ -425,8 +649,8 @@ internal sealed class DarkProgramList : Control
             int top = next * _itemHeight;
             int bottom = top + _itemHeight;
             if (top < _scrollOffset) _scrollbar.Value = top;
-            else if (bottom > _scrollOffset + ClientSize.Height)
-                _scrollbar.Value = bottom - ClientSize.Height;
+            else if (bottom > _scrollOffset + RowsHeight)
+                _scrollbar.Value = bottom - RowsHeight;
         }
         Invalidate();
         SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
@@ -435,17 +659,31 @@ internal sealed class DarkProgramList : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.Clear(BackColor);
-        int contentWidth = Math.Max(1, ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0));
-        var original = e.Graphics.Clip;
-        e.Graphics.SetClip(new Rectangle(0, 0, contentWidth, ClientSize.Height));
+        int contentWidth=ContentWidth;
+        var original=e.Graphics.Clip;
+        if(_tableMode)
+        {
+            e.Graphics.SetClip(new Rectangle(0,0,contentWidth,TableHeaderHeight),CombineMode.Intersect);
+            using var headerFont=new Font(Font,FontStyle.Bold);
+            V269AppTable.DrawHeader(e.Graphics,new Rectangle(-HorizontalOffset,0,LogicalWidth,TableHeaderHeight),
+                _tableOptions,headerFont,DeviceDpi,TableCompact);
+            e.Graphics.Clip=original;
+        }
+        e.Graphics.SetClip(new Rectangle(0,TableHeaderHeight,contentWidth,RowsHeight),CombineMode.Intersect);
         try
         {
             if (_itemHeight <= 0 || ClientSize.Height <= 0) return;
+            if(_tableMode&&_items.Count==0)
+            {
+                TextRenderer.DrawText(e.Graphics,_emptyMessage,Font,new Rectangle(8,TableHeaderHeight+8,Math.Max(1,contentWidth-16),Math.Max(1,RowsHeight-16)),
+                    V269AppTable.Colors(_tableOptions.Theme).Ink,TextFormatFlags.WordBreak|TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.NoPrefix|TextFormatFlags.PreserveGraphicsClipping);
+                return;
+            }
             int first = Math.Max(0, _scrollOffset / _itemHeight);
-            int last = Math.Min(_items.Count - 1, (_scrollOffset + ClientSize.Height) / _itemHeight);
+            int last = Math.Min(_items.Count - 1, (_scrollOffset + RowsHeight) / _itemHeight);
             for (int i = first; i <= last; i++)
             {
-                var rect = new Rectangle(0, i * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
+                var rect=RowBounds(i);
                 if (!rect.IntersectsWith(e.ClipRectangle)) continue;
                 DrawItem?.Invoke(this, new DrawItemEventArgs(e.Graphics, Font, rect, i,
                     i == _selectedIndex ? DrawItemState.Selected : DrawItemState.Default));
@@ -462,28 +700,14 @@ internal sealed class DarkProgramList : Control
         if (item is null) return;
         int index = _items.IndexOf(item);
         if (index < 0) return;
-        var rect = new Rectangle(0, index * _itemHeight - _scrollOffset,
-            ClientSize.Width, _itemHeight);
+        var rect=Rectangle.Intersect(RowBounds(index),new Rectangle(0,TableHeaderHeight,ContentWidth,RowsHeight));
         if (rect.IntersectsWith(ClientRectangle)) Invalidate(rect);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        int index = _itemHeight > 0 ? (e.Y + _scrollOffset) / _itemHeight : -1;
-        if (index != _tipRow)
-        {
-            _tipRow = index;
-            string text = index >= 0 && index < _items.Count
-                ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
-                  "\nDisponível: " + _items[index].AvailableVersion +
-                  "\nFonte: " + _items[index].Source + "\n" + _items[index].UpdateEvidence +
-                  "\n" + ApplicationCapabilityInspection.Describe(_items[index], OperationFor?.Invoke(_items[index])) +
-                  (UninstallOperationFor?.Invoke(_items[index]) is { } uninstall ? "\n" + uninstall.Details :
-                   OperationFor?.Invoke(_items[index]) is { } operation ? "\n" + operation.Details : "")
-                : "";
-            _itemTips.SetToolTip(this, text);
-        }
+        if(_dragApp is not null){Cursor=Cursors.SizeNS;return;}
         var (item, action) = HitAction(e.Location);
         if (!ReferenceEquals(item, _hoverItem) || _hoverAction != action)
         {
@@ -502,8 +726,6 @@ internal sealed class DarkProgramList : Control
         var previous = _hoverItem;
         _hoverItem = null;
         _hoverAction = "";
-        _tipRow = -1;
-        _itemTips.SetToolTip(this, "");
         Cursor = Cursors.Default;
         InvalidateActionRow(previous);
     }
@@ -511,9 +733,8 @@ internal sealed class DarkProgramList : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        int contentWidth = ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0);
-        if (e.Button is not (MouseButtons.Left or MouseButtons.Right) || e.X >= contentWidth || !_actionsEnabled) return;
-        int index = (e.Y + _scrollOffset) / _itemHeight;
+        if (e.Button is not (MouseButtons.Left or MouseButtons.Right) || !_actionsEnabled) return;
+        int index = RowAt(e.Location);
         if (index < 0 || index >= _items.Count) return;
         var item = _items[index];
         Focus();
@@ -523,11 +744,9 @@ internal sealed class DarkProgramList : Control
             OpenAppActions(e.Location);
             return;
         }
-        if (_multiSelectMode)
+        if(_tableMode&&V269AppTable.Grip(RowBounds(index),_tableOptions.InterfacePercent,DeviceDpi).Contains(e.Location))
         {
-            SelectIndex(index);
-            if (item.CanUninstall) ItemCheckboxClicked?.Invoke(item);
-            return;
+            ResetActionVisuals();SelectIndex(index);_dragApp=item;Capture=true;Cursor=Cursors.SizeNS;return;
         }
         var (hit, action) = HitAction(e.Location);
         _downItem = hit;
@@ -546,26 +765,50 @@ internal sealed class DarkProgramList : Control
     {
         base.OnMouseUp(e);
         if (e.Button != MouseButtons.Left) return;
+        if(_dragApp is {} moving)
+        {
+            _dragApp=null;Capture=false;Cursor=Cursors.Default;
+            int destination=RowAt(e.Location);
+            if(_actionsEnabled&&destination>=0&&destination<_items.Count&&_items.Contains(moving))
+                ReorderRequested?.Invoke(moving,_items[destination]);
+            return;
+        }
         var (hit, action) = HitAction(e.Location);
         bool click = hit is not null && ReferenceEquals(hit, _downItem) && action == _downAction;
         _downItem = null;
         _downAction = "";
-        if (click && !this.V269Options().AnimateButtonFeedback) ItemActionClicked?.Invoke(hit!, action);
-        else if (click)
+        if (!click || IsDisposed || !Visible || !Enabled || !_actionsEnabled ||
+            hit is null || !_items.Contains(hit)) { Invalidate(); return; }
+        // Revalidar a capacidade no instante do clique, antes do evento.
+        if ((action is "update" or "terminal") && !this.AllowsUpdate(hit) ||
+            (action is "uninstall" or "uninstall-manual" or "msix-uninstall") && !this.AllowsRemoval(hit))
+        { InvalidateActionRow(hit); return; }
+        if (this.V269Options().AnimateButtonFeedback && SystemInformation.UIEffectsEnabled &&
+            SystemInformation.IsMenuAnimationEnabled)
         {
-            // Feedback perceptível mesmo para a ação que abre o navegador instantaneamente.
             _pulseItem = hit;
             _pulseAction = action;
             _pulseStart = Stopwatch.GetTimestamp();
             _pulseProgress = 0;
             _feedbackTimer.Start();
         }
-        Invalidate();
+        InvalidateActionRow(hit);
+        ItemActionClicked?.Invoke(hit, action);
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
+        if (e is HandledMouseEventArgs { Handled: true }) return;
+        if (_tableMode)
+        {
+            bool horizontal = (ModifierKeys & Keys.Shift) != 0;
+            var bar = horizontal ? _horizontal : _scrollbar;
+            var wheel = horizontal ? _horizontalWheel : _verticalWheel;
+            bar.Value = wheel.Move(bar.Value, bar.MaximumValue, e.Delta, horizontal ? 64 : _itemHeight * 3);
+            if (e is HandledMouseEventArgs handled) handled.Handled = true;
+            return;
+        }
         int notches = _wheel.Consume(e.Delta);
         if (notches != 0)
             _scrollbar.Value = (int)Math.Clamp((long)_scrollbar.Value - (long)notches * _itemHeight * 3,
@@ -580,6 +823,12 @@ internal sealed class DarkProgramList : Control
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if(e.Alt&&(e.KeyCode is Keys.Up or Keys.Down)&&_actionsEnabled&&SelectedItem is {} moving)
+        {
+            int destination=_selectedIndex+(e.KeyCode==Keys.Up?-1:1);
+            if(destination>=0&&destination<_items.Count)ReorderRequested?.Invoke(moving,_items[destination]);
+            e.Handled=true;e.SuppressKeyPress=true;return;
+        }
         if (e.KeyCode is Keys.Enter or Keys.Apps || e.KeyCode == Keys.F10 && e.Shift)
         {
             OpenAppActions(new Point(30, Math.Clamp(_selectedIndex * _itemHeight - _scrollOffset + 18,
@@ -587,13 +836,7 @@ internal sealed class DarkProgramList : Control
             e.Handled = true;
             return;
         }
-        if (_multiSelectMode && _actionsEnabled && e.KeyCode == Keys.Space && SelectedItem is ProgramEntry current)
-        {
-            if (current.CanUninstall) ItemCheckboxClicked?.Invoke(current);
-            e.Handled = true;
-            return;
-        }
-        int page = Math.Max(1, ClientSize.Height / _itemHeight);
+        int page = Math.Max(1, RowsHeight / _itemHeight);
         int next = _selectedIndex;
         switch (e.KeyCode)
         {
@@ -812,6 +1055,7 @@ internal sealed class DarkScrollableFlow : UserControl
     private readonly FlowLayoutPanel _flow;
     private readonly DarkVScrollBar _scroll;
     private readonly WheelDeltaAccumulator _wheel = new();
+    private readonly PixelWheelDeltaAccumulator _pixelWheel = new();
     private bool _arranging;
 
     // Um unico scroll pertence a pagina externa. Componentes embutidos
@@ -820,8 +1064,24 @@ internal sealed class DarkScrollableFlow : UserControl
     internal bool EmbeddedInPage { get; set; }
 
     // Evita o scroll fantasma de 3 px da folga utilizada pelos cartoes.
+    private bool _isPageViewport;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    internal bool IsPageViewport { get; set; }
+    internal bool IsPageViewport
+    {
+        get => _isPageViewport;
+        set
+        {
+            if (_isPageViewport == value) return;
+            _isPageViewport = value;
+            // Dock é calculado de trás para frente. Na página externa,
+            // Right precisa reservar a barra antes de Fill medir o viewport.
+            // Caso contrário, ScrollablePage mede W, W-12, W em cada entrada.
+            // Não alterar a ordem dos hosts legados/embutidos.
+            if (value) _viewport.BringToFront();
+            else _scroll.BringToFront();
+            Reflow();
+        }
+    }
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal bool HasVerticalScrollbar => _scroll.Visible;
@@ -847,7 +1107,11 @@ internal sealed class DarkScrollableFlow : UserControl
         {
             if (!EmbeddedInPage) _flow.Top = -_scroll.Value;
         };
-        _viewport.Resize += (_, _) => Reflow();
+        _viewport.Resize += (_, _) =>
+        {
+            Reflow();
+            ToolViewportResized?.Invoke(this, EventArgs.Empty);
+        };
         _flow.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); Reflow(); };
         _flow.ControlRemoved += (_, _) => Reflow();
         _viewport.MouseWheel += (_, e) => ScrollFromWheel(e);
@@ -855,14 +1119,49 @@ internal sealed class DarkScrollableFlow : UserControl
         Resize += (_, _) => Reflow();
         VisibleChanged += (_, _) =>
         {
-            if (FindForm() is MainForm form && form.IsTrayTransitioning) return;
+            if (!Visible || FindForm() is MainForm form && form.IsTrayTransitioning) return;
             Reflow();
         };
         DpiChangedAfterParent += (_, _) => Reflow();
     }
 
+    // Superfície das ferramentas V2.6.9: preserva o gradiente do shell
+    // entre os cartões e após o último item.
+    // Contador local monotônico para provar custo de medição, sem I/O,
+    // cronômetros por controle, amostragem ou telemetria.
+    internal long PageMeasurementCount { get; private set; }
+    // Observador opcional, utilizado exclusivamente pela regressão de
+    // navegação; não registra texto, tempo, hardware nem dados de usuário.
+    internal Action<string, string, int, int, int, int>? PageMeasurementProbe;
+    internal void RecordPageMeasurement(string origin, string pass, int targetWidth, int previousWidth)
+    {
+        PageMeasurementCount++;
+        PageMeasurementProbe?.Invoke(origin, pass, ClientSize.Width, CleanupViewportWidth, targetWidth, previousWidth);
+    }
+    internal int CleanupScrollbarWidth => _scroll.Width;
+    internal int CleanupViewportWidth => _viewport.ClientSize.Width;
+    internal int CleanupViewportHeight => _viewport.ClientSize.Height;
+    internal event EventHandler? ToolViewportResized;
+
+    internal void ApplyCleanupSurface(V269Theme theme)
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor,true);
+        BackColor=Color.Transparent;
+        _viewport.BackColor=Color.Transparent;
+        _flow.BackColor=Color.Transparent;
+        _scroll.ApplyAppScrollTheme(theme);
+    }
+
     private void ScrollFromWheel(MouseEventArgs e)
     {
+        if (e is HandledMouseEventArgs { Handled: true }) return;
+        if (IsPageViewport)
+        {
+            if (_scroll.MaximumValue <= 0) return;
+            _scroll.Value = _pixelWheel.Move(_scroll.Value, _scroll.MaximumValue, e.Delta, 85);
+            if (e is HandledMouseEventArgs handled) handled.Handled = true;
+            return;
+        }
         int notches = _wheel.Consume(e.Delta);
         if (notches != 0)
             _scroll.Value = (int)Math.Clamp((long)_scroll.Value - (long)notches * 85,
@@ -913,10 +1212,12 @@ internal sealed class DarkScrollableFlow : UserControl
         _arranging = true;
         try
         {
-            _flow.Width = width;
             int measured = MeasureContentHeight(width);
             int totalHeight = IsPageViewport ? Math.Max(0, measured - 3) : measured;
-            _flow.Height = Math.Max(totalHeight, height);
+            // Uma única alteração de tamanho, sem duas passagens por Width/Height.
+            _flow.SuspendLayout();
+            try { _flow.Size = new Size(width, Math.Max(totalHeight, height)); }
+            finally { _flow.ResumeLayout(false); }
             if (EmbeddedInPage)
             {
                 _scroll.SetMetrics(0, height);
@@ -1003,6 +1304,7 @@ internal sealed class DarkTabHost : UserControl
     {
         if (index < 0 || index >= _pages.Count || _selectedIndex == index) return;
         _selectedIndex = index;
+        _strip.AccessibleDescription = "Aba atual: " + _pages[index].Title;
         for (int i = 0; i < _pages.Count; i++) _pages[i].Page.Visible = i == index;
         _pages[index].Page.BringToFront();
         LayoutHost();
@@ -1014,7 +1316,6 @@ internal sealed class DarkTabHost : UserControl
     {
         private readonly DarkTabHost _host;
         private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
-        private readonly ToolTip _tabTips = new() { InitialDelay = 250, AutoPopDelay = 7000 };
         private int _hotTab = -1;
         private int _pressedTab = -1;
         private int _pulseTab = -1;
@@ -1037,9 +1338,7 @@ internal sealed class DarkTabHost : UserControl
                 Invalidate();
                 if (_pulseProgress < 1F) return;
                 _feedbackTimer.Stop();
-                int next = _pulseTab;
-                _pulseTab = -1;
-                if (!IsDisposed && next >= 0) _host.SelectTab(next);
+                _pulseTab = -1; // feedback visual, sem selecionar aba atrasada
                 Invalidate();
             };
         }
@@ -1056,10 +1355,19 @@ internal sealed class DarkTabHost : UserControl
         private void StartTabFeedback(int index)
         {
             if (index < 0 || index >= _host._pages.Count) return;
-            _pulseTab = index;
-            _pulseProgress = 0F;
-            _pulseStart = Stopwatch.GetTimestamp();
-            _feedbackTimer.Start();
+            Form? owner = FindForm();
+            while (owner is not null && owner is not MainForm) owner = owner.Owner;
+            bool animate = owner is MainForm main ? main.V269CanAnimateButtons :
+                SystemInformation.UIEffectsEnabled && SystemInformation.IsMenuAnimationEnabled;
+            _feedbackTimer.Stop();
+            _pulseTab = animate ? index : -1;
+            _pulseProgress = animate ? 0F : 1F;
+            if (animate)
+            {
+                _pulseStart = Stopwatch.GetTimestamp();
+                _feedbackTimer.Start();
+            }
+            _host.SelectTab(index);
             Invalidate();
         }
 
@@ -1147,7 +1455,6 @@ internal sealed class DarkTabHost : UserControl
             if (_hotTab == tab) return;
             _hotTab = tab;
             Cursor = tab >= 0 ? Cursors.Hand : Cursors.Default;
-            _tabTips.SetToolTip(this, tab >= 0 ? _host._pages[tab].Title : string.Empty);
             Invalidate();
         }
 
@@ -1156,7 +1463,6 @@ internal sealed class DarkTabHost : UserControl
             base.OnMouseLeave(e);
             _hotTab = -1;
             _pressedTab = -1;
-            _tabTips.SetToolTip(this, string.Empty);
             Cursor = Cursors.Default;
             Invalidate();
         }
@@ -1204,7 +1510,6 @@ internal sealed class DarkTabHost : UserControl
             {
                 _feedbackTimer.Stop();
                 _feedbackTimer.Dispose();
-                _tabTips.Dispose();
             }
             base.Dispose(disposing);
         }

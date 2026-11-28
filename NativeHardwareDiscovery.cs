@@ -21,7 +21,12 @@ internal sealed record HardwareDeviceDescriptor(
     string Manufacturer,
     string SetupClass,
     string Bus,
-    HardwareDeviceKind Kind);
+    HardwareDeviceKind Kind)
+{
+    internal string? ReportedDeviceDescription { get; init; }
+    internal string? InstalledDriverVersion { get; init; }
+    internal string? ReportedPcieLink { get; init; }
+}
 
 internal sealed record HardwareDiscoverySnapshot(
     DateTimeOffset CapturedAtUtc,
@@ -117,6 +122,52 @@ internal static class NativeHardwareDiscovery
         IntPtr set, ref DeviceInfoData data, uint property,
         out uint registryType, [Out] byte[] buffer, uint bufferSize, out uint required);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DevicePropertyKey { public Guid Format; public uint Id; }
+
+    [DllImport("setupapi.dll", EntryPoint = "SetupDiGetDevicePropertyW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ReadDevicePropertyKey(IntPtr set, ref DeviceInfoData data,
+        ref DevicePropertyKey key, out uint propertyType, [Out] byte[] buffer,
+        uint bufferSize, out uint required, uint flags);
+
+    // DEVPKEY_Device_DriverVersion, devpkey.h, DEVPROP_TYPE_STRING.
+    // É a versão do pacote instalado nesta instância, não a versão global do fabricante.
+    private static string? ReadInstalledDriver(IntPtr set, ref DeviceInfoData data)
+    {
+        var key = new DevicePropertyKey { Format = new Guid("a8b865dd-2e3d-4094-ad97-e593a70c75d6"), Id = 3 };
+        byte[] buffer = new byte[256];
+        if (!ReadDevicePropertyKey(set, ref data, ref key, out uint type, buffer,
+            (uint)buffer.Length, out uint needed, 0) ||
+            type != 0x12 || needed < 2 || needed > buffer.Length || (needed & 1) != 0)
+            return null;
+        return ValidateInstalledDriver(Encoding.Unicode.GetString(buffer, 0, (int)needed).TrimEnd('\0'));
+    }
+
+    // pciprop.h: CurrentLinkSpeed (9), CurrentLinkWidth (10).
+    // Leitura do devnode da própria GPU, sem acessar configuração PCI bruta.
+    private static uint? ReadPciUInt(IntPtr set, ref DeviceInfoData data, uint id)
+    {
+        var key = new DevicePropertyKey { Format = new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"), Id = id };
+        var buffer = new byte[4];
+        return ReadDevicePropertyKey(set, ref data, ref key, out uint type, buffer, 4,
+            out uint needed, 0) && type == 7 && needed == 4
+            ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(buffer) : null;
+    }
+
+    internal static string? FormatWindowsPcie(uint? speed, uint? width) =>
+        speed is >= 1 and <= 5 && width is 1 or 2 or 4 or 8 or 12 or 16 or 32
+            ? $"PCIe {speed}.0 x{width} (Windows, consulta)" : null;
+
+    internal static string? ValidateInstalledDriver(string? version)
+    {
+        if (string.IsNullOrEmpty(version) || version.Length > 64) return null;
+        var parts = version.Split('.');
+        return parts.Length == 4 && parts.All(x => x.Length > 0 && x.All(char.IsAsciiDigit) &&
+            ushort.TryParse(x, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out _)) ? version : null;
+    }
+
     [DllImport("setupapi.dll", EntryPoint = "SetupDiDestroyDeviceInfoList", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyDeviceSet(IntPtr set);
@@ -157,14 +208,24 @@ internal static class NativeHardwareDiscovery
 
                 string instance = ReadInstanceId(set, ref data);
                 if (instance.Length == 0) partial = true; // identidade sem evidência
+                string description = ReadProperty(set, ref data, SpdrpDevicedesc);
                 string name = ReadProperty(set, ref data, SpdrpFriendlyName);
-                if (name.Length == 0) name = ReadProperty(set, ref data, SpdrpDevicedesc);
+                if (name.Length == 0) name = description;
                 if (name.Length == 0) name = "Dispositivo sem nome informado";
                 string manufacturer = ReadProperty(set, ref data, SpdrpMfg);
                 string setupClass = ReadProperty(set, ref data, SpdrpClass);
+                var kind = HardwareDeviceClassifier.Classify(setupClass);
                 result.Add(new(instance, name, manufacturer, setupClass,
-                    HardwareDeviceClassifier.BusOf(instance),
-                    HardwareDeviceClassifier.Classify(setupClass)));
+                    HardwareDeviceClassifier.BusOf(instance), kind)
+                {
+                    ReportedDeviceDescription = description,
+                    InstalledDriverVersion = kind == HardwareDeviceKind.Graphics && instance.Length > 0
+                        ? ReadInstalledDriver(set, ref data) : null,
+                    ReportedPcieLink = kind == HardwareDeviceKind.Graphics &&
+                        HardwareDeviceClassifier.BusOf(instance) == "PCI"
+                        ? FormatWindowsPcie(ReadPciUInt(set, ref data, 9), ReadPciUInt(set, ref data, 10))
+                        : null
+                });
             }
 
             return new(DateTimeOffset.UtcNow,

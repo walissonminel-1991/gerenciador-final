@@ -39,6 +39,16 @@ internal static class DriverListFilters
         return view.OrderByDescending(item => prioritized.Contains(item.DeviceId)).ToArray();
     }
 
+    // Identidade por referência, como Array.FindIndex do caminho anterior.
+    // Preservar a primeira ocorrência e a ordem estável dos itens sem posição.
+    internal static DriverInventoryEntry[] SortManual(IEnumerable<DriverInventoryEntry> items,
+        IReadOnlyList<DriverInventoryEntry> manual)
+    {
+        var positions = new Dictionary<DriverInventoryEntry,int>(ReferenceEqualityComparer.Instance);
+        for (int i = 0; i < manual.Count; i++) positions.TryAdd(manual[i], i);
+        return items.OrderBy(item => positions.TryGetValue(item, out int index) ? index : int.MaxValue).ToArray();
+    }
+
     private static int SearchRank(DriverInventoryEntry item, string phrase, string[] terms, CompareInfo comparison)
     {
         if (item.DeviceId.Equals(phrase, StringComparison.OrdinalIgnoreCase) ||

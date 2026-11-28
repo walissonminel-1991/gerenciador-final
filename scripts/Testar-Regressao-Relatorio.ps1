@@ -34,12 +34,33 @@ try {
         if ($result -eq 0 -or -not ($output -match 'System.Exception: L4 relatório local usa rolagem nativa')) {
             throw 'Controle negativo não detectou o defeito visual esperado'
         }
-        Write-Output 'PASS L4 controle negativo: relatório anterior recusado após compilação e abertura do diálogo real'
+        Write-Output 'PASS L4 controle negativo: modal anterior com rolagem nativa recusado após compilação e clique real'
         git restore --source=HEAD -- Program.cs
-        if ($LASTEXITCODE -ne 0) { throw 'Falha ao restaurar diálogo atual na cópia descartável' }
+        if ($LASTEXITCODE -ne 0) { throw 'Falha ao restaurar caminho atual do relatório na cópia descartável' }
         $legacyDock = git show '8f8d1c8fb109ba4956876b398f02dee6ce70f2e3:DarkControls.cs'
         if ($LASTEXITCODE -ne 0) { throw 'Fonte de layout anterior indisponível' }
-        $legacyDock | Set-Content 'DarkControls.cs' -Encoding utf8
+        # Isolar a implementação regressiva do editor, preservando a lista
+        # de Aplicativos e os demais controles evoluídos desde o snapshot.
+        # O negativo ainda precisa compilar e detectar a sobreposição real.
+        $dockTarget = Join-Path $temporary 'DarkControls.cs'
+        $dockCurrent = [IO.File]::ReadAllText($dockTarget)
+        $dockLegacy = ($legacyDock | Out-String)
+        $dockMarker = 'internal sealed class DarkLogView : UserControl'
+        $dockBoundary = 'internal sealed class DarkScrollableFlow : UserControl'
+        $d1 = $dockCurrent.IndexOf($dockMarker, [StringComparison]::Ordinal)
+        $d2 = $dockLegacy.IndexOf($dockMarker, [StringComparison]::Ordinal)
+        if ($d1 -lt 0 -or $d2 -lt 0) { throw 'Classe do editor anterior ausente' }
+        $f1 = $dockCurrent.IndexOf($dockBoundary, $d1, [StringComparison]::Ordinal)
+        $f2 = $dockLegacy.IndexOf($dockBoundary, $d2, [StringComparison]::Ordinal)
+        if ($f1 -lt 0 -or $f2 -lt 0 -or
+            $dockCurrent.IndexOf($dockMarker, $d1 + 1, [StringComparison]::Ordinal) -ge 0 -or
+            $dockLegacy.IndexOf($dockMarker, $d2 + 1, [StringComparison]::Ordinal) -ge 0) {
+            throw 'Âncoras exclusivas de DarkLogView ausentes'
+        }
+        $dockRegression = $dockCurrent.Substring(0, $d1) +
+                          $dockLegacy.Substring($d2, $f2 - $d2) +
+                          $dockCurrent.Substring($f1)
+        [IO.File]::WriteAllText($dockTarget, $dockRegression, [System.Text.UTF8Encoding]::new($false))
         $output = dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote4 2>&1
         $result = $LASTEXITCODE
         $output | Write-Output

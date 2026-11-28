@@ -6,14 +6,17 @@ namespace GerenciadorAplicativos;
 internal sealed partial class MainForm
 {
     private Task<DriverInventoryResult>? _driverReadTask;
+    private Action<bool>? _presentV269DriverDetails;
     // Cache WUA válido somente para a mesma fotografia que o usuário consultou.
     private DriverInventoryResult? _driverReusableInventory;
     private DriverOfficialResult? _driverReusableOfficial;
     // Exclusivo das fixtures com readForTest: jamais acessar DefaultPath
     // do usuario nos testes temporais ou iniciar captura nativa.
-    private string? _driverHistoryPathForTest;
-    private Func<CancellationToken, Task>? _driverHistoryBeforeWriteForTest;
-    private Action? _driverHistoryBeforeReplaceForTest;
+    // Fixtures atribuem estes campos por reflexão; null é o estado intencional
+    // em produção. Preservar os nomes e não ativar nenhum hook automaticamente.
+    private string? _driverHistoryPathForTest = null;
+    private Func<CancellationToken, Task>? _driverHistoryBeforeWriteForTest = null;
+    private Action? _driverHistoryBeforeReplaceForTest = null;
 
     private Control BuildDriversPlaceholder(
         Func<CancellationToken, Task<DriverInventoryResult>>? readForTest = null,
@@ -21,9 +24,8 @@ internal sealed partial class MainForm
         Action<Action>? onTestReadActionReady = null,
         Action<Action<string>>? onTestFilterReady = null)
     {
-        // Descrições extensas ficam disponíveis na acessibilidade, não no mouse.
-        void SuppressHoverHint(Control target, string explanation) =>
-            _toolTips.SetToolTip(target, string.Empty);
+        bool v269 = readForTest is null;
+        const string instruction = "Clique em Verificar para consultar os dispositivos e as ofertas de drivers.";
 
         // Ações gerais para todo o inventário. A política de segurança decide
         // individualmente quais pacotes OEM podem ser removidos sem /force.
@@ -43,13 +45,12 @@ internal sealed partial class MainForm
 
         var searchBar = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
             Margin = Padding.Empty, BackColor = AppServices.Background
         };
         searchBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
         var searchLabel = new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -57,7 +58,7 @@ internal sealed partial class MainForm
             AutoSize = false, AutoEllipsis = true
         };
         searchBar.Controls.Add(searchLabel, 0, 0);
-        var search = new TextBox
+        var search = new V269AppSearchEditor
         {
             Name = "DriverInventorySearch", Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(19, 26, 34), ForeColor = Ink,
@@ -67,12 +68,6 @@ internal sealed partial class MainForm
             Margin = new Padding(0, 3, 8, 3)
         };
         searchBar.Controls.Add(search, 1, 0);
-        var clear = CreateSecondaryButton("Limpar");
-        clear.Margin = new Padding(0, 3, 8, 3);
-        clear.Dock = DockStyle.Fill;
-        clear.Click += (_, _) => search.Clear();
-        SuppressHoverHint(clear, "Limpa apenas o campo de pesquisa, sem alterar drivers.");
-        searchBar.Controls.Add(clear, 2, 0);
         root.Controls.Add(searchBar, 0, 0);
 
         // Barra de ações gerais: somente leitura e investigação.
@@ -84,28 +79,17 @@ internal sealed partial class MainForm
         };
         actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
+        var refresh = v269 ? new V269AppToolbarButton("Verificar", true) :
+            CreateButton("Consultar drivers", AppServices.Blue, Color.White);
         refresh.Name = "DriverInventoryRefresh";
         refresh.AccessibleName = "Consultar drivers";
         refresh.Dock = DockStyle.Fill;
         refresh.Margin = new Padding(0, 2, 6, 2);
         actionPanel.Controls.Add(refresh, 0, 0);
-        SuppressHoverHint(refresh,
-            "Consulta dispositivos e ofertas WUA, sem instalar ou remover.");
-        var updateDrivers = CreateButton("Atualizar drivers", AppServices.Green, Color.White);
-        updateDrivers.Name = "DriverUpdateEligible";
-        updateDrivers.AccessibleName = "Revisar drivers com oferta WUA elegível";
-        updateDrivers.AccessibleDescription =
-            "Abre a seleção de ofertas oficiais exatas e elegíveis nesta consulta. " +
-            "Cada instalação requer revalidação, backup OEM, UAC e consentimento separado.";
-        updateDrivers.Dock = DockStyle.Fill;
-        updateDrivers.Margin = new Padding(0, 2, 6, 2);
-        updateDrivers.Enabled = false;
-        actionPanel.Controls.Add(updateDrivers, 1, 0);
-        SuppressHoverHint(updateDrivers, updateDrivers.AccessibleDescription);
+        refresh.AccessibleDescription = "Consulta dispositivos e ofertas WUA, sem instalar ou remover.";
         var actionInfo = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         var actionHint = new Label
         {
@@ -125,10 +109,10 @@ internal sealed partial class MainForm
         compactFilter.Items.AddRange(new object[]
             { "Todos", "Presentes", "Problemas", "Sem driver", "Não confirmados" });
         compactFilter.SelectedIndex = 0;
-        SuppressHoverHint(compactFilter,
-            "Filtro somente visual: todos, presentes, problemas PnP, sem driver ou não confirmados.");
+        compactFilter.AccessibleDescription = "Filtro somente visual: todos, presentes, problemas PnP, sem driver ou não confirmados.";
         actionInfo.Controls.Add(actionHint);
-        actionInfo.Controls.Add(compactFilter);
+        // Filtros legados existem apenas no laboratório sintético, nunca na página do produto.
+        if (readForTest is not null) actionInfo.Controls.Add(compactFilter);
         var investigate = CreateSecondaryButton("Detalhes");
         investigate.Name = "DriverReadOnlyInvestigation";
         investigate.AccessibleName = "Detalhes e evidências de drivers";
@@ -136,8 +120,7 @@ internal sealed partial class MainForm
         investigate.Margin = new Padding(0, 2, 6, 2);
         investigate.Enabled = false;
         actionPanel.Controls.Add(investigate, 2, 0);
-        SuppressHoverHint(investigate,
-            "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
+        investigate.AccessibleDescription = "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.";
         actionPanel.Controls.Add(actionInfo, 3, 0);
         // O laboratório de 17 casos permanece disponível às fixtures; não
         // ocupa espaço nem aparece no produto real.
@@ -163,8 +146,6 @@ internal sealed partial class MainForm
         copySummary.Dock = DockStyle.Fill;
         copySummary.Margin = new Padding(2, 2, 2, 2);
         copySummary.Enabled = false;
-        SuppressHoverHint(copySummary,
-            "Diagnóstico local: copia contagens sem DeviceId, HardwareID, nomes, fornecedores, INF ou caminhos.");
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
@@ -206,28 +187,37 @@ internal sealed partial class MainForm
         // resolucoes intermediarias. O significado permanece explicito.
         var problems = Filter("Falhas PnP", 3);
         problems.AccessibleName = "Problemas PnP relatados pelo Windows";
-        SuppressHoverHint(problems, "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.");
+        problems.AccessibleDescription = "Códigos de problema informados pelo Windows, inclusive drivers não instalados; não indica automaticamente uma atualização.";
         var unbound = Filter("Sem driver", 4);
         unbound.AccessibleName = "Dispositivos sem associação WMI de driver assinado";
         const string unboundExplanation =
             "Sem linha de driver assinado associada no WMI. Não prova ausência de driver nem atualização disponível.";
         unbound.AccessibleDescription = unboundExplanation;
-        SuppressHoverHint(unbound, unboundExplanation);
         var other = Filter("Outros", 5);
         other.AccessibleName = "Não confirmados";
         const string uncertainFilterExplanation =
             "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
         other.AccessibleDescription = uncertainFilterExplanation;
-        SuppressHoverHint(other, uncertainFilterExplanation);
-        root.Controls.Add(heading, 0, 2);
+        if (readForTest is not null) root.Controls.Add(heading, 0, 2);
+        else root.RowStyles[2].Height = 0;
 
         var list = new DarkDriverList { Dock = DockStyle.Fill, Margin = Padding.Empty };
         list.AccessibleName = "Drivers associados a dispositivos; ações sujeitas à elegibilidade";
+        if (v269) list.UseV269Table();
+        var sort = new V269AppSortCombo { Name = "V269DriversSort", AccessibleName = "Ordenar drivers",
+            Dock = DockStyle.Fill, Margin = new Padding(0, 1, 9, 1) };
+        sort.Items.AddRange(["Nome (A–Z)", "Nome (Z–A)", "Atualizações primeiro", "Ordem manual"]);
+        sort.SelectedIndex = 0;
+        DriverInventoryEntry[] manualOrder = [];
+        Button? details = null;
+        TableLayoutPanel? toolbar = null;
+        V269AppSearchBox? searchFrame = null;
+        Font? sortFont = null;
         var empty = new Label
         {
             Name = "DriverInventoryEmpty", Dock = DockStyle.Fill,
             AccessibleName = "Estado da lista de drivers",
-            Text = "Clique em Consultar drivers para iniciar a leitura.",
+            Text = v269 ? instruction : "Clique em Consultar drivers para iniciar a leitura.",
             Font = new Font("Segoe UI", 10f), ForeColor = Muted,
             BackColor = PanelBackground,
             TextAlign = ContentAlignment.MiddleCenter,
@@ -239,7 +229,7 @@ internal sealed partial class MainForm
         };
         content.Controls.Add(list);
         content.Controls.Add(empty);
-        empty.BringToFront();
+        if (!v269) empty.BringToFront();
         root.Controls.Add(content, 0, 3);
 
         var footer = new TableLayoutPanel
@@ -277,6 +267,19 @@ internal sealed partial class MainForm
         footer.Controls.Add(history, 0, 1);
         root.Controls.Add(footer, 0, 4);
         history.AccessibleDescription = history.Text;
+        V269PanelPresentation? verificationPanel = null;
+        bool verifying = false;
+        bool verificationComplete = false;
+        var driverResults = new List<V269AppPreviousResult>();
+        void DismissDriverResult(Guid id)
+        {
+            if (root.IsDisposed || driverResults.RemoveAll(entry => entry.Id == id) == 0) return;
+            bool currentResult = _nav.RightPane.Current?.FlowResult is
+                { Page: V269Page.Drivers, HistoryId: var current } && current == id;
+            if (currentResult) _nav.PresentPanel(null);
+            _nav.RightPane.RefreshAppOperationHistory();
+            if (currentResult || _nav.RightPane.Current?.Driver is not null) PresentDetails(true);
+        }
         int refreshRevision = 0;
         bool syncingStatusAccessibility = false;
         bool statusSyncPending = false;
@@ -328,6 +331,16 @@ internal sealed partial class MainForm
                     Environment.NewLine + historyDescription);
             state.Text = message;
             SyncStatusAccessibility();
+            if (!v269 || _nav.SelectedPage != V269Page.Drivers) return;
+            if (verifying && (_nav.RightPane.Current?.Kind is not
+                (V269PanelKind.Confirmation or V269PanelKind.Progress) ||
+                ReferenceEquals(_nav.RightPane.Current, verificationPanel)))
+            {
+                verificationPanel = new(V269PanelKind.Progress, "Verificar drivers", message,
+                    FlowPage:V269Page.Drivers, BackgroundQuery:true);
+                _nav.PresentPanel(verificationPanel);
+            }
+            else PresentDetails(false);
         }
         void SetRefreshCaption(string caption, string description)
         {
@@ -339,10 +352,8 @@ internal sealed partial class MainForm
             if (refresh.IsDisposed || revision != refreshRevision) return;
             refresh.AccessibleDescription = description;
             if (refresh.IsDisposed || revision != refreshRevision) return;
-            SuppressHoverHint(refresh, description);
         }
-        SetDriverStatus(state.Text);
-        SetRefreshCaption("Consultar drivers", "Consulta dispositivos e ofertas WUA. Não modifica drivers.");
+        SetRefreshCaption(v269 ? "Verificar" : "Consultar drivers", "Consulta dispositivos e ofertas WUA. Não modifica drivers.");
 
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
         DriverInventoryResult? lastResult = null;
@@ -368,6 +379,8 @@ internal sealed partial class MainForm
                     : "Abre o relatório do dispositivo selecionado e suas evidências consultivas.";
         }
         bool uninstallBusy = false;
+        Form? driverPilot = null;
+        root.Disposed += (_, _) => driverPilot?.Dispose();
         // Estado WUA declarado antes dos handlers que o observam.
         DriverOfficialResult? latestOfficial = null;
         long officialGeneration = -1;
@@ -381,20 +394,80 @@ internal sealed partial class MainForm
             bool current = !root.IsDisposed &&
                 publishedSnapshotGeneration == inventoryGeneration &&
                 lastResult is not null;
-            bool actionable = current && !uninstallBusy && readForTest is null;
+            bool actionable = current && !uninstallBusy && driverPilot is null && readForTest is null;
             list.SetActionPolicy(actionable, device => lastResult is not null
                 ? DriverSilentUninstall.Evaluate(lastResult, device)
                 : new DriverSilentUninstallDecision(false, "Inventário indisponível."));
-            if (!updateDrivers.IsDisposed)
-                updateDrivers.Enabled = actionable &&
-                    officialGeneration == inventoryGeneration &&
-                    latestOfficial is { Partial: false } && eligibleUpdateIds.Count > 0;
+            list.CanCopySummary = current;
+        }
+        void PresentDetails(bool explicitRequest)
+        {
+            if (!v269 || root.IsDisposed || _nav.SelectedPage != V269Page.Drivers) return;
+            var current = _nav.RightPane.Current;
+            if (current?.Kind is V269PanelKind.Confirmation or V269PanelKind.Progress or V269PanelKind.DriverReview) return;
+            if (!explicitRequest && current?.Kind is (V269PanelKind.Result or V269PanelKind.History)) return;
+
+            var selected = list.SelectedItem;
+            string note = lastResult is null && state.Text.StartsWith("Nenhuma consulta", StringComparison.Ordinal)
+                ? instruction : state.Text;
+            if (selected is null)
+            {
+                if (current?.Driver is { Fields.Count: 0 } previous && previous.Reasons == note &&
+                    (previous.PreviousResults ?? []).SequenceEqual(driverResults)) return;
+                _nav.PresentPanel(new(V269PanelKind.Details, "Detalhes do driver", note, Driver:
+                    new V269AppDetailModel("Selecione um dispositivo", "", [], note,
+                        PreviousResults: driverResults.ToArray(), DismissResult: DismissDriverResult, DriverGlyph: V269DriverGlyph.Chip)));
+                return;
+            }
+
+            string name = DriverHardwareCatalog.DisplayName(selected);
+            string provider = string.IsNullOrWhiteSpace(selected.Provider) ? "Não informado" : selected.Provider;
+            string installed = string.IsNullOrWhiteSpace(selected.Version) ? "Não informada" : selected.Version;
+            string offer = list.OfferVersion(selected) ??
+                (list.HasConsultativeOffer(selected) ? "WUA · versão não confirmada" : "Não confirmada");
+            var fields = new (string Label, string Value)[]
+            {
+                ("Categoria", V269DriverVisuals.Category(selected)),
+                ("Fabricante", provider),
+                ("Assinatura", selected.SignatureLabel),
+                ("Barramento", V269DriverVisuals.Enumerator(selected)),
+                ("Versão instalada", installed),
+                ("Oferta", offer)
+            };
+            if (lastResult is not null)
+            {
+                note += Environment.NewLine + history.Text;
+                if (!list.CanUninstall(selected) && list.ActionsCurrent)
+                    note += Environment.NewLine + list.UninstallReason(selected);
+            }
+            if (current?.Driver is { } prior && prior.Name == name && prior.Publisher == provider &&
+                prior.Reasons == note && prior.Fields.SequenceEqual(fields) &&
+                (prior.PreviousResults ?? []).SequenceEqual(driverResults)) return;
+            _nav.PresentPanel(new(V269PanelKind.Details, "Detalhes do driver", note, Driver:
+                new V269AppDetailModel(name, provider, fields, note,
+                    PreviousResults: driverResults.ToArray(), DismissResult: DismissDriverResult,
+                    DriverGlyph: V269DriverVisuals.Glyph(selected))));
+        }
+        void PublishDriverResult(string title, string description, bool complete)
+        {
+            var result = new V269AppPreviousResult(Guid.NewGuid(), title, description, complete);
+            driverResults.Insert(0, result);
+            if (driverResults.Count > 4) driverResults.RemoveAt(4);
+            _nav.PresentPanel(new(V269PanelKind.Result, result.Title, result.Description,
+                FlowResult: new(V269Page.Drivers, complete, () => DismissDriverResult(result.Id), result.Id)));
+        }
+        if (v269)
+        {
+            _nav.RightPane.ConfigureDriverHistory(() => driverResults, DismissDriverResult);
+            _presentV269DriverDetails = PresentDetails;
+            root.Disposed += (_, _) => _presentV269DriverDetails = null;
         }
         list.SelectionChanged += (_, _) =>
         {
             SyncInvestigationDescription();
             SyncDriverActions();
             invalidateOpenReport?.Invoke();
+            PresentDetails(false);
         };
         Form? labWindow = null;
         if (labOpen is not null) labOpen.Click += (_, _) =>
@@ -413,7 +486,7 @@ internal sealed partial class MainForm
         {
             if (labWindow is { IsDisposed: false }) labWindow.Close();
         };
-        copySummary.Click += (_, _) =>
+        void CopySummary()
         {
             if (root.IsDisposed || copySummary.IsDisposed || !copySummary.Enabled ||
                 publishedSnapshotGeneration != inventoryGeneration ||
@@ -428,8 +501,10 @@ internal sealed partial class MainForm
                 actionHint.Text = "Área de transferência indisponível; nenhum dado enviado.";
             }
             actionHint.AccessibleDescription = actionHint.Text;
-            SuppressHoverHint(actionHint, actionHint.Text);
-        };
+            if (v269) SetDriverStatus(actionHint.Text);
+        }
+        copySummary.Click += (_, _) => CopySummary();
+        list.CopySummaryRequested += CopySummary;
         // Inicializar antes de registrar o evento de desinstalacao:
         // RunRefresh captura os tres locais; o compilador exige atribuicao
         // definitiva antes do callback que pode invoca-la.
@@ -458,7 +533,8 @@ internal sealed partial class MainForm
 
         void OpenDriverUpdate(DriverInventoryEntry requested)
         {
-            if (root.IsDisposed || uninstallBusy || readForTest is not null ||
+            if (root.IsDisposed || _busy || _v269Confirming || _betaClose.IsClosing || uninstallBusy ||
+                driverPilot is not null || readForTest is not null ||
                 publishedSnapshotGeneration != inventoryGeneration ||
                 officialGeneration != inventoryGeneration ||
                 lastResult is not { } inventory ||
@@ -477,90 +553,76 @@ internal sealed partial class MainForm
                 !DriverG32RecoveryTicket.CanOffer(inventory, requested, choice))
                 return;
             long generation = inventoryGeneration;
-            using var dialog = DriverUpdatePilotDialog.Create(inventory, official,
-                requested, () => !root.IsDisposed && !uninstallBusy &&
-                    generation == inventoryGeneration &&
-                    publishedSnapshotGeneration == generation &&
-                    ReferenceEquals(lastResult, inventory) &&
-                    ReferenceEquals(latestOfficial, official),
-                DriverG31Wiring.NewProductionBackend(),
-                DriverG31Wiring.NewProductionJournalFactory());
-            dialog.ShowDialog(this);
-        }
-
-        void SelectDriverUpdate()
-        {
-            if (!updateDrivers.Enabled || lastResult is not { } inventory) return;
-            var candidates = inventory.Items.Where(item =>
-                eligibleUpdateIds.Contains(item.DeviceId))
-                .OrderBy(item => item.DeviceName, StringComparer.CurrentCultureIgnoreCase)
-                .ToArray();
-            if (candidates.Length == 0) return;
-            using var picker = new Form
+            string title = "Atualizar " + DriverHardwareCatalog.DisplayName(requested);
+            bool ownsOperation = false;
+            bool CurrentOffer() => !root.IsDisposed && !uninstallBusy &&
+                (ownsOperation || (_nav.SelectedPage == V269Page.Drivers && !_busy)) &&
+                !_betaClose.IsClosing &&
+                generation == inventoryGeneration &&
+                publishedSnapshotGeneration == generation &&
+                ReferenceEquals(lastResult, inventory) &&
+                ReferenceEquals(latestOfficial, official) &&
+                ReferenceEquals(list.SelectedItem, requested);
+            V269PanelPresentation? progress = null;
+            void ReportProgress(string message)
             {
-                Text = "Drivers — escolher atualização WUA",
-                Name = "DriverUpdatePicker",
-                Width = 730, Height = 380, MinimumSize = new Size(470, 290),
-                StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
-                BackColor = AppServices.Background, ForeColor = Ink
-            };
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
-                Padding = new Padding(10)
-            };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            layout.Controls.Add(new Label
-            {
-                Dock = DockStyle.Fill, ForeColor = Ink,
-                Text = "Selecione um dispositivo. A oferta será revalidada; nenhuma instalação automática.",
-                TextAlign = ContentAlignment.MiddleLeft
-            }, 0, 0);
-            var options = new ListView
-            {
-                Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
-                HideSelection = false, MultiSelect = false, BackColor = PanelBackground,
-                ForeColor = Ink, AccessibleName = "Drivers com oferta WUA elegível"
-            };
-            options.Columns.Add("Dispositivo", 380);
-            options.Columns.Add("Fornecedor", 220);
-            foreach (var candidate in candidates)
-            {
-                var row = new ListViewItem(string.IsNullOrWhiteSpace(candidate.DeviceName)
-                    ? "Dispositivo não identificado" : candidate.DeviceName)
-                { Tag = candidate };
-                row.SubItems.Add(candidate.Provider);
-                options.Items.Add(row);
+                if (root.IsDisposed || progress is null || !ReferenceEquals(_nav.RightPane.Current, progress)) return;
+                progress = progress with { Description = message };
+                _nav.PresentPanel(progress);
             }
-            layout.Controls.Add(options, 0, 1);
-            var confirmUpdate = CreateButton("Revisar atualização", AppServices.Green, Color.White);
-            confirmUpdate.Enabled = false;
-            confirmUpdate.Dock = DockStyle.Right;
-            confirmUpdate.Width = 182;
-            confirmUpdate.Click += (_, _) =>
-            {
-                if (options.SelectedItems.Count == 1)
+            var hooks = new DriverPilotPaneHooks(
+                async (heading, question) =>
                 {
-                    picker.DialogResult = DialogResult.OK;
-                    picker.Close();
+                    bool accepted = await ConfirmV269Async(heading, question);
+                    if (_nav.SelectedPage == V269Page.Drivers) return accepted;
+                    driverPilot?.Close();
+                    return false;
+                },
+                cancel =>
+                {
+                    if (_busy || _v269Confirming || !CurrentOffer()) return false;
+                    ownsOperation = true;
+                    _busy = true;
+                    _programList.ActionsEnabled = false;
+                    progress = new(V269PanelKind.Progress, title, "Preparando atualização WUA.", CancelFlow: cancel);
+                    _nav.PresentPanel(progress);
+                    return true;
+                },
+                ReportProgress,
+                (message, verified) =>
+                {
+                    ownsOperation = false;
+                    _busy = false;
+                    if (!IsDisposed && !Disposing)
+                    {
+                        _programList.ActionsEnabled = true;
+                        if (!root.IsDisposed && ReferenceEquals(_nav.RightPane.Current, progress))
+                            PublishDriverResult(title, message, verified);
+                        driverPilot?.Close();
+                        ExitAfterCurrentOperation();
+                    }
+                });
+            var review = DriverUpdatePilotDialog.Create(inventory, official, requested, CurrentOffer,
+                DriverG31Wiring.NewProductionBackend(), DriverG31Wiring.NewProductionJournalFactory(), hooks);
+            driverPilot = review;
+            review.Disposed += (_, _) =>
+            {
+                if (!ReferenceEquals(driverPilot, review)) return;
+                driverPilot = null;
+                if (IsDisposed || Disposing || root.IsDisposed) return;
+                refresh.Enabled = !uninstallBusy;
+                SyncDriverActions();
+                if (ReferenceEquals(_nav.RightPane.Current?.DriverReview, review))
+                {
+                    _nav.PresentPanel(null);
+                    PresentDetails(false);
                 }
             };
-            options.SelectedIndexChanged += (_, _) =>
-                confirmUpdate.Enabled = options.SelectedItems.Count == 1;
-            options.DoubleClick += (_, _) =>
-            {
-                if (confirmUpdate.Enabled) confirmUpdate.PerformClick();
-            };
-            layout.Controls.Add(confirmUpdate, 0, 2);
-            picker.Controls.Add(layout);
-            if (picker.ShowDialog(this) == DialogResult.OK &&
-                options.SelectedItems.Count == 1 &&
-                options.SelectedItems[0].Tag is DriverInventoryEntry chosen)
-                OpenDriverUpdate(chosen);
+            refresh.Enabled = false;
+            SyncDriverActions();
+            _nav.PresentPanel(new(V269PanelKind.DriverReview, title, "", DriverReview: review));
         }
-        updateDrivers.Click += (_, _) => SelectDriverUpdate();
+
         // Um handler por operação. O clique virtual entrega o mesmo objeto que
         // foi selecionado; nenhuma ação usa índice antigo nem nome do dispositivo.
         async Task RunDriverUninstall(DriverInventoryEntry requested)
@@ -670,9 +732,10 @@ internal sealed partial class MainForm
                     refreshAfter = true;
                 }
                 SetDriverStatus(outcome.Message);
-                _nav.PresentPanel(new(V269PanelKind.Result, "Remoção OEM · " + outcome.State,
+                PublishDriverResult("Remoção OEM · " + outcome.State,
                     outcome.Message + (outcome.BackupPath is null ? "" :
-                        Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath)));
+                        Environment.NewLine + Environment.NewLine + "Backup: " + outcome.BackupPath),
+                    DriverResidualReviewPolicy.MayInspect(outcome.State));
                 if (DriverResidualReviewPolicy.MayInspect(outcome.State))
                     SetDriverStatus("INF removido; resíduos protegidos, sem limpeza genérica.");
             }
@@ -689,7 +752,7 @@ internal sealed partial class MainForm
         }
         list.ActionRequested += (item, action) =>
         {
-            if (!ReferenceEquals(list.SelectedItem, item) || uninstallBusy ||
+            if (!ReferenceEquals(list.SelectedItem, item) || uninstallBusy || driverPilot is not null ||
                 readForTest is not null || publishedSnapshotGeneration != inventoryGeneration ||
                 lastResult is null)
                 return;
@@ -700,36 +763,57 @@ internal sealed partial class MainForm
             else if (action == DriverCardAction.Uninstall)
                 _ = RunDriverUninstall(item);
         };
-        void Render()
+        void Render(bool resetScroll = true)
         {
             if (root.IsDisposed) return;
             string query = search.Text.Trim();
+            using var measurement = LocalDiagnosticReport.Session.MeasureUi(
+                query.Length == 0 ? DiagnosticUiStage.DriverListRender : DiagnosticUiStage.DriverSearch);
             var visible = DriverListFilters.Apply(
                 snapshot ?? Array.Empty<DriverInventoryEntry>(), activeFilter, query,
                 eligibleUpdateIds);
+            if (v269)
+            {
+                var byName = StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("pt-BR"), true);
+                visible = sort.SelectedIndex switch
+                {
+                    1 => visible.OrderByDescending(DriverHardwareCatalog.DisplayName, byName).ToArray(),
+                    2 => visible.OrderByDescending(item => eligibleUpdateIds.Contains(item.DeviceId))
+                        .ThenBy(DriverHardwareCatalog.DisplayName, byName).ToArray(),
+                    3 => DriverListFilters.SortManual(visible, manualOrder),
+                    _ => visible.OrderBy(DriverHardwareCatalog.DisplayName, byName).ToArray()
+                };
+            }
             list.SetItems(visible);
             if (officialGeneration == inventoryGeneration &&
                 latestOfficial is { Partial: false } cached)
+            {
                 list.SetOfferDevices(cached.Matches.Select(match => match.DeviceId));
+                list.SetOfferVersions(cached.Matches);
+            }
             if (officialGeneration == inventoryGeneration)
                 list.SetEligibleUpdateDevices(eligibleUpdateIds);
-            list.ScrollToTop();
+            if (resetScroll) list.ScrollToTop();
             invalidateOpenReport?.Invoke();
             int count = snapshot?.Count ?? 0;
             title.Text = snapshot is null ? "Drivers · consulta não iniciada"
                 : $"Drivers: {count} · Exibidos: {visible.Length}";
             title.AccessibleDescription = title.Text;
-            SuppressHoverHint(title,
-                "Associações de drivers a dispositivos, não pacotes exclusivos do Driver Store.");
-            empty.Text = snapshot is null ? "Clique em Consultar drivers para iniciar a leitura."
-                : query.Length > 0 ? "Nenhum driver corresponde à pesquisa."
+            empty.Text = snapshot is null ? (v269 ? instruction : "Clique em Consultar drivers para iniciar a leitura.")
+                : query.Length > 0 ? (v269 ? "Nenhum item corresponde à pesquisa." : "Nenhum driver corresponde à pesquisa.")
                 : count == 0 ? "Nenhuma associação retornada pela consulta."
                 : "Nenhuma associação nesta categoria.";
-            empty.Visible = visible.Length == 0;
+            empty.Visible = !v269 && visible.Length == 0;
+            if (v269) list.EmptyMessage = visible.Length == 0 ? empty.Text : "";
             empty.AccessibleDescription = empty.Text;
             SyncInvestigationDescription();
             SyncDriverActions();
             if (empty.Visible) empty.BringToFront();
+            if (v269)
+            {
+                PresentDetails(false);
+                return;
+            }
             foreach (var (button, name) in new[]
                 { (all, "Todos"), (present, "Presentes"), (problems, "Problemas"),
                   (unbound, "Sem driver"), (other, "Não confirmados") })
@@ -747,7 +831,6 @@ internal sealed partial class MainForm
                 button.AccessibleDescription = (selected
                     ? "Filtro ativo: " + name : "Ativar filtro: " + name) +
                     $". {inCategory} associações nesta categoria. " + caution;
-                SuppressHoverHint(button, button.AccessibleDescription);
             }
             compactFilter.AccessibleDescription = "Filtro atual: " + activeFilter;
         }
@@ -760,6 +843,19 @@ internal sealed partial class MainForm
             Render();
         }
         search.TextChanged += (_, _) => Render();
+        sort.SelectedIndexChanged += (_, _) => Render();
+        list.ReorderRequested += (from, to) =>
+        {
+            var ordered = list.Items.ToList();
+            var moved = ordered[from];
+            ordered.RemoveAt(from);
+            ordered.Insert(to, moved);
+            var remaining = (manualOrder.Length > 0 ? manualOrder : snapshot ?? [])
+                .Except<DriverInventoryEntry>(ordered, ReferenceEqualityComparer.Instance);
+            manualOrder = ordered.Concat(remaining).ToArray();
+            if (sort.SelectedIndex != 3) sort.SelectedIndex = 3;
+            else Render(resetScroll: false);
+        };
         all.Click += (_, _) => ApplyFilter("Todos");
         present.Click += (_, _) => ApplyFilter("Presentes");
         other.Click += (_, _) => ApplyFilter("Não confirmados");
@@ -781,7 +877,7 @@ internal sealed partial class MainForm
             invalidateOpenReport?.Invoke();
             driverQuery.RequestCancel();
         };
-        async Task RunRefresh()
+        async Task RunRefresh(bool showProgress = false)
         {
             if (wuaWait is { IsCancellationRequested: false })
             {
@@ -789,6 +885,7 @@ internal sealed partial class MainForm
                 SetDriverStatus("Cancelamento solicitado; pesquisa WUA pode continuar encerrando.");
                 return;
             }
+            if (driverPilot is not null) return;
             if (uninstallBusy)
             {
                 SetDriverStatus("Desinstalação em andamento: consulta bloqueada até a verificação.");
@@ -816,7 +913,7 @@ internal sealed partial class MainForm
                 SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
                 return;
             }
-            var token = driverQuery.Begin(timeoutForTest ?? TimeSpan.FromSeconds(20));
+            var token = driverQuery.Begin(timeoutForTest ?? DriverStoreAudit.InteractiveTimeout);
             // Uma captura antiga conserva sua precedencia temporal mesmo
             // se o gravador for agendado muito depois, inclusive entre janelas.
             var queryStartedAt = DateTimeOffset.UtcNow;
@@ -836,8 +933,8 @@ internal sealed partial class MainForm
             _driverReusableInventory = null;
             _driverReusableOfficial = null;
             list.SetOfferDevices(Array.Empty<string>());
+            list.SetOfferVersions(Array.Empty<DriverOfficialMatch>());
             list.SetEligibleUpdateDevices(Array.Empty<string>());
-            updateDrivers.Enabled = false;
             SetRefreshCaption("Cancelar", "Cancelar a espera da consulta; a leitura WMI nativa pode continuar.");
             investigate.Enabled = false;
             copySummary.Enabled = false;
@@ -845,12 +942,14 @@ internal sealed partial class MainForm
             actionHint.Text = "Consulta em andamento. Resumo anterior revogado.";
             actionHint.AccessibleDescription = actionHint.Text;
             SyncInvestigationDescription();
+            verifying = v269 && showProgress && _nav.SelectedPage == V269Page.Drivers;
+            verificationComplete = false;
             SetDriverStatus("Consultando drivers em segundo plano…");
-            _driverReadTask = readForTest is null
-                ? Task.Run(() => DriverDeviceMetadata.Enrich(DriverStoreAudit.CaptureWithPackages(token), token))
-                : readForTest(token);
             try
             {
+                _driverReadTask = readForTest is null
+                    ? Task.Run(() => DriverStoreAudit.CaptureForDisplay(token, LocalDiagnosticReport.Session.RecordDriverAuditPhase))
+                    : readForTest(token);
                 var captured = await _driverReadTask.WaitAsync(token);
                 if (root.IsDisposed || !driverQuery.CanPublish(token)) return;
                 // G1.22: nenhuma lista ou evidencia e publicada antes de
@@ -858,10 +957,12 @@ internal sealed partial class MainForm
                 // Nao promete atomicidade contra escritor externo que coopere
                 // zero; rejeita incoerencias observadas sem retry/timer.
                 var result = DriverInventorySnapshot.FreezeStable(captured, token);
+                verificationComplete = !result.Partial && result.Items.Count == 0;
                 var historyInventory = result;
                 long publishedGeneration = inventoryGeneration;
                 publishedSnapshotGeneration = publishedGeneration;
                 snapshot = result.Items;
+                manualOrder = [];
                 lastResult = result;
                 investigate.Enabled = true;
                 copySummary.Enabled = true;
@@ -875,7 +976,6 @@ internal sealed partial class MainForm
                 actionHint.AccessibleDescription = gpuSummary.Length > 0
                     ? gpuSummary + ". " + pnpSummary + ". Modelo/canal em Detalhes; sem instalação de Display."
                     : pnpSummary;
-                SuppressHoverHint(actionHint, actionHint.Text);
                 // A lista agora representa OUTRA fotografia. O rodapé não deve
                 // anunciar a comparação da fotografia anterior enquanto a
                 // gravação desta ainda ocorre. Fixtures não gravam histórico.
@@ -883,7 +983,6 @@ internal sealed partial class MainForm
                     ? "Histórico local: comparação desta consulta em andamento; resultado ainda não confirmado."
                     : "Histórico sintético desta consulta: não gravado nem comparado com o histórico local.";
                 history.AccessibleDescription = history.Text;
-                SuppressHoverHint(history, history.Text);
                 // Depois da publicação, só resta concluir o histórico; não existe
                 // mais consulta WMI aguardando cancelamento por este botão.
                 refresh.Enabled = false;
@@ -894,11 +993,6 @@ internal sealed partial class MainForm
                     $"{result.Items.Count(x => x.HasPnpProblem)} com código PnP, " +
                     $"{result.Items.Count(x => x.WithoutSignedDriverAssociation)} sem driver associado, " +
                     $"{links.Packages.Count} INFs. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem alterações.");
-                // A dica deve incluir o MESMO historico anunciado ao leitor de
-                // tela, e nao apenas o inventario recem-publicado.
-                SuppressHoverHint(state,
-                    state.AccessibleDescription + Environment.NewLine +
-                    result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
                 if (result.Store is { } store)
                     TestDiagnosticDetail.Record("PACOTES", ("pacotes", store.Packages.Count),
@@ -928,17 +1022,18 @@ internal sealed partial class MainForm
                 {
                     if (beforeHistoryWrite is not null)
                         await beforeHistoryWrite(token);
-                    if (root.IsDisposed || publishedGeneration != inventoryGeneration ||
-                        !driverQuery.CanPublish(token)) return;
+                    if (root.IsDisposed || publishedGeneration != inventoryGeneration) return;
+                    token.ThrowIfCancellationRequested();
+                    if (!driverQuery.CanPublish(token)) return;
                     var recorded = await Task.Run(() => DriverHistory.Record(
                         readForTest is null ? DriverHistory.DefaultPath : historyTestPath!,
                         historyInventory, queryStartedAt, token, beforeHistoryReplace));
+                    token.ThrowIfCancellationRequested();
                     if (!root.IsDisposed && publishedGeneration == inventoryGeneration &&
                         driverQuery.CanPublish(token))
                     {
                         history.Text = recorded.Message;
                         history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
-                        SuppressHoverHint(history, history.AccessibleDescription);
                         SetDriverStatus(state.Text);
                         FitVerticalSpace();
                     }
@@ -948,7 +1043,7 @@ internal sealed partial class MainForm
                 // SOMENTE LEITURA. Não consulta o mesmo catálogo em cada cartão.
                 // Fixtures seguem sem COM, sem rede e sem alteração de drivers.
                 if (readForTest is null && !result.Partial && result.Items.Count > 0 &&
-                    !root.IsDisposed && publishedGeneration == inventoryGeneration)
+                    !root.IsDisposed && publishedGeneration == inventoryGeneration && driverQuery.CanPublish(token))
                 {
                     using var officialTimeout = new CancellationTokenSource(
                         TimeSpan.FromSeconds(90));
@@ -971,6 +1066,7 @@ internal sealed partial class MainForm
                                     "Isso não comprova ausência de atualização.");
                             else
                             {
+                                verificationComplete = true;
                                 latestOfficial = officialResult;
                                 officialGeneration = publishedGeneration;
                                 eligibleUpdateIds = DriverUpdateEligibility.Find(
@@ -981,7 +1077,9 @@ internal sealed partial class MainForm
                                     .Select(match => match.DeviceId)
                                     .Where(id => !string.IsNullOrWhiteSpace(id))
                                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-                                Render();
+                                if (v269 && eligibleUpdateIds.Count > 0 && sort.SelectedIndex != 2)
+                                    sort.SelectedIndex = 2;
+                                else Render(resetScroll: false);
                                 SetDriverStatus(
                                     $"Consulta concluída: {result.Items.Count} dispositivos · " +
                                     $"{deviceIds.Length} com oferta WUA consultiva · " +
@@ -1013,9 +1111,25 @@ internal sealed partial class MainForm
             }
             catch (OperationCanceledException)
             {
-                if (!root.IsDisposed) SetDriverStatus(refresh.Text == "Cancelando..."
-                    ? "Consulta cancelada. Lista anterior preservada; sem alterações."
-                    : "Tempo esgotado. Lista anterior preservada; sem alterações.");
+                // WaitAsync encerra a espera, não a chamada nativa. Observar
+                // eventual falha tardia sem tocar na lista nem liberar a trava.
+                if (_driverReadTask is { } pending)
+                    _ = pending.ContinueWith(faulted =>
+                        DiagnosticTrace.Failure("DRIVERS.INVENTARIO_FALHA", faulted.Exception!.GetBaseException()),
+                        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+                if (!root.IsDisposed)
+                {
+                    if (resultPublished)
+                    {
+                        history.Text = "Histórico local: finalização interrompida; resultado da gravação não confirmado nesta consulta.";
+                        history.AccessibleDescription = history.Text;
+                        SetDriverStatus("Inventário concluído e preservado. Finalização do histórico interrompida; nenhuma alteração de drivers.");
+                    }
+                    else SetDriverStatus(refresh.Text == "Cancelando..."
+                        ? "Consulta cancelada. Lista anterior preservada; sem alterações."
+                        : "Tempo esgotado. Lista anterior preservada; sem alterações.");
+                }
                 DiagnosticTrace.Write("DRIVERS.CONSULTA_CANCELADA");
             }
             catch (Exception ex)
@@ -1027,9 +1141,10 @@ internal sealed partial class MainForm
             finally
             {
                 driverQuery.End(token);
+                verifying = false;
                 if (!refresh.IsDisposed)
                 {
-                    SetRefreshCaption("Consultar drivers", "Consulta dispositivos e ofertas WUA. Não modifica drivers.");
+                    SetRefreshCaption(v269 ? "Verificar" : "Consultar drivers", "Consulta dispositivos e ofertas WUA. Não modifica drivers.");
                     // WMI pode ignorar o cancelamento nativo por algum tempo.
                     // Nunca bloquear a interface: o teste de _driverReadTask
                     // no inicio do clique continua impedindo consultas simultaneas.
@@ -1041,10 +1156,18 @@ internal sealed partial class MainForm
                     SyncDriverActions();
                     if (_driverReadTask is { IsCompleted: false })
                         SetDriverStatus("Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.");
+                    if (v269 && verificationPanel is not null)
+                    {
+                        if (ReferenceEquals(_nav.RightPane.Current, verificationPanel))
+                        {
+                            PublishDriverResult("Verificar drivers", state.Text, verificationComplete);
+                        }
+                        verificationPanel = null;
+                    }
                 }
             }
         }
-        refresh.Click += async (_, _) => await RunRefresh();
+        refresh.Click += async (_, _) => await RunRefresh(showProgress: true);
         // Apenas fixture: usa o mesmo handler, com provedor local sintético.
         onTestReadActionReady?.Invoke(() => _ = RunRefresh());
         // Em resolucoes menores, deixar a area da lista prevalecer.
@@ -1052,6 +1175,11 @@ internal sealed partial class MainForm
         void FitVerticalSpace()
         {
             if (root.IsDisposed) return;
+            if (v269)
+            {
+                FitV269Toolbar();
+                return;
+            }
             int dpi = root.DeviceDpi;
             int Scale(int px) => DriverRowGeometry.Scale(px, dpi);
             bool tiny = root.ClientSize.Height < Scale(265);
@@ -1062,17 +1190,15 @@ internal sealed partial class MainForm
                 TextRenderer.MeasureText("Consultar drivers", refresh.Font).Width + Scale(20));
             int investigationWidth = Math.Max(Scale(108),
                 TextRenderer.MeasureText("Detalhes", investigate.Font).Width + Scale(20));
-            int updateWidth = Math.Max(Scale(148),
-                TextRenderer.MeasureText("Atualizar drivers", updateDrivers.Font).Width + Scale(20));
             bool narrow = root.ClientSize.Width < Math.Max(Scale(760),
-                refreshWidth + updateWidth + investigationWidth + Scale(110));
-            bool compactFilters = tiny || root.ClientSize.Width < Scale(760);
+                refreshWidth + investigationWidth + Scale(110));
+            bool compactFilters = readForTest is not null && (tiny || root.ClientSize.Width < Scale(760));
             bool showCopy = !tiny && !narrow;
             // A ação global ocupa uma coluna extra. Em janela estreita,
             // também nas fixtures com Simular, mover o filtro compacto para
             // a segunda linha em vez de deixá-lo com 0-24 px.
             bool splitActions = root.ClientSize.Width <
-                refreshWidth + updateWidth + investigationWidth +
+                refreshWidth + investigationWidth +
                 (labOpen is null ? Scale(92) : Scale(230));
             // O rótulo quebrava "Pesquisar:" em duas linhas no PC FORTE
             // porque a primeira coluna era fixa em 80 px, sem medir a fonte.
@@ -1084,20 +1210,19 @@ internal sealed partial class MainForm
             root.RowStyles[0].Height = tiny ? Scale(30) : Scale(35);
             root.RowStyles[1].Height = splitActions ? Scale(tiny ? 68 : 79) :
                 tiny ? Scale(35) : Scale(44);
-            root.RowStyles[2].Height = compactFilters ? 0 : Scale(36);
+            root.RowStyles[2].Height = readForTest is null || compactFilters ? 0 : Scale(36);
             // Em SVGA, devolver altura à lista; no modo tiny o histórico
             // já fica oculto e o estado completo continua no tooltip.
             root.RowStyles[4].Height = tiny ? Scale(19) :
                 compact ? Scale(41) : Scale(78);
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
-            heading.Visible = !compactFilters;
+            heading.Visible = readForTest is not null && !compactFilters;
             bool proportionalActions = splitActions && labOpen is null;
-            var widths = new[] { refreshWidth, updateWidth, investigationWidth };
-            for (int i = 0; i < widths.Length; i++)
+            foreach (var (column, width) in new[] { (0, refreshWidth), (2, investigationWidth) })
             {
-                actionPanel.ColumnStyles[i].SizeType = proportionalActions ? SizeType.Percent : SizeType.Absolute;
-                actionPanel.ColumnStyles[i].Width = proportionalActions ? 100f / widths.Length : widths[i];
+                actionPanel.ColumnStyles[column].SizeType = proportionalActions ? SizeType.Percent : SizeType.Absolute;
+                actionPanel.ColumnStyles[column].Width = proportionalActions ? 50f : width;
             }
             actionPanel.ColumnStyles[3].SizeType = proportionalActions ? SizeType.Absolute : SizeType.Percent;
             actionPanel.ColumnStyles[3].Width = proportionalActions ? 0 : 100;
@@ -1160,9 +1285,107 @@ internal sealed partial class MainForm
             if (compactFilter.SelectedItem is string current && current != activeFilter)
                 compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
-            SuppressHoverHint(history, history.AccessibleDescription ?? history.Text);
             SetDriverStatus(state.Text);
         }
+        static void RoundV269TableFrame(Control control, int cssRadius)
+        {
+            var size = control.ClientSize;
+            if (size.Width <= 2 || size.Height <= 2)
+            {
+                control.Region = null;
+                return;
+            }
+            int radius = Math.Min(V269AppTable.Scale(cssRadius, 100, control.DeviceDpi),
+                Math.Min(size.Width, size.Height) / 2);
+            using var outline = ModernButton.RoundRect(new Rectangle(Point.Empty, size), radius);
+            control.Region = new Region(outline);
+        }
+        void FitV269Toolbar()
+        {
+            if (toolbar is null || searchFrame is null || details is null) return;
+            int S(int pixels) => V269AppTable.Scale(pixels, _v269Appearance.InterfacePercent, root.DeviceDpi);
+            int windowWidth = _nav.LayoutWindowWidth;
+            bool compact = root.ClientSize.Width < S(430);
+            bool showDetails = windowWidth <= 1040;
+            list.ApplyTableAppearance(_v269Appearance, windowWidth);
+            float size = 9f * _v269Appearance.TextPercent / 100f;
+            if (sortFont is null || Math.Abs(sortFont.Size - size) > .01f)
+            {
+                var previous = sortFont;
+                sortFont = new Font("Segoe UI", size);
+                sort.Font = sortFont;
+                previous?.Dispose();
+            }
+            sort.ApplyOptions(_v269Appearance);
+            sort.DropDownHeight = sort.ItemHeight * sort.Items.Count + 4;
+            toolbar.SuspendLayout();
+            try
+            {
+                toolbar.RowStyles.Clear();
+                toolbar.RowCount = compact ? 2 : 1;
+                for (int i = 0; i < toolbar.RowCount; i++)
+                    toolbar.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / toolbar.RowCount));
+                toolbar.ColumnStyles[0].Width = S(115);
+                toolbar.ColumnStyles[2].Width = compact ? 0 :
+                    Math.Clamp(root.ClientSize.Width - S(showDetails ? 355 : 270), S(120), S(207));
+                toolbar.ColumnStyles[3].Width = compact || !showDetails ? 0 : S(82);
+                toolbar.SetCellPosition(sort, new TableLayoutPanelCellPosition(compact ? 1 : 2, compact ? 1 : 0));
+                toolbar.SetCellPosition(details, new TableLayoutPanelCellPosition(compact ? 0 : 3, compact ? 1 : 0));
+                details.Visible = showDetails;
+                root.RowStyles[0].Height = S(compact ? 84 : 44);
+                content.Margin = new Padding(0, S(10), 0, 0);
+            }
+            finally { toolbar.ResumeLayout(true); }
+        }
+        if (v269)
+        {
+            root.Padding = Padding.Empty;
+            root.Controls.Remove(searchBar);
+            root.Controls.Remove(actionPanel);
+            root.Controls.Remove(footer);
+            root.RowStyles[1].Height = root.RowStyles[2].Height = root.RowStyles[4].Height = 0;
+            toolbar = new TableLayoutPanel { Name = "V269DriversToolbar", Dock = DockStyle.Fill,
+                ColumnCount = 4, RowCount = 1, Margin = Padding.Empty, BackColor = AppServices.Background };
+            toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 115));
+            toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+            toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
+
+            refresh.Margin = new Padding(0, 3, 9, 3);
+            search.PlaceholderText = "Pesquisar driver ou dispositivo...";
+            search.AccessibleName = "Pesquisar drivers";
+            searchFrame = new V269AppSearchBox(search) { Name = "V269DriversSearchFrame" };
+            details = new V269AppToolbarButton("Detalhes") { Name = "V269DriversDetails", Margin = new Padding(3, 3, 0, 3) };
+            details.Click += (_, _) =>
+            {
+                PresentDetails(true);
+                _nav.ShowV269AppPane();
+            };
+            toolbar.Controls.Add(refresh, 0, 0);
+            toolbar.Controls.Add(searchFrame, 1, 0);
+            toolbar.Controls.Add(sort, 2, 0);
+            toolbar.Controls.Add(details, 3, 0);
+            root.Controls.Add(toolbar, 0, 0);
+            root.Tag = (Action)FitV269Toolbar;
+            content.Name = "V269DriversTableFrame";
+            content.Padding = new Padding(1);
+            content.SizeChanged += (_, _) => RoundV269TableFrame(content, 10);
+            content.DpiChangedAfterParent += (_, _) => RoundV269TableFrame(content, 10);
+            list.SizeChanged += (_, _) => RoundV269TableFrame(list, 9);
+            list.DpiChangedAfterParent += (_, _) => RoundV269TableFrame(list, 9);
+            RoundV269TableFrame(content, 10);
+            RoundV269TableFrame(list, 9);
+            root.Disposed += (_, _) =>
+            {
+                searchBar.Dispose();
+                actionPanel.Dispose();
+                footer.Dispose();
+                heading.Dispose();
+                compactFilter.Dispose();
+                sortFont?.Dispose();
+            };
+        }
+        else sort.Dispose();
         root.SizeChanged += (_, _) => FitVerticalSpace();
         root.DpiChangedAfterParent += (_, _) => FitVerticalSpace();
         Render();

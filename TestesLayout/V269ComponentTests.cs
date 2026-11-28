@@ -153,10 +153,40 @@ internal static class V269ComponentTests
             "Dispose deve desconectar eventos reais sem assinaturas penduradas.");
         host.Controls.Remove(appearance);
 
-        Check(V269VisualTokens.ForTheme(V269Theme.Dark).Sidebar == ColorTranslator.FromHtml("#1c252d") &&
-            V269VisualTokens.ForTheme(V269Theme.Dark).Content == ColorTranslator.FromHtml("#202a33") &&
+        Check(V269VisualTokens.ForTheme(V269Theme.Dark).Sidebar == ColorTranslator.FromHtml("#1b1e21") &&
+            V269VisualTokens.ForTheme(V269Theme.Dark).Content == ColorTranslator.FromHtml("#202327") &&
+            V269VisualTokens.ForTheme(V269Theme.Dark).Card == ColorTranslator.FromHtml("#2b2e33") &&
+            V269VisualTokens.ForTheme(V269Theme.Dark).Text == ColorTranslator.FromHtml("#d2d7dc") &&
             V269VisualTokens.ForTheme(V269Theme.Claro).Sidebar == ColorTranslator.FromHtml("#d5eaf9"),
             "Tokens de superfície devem preservar a referência visual V2.6.9.");
+
+        // A auditoria usa as cores efetivamente pintadas, não apenas ForeColor
+        // do Button. A seleção do HTML tem duas exceções de contraste
+        // documentadas; não alterar a arte congelada silenciosamente.
+        foreach (var theme in Enum.GetValues<V269Theme>())
+        {
+            var p=V269VisualTokens.ForTheme(theme);
+            var inventory=V269VisualTokens.InventoryPalette(theme);
+            var selected=V269VisualTokens.InventorySelection(theme);
+            var nav=V269VisualTokens.NavigationSelection(theme);
+            var ink=V269VisualTokens.NavigationPaintInk(theme,true);
+            double navMin=Math.Min(V269VisualTokens.ContrastRatio(ink,nav.First),
+                V269VisualTokens.ContrastRatio(ink,nav.Last));
+            foreach(var surface in new[]{p.Card,p.Content,p.Sidebar,p.RightPanel})
+            {
+                Check(V269VisualTokens.ContrastRatio(p.Text,surface)>=4.5,"texto principal no tema "+theme);
+                Check(V269VisualTokens.ContrastRatio(p.SecondaryText,surface)>=4.5,"texto secundário no tema "+theme);
+            }
+            Check(V269VisualTokens.ContrastRatio(inventory.Ink,inventory.Row)>=4.5 &&
+                V269VisualTokens.ContrastRatio(inventory.Ink,inventory.Alternate)>=4.5 &&
+                V269VisualTokens.ContrastRatio(V269VisualTokens.InventoryRowInk(theme,true),selected.First)>=4.5 &&
+                V269VisualTokens.ContrastRatio(V269VisualTokens.InventoryRowInk(theme,true),selected.Last)>=4.5,
+                "inventário normal/alternado/selecionado mantém legibilidade");
+            Check(ink.A==255 && nav.First.A==255 && nav.Last.A==255,
+                "texto e estado selecionado não recebem opacidade decorativa");
+            Console.WriteLine(FormattableString.Invariant(
+                $"V269-COLOR-AUDIT theme={theme} nav_selected_min={navMin:F3} gate={(navMin>=4.5?"PASS":"REFERENCE_CONFLICT")}"));
+        }
 
         Console.WriteLine("PASS UI-V269-COMPONENTES: 3 temas, pode/não pode, botões, preferências e acessibilidade.");
     }

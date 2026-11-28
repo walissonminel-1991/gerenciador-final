@@ -358,11 +358,47 @@ using (raceToken.Register(() =>
         buttonEnabled, "Drivers: cancelamento reentrante nao deixa botao travado");
 }
 race.End(raceToken);
+// Um prazo vencido entre duas chamadas nativas jamais inicia a próxima
+// fase, mesmo quando a API retorna uma fotografia aparentemente válida.
+using (var cancelledPhase = new CancellationTokenSource())
+{
+    var events = new List<(DriverStoreAudit.AuditPhase Phase, bool Returned)>();
+    void Observe(DriverStoreAudit.AuditPhase phase, bool returned, long _) => events.Add((phase, returned));
+    bool later = false, stopped = false;
+    try
+    {
+        DriverStoreAudit.RunPhase(DriverStoreAudit.AuditPhase.Inventory, cancelledPhase.Token, Observe, () =>
+        {
+            cancelledPhase.Cancel(); // simula uma chamada não interrompida por COM
+            return 1;
+        });
+        later = true;
+    }
+    catch (OperationCanceledException) { stopped = true; }
+    Check(stopped && !later && events.SequenceEqual(new[]
+        { (DriverStoreAudit.AuditPhase.Inventory, false), (DriverStoreAudit.AuditPhase.Inventory, true) }),
+        "Drivers: retorno nativo tardio cancela a cadeia, preservando eventos de inicio e retorno");
+    bool started = false;
+    try { DriverStoreAudit.RunPhase(DriverStoreAudit.AuditPhase.Store, cancelledPhase.Token, Observe, () => { started = true; return 1; }); }
+    catch (OperationCanceledException) { }
+    Check(!started && events.Count == 2, "Drivers: fase nativa posterior nao inicia com prazo expirado");
+}
+// Eventos de fase começam antes da chamada nativa. Um timeout externo
+// conserva a última fase iniciada, mesmo se ela ainda não tiver retornado.
+static void TraceDriverAudit(DriverStoreAudit.AuditPhase phase,bool returned,long elapsedMs)
+{
+    Console.WriteLine($"DRIVER_AUDIT fase={phase} estado={(returned?"retorno":"inicio")} duracao_ms={elapsedMs}");
+}
 // CI Windows sempre exercita a ABI nativa somente leitura; fixtures continuam portáveis.
 if (args.Contains("--live") || OperatingSystem.IsWindows())
 {
-    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-    var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token)).WaitAsync(timeout.Token);
+    // Mesma cadeia (incluindo metadados) e mesmo prazo consultivo do GF.
+    // Não alargar 25 s/60 s para encobrir a falha intermitente.
+    using var timeout = new CancellationTokenSource(DriverStoreAudit.InteractiveTimeout);
+    Console.WriteLine($"DRIVER_AUDIT rodada=primeira rota=interface limite_ms={DriverStoreAudit.InteractiveTimeout.TotalMilliseconds:0}");
+    var clock = System.Diagnostics.Stopwatch.StartNew();
+    var live = await Task.Run(() => DriverStoreAudit.CaptureForDisplay(timeout.Token,TraceDriverAudit)).WaitAsync(timeout.Token);
+    Console.WriteLine($"DRIVER_AUDIT rodada=primeira total_ms={clock.ElapsedMilliseconds}");
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
     Check(live.Items.Any(d => d.HardwareIds.Count > 0), "D2/G1: IDs de hardware reais recebidos do WMI no runner descartável");
@@ -385,7 +421,12 @@ if (args.Contains("--live") || OperatingSystem.IsWindows())
 if (OperatingSystem.IsWindows())
 {
     using var nativeLimit = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-    var inventory = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(nativeLimit.Token)).WaitAsync(nativeLimit.Token);
+    // Segunda captura independente: mede a consulta aquecida e conserva
+    // as provas D2/G2 com fotografia nova, sem reutilizar vínculos anteriores.
+    Console.WriteLine("DRIVER_AUDIT rodada=segunda limite_ms=60000");
+    var clock = System.Diagnostics.Stopwatch.StartNew();
+    var inventory = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(nativeLimit.Token,TraceDriverAudit)).WaitAsync(nativeLimit.Token);
+    Console.WriteLine($"DRIVER_AUDIT rodada=segunda total_ms={clock.ElapsedMilliseconds}");
     Check(inventory.PublishedPackages is { Packages.Count: > 0 }, "D2: enumeração SetupAPI real no Windows descartável retorna INFs publicados");
     Check(inventory.PublishedPackages!.Packages.All(p => !p.CanMaintain), "R6: pacotes nativos nunca autorizam manutenção");
     Console.WriteLine($"D2_CI publicados={inventory.PublishedPackages.Packages.Count} enumeracao_completa={inventory.PublishedPackages.EnumerationComplete} parcial={inventory.PublishedPackages.Partial} eventos={inventory.WindowsHistory?.Events.Count} historico_parcial={inventory.WindowsHistory?.Partial} historico_indisponivel={inventory.WindowsHistory?.Unavailable}");

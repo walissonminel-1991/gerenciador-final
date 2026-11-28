@@ -33,7 +33,10 @@ internal static class WheelScrollTests
 
         using var list = new DarkProgramList { Size = new Size(800, 260), ItemHeight = 67 };
         list.SetItems(Enumerable.Range(0, 80).Select(i => new ProgramEntry { Name = "Fixture " + i }));
-        var listBar = list.Controls.OfType<DarkVScrollBar>().Single();
+        var listBar = list.Controls.Find("V269AppsVerticalScroll",false).OfType<DarkVScrollBar>().Single();
+        var horizontalBar=list.Controls.Find("V269AppsHorizontalScroll",false).OfType<DarkVScrollBar>().Single();
+        Check(!horizontalBar.Visible&&horizontalBar.MaximumValue==0,
+            "modo legado nao deve ativar a barra horizontal");
         Check(listBar.MaximumValue > 600, "fixture de lista nao tem rolagem");
         for (int i = 0; i < 3; i++) Wheel(list, -30);
         Check(listBar.Value == 0, "deltas parciais nao podem saltar tres linhas de cada vez");
@@ -72,6 +75,102 @@ internal static class WheelScrollTests
         Check(flowBar.Value == 85, "painel deve acumular -120 e rolar 85 px");
         Wheel(flow.Controls.OfType<Panel>().Single(), 120);
         Check(flowBar.Value == 0, "painel e viewport devem compartilhar o acumulador");
+        // Contrato V2.6.9: frações de entalhe devem mover pixels imediatamente,
+        // sem alterar o curso de um entalhe completo ou o comportamento legado.
+        var pixel = new PixelWheelDeltaAccumulator();
+        int pos = 0;
+        for (int i = 1; i <= 4; i++)
+        {
+            pos = pixel.Move(pos, 1000, -30, 85);
+            Check(pos == (85 * i) / 4, "painel V269 deve avançar por frações de pixel acumuladas");
+        }
+        Check(pixel.Move(pos, 1000, 120, 85) == 0, "pixel deve inverter até o início");
+        Check(pixel.Move(0, 1000, 120, 85) == 0 &&
+              pixel.Move(0, 1000, -30, 85) == 21, "limite não retém pressão invisível");
+        Check(pixel.Move(21, 1000, -int.MaxValue, 85) == 1000 &&
+              pixel.Move(1000, 1000, int.MaxValue, 85) == 0, "limites sem overflow");
+        var horizontalPixel = new PixelWheelDeltaAccumulator();
+        Check(horizontalPixel.Move(0,1000,-30,64)==16 &&
+              pixel.Move(0,1000,-30,85)==21, "eixos independentes");
+
+        list.ApplyV269Table(V269AppearanceOptions.Default);
+        listBar.Value = 0;
+        int appStep = 3 * list.ItemHeight;
+        for (int i=1;i<=4;i++)
+        {
+            Wheel(list,-30);
+            Check(listBar.Value == appStep*i/4, "Aplicativos V269 desloca cada delta parcial");
+        }
+        Wheel(list,120);
+        Check(listBar.Value==0, "Aplicativos V269 inverte entalhe");
+
+        drivers.UseV269Table();
+        drivers.ApplyTableAppearance(V269AppearanceOptions.Default,800);
+        driverBar.Value=0;
+        int driverStep=3*drivers.TableRowHeight;
+        for (int i=1;i<=3;i++)
+        {
+            Wheel(drivers,-40);
+            Check(driverBar.Value==driverStep*i/3, "Drivers V269 desloca cada delta parcial");
+        }
+        Wheel(drivers,120);
+        Check(driverBar.Value==0, "Drivers V269 inverte entalhe");
+
+        flow.IsPageViewport=true;
+        flow.Reflow();
+        flowBar.Value=0;
+        Wheel(flow.Content,-40);
+        Check(flowBar.Value==28, "viewport V269 responde ao primeiro delta parcial");
+        Wheel(flow.Controls.OfType<Panel>().Single(),-80);
+        Check(flowBar.Value==85, "viewport e conteúdo compartilham fração de pixel");
+        Wheel(flow.Content,120);
+        Check(flowBar.Value==0, "viewport V269 retorna ao início");
         Console.WriteLine("OK V5: rolagem proporcional com deltas parciais e inversao nas listas de aplicativos/drivers e paineis.");
+        Console.WriteLine("OK V269: deltas parciais respondem imediatamente, limites e curso total preservados.");
+        VerifyDriverPaintClip(drivers);
+    }
+
+    private static void VerifyDriverPaintClip(DarkDriverList drivers)
+    {
+        // Exercita o OnPaint de produção em um buffer sintético. O contador
+        // independente é a política consultiva, não uma contagem declarada
+        // pelo renderer. Nenhuma ação/consulta física é disparada.
+        var evaluated = new List<DriverInventoryEntry>();
+        drivers.SetActionPolicy(true, item =>
+        {
+            evaluated.Add(item);
+            return new DriverSilentUninstallDecision(false, "Fixture de pintura");
+        });
+        var paint = typeof(DarkDriverList).GetMethod("OnPaint", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        try
+        {
+            int Paint(Rectangle clip, DriverInventoryEntry? expected = null)
+            {
+                using var bitmap = new Bitmap(drivers.Width, drivers.Height);
+                using var canvas = Graphics.FromImage(bitmap);
+                canvas.Clear(Color.Magenta);
+                canvas.SetClip(clip);
+                evaluated.Clear();
+                using var args = new PaintEventArgs(canvas, clip);
+                paint.Invoke(drivers, new object[] { args });
+                if (expected is not null)
+                    Check(evaluated.Count == 1 && ReferenceEquals(evaluated[0], expected),
+                        "região de uma linha não deve avaliar outras identidades");
+                if (!clip.Contains(0,0))
+                    Check(bitmap.GetPixel(0,0).ToArgb()==Color.Magenta.ToArgb(),
+                        "pintura parcial preserva pixels externos");
+                return evaluated.Count;
+            }
+            int full = Paint(drivers.ClientRectangle);
+            Check(full > 1, "fixture precisa de várias linhas visíveis");
+            Check(Paint(new Rectangle(0,0,drivers.Width,drivers.TableHeaderHeight))==0,
+                "pintar cabeçalho não deve executar política de nenhuma linha");
+            int y = drivers.TableHeaderHeight + drivers.TableRowHeight + 5;
+            Check(y + 3 < drivers.ClientSize.Height, "segunda linha deve estar visível");
+            Check(Paint(new Rectangle(0,y,drivers.Width,3),drivers.Items[1])==1,
+                "pintura parcial avalia exclusivamente a linha suja");
+            Console.WriteLine($"V269-SCROLL-DRIVER-PAINT full={full} header=0 row=1");
+        }
+        finally { drivers.SetActionPolicy(false,null); }
     }
 }

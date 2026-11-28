@@ -7,7 +7,13 @@ namespace GerenciadorAplicativos;
 // remover. Para todas as identidades não auditadas: somente inventário.
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
     string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "",
-    string PackageFullName = "", string PublisherId = "", bool? SystemSigned = null);
+    string PackageFullName = "", string PublisherId = "", bool? SystemSigned = null)
+{
+    internal DateOnly? DeclaredDate { get; init; }
+    internal string DeclaredDescription { get; init; } = "";
+    internal string ObservedLocation { get; init; } = "";
+    internal string ObservedArchitecture { get; init; } = "";
+}
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
     bool Retried = false, string FailureStage = "", string Apartment = "",
@@ -154,7 +160,10 @@ internal static class LocalMsixInventory
             var candidate = Recognize(id.Name, id.PublisherId,
                 v.Major, v.Minor, v.Build, v.Revision);
             if (candidate is not null) return new(candidate with
-            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId });
+            { PackageFamilyName = id.FamilyName, PackageFullName = id.FullName, PublisherId = id.PublisherId,
+                DeclaredDate=ReadDeclaredDate(package),ObservedLocation=ReadObservedLocation(package),
+                ObservedArchitecture=ReadObservedArchitecture(package),
+                DeclaredDescription=packageFamilyName is null?ReadDescription(package):"" });
             if (package.IsFramework || package.IsResourcePackage) return new(null);
             // Apenas apps efetivamente listados pelo Windows para o usuário.
             var app = package.GetAppListEntries().FirstOrDefault();
@@ -166,12 +175,54 @@ internal static class LocalMsixInventory
             return new(described is null ? null : described with
             {
                 PackageFamilyName = id.FamilyName, PackageFullName = id.FullName,
-                PublisherId = id.PublisherId, SystemSigned = ReadSystemSignature(package)
+                PublisherId = id.PublisherId, SystemSigned = ReadSystemSignature(package),
+                DeclaredDate=ReadDeclaredDate(package),ObservedLocation=ReadObservedLocation(package),
+                ObservedArchitecture=ReadObservedArchitecture(package),
+                DeclaredDescription=packageFamilyName is null?ReadDescription(package):""
             },
                 Launchable: true);
         });
         return scan with { ObservedMainPackageFullNames = observedMainPackages };
     }
+
+    // Informações consultivas publicadas pelo aplicativo; não interpretar
+    // recursos não resolvidos nem comandos. Não misturar entradas distintas.
+    internal static string NormalizeDescription(string? value)
+    {
+        if(string.IsNullOrWhiteSpace(value)||value.Length>600||
+            value.Any(c=>char.IsControl(c)&&c is not ('\r' or '\n' or '\t'))||
+            value.Any(c=>char.GetUnicodeCategory(c)==System.Globalization.UnicodeCategory.Format))return "";
+        string text=string.Join(" ",value.Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries));
+        return text.StartsWith("ms-resource:",StringComparison.OrdinalIgnoreCase)||
+            text.StartsWith("@{",StringComparison.Ordinal)?"":text;
+    }
+    private static string ReadDescription(Windows.ApplicationModel.Core.AppListEntry app)
+    {
+        try{return NormalizeDescription(app.DisplayInfo.Description);}
+        catch(Exception){return "";}
+    }
+    private static string ReadDescription(Windows.ApplicationModel.Package package)
+    {
+        try
+        {
+            var entries=package.GetAppListEntries().Take(2).ToArray();
+            return entries.Length==1?ReadDescription(entries[0]):"";
+        }
+        catch(Exception){return "";}
+    }
+    // Microsoft Package.InstalledDate documenta instalação OU última
+    // atualização. Nunca interpretar como data original comprovada.
+    private static DateOnly? ReadDeclaredDate(Windows.ApplicationModel.Package package)
+    {
+        try{return NormalizeDeclaredDate(package.InstalledDate);}
+        catch(Exception){return null;}
+    }
+    internal static DateOnly? NormalizeDeclaredDate(DateTimeOffset observed)=>observed.Year>=1980?
+        DateOnly.FromDateTime(observed.LocalDateTime):null;
+    private static string ReadObservedLocation(Windows.ApplicationModel.Package package)
+    {try{return package.InstalledLocation?.Path??"";}catch(Exception){return "";}}
+    private static string ReadObservedArchitecture(Windows.ApplicationModel.Package package)
+    {try{return package.Id.Architecture.ToString();}catch(Exception){return "";}}
 
     private static bool? ReadSystemSignature(Windows.ApplicationModel.Package package)
     {

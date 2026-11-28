@@ -11,29 +11,24 @@ internal sealed partial class MainForm
     private Action? _relayoutRepair;
     private Action? _relayoutSystem;
 
-    // O painel de rede reserva espaco para as linhas efetivamente exibidas.
-    // Antes do primeiro diagnostico nao precisa ocupar 205 px vazios.
-    private int NetworkResultHeight()
-    {
-        int lines = string.IsNullOrWhiteSpace(_networkDetails.Text) ? 0 :
-            Math.Min(7, _networkDetails.Text.Split('\n').Length);
-        int logical = Math.Max(96, 83 + lines * 16);
-        return (int)Math.Ceiling(logical * Math.Max(1d, DeviceDpi / 96d));
-    }
-
-    private static bool CleanupPreviewCompact(int availableWidth) => availableWidth < 500;
-
+    private Action? _fitV269CleanupDiskSection;
+    private TableLayoutPanel? _v269CleanupDiskSection;
     private int DiskPanelHeight(int width)
     {
-        int count = _diskCards.Content.Controls.Count;
-        int usable = width - 45;
-        int columns = usable >= 1050 ? 3 : usable >= 740 ? 2 : 1;
-        int rows = Math.Max(1, (Math.Max(1, count) + columns - 1) / columns);
-        float scale = Math.Max(1f, DeviceDpi / 96f);
-        int previewHeight = CleanupPreviewCompact(width - 32) ? 70 : 38;
-        int fixedRows = 34 + previewHeight + 20 + 8 + 2 + 4;
-        int cards = rows * (98 + 7);
-        return (int)Math.Ceiling((fixedRows + cards) * scale) + CleanupReportHeight(width);
+        _fitV269CleanupDiskSection?.Invoke();
+        int S(int x) => V269AppTable.Scale(x,_v269Appearance.InterfacePercent,DeviceDpi);
+        int reportHeight=CleanupReportHeight(width);
+        var section=_v269CleanupDiskSection;
+        if(section is not null)
+            section.RowStyles[4].Height=_diskCards.Content.Controls.Count>0&&!_refreshingDisks&&
+                !_diskSummary.Text.StartsWith("Não foi possível",StringComparison.Ordinal)?0:
+                Math.Max(S(12),_diskSummary.Font.Height+2);
+        int fixedRows=section is null?S(160):section.Padding.Vertical+
+            section.RowStyles.Cast<RowStyle>().Where((row,index)=>index!=3&&index!=5).Sum(row=>(int)Math.Ceiling(row.Height));
+        int area=Math.Max(1,width-(section?.Padding.Horizontal??S(26))-_diskCards.Content.Padding.Horizontal);
+        int cards=_diskCards.Content.Controls.OfType<V269CleanupDiskCard>()
+            .Sum(card=>card.HeightForWidth(area)+S(8));
+        return fixedRows + reportHeight + Math.Max(S(6),cards+_diskCards.Content.Padding.Vertical);
     }
 
     // A pagina inteira rola quando necessario, mas nunca acrescenta barras
@@ -43,15 +38,31 @@ internal sealed partial class MainForm
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
+        bool themedTools = trackCleaning || trackRepair || trackSystem;
+        if (themedTools)
+        {
+            host.Name = trackCleaning ? "V269CleanupViewport" : trackRepair ? "V269RepairViewport" : "V269SystemViewport";
+            host.ApplyCleanupSurface(_v269Appearance.Theme);
+        }
         host.Content.Padding = Padding.Empty;
         host.Content.WrapContents = false;
         content.Dock = DockStyle.None;
         content.Margin = Padding.Empty;
         host.Content.Controls.Add(content);
         bool arranging = false;
-        void Arrange()
+        bool selectionPending = false;
+        Size lastArrangedSize = Size.Empty;
+        void Arrange(string origin)
         {
-            if (arranging || host.IsDisposed) return;
+            if (arranging || host.IsDisposed || (trackSystem && !host.Visible)) return;
+            if (themedTools && _nav.IsPageLayoutTransition)
+            {
+                // VisibleChanged pode preceder o Dock definitivo da página.
+                // A seleção faz todas as mudanças de geometria numa transação
+                // síncrona; medir uma vez ao finalizar, com os dados atuais.
+                selectionPending = true;
+                return;
+            }
             arranging = true;
             try
             {
@@ -59,27 +70,88 @@ internal sealed partial class MainForm
                 // 3 px de margem tecnica. A largura usa o espaco efetivo,
                 // mas nao desativa a rolagem quando o conteudo ultrapassa.
                 int scrollbar = (int)Math.Ceiling(14d * host.DeviceDpi / 96d);
-                int width = Math.Max(1, host.ClientSize.Width - scrollbar);
-                // O conteúdo redimensiona os cartões e recalcula a quebra
-                // das descrições ao receber a nova largura. Medir depois.
-                content.Width = width;
-                content.PerformLayout();
-                content.Height = Math.Max(host.ClientSize.Height, minimumHeight(width));
+                int width = Math.Max(1, host.ClientSize.Width - (themedTools ? 0 : scrollbar));
+                int MeasureAt(int available, string pass)
+                {
+                    host.RecordPageMeasurement(origin, pass, available, content.Width);
+                    if(content.Width!=available)content.Width=available;
+                    content.PerformLayout();
+                    return minimumHeight(available);
+                }
+                int required=MeasureAt(width,"candidate");
+                if(themedTools && required>host.ClientSize.Height)
+                {
+                    // Só reservar a largura real da barra quando existe overflow.
+                    width=Math.Max(1,host.ClientSize.Width-host.CleanupScrollbarWidth);
+                    required=MeasureAt(width,"overflow");
+                }
+                void SetHeight(int minimum, int viewportHeight)
+                {
+                    int target = Math.Max(viewportHeight, minimum);
+                    if (content.Height != target) content.Height = target;
+                }
+                SetHeight(required, host.ClientSize.Height);
                 host.Reflow();
+                if (themedTools)
+                {
+                    // Dock da barra pode atualizar o viewport depois da
+                    // medição. Reconciliar com a área efetivamente atribuída
+                    // pelo WinForms antes de concluir a transação visual.
+                    for (int attempt = 0; attempt < 2; attempt++)
+                    {
+                        host.PerformLayout();
+                        int actual = host.CleanupViewportWidth;
+                        if (actual <= 0 || content.Width == actual) break;
+                        SetHeight(MeasureAt(actual,"reconcile"), host.CleanupViewportHeight);
+                        host.Reflow();
+                    }
+                    if (host.Content.Width != host.CleanupViewportWidth) host.Reflow();
+                }
+                lastArrangedSize = host.ClientSize;
             }
             finally { arranging = false; }
         }
-        host.SizeChanged += (_, _) => Arrange();
+        host.SizeChanged += (_, _) =>
+        {
+            // Um resize do viewport filho pode ter medido esta mesma
+            // dimensão antes de SizeChanged chegar ao host. Não repetir
+            // somente quando a geometria já está reconciliada.
+            if (themedTools && !_nav.IsPageLayoutTransition &&
+                host.ClientSize == lastArrangedSize &&
+                content.Width == host.CleanupViewportWidth &&
+                content.Height >= host.CleanupViewportHeight) return;
+            Arrange("SizeChanged");
+        };
+        if (themedTools)
+        {
+            host.ToolViewportResized += (_, _) =>
+            {
+                if (!host.Visible || content.Width == host.CleanupViewportWidth) return;
+                // Se a dimensão externa mudou, seu SizeChanged será a
+                // autoridade. Se só o viewport interno mudou, reconciliar.
+                if (!_nav.IsPageLayoutTransition && host.ClientSize != lastArrangedSize) return;
+                Arrange("ToolViewportResized");
+            };
+            void CommitSelection(object? sender, EventArgs args)
+            {
+                bool pending = selectionPending;
+                selectionPending = false;
+                if (pending && host.Visible && !host.IsDisposed)
+                    Arrange("SelectionCommitted");
+            }
+            _nav.PageLayoutCommitted += CommitSelection;
+            host.Disposed += (_, _) => _nav.PageLayoutCommitted -= CommitSelection;
+        }
         host.VisibleChanged += (_, _) =>
         {
-            if (IsTrayTransitioning) return;
-            Arrange();
+            if (IsTrayTransitioning || !host.Visible) return;
+            Arrange("VisibleChanged");
         };
-        host.DpiChangedAfterParent += (_, _) => Arrange();
-        if (trackCleaning) _relayoutCleaning = Arrange;
-        if (trackRepair) _relayoutRepair = Arrange;
-        if (trackSystem) _relayoutSystem = Arrange;
-        Arrange();
+        host.DpiChangedAfterParent += (_, _) => Arrange("DpiChanged");
+        if (trackCleaning) _relayoutCleaning = () => Arrange("Content");
+        if (trackRepair) _relayoutRepair = () => Arrange("Content");
+        if (trackSystem) _relayoutSystem = () => Arrange("Content");
+        Arrange("Initialize");
         return host;
     }
 

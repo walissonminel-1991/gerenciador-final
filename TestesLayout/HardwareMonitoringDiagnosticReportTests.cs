@@ -145,6 +145,42 @@ internal static class HardwareMonitoringDiagnosticReportTests
               confirmed.Contains("latências máximas leitura: 0", StringComparison.Ordinal) &&
               confirmed.Contains("CPU/chipset/VRM: indisponíveis", StringComparison.Ordinal),
             "saída atribuiu RPM ou sensor ACPI de CPU sem comprovação");
+        var typedHardware=measured with
+        {
+            PlatformHardware=WindowsPlatformHardwareProvider.Join(
+                [new WmiCpuSocketRaw("CPU-ID-PRIVADO","AMD Ryzen 7 5700X",8U,16U,3950U)],
+                [new WmiRamModuleRaw("BANK-PRIVADO","SLOT-PRIVADO",8_589_934_592UL,3600U,26U,
+                    Manufacturer:"Kingston",PartNumber:"KF436C16BB")],
+                [new WmiMotherboardRaw("TAG-PRIVADO","ASUS","TUF GAMING B550-PLUS","Rev 1")],[]),
+            Storage=WindowsStorageSensorProvider.Join(
+                [new StorageIdentity("SERIAL-PRIVADO","FRIENDLY-PRIVADO","Samsung","SSD 980 PRO")],[])
+        };
+        typedHardware=typedHardware with
+        {
+            DeviceInventory=typedHardware.DeviceInventory with
+            {
+                Devices=[..typedHardware.DeviceInventory.Devices,
+                    new HardwareDeviceDescriptor(@"USB\PRIVADO","NOME-AMIGAVEL-PRIVADO","Logitech","HIDClass","USB",HardwareDeviceKind.Input)
+                    {ReportedDeviceDescription="USB Gaming Mouse"},
+                    new HardwareDeviceDescriptor(@"SWD\PRIVADO","IMPRESSORA-PRIVADA","Fabricante","PrintQueue","SWD",HardwareDeviceKind.Printer)
+                    {ReportedDeviceDescription="FILA-PRIVADA"}]
+            }
+        };
+        string configuration=LocalDiagnosticReport.FormatHardware(typedHardware);
+        Check(configuration.Contains("Logitech")&&configuration.Contains("USB Gaming Mouse")&&
+            !configuration.Contains("NOME-AMIGAVEL-PRIVADO")&&!configuration.Contains("FILA-PRIVADA"),
+            "periféricos usam descrição técnica, excluem nome amigável e fila de impressão");
+        Check(configuration.Contains("AMD Ryzen 7 5700X")&&configuration.Contains("Kingston")&&
+            configuration.Contains("KF436C16BB")&&configuration.Contains("TUF GAMING B550-PLUS")&&
+            configuration.Contains("SSD 980 PRO")&&configuration.Contains("GPU Intel de exemplo")&&
+            !configuration.Contains("PRIVADO")&&!configuration.Contains(secretDevice)&&
+            !configuration.Contains("GPU-UUID-test"),"relatório manual expõe apenas campos técnicos de modelos e configuração");
+        var session=new LocalDiagnosticReport();
+        session.SampleHardware(typedHardware);
+        string readings=session.Format();
+        Check(readings.Contains("MONITOR fonte=NVML")&&readings.Contains("temperatura_c=65")&&
+            readings.Contains("potencia_w=Unavailable")&&!readings.Contains("GPU-UUID-test"),
+            "amostras de hardware preservam indisponibilidade e não exportam identificadores");
         Console.WriteLine("OK monitoramento: resumo consultivo sem identificadores e sensores não presumidos.");
     }
 }

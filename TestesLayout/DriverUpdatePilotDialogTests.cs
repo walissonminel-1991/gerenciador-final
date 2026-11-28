@@ -144,6 +144,23 @@ internal static class DriverUpdatePilotDialogTests
             // Segundo cenário: cancelamento após download começar, resultado
             // tardio não pode produzir Install nem alterar journal anterior.
             byte[] saved = File.ReadAllBytes(path);
+            // Falha no primeiro acesso WUA não pode iniciar download nem tocar o diário.
+            var rejected = new Fake { ThrowRevalidate = true };
+            using (var failed = DriverUpdatePilotDialog.Create(inventory, official, device,
+                () => current, rejected, () => new DriverUpdatePilotFileJournal(path)))
+            {
+                failed.Show(owner);
+                Pump(8);
+                Find<ListBox>(failed, "DriverPilotOffers").SelectedIndex = 0;
+                Find<CheckBox>(failed, "DriverPilotConfirm").Checked = true;
+                Find<CheckBox>(failed, "DriverPilotDisposable").Checked = true;
+                Find<Button>(failed, "DriverPilotStart").PerformClick();
+                PumpUntil(() => Find<Label>(failed, "DriverPilotStatus").Text.Contains("Blocked", StringComparison.Ordinal));
+                Ensure(rejected.Calls.SequenceEqual(["check"]) &&
+                    File.ReadAllBytes(path).SequenceEqual(saved),
+                    "falha na revalidação não pode baixar, instalar ou alterar diário");
+                failed.Close();
+            }
             var slow = new Fake
             {
                 SlowDownload = new TaskCompletionSource<DriverUpdatePilotStep>(

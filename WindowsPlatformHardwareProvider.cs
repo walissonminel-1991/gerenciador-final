@@ -9,12 +9,15 @@ namespace GerenciadorAplicativos;
 // de CPU. Um ID WMI não é um sensor térmico de CPU, DIMM, chipset ou VRM.
 internal sealed record WmiCpuSocketRaw(
     string? DeviceId, string? Name, object? NumberOfCores,
-    object? NumberOfLogicalProcessors, object? CurrentClockSpeed);
+    object? NumberOfLogicalProcessors, object? CurrentClockSpeed,
+    object? Architecture = null, object? L3CacheSize = null,
+    object? VirtualizationFirmwareEnabled = null, string? SocketDesignation = null);
 internal sealed record WmiRamModuleRaw(
     string? BankLabel, string? DeviceLocator, object? Capacity,
     object? ConfiguredClockSpeed, object? SMBIOSMemoryType,
     object? ConfiguredVoltage = null,
-    object? MinVoltage = null, object? MaxVoltage = null);
+    object? MinVoltage = null, object? MaxVoltage = null,
+    string? Manufacturer = null, string? PartNumber = null);
 internal sealed record WmiMotherboardRaw(
     string? Tag, string? Manufacturer, string? Product, string? Version);
 internal sealed record WmiLogicalCpuRaw(string? Name, object? PercentProcessorTime);
@@ -22,12 +25,20 @@ internal sealed record WmiLogicalCpuRaw(string? Name, object? PercentProcessorTi
 internal sealed record WindowsCpuSocket(
     string DeviceId, string? ReportedName,
     uint? PhysicalCores, uint? LogicalProcessors,
-    MonitorReading<double> ReportedCurrentMhz);
+    MonitorReading<double> ReportedCurrentMhz)
+{
+    internal string? ReportedArchitecture { get; init; }
+    internal uint? ReportedL3KiB { get; init; }
+    internal bool? FirmwareVirtualizationEnabled { get; init; }
+    internal string? ReportedSocketDesignation { get; init; }
+}
 internal sealed record WindowsRamModule(
     string BankLabel, string DeviceLocator,
     MonitorReading<ulong> CapacityBytes,
     MonitorReading<double> ConfiguredMhz, uint? SmbiosMemoryType)
 {
+    internal string? ReportedManufacturer { get; init; }
+    internal string? ReportedPartNumber { get; init; }
     // SMBIOS configurado, NÃO leitura elétrica instantânea nem sensor VRM.
     internal MonitorReading<double> ConfiguredMilliVolts { get; init; } =
         MonitorReading<double>.Unavailable("Windows WMI Win32_PhysicalMemory.ConfiguredVoltage");
@@ -52,6 +63,10 @@ internal sealed record WindowsPlatformHardwareSnapshot(
     HardwareDiscoveryState LogicalCpuState,
     IReadOnlyList<WindowsLogicalCpuLoad> LogicalCpuInstances)
 {
+    internal string? ReportedBiosVersion { get; init; }
+    internal int? IntelNominalBaseMhz { get; init; }
+    internal int? IntelReportedMaximumMhz { get; init; }
+    internal int? ReportedPopulatedMemoryChannels { get; init; }
     internal int MeasuredLogicalCpuInstances => LogicalCpuInstances.Count(x =>
         x.UsagePercent.Availability == MonitorAvailability.Available &&
         x.UsagePercent.Value.HasValue);
@@ -107,7 +122,8 @@ internal static class WindowsPlatformHardwareProvider
         IEnumerable<WmiMotherboardRaw> boards,
         IEnumerable<WmiLogicalCpuRaw> logical,
         bool socketsOk = true, bool memoryOk = true, bool boardsOk = true,
-        bool logicalOk = true, bool sourcePartial = false)
+        bool logicalOk = true, bool sourcePartial = false,
+        string? reportedBiosVersion = null)
     {
         var cpus = sockets.Take(MaxRowsPerClass + 1).ToArray();
         var rams = memory.Take(MaxRowsPerClass + 1).ToArray();
@@ -144,7 +160,18 @@ internal static class WindowsPlatformHardwareProvider
                 logicalCount is > 0 and <= 8192 ? (uint)logicalCount.Value : null,
                 mhz is >= 100 and <= 20_000
                     ? MonitorReading<double>.Available(mhz.Value, Source + " Win32_Processor.CurrentClockSpeed (reportado)")
-                    : MonitorReading<double>.Unavailable(Source + " Win32_Processor.CurrentClockSpeed")));
+                    : MonitorReading<double>.Unavailable(Source + " Win32_Processor.CurrentClockSpeed"))
+            {
+                // Win32_Processor.Architecture identifica ISA, não microarquitetura.
+                ReportedArchitecture = UInt(raw.Architecture) switch
+                { 0 => "x86", 1 => "MIPS", 2 => "Alpha", 3 => "PowerPC",
+                  5 => "ARM", 6 => "IA64", 9 => "x64", 12 => "ARM64", _ => null },
+                ReportedL3KiB = UInt(raw.L3CacheSize) is > 0 and <= 16_777_216
+                    ? (uint)UInt(raw.L3CacheSize)!.Value : null,
+                FirmwareVirtualizationEnabled = raw.VirtualizationFirmwareEnabled is bool enabled
+                    ? enabled : null,
+                ReportedSocketDesignation = Identity(raw.SocketDesignation)
+            });
         }
 
         var ramIdentities = rams.Take(MaxRamModules)
@@ -200,6 +227,8 @@ internal static class WindowsPlatformHardwareProvider
                 memoryType is > 0 and <= ushort.MaxValue
                     ? (uint)memoryType.Value : null)
             {
+                ReportedManufacturer = Identity(raw.Manufacturer),
+                ReportedPartNumber = Identity(raw.PartNumber),
                 ConfiguredMilliVolts = voltageValid
                     ? MonitorReading<double>.Available(millivolts!.Value,
                         Source + " Win32_PhysicalMemory.ConfiguredVoltage (mV SMBIOS reportados, não medidos)")
@@ -262,7 +291,10 @@ internal static class WindowsPlatformHardwareProvider
             Section(socketsOk, cpuPartial, cpuResult.Count), cpuResult.AsReadOnly(),
             Section(memoryOk, memoryPartial, ramResult.Count), ramResult.AsReadOnly(),
             Section(boardsOk, boardPartial, boardsResult.Count), boardsResult.AsReadOnly(),
-            Section(logicalOk, loadPartial, loadResult.Count), loadResult.AsReadOnly());
+            Section(logicalOk, loadPartial, loadResult.Count), loadResult.AsReadOnly())
+        {
+            ReportedBiosVersion = Identity(reportedBiosVersion)
+        };
     }
 
     private static bool IsLogicalIndex(string name) =>
@@ -337,20 +369,25 @@ internal static class WindowsPlatformHardwareProvider
             }
 
             bool cpuOk = Query("SELECT DeviceID, Name, NumberOfCores, " +
-                "NumberOfLogicalProcessors, CurrentClockSpeed FROM Win32_Processor",
+                "NumberOfLogicalProcessors, CurrentClockSpeed, Architecture, L3CacheSize, " +
+                "VirtualizationFirmwareEnabled, SocketDesignation FROM Win32_Processor",
                 get => cpus.Add(new(
                     Convert.ToString(get("DeviceID"), CultureInfo.InvariantCulture),
                     Convert.ToString(get("Name"), CultureInfo.InvariantCulture),
                     get("NumberOfCores"), get("NumberOfLogicalProcessors"),
-                    get("CurrentClockSpeed"))));
+                    get("CurrentClockSpeed"), get("Architecture"), get("L3CacheSize"),
+                    get("VirtualizationFirmwareEnabled"),
+                    Convert.ToString(get("SocketDesignation"), CultureInfo.InvariantCulture))));
             bool ramOk = Query("SELECT BankLabel, DeviceLocator, Capacity, " +
                 "ConfiguredClockSpeed, SMBIOSMemoryType, ConfiguredVoltage, " +
-                "MinVoltage, MaxVoltage FROM Win32_PhysicalMemory",
+                "MinVoltage, MaxVoltage, Manufacturer, PartNumber FROM Win32_PhysicalMemory",
                 get => ram.Add(new(
                     Convert.ToString(get("BankLabel"), CultureInfo.InvariantCulture),
                     Convert.ToString(get("DeviceLocator"), CultureInfo.InvariantCulture),
                     get("Capacity"), get("ConfiguredClockSpeed"), get("SMBIOSMemoryType"),
-                    get("ConfiguredVoltage"), get("MinVoltage"), get("MaxVoltage"))));
+                    get("ConfiguredVoltage"), get("MinVoltage"), get("MaxVoltage"),
+                    Convert.ToString(get("Manufacturer"), CultureInfo.InvariantCulture),
+                    Convert.ToString(get("PartNumber"), CultureInfo.InvariantCulture))));
             bool boardOk = Query("SELECT Tag, Manufacturer, Product, Version FROM Win32_BaseBoard",
                 get => boards.Add(new(
                     Convert.ToString(get("Tag"), CultureInfo.InvariantCulture),
@@ -362,8 +399,26 @@ internal static class WindowsPlatformHardwareProvider
                 get => loads.Add(new(
                     Convert.ToString(get("Name"), CultureInfo.InvariantCulture),
                     get("PercentProcessorTime"))));
-            return Join(cpus, ram, boards, loads,
-                cpuOk, ramOk, boardOk, loadOk, partial);
+            // Consulta adicional isolada: Win32_BIOS.SMBIOSBIOSVersion é a
+            // versão reportada pelo firmware, não versão da placa-base.
+            // Falha opcional não deve contaminar a cobertura já obtida.
+            bool priorPartial = partial;
+            var bios = new List<string?>();
+            bool biosOk = Query("SELECT SMBIOSBIOSVersion FROM Win32_BIOS",
+                get => bios.Add(Identity(Convert.ToString(get("SMBIOSBIOSVersion"), CultureInfo.InvariantCulture))));
+            string? biosVersion = biosOk && !partial && bios.Count == 1 ? bios[0] : null;
+            var snapshot = Join(cpus, ram, boards, loads,
+                cpuOk, ramOk, boardOk, loadOk, priorPartial, biosVersion);
+            if (snapshot.CpuSocketsState == HardwareDiscoveryState.Complete &&
+                snapshot.CpuSockets.Count == 1 && snapshot.CpuSockets[0].ReportedArchitecture == "x64" &&
+                V269IntelCpuidClocks.Capture() is { } clocks)
+                snapshot = snapshot with { IntelNominalBaseMhz = clocks.BaseMhz,
+                    IntelReportedMaximumMhz = clocks.MaximumMhz };
+            token.ThrowIfCancellationRequested();
+            if (snapshot.RamModulesState == HardwareDiscoveryState.Complete)
+                snapshot = snapshot with { ReportedPopulatedMemoryChannels =
+                    V269SmbiosChannels.Capture(snapshot.RamModules.Count) };
+            return snapshot;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is COMException or
@@ -378,5 +433,157 @@ internal static class WindowsPlatformHardwareProvider
     {
         if (obj is not null && Marshal.IsComObject(obj))
             Marshal.FinalReleaseComObject(obj);
+    }
+}
+
+
+// Intel SDM, CPUID leaf 16H. Base e máximo reportados em MHz.
+// Somente um socket homogêneo, sem hipervisor anunciado. O máximo
+// arquitetural não é automaticamente a frequência Turbo Boost.
+internal sealed record V269IntelCpuidClocks(int BaseMhz, int? MaximumMhz)
+{
+    internal static V269IntelCpuidClocks? Parse(int eax, int ebx)
+    {
+        int basis = eax & 0xffff, maximum = ebx & 0xffff;
+        if (basis is < 100 or > 20_000) return null;
+        return new(basis, maximum >= basis && maximum <= 20_000 ? maximum : null);
+    }
+
+    internal static V269IntelCpuidClocks? Capture()
+    {
+        if (!System.Runtime.Intrinsics.X86.X86Base.IsSupported) return null;
+        var (max, b, c, d) = System.Runtime.Intrinsics.X86.X86Base.CpuId(0, 0);
+        if (max < 0x16 || b != 0x756e6547 || d != 0x49656e69 || c != 0x6c65746e)
+            return null; // GenuineIntel, e folha implementada.
+        var features = System.Runtime.Intrinsics.X86.X86Base.CpuId(1, 0);
+        if ((unchecked((uint)features.Ecx) & 0x80000000u) != 0) return null;
+        var extended = System.Runtime.Intrinsics.X86.X86Base.CpuId(7, 0);
+        if ((extended.Edx & (1 << 15)) != 0) return null; // CPUs híbridas: sem inferência.
+        var frequency = System.Runtime.Intrinsics.X86.X86Base.CpuId(0x16, 0);
+        return Parse(frequency.Eax, frequency.Ebx);
+    }
+}
+
+
+// SMBIOS DSP0134 §§7.17, 7.18, 7.38. Topologia descrita pelo
+// firmware; não prova interleaving ativo, largura efetiva nem latência CAS.
+// Não ler strings, números de série, UUIDs ou outros identificadores;
+// o buffer bruto é temporário e nunca entra em relatório/persistência.
+internal static class V269SmbiosChannels
+{
+    private const uint Rsmb = 0x52534D42;
+    private const int MaximumBytes = 4 * 1024 * 1024;
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint GetSystemFirmwareTable(uint provider, uint table,
+        [Out] byte[]? buffer, uint size);
+
+    internal static int? Capture(int expectedModules)
+    {
+        if (!OperatingSystem.IsWindows() || expectedModules is < 1 or > 128) return null;
+        byte[]? buffer = null;
+        try
+        {
+            uint bytes = GetSystemFirmwareTable(Rsmb, 0, null, 0);
+            if (bytes < 14 || bytes > MaximumBytes) return null;
+            buffer = new byte[(int)bytes];
+            if (GetSystemFirmwareTable(Rsmb, 0, buffer, bytes) != bytes) return null;
+            return Parse(buffer, expectedModules);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or
+            BadImageFormatException or UnauthorizedAccessException or System.Security.SecurityException)
+        { return null; }
+        finally { if (buffer is not null) Array.Clear(buffer); }
+    }
+
+    internal static int? Parse(ReadOnlySpan<byte> raw, int expectedModules)
+    {
+        if (raw.Length < 14 || raw.Length > MaximumBytes ||
+            expectedModules is < 1 or > 128) return null;
+        uint declared = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(raw.Slice(4, 4));
+        if (declared != raw.Length - 8 || declared < 6) return null;
+        var table = raw[8..];
+        var seen = new HashSet<ushort>();
+        var arrays = new Dictionary<ushort, bool>();
+        var modules = new Dictionary<ushort, (ushort Array, bool Populated)>();
+        var channels = new List<ushort[]>();
+        bool endMarker = false;
+        static ushort U16(ReadOnlySpan<byte> value, int offset) =>
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(value.Slice(offset, 2));
+
+        int offset = 0, records = 0;
+        while (offset + 4 <= table.Length && ++records <= 8192)
+        {
+            byte type = table[offset], length = table[offset + 1];
+            if (length < 4 || offset + length + 2 > table.Length) return null;
+            var record = table.Slice(offset, length);
+            ushort handle = U16(record, 2);
+            if (!seen.Add(handle)) return null;
+            int end = offset + length;
+            // Strings somente delimitam registros; seu conteúdo não é usado.
+            while (end + 1 < table.Length && (table[end] != 0 || table[end + 1] != 0)) end++;
+            if (end + 1 >= table.Length) return null;
+            offset = end + 2;
+            if (type == 127)
+            {
+                if (length != 4) return null;
+                endMarker = true; break;
+            }
+            if (type == 16)
+            {
+                if (length < 15) return null;
+                arrays.Add(handle, record[5] == 3); // System Memory.
+            }
+            else if (type == 17)
+            {
+                if (length < 21) return null;
+                ushort size = U16(record, 12);
+                // 0 = slot vazio; FFFF = tamanho desconhecido.
+                if (size is 0xffff or 0x8000) return null;
+                if (size == 0x7fff)
+                {
+                    if (length < 32) return null;
+                    uint extended = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(record.Slice(28, 4));
+                    if (extended == 0 || (extended & 0x80000000u) != 0) return null;
+                }
+                modules.Add(handle, (U16(record, 4), size != 0));
+            }
+            else if (type == 37)
+            {
+                if (length < 7) return null;
+                int count = record[6];
+                if (count > 82 || length < 7 + 3 * count) return null;
+                var members = new ushort[count];
+                int load = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    load += record[7 + 3 * i];
+                    members[i] = U16(record, 8 + 3 * i);
+                }
+                if (load > record[5]) return null;
+                channels.Add(members);
+            }
+        }
+        if (!endMarker || channels.Count == 0 ||
+            modules.Values.Any(m => !arrays.ContainsKey(m.Array))) return null;
+        var populated = modules.Where(m => m.Value.Populated && arrays[m.Value.Array])
+            .Select(m => m.Key).ToHashSet();
+        if (populated.Count != expectedModules) return null;
+        var mapped = new HashSet<ushort>();
+        var allChannelMembers = new HashSet<ushort>();
+        int usedChannels = 0;
+        foreach (var channel in channels)
+        {
+            bool used = false;
+            foreach (ushort handle in channel)
+            {
+                if (!modules.ContainsKey(handle) || !allChannelMembers.Add(handle)) return null;
+                if (!populated.Contains(handle)) continue;
+                mapped.Add(handle); used = true;
+            }
+            if (used) usedChannels++;
+        }
+        return mapped.SetEquals(populated) && usedChannels > 0 ? usedChannels : null;
     }
 }
