@@ -1898,9 +1898,39 @@ internal static class V269IntegrationTests
                             visibleCards[0].Top==visibleCards[2].Top && visibleCards[3].Top==visibleCards[5].Top &&
                             visibleCards[3].Top>visibleCards[0].Top && diskSection.Top>=tools.Bottom,
                             $"confirmação de Limpeza preserva seis cartões em três colunas e discos abaixo: página={page.Width}, viewport={pageViewport.CleanupViewportWidth}, ferramentas={tools.Size}, discos={diskSection.Bounds}");
-                        Require(diskSection.RectangleToScreen(diskSection.ClientRectangle).Top <
-                            pageViewport.RectangleToScreen(pageViewport.ClientRectangle).Bottom,
-                            "Espaço em disco permanece visível na captura de confirmação");
+                        // A região de recorte é o Fill interno, não a largura do host
+                        // que inclui a barra temática. Exigir interseção nos dois eixos.
+                        var pageClip=pageViewport.Content.Parent!;
+                        Require(pageClip.ClientSize==new Size(pageViewport.CleanupViewportWidth,pageViewport.CleanupViewportHeight),
+                            "viewport efetivo da confirmação corresponde à área de recorte");
+                        Rectangle clip=pageClip.RectangleToScreen(pageClip.ClientRectangle);
+                        Rectangle diskBounds=diskSection.RectangleToScreen(diskSection.ClientRectangle);
+                        Rectangle intersection=Rectangle.Intersect(diskBounds,clip);
+                        Require(diskSection.Visible&&intersection.Width>0&&intersection.Height>0,
+                            $"Espaço em disco permanece visível na captura de confirmação: disco={diskBounds}, viewport={clip}, interseção={intersection}");
+                        // Uma faixa parcial não demonstra que o título é legível.
+                        // Exercitar a barra real da página sem clicar em comandos,
+                        // preservando a confirmação e a posição da captura.
+                        var diskHeading=diskSection.Controls.Find("V269DiskHeading",true).OfType<Label>().Single();
+                        var pageScroll=pageViewport.Controls.OfType<DarkVScrollBar>().Single();
+                        int originalPagePosition=pageScroll.Value;
+                        var originalConfirmation=shell.RightPane.Current;
+                        try
+                        {
+                            Require(diskHeading.Visible&&diskHeading.Width>0&&diskHeading.Height>0,
+                                "título de armazenamento existe e possui geometria");
+                            var headingBounds=diskHeading.RectangleToScreen(diskHeading.ClientRectangle);
+                            int target=Math.Clamp(originalPagePosition+headingBounds.Top-clip.Top,0,pageScroll.MaximumValue);
+                            pageScroll.Value=target;
+                            Require(pageViewport.Content.Top==-pageScroll.Value&&LayoutTests.FullyVisible(diskHeading)&&
+                                ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                                "rolagem da página revela título de armazenamento sem resolver a confirmação");
+                        }
+                        finally{pageScroll.Value=originalPagePosition;}
+                        Require(pageScroll.Value==originalPagePosition&&pageViewport.Content.Top==-originalPagePosition&&
+                            ReferenceEquals(shell.RightPane.Current,originalConfirmation)&&!confirmation.IsCompleted,
+                            "posição original e confirmação preservadas para captura");
+                        Console.WriteLine($"PASS REC-BASE-CLEANUP-CLIP theme={palette} size={size} intersection={intersection.Width}x{intersection.Height} dpi={diskHeading.DeviceDpi}");
                         var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
                         var scroll=shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).OfType<DarkVScrollBar>().Single();
                         Require(!viewport.AutoScroll,"Limpeza não usa a barra branca nativa no painel de operação");
