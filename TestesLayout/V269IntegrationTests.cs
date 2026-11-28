@@ -2307,14 +2307,30 @@ internal static class V269IntegrationTests
                     captureScroll.Width==expectedBar,"detalhes: largura e trilha coerentes antes da regressão");
                 int originalViewportWidth=detailsViewport.Width;
                 int originalMaximum=captureScroll.MaximumValue;
-                captureScroll.Width=detailPane.ClientSize.Width+expectedBar;
-                Require(captureScroll.Width>detailPane.ClientSize.Width,
-                    "controle negativo: largura residual injetada");
-                detailPane.ApplyInterfaceScale(shell.InterfaceScalePercent);
-                Require(captureScroll.Width==expectedBar&&detailsViewport.Width==originalViewportWidth&&
-                    historyTable.Width==detailsViewport.Width&&captureScroll.MaximumValue==originalMaximum,
-                    "REC-BASE-01: largura residual não pode colapsar a tabela nem alterar rolagem");
-                Console.WriteLine($"PASS REC-BASE-DETAIL-WIDTH theme={(V269Theme)historyIndex} dpi={detailPane.DeviceDpi} pane={detailPane.ClientSize.Width} viewport={detailsViewport.Width} scroll={captureScroll.Width}");
+                int originalValue=captureScroll.Value;
+                try
+                {
+                    // Exercitar os extremos reais disponíveis, sem inventar overflow.
+                    foreach(int position in new[]{0,originalMaximum}.Distinct())
+                    {
+                        captureScroll.Value=position;
+                        Require(historyTable.Top==-position,
+                            "controle positivo: posição real do conteúdo antes da regressão");
+                        captureScroll.Width=detailPane.ClientSize.Width+expectedBar;
+                        Require(captureScroll.Width>detailPane.ClientSize.Width,
+                            "controle negativo: largura residual injetada");
+                        detailPane.ApplyInterfaceScale(shell.InterfaceScalePercent);
+                        Require(captureScroll.Width==expectedBar&&
+                            captureScroll.Right==detailPane.ClientSize.Width&&
+                            detailsViewport.Width==originalViewportWidth&&
+                            historyTable.Width==detailsViewport.Width&&
+                            captureScroll.MaximumValue==originalMaximum&&captureScroll.Value==position&&
+                            historyTable.Top==-position,
+                            "REC-BASE-01: largura residual não pode colapsar a tabela nem alterar rolagem");
+                    }
+                }
+                finally{captureScroll.Value=originalValue;}
+                Console.WriteLine($"PASS REC-BASE-DETAIL-WIDTH theme={(V269Theme)historyIndex} dpi={detailPane.DeviceDpi} pane={detailPane.ClientSize.Width} viewport={detailsViewport.Width} scroll={captureScroll.Width} max={originalMaximum}");
                 foreach(bool bottom in new[]{false,true})
                 {
                     captureScroll.Value=bottom?captureScroll.MaximumValue:0;
