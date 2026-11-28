@@ -2183,7 +2183,7 @@ internal static class V269IntegrationTests
                     details.PerformClick();Application.DoEvents();
                     Require(list.Visible&&!shell.RightPane.Visible,"botão Detalhes do HTML fecha painel");
                 }
-                if(size.Width>1040)
+                if(!list.TableCompact)
                 {
                     var splitter=form.Controls.Find("V269AppSplitter",true).Single();
                     int previous=shell.RightPane.Width;
@@ -2335,8 +2335,10 @@ internal static class V269IntegrationTests
                     var description=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
                     Require(description.Height<surface.Height/3,"descrição curta não ocupa espaço desnecessário");
                     var viewport=shell.RightPane.Controls.Find("V269AppFlowViewport",true).OfType<Panel>().Single();
-                    Require(!viewport.VerticalScroll.Visible&&!viewport.HorizontalScroll.Visible&&
-                        !shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).Single().Visible && description is TextBox {ScrollBars:ScrollBars.None},"conteúdo curto não apresenta barras de rolagem");
+                    var flowScroll=shell.RightPane.Controls.Find("V269CleanupFlowScroll",true).OfType<DarkVScrollBar>().Single();
+                    bool coherentFlow=!viewport.VerticalScroll.Visible&&!viewport.HorizontalScroll.Visible&&
+                        flowScroll.Visible==(flowScroll.MaximumValue>0) && description is TextBox {ScrollBars:ScrollBars.None};
+                    Require(coherentFlow,"fluxo operacional usa somente rolagem temática quando há overflow");
                     var operationalHistoryBar=shell.RightPane.Controls.Find("V269AppOperationHistoryScroll",true).Single();
                     Require(!operationalHistoryBar.Visible,"histórico que cabe não possui rolagem interna");
                     var heading=shell.RightPane.Controls.Find("V269AppFlowHeading",true).Single();
@@ -2473,7 +2475,10 @@ internal static class V269IntegrationTests
                         "rolagem temática alcança o fim do painel");
                     shell.PresentPanel(operational);
                     surface.PerformLayout();Application.DoEvents();
-                    Require(!themedScroll.Visible && !longFlowViewport.VerticalScroll.Visible,"reduzir conteúdo remove a rolagem externa");
+                    Require(!longFlowViewport.VerticalScroll.Visible &&
+                        themedScroll.Visible == (themedScroll.MaximumValue > 0) &&
+                        themedScroll.Value <= themedScroll.MaximumValue,
+                        "reduzir conteúdo recalcula a rolagem externa sem estado obsoleto");
                     var flowDescription=shell.RightPane.Controls.Find("V269PanelDescription",true).Single();
                     var realCancel=form.Controls.Find("UninstallCancel",true).Single();
                     Require(!ScreenBounds(flowHistory).IntersectsWith(ScreenBounds(flowDescription))&&flowDescription.Height>0&&

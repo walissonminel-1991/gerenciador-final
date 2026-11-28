@@ -608,9 +608,17 @@ internal sealed class V269RightPane : UserControl
                 }
                 _flowNote.Height = _flowNote.MeasureHeight(width);
                 description += _flowNote.Height + _flowMeter.Height;
-                int history=_operationHistory is {} previous?previous.PreferredHeightForWidth(width)+S(3):0;
+                int historyPreferred=_operationHistory is {} previous?previous.PreferredHeightForWidth(width)+S(3):0;
                 _layout.RowStyles[2].Height=description;
                 _layout.RowStyles[4].Height=operation;
+                int fixedHeight=(int)Math.Ceiling(_layout.RowStyles[0].Height+_layout.RowStyles[1].Height+
+                    description+_layout.RowStyles[3].Height+operation);
+                // O histórico possui rolagem própria. Quando descrição e
+                // progresso cabem no viewport, ele ocupa somente o espaço
+                // restante, evitando que a rolagem externa apareça por causa
+                // de resultados anteriores. Se o conteúdo principal excede
+                // a área, a rolagem temática continua sendo a responsável.
+                int history=fixedHeight<height?Math.Min(historyPreferred,Math.Max(0,height-fixedHeight)):historyPreferred;
                 _layout.RowStyles[5].Height=history;
                 return (int)Math.Ceiling(_layout.RowStyles[0].Height+_layout.RowStyles[1].Height+
                     description+_layout.RowStyles[3].Height+operation+history);
@@ -1623,8 +1631,9 @@ internal sealed class V269Shell : UserControl
                 }
                 else if(placement==2)
                 {
-                    _centralLayout.RowCount=3;_centralLayout.RowStyles[1].Height=70;
-                    _centralLayout.RowStyles.Add(new RowStyle(SizeType.Percent,30));
+                    bool cleanupPlacement=SelectedPage==V269Page.Limpeza;
+                    _centralLayout.RowCount=3;_centralLayout.RowStyles[1].Height=cleanupPlacement?70:58;
+                    _centralLayout.RowStyles.Add(new RowStyle(SizeType.Percent,cleanupPlacement?30:42));
                     _centralLayout.Controls.Add(_rightPane,0,2);
                 }
                 else _columns.Controls.Add(_rightPane,2,0);
