@@ -30,6 +30,7 @@ internal static class V269IntegrationTests
         Timed("REC-FIS-PAINT arte de Início com recorte parcial", VerifyHomeArtPaintClip);
         Timed("REC-FIS-STARTUP texto de comandos", VerifyStartupCaptionLayout);
         Timed("Rolagem temática de texto", VerifyThemedTextScroll);
+        Timed("REC-BASE-HISTORY-WHEEL", VerifyOperationalHistoryPartialWheel);
         VerifyNoLegacyControls();
         VerifyAppOrdering();
         VerifyLocalDiagnosticExport();
@@ -2548,6 +2549,7 @@ internal static class V269IntegrationTests
                     {
                         bar.Width=originalWidth;pane.ApplyInterfaceScale(scales.Ui);bar.Value=originalPosition;
                     }
+                    VerifyHistoryPartialWheel(pane,bar,table,"detalhes");
                     // Foco real, sem chamar Enter por reflexão nem executar Dispensar.
                     var dismiss=table.Controls.Find("V269AppDismissResult",true).OfType<Button>().Single();
                     Require(list.Focus()&&dismiss.Enabled&&dismiss.CanFocus,
@@ -4753,6 +4755,50 @@ internal static class V269IntegrationTests
         home.AutoScrollPosition = Point.Empty;
         Console.WriteLine("PASS Início V2.6.9: cinco cartões, artes originais, fontes reais, três temas, geometria e capturas.");
         return snapshot;
+    }
+
+    // Isola a entrada de roda dos históricos de outros hosts; não aciona
+    // Dispensar, não injeta input global nem depende de inventário.
+    private static void VerifyOperationalHistoryPartialWheel()
+    {
+        var results=Enumerable.Range(0,12).Select(i=>new V269AppPreviousResult(
+            Guid.NewGuid(),"Resultado sintético "+i,"Fixture de histórico sem operação real.")).ToArray();
+        using var history=new V269AppOperationHistory(results,_=>throw new InvalidOperationException("Fixture não pode dispensar"))
+            {Dock=DockStyle.None,Size=new Size(360,100)};
+        history.ApplyAppearance(V269Theme.AzulGf,100,history.Font);
+        history.PerformLayout();
+        var bar=history.Controls.Find("V269AppOperationHistoryScroll",false).OfType<DarkVScrollBar>().Single();
+        var content=history.Controls.OfType<Panel>().SelectMany(view=>view.Controls.OfType<TableLayoutPanel>()).Single();
+        VerifyHistoryPartialWheel(history,bar,content,"histórico operacional");
+        Console.WriteLine("PASS REC-BASE-HISTORY-WHEEL: histórico operacional responde a deltas parciais.");
+    }
+
+    private static void VerifyHistoryPartialWheel(Control panel,DarkVScrollBar bar,Control content,string name)
+    {
+        int original=bar.Value,maximum=bar.MaximumValue,step=Math.Max(24,panel.Font.Height*3);
+        Require(maximum>0,name+": fixture deve ter overflow real");
+        var wheel=panel.GetType().GetMethod("OnMouseWheel",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        void Move(int delta)
+        {
+            var e=new HandledMouseEventArgs(MouseButtons.None,0,0,0,delta);
+            wheel.Invoke(panel,[e]);
+            Require(e.Handled&&content.Top==-bar.Value,name+": evento consumido e conteúdo acompanha a barra");
+        }
+        try
+        {
+            bar.Value=0;Move(120);
+            for(int i=1;i<=4;i++)
+            {
+                Move(-30);
+                Require(bar.Value==Math.Min(maximum,step*i/4),
+                    name+": cada delta parcial desloca pixels, sem esperar um entalhe completo");
+            }
+            Move(120);Require(bar.Value==0,name+": inversão de entalhe retorna ao início");
+            bar.Value=maximum;Move(-120);Move(30);
+            Require(bar.Value==Math.Max(0,maximum-step/4),
+                name+": limite não retém pressão invisível");
+        }
+        finally{bar.Value=original;}
     }
 
     private static T? Find<T>(Control control) where T : Control

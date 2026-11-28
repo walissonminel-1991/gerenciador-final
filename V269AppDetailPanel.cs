@@ -367,7 +367,7 @@ internal sealed class V269AppOperationHistory : Panel
     private readonly Panel _viewport=new(){Margin=Padding.Empty};
     private readonly DarkVScrollBar _scroll=new(){Name="V269AppOperationHistoryScroll",
         AccessibleName="Rolagem dos resultados anteriores",Visible=false};
-    private readonly WheelDeltaAccumulator _wheel=new();
+    private readonly PixelWheelDeltaAccumulator _wheel=new();
     private readonly TableLayoutPanel _rows=new(){Dock=DockStyle.None,AutoSize=false,
         ColumnCount=1,Margin=Padding.Empty};
     private readonly Label _heading=new(){Text="Resultados anteriores",AutoSize=true,
@@ -469,8 +469,7 @@ internal sealed class V269AppOperationHistory : Panel
     private void ScrollContent(object? sender,MouseEventArgs e)
     {
         if(e is HandledMouseEventArgs {Handled:true}||_scroll.MaximumValue==0)return;
-        int notches=_wheel.Consume(e.Delta);
-        if(notches!=0)_scroll.Value-=notches*Math.Max(24,Font.Height*3);
+        _scroll.Value=_wheel.Move(_scroll.Value,_scroll.MaximumValue,e.Delta,Math.Max(24,Font.Height*3));
         if(e is HandledMouseEventArgs handled)handled.Handled=true;
     }
     protected override void OnMouseWheel(MouseEventArgs e)
@@ -488,7 +487,7 @@ internal sealed class V269AppDetailPanel : Panel
     private readonly Panel _viewport=new(){Name="V269AppDetailsViewport",AutoScroll=false,Margin=Padding.Empty};
     private readonly DarkVScrollBar _scroll=new(){Name="V269AppDetailsScroll",
         AccessibleName="Rolagem dos detalhes do aplicativo",Visible=false};
-    private readonly WheelDeltaAccumulator _wheel=new();
+    private readonly PixelWheelDeltaAccumulator _wheel=new();
     private readonly TableLayoutPanel _table=new(){Name="V269AppDetailsFields",Dock=DockStyle.None,AutoSize=false,
         ColumnCount=2,Margin=Padding.Empty};
     private V269Palette _palette=V269VisualTokens.ForTheme(V269Theme.AzulGf);
@@ -731,8 +730,7 @@ internal sealed class V269AppDetailPanel : Panel
     private void ScrollContent(object? sender,MouseEventArgs e)
     {
         if(e is HandledMouseEventArgs {Handled:true}||_scroll.MaximumValue==0)return;
-        int notches=_wheel.Consume(e.Delta);
-        if(notches!=0)_scroll.Value-=notches*Math.Max(24,Font.Height*3);
+        _scroll.Value=_wheel.Move(_scroll.Value,_scroll.MaximumValue,e.Delta,Math.Max(24,Font.Height*3));
         if(e is HandledMouseEventArgs handled)handled.Handled=true;
     }
     protected override void OnMouseWheel(MouseEventArgs e)
