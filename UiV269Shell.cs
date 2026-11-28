@@ -1262,10 +1262,12 @@ internal sealed class V269Shell : UserControl
                 // da página anterior. Não forçar WM_PAINT nem bombear a fila.
                 ApplyNavigationSelection(V269VisualTokens.ForTheme(Theme));
                 ApplyPageHeadingGlyph(true);
-                RefreshVisiblePage();
             }
             finally { _selectingPage = false; }
             ApplyDimensions();
+            // Expor a view somente depois da reconciliação de dimensões evita
+            // erase/paint intermediário em bounds da página anterior.
+            RefreshVisiblePage();
         }
         finally { IsPageLayoutTransition = false; }
         // Despachar na mesma pilha de clique, antes do evento público.

@@ -4433,8 +4433,11 @@ internal static class V269IntegrationTests
                 !V269HomeCard.UsesVersionedWindowsArt(empty[4]),
                 "REC-FIS-02: arte com edição/versão somente quando coincide com inventário");
             home.SetModels(models);
-            // Reproduzir janela larga e baixa da evidência física, não altura do monitor.
-            surface.Size = new Size(1536,828);
+            // A evidência é expressa em unidades lógicas. A fixture precisa
+            // convertê-la para pixels físicos no DPI nativo, como a janela
+            // real, para não testar uma janela 20% menor em DPI 120.
+            int physicalScale = form.DeviceDpi;
+            surface.Size = new Size(1536 * physicalScale / 96, 828 * physicalScale / 96);
             foreach (var theme in Enum.GetValues<V269Theme>())
             {
                 themeChoice.SelectedIndex = (int)theme;
@@ -4450,12 +4453,17 @@ internal static class V269IntegrationTests
                     "REC-FIS-02: sem deslocamento ordinário real");
             }
             Console.WriteLine("PASS REC-FIS-02-HOME: cinco cartões sem rolagem ordinária nos três temas, sem comandos.");
+            surface.Size = originalSurfaceSize;
+            surface.PerformLayout();
+            Application.DoEvents();
             home.SetModels(visualFixture);
-            // 716px é um teste de estresse nativo; o HTML impõe min-width:760px.
+            // 716px é um teste de estresse lógico; o HTML impõe min-width:760px.
             // Conservar o estresse e acrescentar os dois tamanhos efetivamente comparáveis.
             foreach (Size viewportSize in new[] { new Size(716,596), new Size(760,596), new Size(992,659) })
             {
-                surface.Size = viewportSize;
+                Size physicalViewport = new(viewportSize.Width * physicalScale / 96,
+                    viewportSize.Height * physicalScale / 96);
+                surface.Size = physicalViewport;
                 foreach (var theme in Enum.GetValues<V269Theme>())
                 {
                     themeChoice.SelectedIndex = (int)theme;
@@ -4469,7 +4477,7 @@ internal static class V269IntegrationTests
                     Require(home.Cards[0].Width > 0 && home.Cards[0].Height > 0 &&
                         (viewportSize.Width >= 940) == (home.Cards[0].Top == home.Cards[1].Top),
                         "colunas do viewport de referência " + viewportSize);
-                    Require(surface.Size == viewportSize, "dimensão efetiva da captura " + viewportSize);
+                    Require(surface.Size == physicalViewport, "dimensão física efetiva da captura " + viewportSize);
                     if (home.Cards[0].Top == home.Cards[1].Top)
                         Require(home.Cards[1].Right == home.Cards[4].Right &&
                             home.Cards[3].Right == home.Cards[4].Right,
