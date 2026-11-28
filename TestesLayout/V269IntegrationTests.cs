@@ -2310,6 +2310,7 @@ internal static class V269IntegrationTests
                 Require(originalViewportWidth==detailPane.ClientSize.Width-(originalMaximum>0?expectedBar+3:0)&&
                     captureScroll.Visible==(originalMaximum>0),"detalhes: reservar a trilha somente com overflow real");
                 int originalValue=captureScroll.Value;
+                int originalScrollWidth=captureScroll.Width;
                 try
                 {
                     // Exercitar os extremos reais disponíveis, sem inventar overflow.
@@ -2337,7 +2338,12 @@ internal static class V269IntegrationTests
                             "REC-BASE-01: reaplicar tema não pode alterar a geometria ou posição da rolagem");
                     }
                 }
-                finally{captureScroll.Value=originalValue;}
+                finally
+                {
+                    captureScroll.Width=originalScrollWidth;
+                    detailPane.ApplyInterfaceScale(shell.InterfaceScalePercent);
+                    captureScroll.Value=originalValue;
+                }
                 Console.WriteLine($"PASS REC-BASE-DETAIL-WIDTH theme={(V269Theme)historyIndex} dpi={detailPane.DeviceDpi} pane={detailPane.ClientSize.Width} viewport={detailsViewport.Width} scroll={captureScroll.Width} max={originalMaximum}");
                 foreach(bool bottom in new[]{false,true})
                 {
@@ -2350,6 +2356,72 @@ internal static class V269IntegrationTests
             }
             theme.SelectedIndex=historyTheme;surface.PerformLayout();Application.DoEvents();
             Console.WriteLine("PASS Aplicativos V2.6.9: seis capturas de histórico contextual nos três temas.");
+            // Prova complementar N04: conteúdo declaradamente sintético, com
+            // overflow obrigatório, sem alterar inventário ou executar ações.
+            var savedDetail=shell.RightPane.Current!;
+            Require(savedDetail.Kind==V269PanelKind.Details&&savedDetail.Application is not null,
+                "fixture de detalhes disponível antes da prova de overflow");
+            var savedTheme=shell.Theme;
+            int savedUi=shell.InterfaceScalePercent,savedText=shell.TextScalePercent;
+            var overflowModel=savedDetail.Application! with
+            {
+                Description=string.Join(Environment.NewLine,Enumerable.Repeat("Linha sintética para testar rolagem de detalhes.",80))
+            };
+            var overflowPresentation=savedDetail with {Application=overflowModel};
+            shell.PresentPanel(overflowPresentation);
+            try
+            {
+                foreach(var testTheme in new[]{V269Theme.AzulGf,V269Theme.Dark,V269Theme.Claro})
+                foreach(var scales in new[]{(Ui:90,Text:115),(Ui:110,Text:90)})
+                {
+                    shell.ApplyAppearance(testTheme,scales.Ui,scales.Text);
+                    surface.PerformLayout();Application.DoEvents();
+                    var pane=shell.RightPane.Controls.Find("V269StructuredAppDetails",true).OfType<V269AppDetailPanel>().Single();
+                    var bar=pane.Controls.Find("V269AppDetailsScroll",false).OfType<DarkVScrollBar>().Single();
+                    var viewport=pane.Controls.Find("V269AppDetailsViewport",false).OfType<Panel>().Single();
+                    var table=viewport.Controls.Find("V269AppDetailsFields",false).OfType<TableLayoutPanel>().Single();
+                    Require(shell.Theme==testTheme&&shell.InterfaceScalePercent==scales.Ui&&shell.TextScalePercent==scales.Text&&
+                        pane.Visible&&bar.Visible&&bar.MaximumValue>0&&viewport.Height>0&&pane.ClientSize.Width>15,
+                        "N04: overflow real obrigatório na escala e tema efetivamente aplicados");
+                    int maximum=bar.MaximumValue,originalWidth=bar.Width,originalPosition=bar.Value;
+                    void RequireGeometry(int position)
+                    {
+                        Require(bar.Width==12&&bar.Right==pane.ClientSize.Width&&
+                            viewport.Width==pane.ClientSize.Width-15&&table.Width==viewport.Width&&
+                            bar.MaximumValue==maximum&&bar.Value==position&&table.Top==-position&&
+                            (position!=maximum||table.Bottom==viewport.ClientSize.Height),
+                            "N04: trilha, viewport, limite e posição consistentes com overflow");
+                    }
+                    try
+                    {
+                        foreach(int position in new[]{0,maximum})
+                        {
+                            bar.Value=position;RequireGeometry(position);
+                            bar.Width=pane.ClientSize.Width+12;
+                            Require(bar.Width>pane.ClientSize.Width,"N04: injeção residual efetiva");
+                            pane.ApplyInterfaceScale(scales.Ui);RequireGeometry(position);
+                            shell.ApplyAppearance(testTheme,scales.Ui,scales.Text);
+                            surface.PerformLayout();Application.DoEvents();
+                            RequireGeometry(position);
+                        }
+                    }
+                    finally
+                    {
+                        bar.Width=originalWidth;pane.ApplyInterfaceScale(scales.Ui);bar.Value=originalPosition;
+                    }
+                    Require(shell.RightPane.Current?.Application is {} active&&active.Name==overflowModel.Name&&
+                        active.Description==overflowModel.Description&&
+                        (active.PreviousResults??[]).SequenceEqual(overflowModel.PreviousResults??[]),
+                        "N04: tema e escala preservam identidade e histórico");
+                    Console.WriteLine($"PASS REC-BASE-DETAIL-OVERFLOW theme={testTheme} ui={scales.Ui} text={scales.Text} dpi={pane.DeviceDpi} max={maximum}");
+                }
+            }
+            finally
+            {
+                shell.ApplyAppearance(savedTheme,savedUi,savedText);
+                shell.PresentPanel(savedDetail);
+                surface.PerformLayout();Application.DoEvents();
+            }
             // Reproduzir a restauração de um resultado já registrado enquanto
             // a janela estava oculta, sem iniciar a bandeja ou manutenção real.
             var pendingResult=typeof(MainForm).GetField("_pendingUninstallResult",flags)!;
