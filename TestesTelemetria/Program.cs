@@ -271,6 +271,8 @@ try
         }
         else Console.WriteLine("SKIP: link de diretorio indisponivel; nao e teste aprovado.");
 
+        DiagnosticAuditDiskTests.Run(temp, Verify);
+
         string logFolder = Path.Combine(temp, "protected-log");
         Directory.CreateDirectory(logFolder);
         string logPath = Path.Combine(logFolder, "GerenciadorFinal-Diagnostico-" + DiagnosticTrace.VersionLabel + ".log");
