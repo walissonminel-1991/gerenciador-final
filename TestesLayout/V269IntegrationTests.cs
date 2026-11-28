@@ -2302,11 +2302,13 @@ internal static class V269IntegrationTests
                 // Reproduz a largura residual de uma geometria anterior (L02/L11).
                 // A prova injeta somente a dimensão do controle, nunca uma operação.
                 var detailsViewport=detailPane.Controls.Find("V269AppDetailsViewport",false).OfType<Panel>().Single();
-                int expectedBar=Math.Max(12,V269AppTable.Scale(14,shell.InterfaceScalePercent,detailPane.DeviceDpi));
+                const int expectedBar=12; // contrato vigente de ApplyAppScrollTheme
                 Require(detailsViewport.Width>1&&historyTable.Width==detailsViewport.Width&&
                     captureScroll.Width==expectedBar,"detalhes: largura e trilha coerentes antes da regressão");
                 int originalViewportWidth=detailsViewport.Width;
                 int originalMaximum=captureScroll.MaximumValue;
+                Require(originalViewportWidth==detailPane.ClientSize.Width-(originalMaximum>0?expectedBar+3:0)&&
+                    captureScroll.Visible==(originalMaximum>0),"detalhes: reservar a trilha somente com overflow real");
                 int originalValue=captureScroll.Value;
                 try
                 {
@@ -2327,6 +2329,12 @@ internal static class V269IntegrationTests
                             captureScroll.MaximumValue==originalMaximum&&captureScroll.Value==position&&
                             historyTable.Top==-position,
                             "REC-BASE-01: largura residual não pode colapsar a tabela nem alterar rolagem");
+                        var currentTheme=(V269Theme)historyIndex;
+                        detailPane.ApplyPalette(V269AppDetailStyle.Palette(currentTheme),currentTheme);
+                        Require(captureScroll.Width==expectedBar&&captureScroll.Right==detailPane.ClientSize.Width&&
+                            detailsViewport.Width==originalViewportWidth&&historyTable.Width==originalViewportWidth&&
+                            captureScroll.MaximumValue==originalMaximum&&captureScroll.Value==position&&historyTable.Top==-position,
+                            "REC-BASE-01: reaplicar tema não pode alterar a geometria ou posição da rolagem");
                     }
                 }
                 finally{captureScroll.Value=originalValue;}

@@ -669,8 +669,9 @@ internal sealed class V269AppDetailPanel : Panel
         if(_arranging||IsDisposed||Disposing)return;_arranging=true;
         try
         {
-            // A largura anterior pode pertencer a outro viewport/DPI.
-            int barWidth=Math.Max(12,V269AppTable.Scale(14,_interfacePercent,DeviceDpi));
+            // Mesma espessura de DarkVScrollBar.ApplyAppScrollTheme (12 px).
+            // Não ler Bounds anteriores nem divergir da reaplicação do tema.
+            const int barWidth=12;
             int height=Math.Max(1,ClientSize.Height);
             bool app = _model is { DriverGlyph: null };
             var labels = _table.Controls.OfType<Label>().ToArray();
