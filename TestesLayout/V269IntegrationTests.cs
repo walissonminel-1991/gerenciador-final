@@ -4797,6 +4797,33 @@ internal static class V269IntegrationTests
         }
         finally{bar.Value=original;}
         Console.WriteLine("PASS REC-BASE-HISTORY-MEASURE: medida consultiva preserva viewport, posição e identidade.");
+        int originalWidth=bar.Width;
+        try
+        {
+            foreach(int position in new[]{0,bar.MaximumValue})
+            {
+                bar.Value=position;
+                int maximum=bar.MaximumValue,width=viewport.ClientSize.Width;
+                var bounds=content.Bounds;
+                bar.Width=history.ClientSize.Width+12;
+                Require(bar.Width>history.ClientSize.Width,
+                    "histórico: controle negativo de largura residual efetivo");
+                // Reproduzir o evento de medição que não reaplica a paleta.
+                typeof(V269AppOperationHistory).GetMethod("MeasureRows",BindingFlags.Instance|BindingFlags.NonPublic)!
+                    .Invoke(history,null);
+                Require(bar.Width==12&&bar.Right==history.ClientSize.Width&&
+                    viewport.ClientSize.Width==width&&content.Bounds==bounds&&
+                    bar.MaximumValue==maximum&&bar.Value==position,
+                    "REC-BASE-HISTORY-WIDTH: medição restaura trilha sem colapsar conteúdo ou rolagem");
+            }
+        }
+        finally
+        {
+            bar.Width=originalWidth;
+            history.ApplyAppearance(V269Theme.AzulGf,100,history.Font);
+            bar.Value=original;
+        }
+        Console.WriteLine("PASS REC-BASE-HISTORY-WIDTH: largura residual da barra operacional corrigida.");
         Console.WriteLine("PASS REC-BASE-HISTORY-WHEEL: histórico operacional responde a deltas parciais.");
     }
 

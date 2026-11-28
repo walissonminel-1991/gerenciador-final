@@ -462,7 +462,9 @@ internal sealed class V269AppOperationHistory : Panel
         try
         {
             int width=Math.Max(1,ClientSize.Width),height=Math.Max(1,ClientSize.Height);
-            int barWidth=Math.Max(12,_scroll.Width);
+            // Mesma espessura temática dos detalhes; ignorar largura residual
+            // de um layout ou DPI anterior, inclusive antes de reaplicar o tema.
+            const int barWidth=12;
             int content=Measure(width);
             if(content>height){width=Math.Max(1,width-barWidth-3);content=Measure(width);}
             _viewport.Bounds=new Rectangle(0,0,width,height);
