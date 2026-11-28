@@ -4770,6 +4770,33 @@ internal static class V269IntegrationTests
         var bar=history.Controls.Find("V269AppOperationHistoryScroll",false).OfType<DarkVScrollBar>().Single();
         var content=history.Controls.OfType<Panel>().SelectMany(view=>view.Controls.OfType<TableLayoutPanel>()).Single();
         VerifyHistoryPartialWheel(history,bar,content,"histórico operacional");
+        var viewport=content.Parent!;
+        var rows=content.Controls.OfType<V269AppHistoryRow>().ToArray();
+        Require(rows.Length==results.Length&&content.Width==viewport.ClientSize.Width&&
+            history.ClientSize.Width>viewport.ClientSize.Width,
+            "histórico: fixture com largura reduzida pela barra interna");
+        int original=bar.Value;
+        try
+        {
+            bar.Value=Math.Min(37,bar.MaximumValue);
+            var expectedBounds=content.Bounds;
+            int expectedMaximum=bar.MaximumValue,expectedValue=bar.Value;
+            var expectedRows=rows.Select(row=>row.Bounds).ToArray();
+            var expectedWidths=rows.Select(row=>row.MaximumSize.Width).ToArray();
+            foreach(int candidateWidth in new[]{history.ClientSize.Width,viewport.ClientSize.Width-37,viewport.ClientSize.Width})
+            {
+                Require(history.PreferredHeightForWidth(candidateWidth)>0,
+                    "histórico: altura consultiva positiva");
+                Require(content.Bounds==expectedBounds&&content.Width==viewport.ClientSize.Width&&
+                    bar.MaximumValue==expectedMaximum&&bar.Value==expectedValue&&
+                    rows.SequenceEqual(content.Controls.OfType<V269AppHistoryRow>())&&
+                    expectedRows.SequenceEqual(rows.Select(row=>row.Bounds))&&
+                    expectedWidths.SequenceEqual(rows.Select(row=>row.MaximumSize.Width)),
+                    "REC-BASE-HISTORY-MEASURE: consultar largura candidata não altera geometria nem posição real");
+            }
+        }
+        finally{bar.Value=original;}
+        Console.WriteLine("PASS REC-BASE-HISTORY-MEASURE: medida consultiva preserva viewport, posição e identidade.");
         Console.WriteLine("PASS REC-BASE-HISTORY-WHEEL: histórico operacional responde a deltas parciais.");
     }
 

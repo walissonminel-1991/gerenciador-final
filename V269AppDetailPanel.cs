@@ -427,16 +427,35 @@ internal sealed class V269AppOperationHistory : Panel
         foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyPalette(palette);
         MeasureRows();_heading.Invalidate();
     }
-    private int Measure(int width)
+    private void ConfigureRows(int width)
     {
-        width=Math.Max(1,width);
         int S(int n)=>V269AppTable.Scale(n,_percent,DeviceDpi);
         _heading.Padding=new Padding(0,S(12),0,S(9));
         _rows.Width=width;_heading.MaximumSize=new Size(width,0);
         foreach(var row in _rows.Controls.OfType<V269AppHistoryRow>())row.ApplyMetrics(_percent,width);
+    }
+    private int Measure(int width)
+    {
+        width=Math.Max(1,width);
+        ConfigureRows(width);
         return Math.Max(1,_rows.GetPreferredSize(new Size(width,0)).Height);
     }
-    internal int PreferredHeightForWidth(int width)=>Measure(width);
+    internal int PreferredHeightForWidth(int width)
+    {
+        // O hospedeiro consulta larguras candidatas antes de distribuir
+        // as linhas. A consulta não pode deixar o conteúdo mais largo que
+        // o viewport atual, mesmo quando a altura final não muda.
+        int visibleWidth=Math.Max(1,_viewport.ClientSize.Width);
+        try{return Measure(width);}
+        finally
+        {
+            if(Math.Max(1,width)!=visibleWidth)
+            {
+                ConfigureRows(visibleWidth);
+                _rows.PerformLayout();
+            }
+        }
+    }
     private void MeasureRows()
     {
         if(_measuring||IsDisposed||Disposing)return;_measuring=true;
