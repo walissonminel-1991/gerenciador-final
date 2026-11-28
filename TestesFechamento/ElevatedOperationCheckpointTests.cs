@@ -22,6 +22,11 @@ internal static class ElevatedOperationCheckpointTests
                 var other = Gate(normal);
                 check(other.TryAcquire() is null && other.IsInconclusive,
                     "GF-04 recuperação: segunda instância não adquire durante execução");
+                bool denied = false;
+                try { File.Delete(Marker(normal)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { denied = true; }
+                check(denied && File.Exists(Marker(normal)),
+                    "GF-04 recuperação: handle próprio impede remover marcador durante posse");
                 lease.Complete(confirmed);
             }
             check(!first.IsBlocked && !File.Exists(Marker(normal)),
@@ -56,7 +61,26 @@ internal static class ElevatedOperationCheckpointTests
             var unavailable = Gate(absent);
             check(unavailable.TryAcquire() is null && unavailable.IsInconclusive && !Directory.Exists(absent),
                 "GF-04 recuperação: destino indisponível não admite nem usa fallback");
+            var beginFails = new CheckpointFaultFixture(begin: false, clear: true);
+            var failedAdmission = new ElevatedOperationAdmission(beginFails);
+            check(failedAdmission.TryAcquire() is null && failedAdmission.IsInconclusive &&
+                failedAdmission.TryAcquire() is null && beginFails.BeginCalls == 1,
+                "GF-04 recuperação: falha de persistência não admite nem repete aquisição");
+            var clearFails = new CheckpointFaultFixture(begin: true, clear: false);
+            var failedRelease = new ElevatedOperationAdmission(clearFails);
+            using (var lease = failedRelease.TryAcquire() ?? throw new InvalidOperationException("fixture"))
+                lease.Complete(confirmed);
+            check(failedRelease.IsInconclusive && failedRelease.TryAcquire() is null && clearFails.ClearCalls == 1,
+                "GF-04 recuperação: falha de liberação bloqueia mesmo após terminal confirmado");
         }
         finally { Directory.Delete(root, recursive: true); }
     }
+}
+
+internal sealed class CheckpointFaultFixture(bool begin, bool clear) : IElevatedOperationCheckpoint
+{
+    internal int BeginCalls, ClearCalls;
+    public bool TryBegin() { BeginCalls++; return begin; }
+    public bool TryClear() { ClearCalls++; return clear; }
+    public void Retain() { }
 }
